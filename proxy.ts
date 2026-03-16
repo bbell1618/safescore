@@ -74,6 +74,41 @@ export async function proxy(request: NextRequest) {
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
+
+    // Subscription gate — skip for onboarding pages themselves
+    const isOnboardingPath =
+      path === "/portal/onboarding" ||
+      path.startsWith("/portal/onboarding/");
+
+    if (!isOnboardingPath) {
+      const role = user.user_metadata?.role as string | undefined;
+
+      // Only enforce subscription check for client_users
+      if (role === "client_user") {
+        // Look up client_id for this user
+        const { data: userRecord } = await supabase
+          .from("users")
+          .select("client_id")
+          .eq("id", user.id)
+          .single();
+
+        if (userRecord?.client_id) {
+          // Check for an active subscription
+          const { data: subscription } = await supabase
+            .from("subscriptions")
+            .select("id")
+            .eq("client_id", (userRecord as any).client_id)
+            .eq("status", "active")
+            .maybeSingle();
+
+          if (!subscription) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/portal/onboarding";
+            return NextResponse.redirect(url);
+          }
+        }
+      }
+    }
   }
 
   return supabaseResponse;
