@@ -94,8 +94,38 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
   if (!process.env.FMCSA_API_KEY) {
     return getMockCarrier(dot);
   }
-  const data = await fetchFMCSA<{ content: { carrier: FMCSACarrier } }>(`/carriers/${dot}`);
-  return data.content.carrier;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await fetchFMCSA<{ content: { carrier: any } }>(`/carriers/${dot}`);
+  const r = data.content.carrier;
+  // Normalize real API response to our FMCSACarrier interface
+  return {
+    dotNumber: String(r.dotNumber ?? dot),
+    legalName: r.legalName ?? "",
+    dbaName: r.dbaName ?? null,
+    carrierOperation: r.carrierOperation?.carrierOperationCode ?? r.carrierOperation ?? "",
+    hmFlag: r.hmFlag ?? "N",
+    pcFlag: r.pcFlag ?? "N",
+    phyStreet: r.phyStreet ?? "",
+    phyCity: r.phyCity ?? "",
+    phyState: r.phyState ?? "",
+    phyZip: r.phyZipcode ?? r.phyZip ?? "",
+    phyCountry: r.phyCountry ?? "US",
+    mxInterstateFlag: r.mxInterstateFlag ?? "N",
+    totalDrivers: r.totalDrivers ?? 0,
+    totalPowerUnits: r.totalPowerUnits ?? 0,
+    mcNumber: r.mcNumber ?? null,
+    mcs150FormDate: r.mcs150FormDate ?? null,
+    mcs150MileageYear: r.mcs150MileageYear ?? null,
+    mcs150Mileage: r.mcs150Mileage ?? null,
+    safetyRating: r.safetyRating ?? null,
+    safetyRatingDate: r.safetyRatingDate ?? r.safetyReviewDate ?? null,
+    reviewType: r.reviewType ?? r.safetyReviewType ?? null,
+    reviewDate: r.reviewDate ?? r.safetyReviewDate ?? null,
+    censusTypeDesc: r.censusTypeId?.censusTypeDesc ?? null,
+    entityType: r.censusTypeId?.censusType ?? null,
+    statusCode: r.statusCode ?? null,
+    usdotStatus: r.statusCode ?? null,
+  };
 }
 
 export async function getBasics(dot: string): Promise<FMCSABasics> {
