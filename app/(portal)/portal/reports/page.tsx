@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Info } from "lucide-react";
 import { ReportViewer } from "./report-viewer";
+import { PortalDownloadReportButton } from "@/components/portal/download-report-button";
 
 export const dynamic = "force-dynamic";
 
@@ -42,16 +43,19 @@ export default async function PortalReportsPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
-        >
-          Reports
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Assessment and safety reports GEIA has sent to your company.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1
+            className="text-xl font-bold text-[#222222]"
+            style={{ fontFamily: "var(--font-montserrat)" }}
+          >
+            Reports
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Assessment and safety reports GEIA has sent to your company.
+          </p>
+        </div>
+        <PortalDownloadReportButton />
       </div>
 
       {reports && reports.length > 0 ? (

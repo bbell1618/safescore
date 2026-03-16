@@ -1,100 +1,214 @@
-import { createServiceClient } from "@/lib/supabase/server";
-import { generateAssessmentReport } from "@/lib/ai/openrouter";
-import { getBasics, getOosRates } from "@/lib/fmcsa/client";
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getCarrier, getBasics } from "@/lib/fmcsa/client";
+import { SafetyReport } from "@/lib/pdf/safety-report";
+import { renderToBuffer } from "@react-pdf/renderer";
+import React from "react";
 
-const schema = z.object({
-  clientId: z.string().uuid(),
-  dotNumber: z.string(),
-  carrierName: z.string(),
-  type: z.enum(["assessment", "monthly", "quarterly", "improvement", "underwriter"]),
-});
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  // ── 1. Auth — get current user ──────────────────────────────────────────────
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  const { clientId, dotNumber, carrierName, type } = parsed.data;
-  const supabase = await createServiceClient();
+  // ── 2. Determine role and client_id ──────────────────────────────────────────
+  const serviceSupabase = await createServiceClient();
 
-  // Fetch carrier data
-  let basics = null;
-  let oos = null;
+  const { data: userRecord } = await serviceSupabase
+    .from("users")
+    .select("role, client_id")
+    .eq("id", user.id)
+    .single() as any;
+
+  const role: string = userRecord?.role ?? "client_user";
+
+  let clientId: string | null = null;
+
+  if (role === "geia_admin") {
+    // Admin passes client_id in the request body
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // empty body is fine — treat as missing client_id
+    }
+    clientId = body?.client_id ?? null;
+    if (!clientId) {
+      return new Response(JSON.stringify({ error: "client_id is required for admin users" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    // Portal user — derive client_id from their user record
+    clientId = userRecord?.client_id ?? null;
+    if (!clientId) {
+      return new Response(JSON.stringify({ error: "No client associated with this account" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // ── 3. Fetch client record ───────────────────────────────────────────────────
+  const { data: client, error: clientError } = await serviceSupabase
+    .from("clients")
+    .select("id, name, dot_number, mc_number")
+    .eq("id", clientId)
+    .single() as any;
+
+  if (clientError || !client) {
+    return new Response(JSON.stringify({ error: "Client not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // ── 4. Fetch carrier data from FMCSA ────────────────────────────────────────
+  let carrier: any = {
+    legalName: client.name,
+    dotNumber: client.dot_number,
+    phyCity: "",
+    phyState: "",
+    totalDrivers: 0,
+    totalPowerUnits: 0,
+    safetyRating: null,
+    usdotStatus: null,
+  };
+
   try {
-    [basics, oos] = await Promise.all([
-      getBasics(dotNumber),
-      getOosRates(dotNumber),
-    ]);
+    const fmcsaCarrier = await getCarrier(client.dot_number);
+    carrier = {
+      legalName: fmcsaCarrier.legalName,
+      dotNumber: fmcsaCarrier.dotNumber,
+      phyCity: fmcsaCarrier.phyCity,
+      phyState: fmcsaCarrier.phyState,
+      totalDrivers: fmcsaCarrier.totalDrivers,
+      totalPowerUnits: fmcsaCarrier.totalPowerUnits,
+      safetyRating: fmcsaCarrier.safetyRating,
+      usdotStatus: fmcsaCarrier.usdotStatus,
+    };
   } catch (e) {
-    console.warn("Could not fetch FMCSA data for report:", e);
+    console.warn("Could not fetch FMCSA carrier data:", e);
   }
 
-  // Fetch violation stats
-  const { count: totalViolations } = await supabase
+  // ── 5. Fetch BASIC scores ────────────────────────────────────────────────────
+  let basics: Array<{
+    category: string;
+    measure: number | null;
+    percentile: number | null;
+    alertIndicator: string | null;
+  }> = [];
+
+  try {
+    const fmcsaBasics = await getBasics(client.dot_number);
+    const basicEntries = [
+      fmcsaBasics.unsafeDriving,
+      fmcsaBasics.hosCompliance,
+      fmcsaBasics.driverFitness,
+      fmcsaBasics.controlledSubstances,
+      fmcsaBasics.vehicleMaintenance,
+      fmcsaBasics.hmCompliance,
+      fmcsaBasics.crashIndicator,
+    ];
+    basics = basicEntries
+      .filter((b): b is NonNullable<typeof b> => b !== null)
+      .map((b) => ({
+        category: b.category,
+        measure: b.measureValue ?? null,
+        percentile: b.percentile ?? null,
+        alertIndicator: b.alert ? "Y" : "N",
+      }));
+  } catch (e) {
+    console.warn("Could not fetch FMCSA BASIC data:", e);
+  }
+
+  // ── 6. Fetch violations from Supabase ────────────────────────────────────────
+  const { data: violationRows } = await serviceSupabase
     .from("violations")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", clientId);
-
-  const { count: challengeableViolations } = await supabase
-    .from("violations")
-    .select("*", { count: "exact", head: true })
+    .select("date, description, severity_weight, oos_violation, challengeable, basic_category")
     .eq("client_id", clientId)
-    .eq("challengeable", true);
+    .order("date", { ascending: false })
+    .limit(50) as any;
 
-  const { count: totalCrashes } = await supabase
-    .from("crashes")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", clientId);
+  const violations: Array<{
+    date: string;
+    description: string;
+    severity_weight: number | null;
+    oos_violation: boolean;
+    challengeable: boolean | null;
+    basic_category: string | null;
+  }> = (violationRows ?? []).map((v: any) => ({
+    date: v.date ?? "",
+    description: v.description ?? "",
+    severity_weight: v.severity_weight ?? null,
+    oos_violation: v.oos_violation ?? false,
+    challengeable: v.challengeable ?? null,
+    basic_category: v.basic_category ?? null,
+  }));
 
-  const { count: cpdpEligibleCrashes } = await supabase
-    .from("crashes")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", clientId)
-    .eq("cpdp_eligible", true);
-
-  // Fetch action items
-  const { data: actionItems } = await supabase
-    .from("action_items")
-    .select("title")
-    .eq("client_id", clientId)
-    .eq("status", "pending")
-    .order("projected_impact_score", { ascending: false })
-    .limit(5);
-
-  const basicsForReport = basics
-    ? {
-        "Unsafe Driving": basics.unsafeDriving,
-        "HOS Compliance": basics.hosCompliance,
-        "Driver Fitness": basics.driverFitness,
-        "Controlled Substances": basics.controlledSubstances,
-        "Vehicle Maintenance": basics.vehicleMaintenance,
-        "HM Compliance": basics.hmCompliance,
-        "Crash Indicator": basics.crashIndicator,
-      }
-    : {};
-
-  const content = await generateAssessmentReport({
-    carrierName,
-    dotNumber,
-    fleetSize: 0, // would fetch from client record
-    driverCount: 0,
-    basics: basicsForReport as Record<string, { measureValue: number; percentile: number | null; alert: boolean } | null>,
-    oosRates: {
-      vehicleOosRate: oos?.vehicleOosRate ?? null,
-      driverOosRate: oos?.driverOosRate ?? null,
-      hazmatOosRate: oos?.hazmatOosRate ?? null,
-    },
-    totalViolations: totalViolations ?? 0,
-    challengeableViolations: challengeableViolations ?? 0,
-    totalCrashes: totalCrashes ?? 0,
-    cpdpEligibleCrashes: cpdpEligibleCrashes ?? 0,
-    topActionItems: actionItems?.map((a) => a.title) ?? [],
-    estimatedPremiumImpact: "Potential savings of $20,000-$100,000/year based on fleet size and score improvement",
+  // ── 7. Build report date ─────────────────────────────────────────────────────
+  const today = new Date();
+  const reportDate = today.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
   });
+  const dateSlug = today.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  return NextResponse.json({ content });
+  // ── 8. Render PDF to buffer ──────────────────────────────────────────────────
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderToBuffer(
+      React.createElement(SafetyReport, {
+        client: {
+          name: client.name,
+          dot_number: client.dot_number,
+          mc_number: client.mc_number ?? null,
+        },
+        carrier,
+        basics,
+        violations,
+        reportDate,
+        generatedBy: user.id,
+      }) as any
+    );
+  } catch (e) {
+    console.error("PDF render error:", e);
+    return new Response(JSON.stringify({ error: "Failed to generate PDF" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // ── 9. Insert report record ──────────────────────────────────────────────────
+  try {
+    await serviceSupabase.from("reports").insert({
+      client_id: clientId,
+      report_type: "safety_score",
+      title: `Safety Report — ${client.name} — ${dateSlug}`,
+      status: "completed",
+      generated_by: user.id,
+    } as any);
+  } catch (e) {
+    // Non-fatal — PDF was generated, log and continue
+    console.warn("Could not insert report record:", e);
+  }
+
+  // ── 10. Return PDF ───────────────────────────────────────────────────────────
+  return new Response(pdfBuffer as unknown as BodyInit, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="safescore-${client.dot_number}-${dateSlug}.pdf"`,
+    },
+  });
 }

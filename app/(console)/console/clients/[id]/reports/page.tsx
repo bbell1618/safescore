@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ReportGenerator } from "@/components/console/report-generator";
+import { DownloadReportButton } from "@/components/console/download-report-button";
 import { formatDate } from "@/lib/utils";
 import { ChevronRight, FileText } from "lucide-react";
 
@@ -49,16 +50,19 @@ export default async function ReportsPage({
         <span className="text-[#222222] font-medium">Reports</span>
       </div>
 
-      <div>
-        <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
-        >
-          Report generator
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          AI-generated reports with human review before sending to client
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1
+            className="text-xl font-bold text-[#222222]"
+            style={{ fontFamily: "var(--font-montserrat)" }}
+          >
+            Report generator
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            AI-generated reports with human review before sending to client
+          </p>
+        </div>
+        <DownloadReportButton clientId={id} clientName={client.name} />
       </div>
 
       <ReportGenerator clientId={id} dotNumber={client.dot_number} carrierName={client.name} />
