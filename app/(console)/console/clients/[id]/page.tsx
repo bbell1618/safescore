@@ -15,6 +15,7 @@ import {
   Mail,
   ChevronRight,
 } from "lucide-react";
+import { InviteButton } from "@/components/console/invite-button";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +159,7 @@ export default async function ClientDetailPage({
 
           {/* Action buttons */}
           <div className="flex gap-2 shrink-0">
+            <InviteButton clientId={id} clientName={client.name} />
             <Link
               href={`/console/clients/${id}/violations`}
               className="px-3 py-1.5 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-[#DC362E] hover:text-[#DC362E] transition-colors"
