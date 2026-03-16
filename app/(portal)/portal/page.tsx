@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getCarrier } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
 import { Badge } from "@/components/ui/badge";
 import { OnboardingBanner } from "@/components/portal/onboarding-banner";
@@ -7,10 +8,15 @@ import { formatDate, priorityVariant, caseStatusLabel, caseStatusVariant } from 
 import {
   Building2,
   MapPin,
+  Truck,
+  Users2,
   CheckCircle2,
   FileSearch,
   ShieldAlert,
   Info,
+  ShieldCheck,
+  AlertTriangle,
+  Activity,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +89,8 @@ export default async function PortalDashboardPage() {
     { data: cpdpCases },
     { data: actionItems },
     { count: completedActionCount },
+    { count: violationCount },
+    { count: crashCount },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).single(),
     supabase
@@ -114,9 +122,25 @@ export default async function PortalDashboardPage() {
       .select("*", { count: "exact", head: true })
       .eq("client_id", clientId)
       .eq("status", "completed"),
+    supabase
+      .from("violations")
+      .select("*", { count: "exact", head: true })
+      .eq("client_id", clientId),
+    supabase
+      .from("crashes")
+      .select("*", { count: "exact", head: true })
+      .eq("client_id", clientId),
   ]);
 
   if (!client) redirect("/portal");
+
+  // Fetch FMCSA carrier data (non-blocking — fail gracefully)
+  let carrier = null;
+  try {
+    carrier = await getCarrier(client.dot_number);
+  } catch {
+    // carrier stays null — display fallback
+  }
 
   const basicsArray = snapshot
     ? [
@@ -167,50 +191,141 @@ export default async function PortalDashboardPage() {
 
   const activeDataqCount = dataqCases?.length ?? 0;
   const activeCpdpCount = cpdpCases?.length ?? 0;
+  const openCaseCount = activeDataqCount + activeCpdpCount;
 
   return (
     <div className="space-y-6">
       {/* Onboarding banner (shown when no snapshot) */}
       {!snapshot && <OnboardingBanner />}
 
-      {/* Company header */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <h1
-                className="text-xl font-bold text-[#222222]"
-                style={{ fontFamily: "var(--font-montserrat)" }}
-              >
-                {client.name}
-              </h1>
-              {client.tier && (
-                <Badge variant={tierVariant(client.tier)}>
-                  {tierLabel[client.tier]}
-                </Badge>
-              )}
-              <Badge variant={client.status === "active" ? "success" : "default"}>
-                {client.status}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5" />
-                DOT {client.dot_number}
-                {client.mc_number ? ` · MC ${client.mc_number}` : ""}
-              </span>
-              {(client.city || client.state) && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {[client.city, client.state].filter(Boolean).join(", ")}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Welcome header */}
+      <div>
+        <h1
+          className="text-xl font-bold text-[#222222]"
+          style={{ fontFamily: "var(--font-montserrat)" }}
+        >
+          Welcome back, {client.name}
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Your SafeScore dashboard — DOT {client.dot_number}
+        </p>
       </div>
 
-      {/* BASIC score section */}
+      {/* Quick stats row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          {
+            label: "Violations on file",
+            value: violationCount ?? 0,
+            icon: AlertTriangle,
+            iconBg: "bg-red-50",
+            iconColor: "text-[#DC362E]",
+          },
+          {
+            label: "Crashes on file",
+            value: crashCount ?? 0,
+            icon: Activity,
+            iconBg: "bg-orange-50",
+            iconColor: "text-orange-600",
+          },
+          {
+            label: "Open cases",
+            value: openCaseCount,
+            icon: FileSearch,
+            iconBg: "bg-blue-50",
+            iconColor: "text-blue-600",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-3"
+          >
+            <div className={`w-9 h-9 rounded-lg ${stat.iconBg} flex items-center justify-center shrink-0`}>
+              <stat.icon className={`w-4 h-4 ${stat.iconColor}`} />
+            </div>
+            <div>
+              <p
+                className="text-2xl font-bold text-[#222222]"
+                style={{ fontFamily: "var(--font-montserrat)" }}
+              >
+                {stat.value}
+              </p>
+              <p className="text-xs text-gray-500">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Carrier info card (FMCSA data) */}
+      {carrier && (
+        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+          <h2
+            className="font-semibold text-[#222222] text-sm mb-4"
+            style={{ fontFamily: "var(--font-montserrat)" }}
+          >
+            Carrier profile
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
+              <p className="text-sm font-medium text-[#222222]">{carrier.legalName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
+              <p className="text-sm font-medium text-[#222222]">{carrier.dotNumber}</p>
+            </div>
+            {carrier.mcNumber && (
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">MC number</p>
+                <p className="text-sm font-medium text-[#222222]">{carrier.mcNumber}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Operating status</p>
+              <span
+                className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
+                  carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {carrier.usdotStatus ?? carrier.statusCode ?? "Unknown"}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Power units</p>
+              <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-gray-400" />
+                {carrier.totalPowerUnits}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
+              <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+                <Users2 className="w-3.5 h-3.5 text-gray-400" />
+                {carrier.totalDrivers}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Safety rating</p>
+              <p className="text-sm font-medium text-[#222222]">
+                {carrier.safetyRating ?? "Not rated"}
+              </p>
+            </div>
+            {(carrier.phyCity || carrier.phyState) && (
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Location</p>
+                <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                  {[carrier.phyCity, carrier.phyState].filter(Boolean).join(", ")}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Your Safety Score section */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -218,14 +333,20 @@ export default async function PortalDashboardPage() {
               className="font-semibold text-[#222222] text-sm"
               style={{ fontFamily: "var(--font-montserrat)" }}
             >
-              BASIC scores
+              Your safety score
             </h2>
             {snapshot && (
               <p className="text-xs text-gray-400 mt-0.5">
-                As of {formatDate(snapshot.snapshot_date)}
+                BASIC measures as of {formatDate(snapshot.snapshot_date)}
               </p>
             )}
           </div>
+          {snapshot && (
+            <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <ShieldCheck className="w-4 h-4" />
+              Assessment complete
+            </div>
+          )}
         </div>
 
         {basicsArray.length > 0 ? (
@@ -244,10 +365,13 @@ export default async function PortalDashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-[#E5E5E5] bg-[#F4F4F4] px-5 py-8 text-center">
-            <p className="text-sm text-gray-500">
-              Your first score snapshot will appear here after GEIA completes your initial
-              assessment.
+          <div className="rounded-lg border border-[#E5E5E5] bg-[#F4F4F4] px-6 py-10 text-center">
+            <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm font-medium text-[#222222]">
+              Your first safety assessment is being prepared.
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              You&apos;ll receive an email when it&apos;s ready.
             </p>
           </div>
         )}
@@ -268,7 +392,7 @@ export default async function PortalDashboardPage() {
             {/* DataQs */}
             <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <FileSearch className="w-4.5 h-4.5 text-blue-600" />
+                <FileSearch className="w-4 h-4 text-blue-600" />
               </div>
               <div>
                 <p
@@ -284,7 +408,7 @@ export default async function PortalDashboardPage() {
             {/* CPDP */}
             <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-4.5 h-4.5 text-amber-600" />
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
               </div>
               <div>
                 <p
@@ -300,7 +424,7 @@ export default async function PortalDashboardPage() {
             {/* Completed action items */}
             <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4.5 h-4.5 text-green-600" />
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
               </div>
               <div>
                 <p
@@ -328,7 +452,7 @@ export default async function PortalDashboardPage() {
 
           {actionItems && actionItems.length > 0 ? (
             <div className="divide-y divide-[#E5E5E5]">
-              {actionItems.map((item) => (
+              {actionItems.map((item: any) => (
                 <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[#222222]">{item.title}</p>

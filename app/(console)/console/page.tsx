@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { QuickAssessment } from "@/components/console/quick-assessment";
+import { NewClientButton } from "@/components/console/new-client-button";
 import { AlertTriangle, CheckCircle, Clock, Users, TrendingDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default async function ConsolePage() {
             All SafeScore clients and prospects
           </p>
         </div>
+        <NewClientButton />
       </div>
 
       {/* Stats bar */}
