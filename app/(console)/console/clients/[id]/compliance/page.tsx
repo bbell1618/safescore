@@ -55,14 +55,14 @@ export default async function CompliancePage({
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">Compliance manager</span>
+        <span className="text-[#1A1A1A] font-medium">Compliance manager</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Compliance manager
           </h1>
@@ -82,8 +82,8 @@ export default async function CompliancePage({
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400" />
               <h2
-                className="font-semibold text-[#222222] text-sm"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="font-semibold text-[#1A1A1A] text-sm"
+               
               >
                 Driver roster ({drivers?.length ?? 0})
               </h2>
@@ -99,7 +99,7 @@ export default async function CompliancePage({
                 return (
                   <div key={d.id} className="px-5 py-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[#222222]">{d.full_name}</p>
+                      <p className="text-sm font-medium text-[#1A1A1A]">{d.full_name}</p>
                       <p className="text-xs text-gray-400">
                         CDL exp: {formatDate(d.cdl_expiry)} · Med cert: {formatDate(d.medical_cert_expiry)}
                       </p>
@@ -127,8 +127,8 @@ export default async function CompliancePage({
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-gray-400" />
               <h2
-                className="font-semibold text-[#222222] text-sm"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="font-semibold text-[#1A1A1A] text-sm"
+               
               >
                 Vehicle fleet ({vehicles?.length ?? 0})
               </h2>
@@ -140,7 +140,7 @@ export default async function CompliancePage({
               {vehicles.map((v) => (
                 <div key={v.id} className="px-5 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[#222222]">
+                    <p className="text-sm font-medium text-[#1A1A1A]">
                       Unit {v.unit_number ?? "—"} · {v.year} {v.make} {v.model}
                     </p>
                     <p className="text-xs text-gray-400">
@@ -162,8 +162,8 @@ export default async function CompliancePage({
       {/* Mock audit checklist */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
-          className="font-semibold text-[#222222] text-sm mb-4"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="font-semibold text-[#1A1A1A] text-sm mb-4"
+         
         >
           Mock compliance review — 6 FMCSA audit areas
         </h2>
@@ -183,7 +183,7 @@ export default async function CompliancePage({
                 <AlertTriangle className="w-4 h-4 text-[#C5A059] shrink-0" />
               )}
               <div>
-                <p className="text-sm font-medium text-[#222222]">{area.area}</p>
+                <p className="text-sm font-medium text-[#1A1A1A]">{area.area}</p>
                 <p className="text-xs text-gray-500">
                   {area.status === "ok" ? "Passing" : "Needs review"}
                 </p>

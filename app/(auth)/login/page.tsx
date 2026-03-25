@@ -36,7 +36,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-10 h-10 rounded-lg bg-[#DC362E] flex items-center justify-center">
-              <span className="text-white font-bold text-lg" style={{ fontFamily: "var(--font-montserrat)" }}>
+              <span className="text-white font-bold text-lg">
                 GE
               </span>
             </div>
@@ -44,14 +44,14 @@ export default function LoginPage() {
               <p className="text-xs text-gray-500 uppercase tracking-widest leading-none">
                 Golden Era
               </p>
-              <p className="font-bold text-[#222222] leading-none" style={{ fontFamily: "var(--font-montserrat)" }}>
+              <p className="font-bold text-[#1A1A1A] leading-none">
                 SafeScore
               </p>
             </div>
           </div>
           <h1
-            className="text-2xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-2xl font-bold text-[#1A1A1A]"
+           
           >
             Sign in
           </h1>
@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 Email address
               </label>
@@ -85,7 +85,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 Password
               </label>
@@ -111,7 +111,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full py-2.5 px-4 bg-[#DC362E] text-white rounded-lg font-medium text-sm hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+             
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>

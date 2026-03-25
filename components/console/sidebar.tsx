@@ -32,7 +32,7 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-[#222222] flex flex-col h-screen sticky top-0">
+    <aside className="w-56 shrink-0 bg-[#1A1A1A] flex flex-col h-screen sticky top-0">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
@@ -45,14 +45,14 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
             </p>
             <p
               className="text-white font-bold text-sm leading-tight"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+             
             >
               SafeScore
             </p>
           </div>
         </div>
         <div className="mt-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DC362E]/20 text-[#DC362E]">
-          GEIA Console
+          Console
         </div>
       </div>
 

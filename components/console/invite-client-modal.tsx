@@ -55,8 +55,8 @@ export function InviteClientModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
           <div>
             <h2
-              className="font-bold text-[#222222] text-base"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-bold text-[#1A1A1A] text-base"
+             
             >
               Invite client to portal
             </h2>
@@ -64,7 +64,7 @@ export function InviteClientModal({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-[#222222] transition-colors"
+            className="text-gray-400 hover:text-[#1A1A1A] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -75,14 +75,14 @@ export function InviteClientModal({
           {success ? (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <CheckCircle className="w-10 h-10 text-green-500" />
-              <p className="font-medium text-[#222222]">Invite sent</p>
+              <p className="font-medium text-[#1A1A1A]">Invite sent</p>
               <p className="text-sm text-gray-500">
                 <span className="font-medium">{email}</span> will receive an email
                 with a link to set up their portal account.
               </p>
               <button
                 onClick={onClose}
-                className="mt-2 px-4 py-2 text-sm font-medium bg-[#222222] text-white rounded-lg hover:bg-black transition-colors"
+                className="mt-2 px-4 py-2 text-sm font-medium bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors"
               >
                 Done
               </button>
@@ -91,7 +91,7 @@ export function InviteClientModal({
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-sm text-gray-600">
                 Enter the email address of the contact at{" "}
-                <span className="font-medium text-[#222222]">{clientName}</span>.
+                <span className="font-medium text-[#1A1A1A]">{clientName}</span>.
                 They will receive a link to create their account and access the
                 client portal.
               </p>
@@ -99,7 +99,7 @@ export function InviteClientModal({
               <div>
                 <label
                   htmlFor="invite-email"
-                  className="block text-sm font-medium text-[#222222] mb-1"
+                  className="block text-sm font-medium text-[#1A1A1A] mb-1"
                 >
                   Email address
                 </label>

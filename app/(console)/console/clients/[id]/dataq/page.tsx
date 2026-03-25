@@ -43,14 +43,14 @@ export default async function DataqPage({
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">DataQs workbench</span>
+        <span className="text-[#1A1A1A] font-medium">DataQs workbench</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             DataQs workbench
           </h1>
@@ -83,7 +83,7 @@ export default async function DataqPage({
             key={s.status}
             className="flex-1 min-w-[100px] bg-white border border-[#E5E5E5] rounded-xl p-3 text-center"
           >
-            <p className="text-xl font-bold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+            <p className="text-xl font-bold text-[#1A1A1A]">
               {counts[s.status] ?? 0}
             </p>
             <p className="text-xs text-gray-500">{s.label}</p>

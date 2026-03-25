@@ -35,7 +35,7 @@ export function ClientDetailTabs({ clientId, dotNumber }: ClientDetailTabsProps)
                 "px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors",
                 active
                   ? "border-[#DC362E] text-[#DC362E]"
-                  : "border-transparent text-gray-500 hover:text-[#222222]"
+                  : "border-transparent text-gray-500 hover:text-[#1A1A1A]"
               )}
             >
               {tab.label}

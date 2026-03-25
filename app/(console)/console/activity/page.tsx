@@ -42,8 +42,8 @@ export default async function ActivityPage() {
         <Activity className="w-5 h-5 text-gray-400" />
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Activity log
           </h1>
@@ -62,7 +62,7 @@ export default async function ActivityPage() {
                   </Badge>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#222222]">{log.description}</p>
+                  <p className="text-sm text-[#1A1A1A]">{log.description}</p>
                   <div className="flex gap-3 mt-0.5 text-xs text-gray-400">
                     {(log.clients as { name: string } | null)?.name && (
                       <span>{(log.clients as { name: string }).name}</span>

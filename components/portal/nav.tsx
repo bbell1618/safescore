@@ -9,9 +9,11 @@ import { useState } from "react";
 
 const navItems = [
   { href: "/portal", label: "Dashboard", exact: true },
+  { href: "/portal/safety", label: "Safety profile" },
   { href: "/portal/cases", label: "Cases" },
+  { href: "/portal/documents", label: "Documents" },
   { href: "/portal/reports", label: "Reports" },
-  { href: "/portal/profile", label: "Profile" },
+  { href: "/portal/profile", label: "Settings" },
 ];
 
 interface PortalNavProps {
@@ -44,8 +46,8 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                 Golden Era
               </p>
               <p
-                className="text-[#222222] font-bold text-sm leading-tight"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="text-[#1A1A1A] font-bold text-sm leading-tight"
+               
               >
                 SafeScore
               </p>
@@ -65,8 +67,8 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-[#F4F4F4] text-[#222222]"
-                      : "text-gray-500 hover:text-[#222222] hover:bg-[#F4F4F4]"
+                      ? "bg-[#F4F4F4] text-[#1A1A1A]"
+                      : "text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4]"
                   )}
                 >
                   {item.label}
@@ -78,7 +80,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
           {/* Right: Company chip + Sign out (desktop) */}
           <div className="hidden md:flex items-center gap-3">
             {companyName && (
-              <span className="px-2.5 py-1 bg-[#F4F4F4] rounded-full text-xs font-medium text-[#222222] max-w-[160px] truncate">
+              <span className="px-2.5 py-1 bg-[#F4F4F4] rounded-full text-xs font-medium text-[#1A1A1A] max-w-[160px] truncate">
                 {companyName}
               </span>
             )}
@@ -89,7 +91,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
             )}
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-[#222222] hover:bg-[#F4F4F4] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4] transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sign out
@@ -126,8 +128,8 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                   className={cn(
                     "block px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-[#F4F4F4] text-[#222222]"
-                      : "text-gray-500 hover:text-[#222222] hover:bg-[#F4F4F4]"
+                      ? "bg-[#F4F4F4] text-[#1A1A1A]"
+                      : "text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4]"
                   )}
                 >
                   {item.label}
@@ -140,7 +142,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
               )}
               <button
                 onClick={handleSignOut}
-                className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-[#222222] hover:bg-[#F4F4F4] transition-colors"
+                className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4] transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Sign out

@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Truck, Users2, Info } from "lucide-react";
+import { NotificationPrefsForm } from "./notification-prefs-form";
+import { Building2, Truck, Info, CreditCard, Bell, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,8 @@ function ProfileRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5] last:border-0">
-      <span className="text-sm text-gray-500 shrink-0 w-40">{label}</span>
-      <span className="text-sm text-[#222222] text-right">{value ?? "—"}</span>
+      <span className="text-sm text-gray-500 shrink-0 w-44">{label}</span>
+      <span className="text-sm text-[#1A1A1A] text-right">{value ?? "—"}</span>
     </div>
   );
 }
@@ -53,12 +54,7 @@ export default async function PortalProfilePage() {
           <Info className="w-6 h-6 text-gray-400" />
         </div>
         <div>
-          <h2
-            className="text-lg font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
-          >
-            Your account is being set up
-          </h2>
+          <h2 className="text-lg font-bold text-[#1A1A1A]">Your account is being set up</h2>
           <p className="text-sm text-gray-500 mt-1 max-w-md">
             Your company profile will appear here once your GEIA account manager links your account.
           </p>
@@ -69,11 +65,23 @@ export default async function PortalProfilePage() {
 
   const clientId = userRecord.client_id;
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", clientId)
-    .single();
+  const [{ data: client }, { data: subscription }, { data: serviceAgreement }] =
+    await Promise.all([
+      supabase.from("clients").select("*").eq("id", clientId).single(),
+      supabase
+        .from("subscriptions" as any)
+        .select("stripe_customer_id, status, current_period_end, plan_name")
+        .eq("client_id", clientId)
+        .single(),
+      supabase
+        .from("documents")
+        .select("id, filename, created_at, storage_path")
+        .eq("client_id", clientId)
+        .eq("category", "auth_agreement")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   if (!client) redirect("/portal");
 
@@ -85,14 +93,9 @@ export default async function PortalProfilePage() {
     <div className="space-y-6 max-w-2xl">
       {/* Page header */}
       <div>
-        <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
-        >
-          Company profile
-        </h1>
+        <h1 className="text-xl font-bold text-[#1A1A1A]">Settings</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Your company information on file with GEIA.
+          Your company profile, subscription details, and notification preferences.
         </p>
       </div>
 
@@ -100,12 +103,7 @@ export default async function PortalProfilePage() {
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="w-4 h-4 text-gray-400" />
-          <h2
-            className="font-semibold text-[#222222] text-sm"
-            style={{ fontFamily: "var(--font-montserrat)" }}
-          >
-            Company information
-          </h2>
+          <h2 className="font-semibold text-[#1A1A1A] text-sm">Company information</h2>
         </div>
 
         <ProfileRow label="Company name" value={client.name} />
@@ -124,45 +122,29 @@ export default async function PortalProfilePage() {
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <div className="flex items-center gap-2 mb-4">
           <Truck className="w-4 h-4 text-gray-400" />
-          <h2
-            className="font-semibold text-[#222222] text-sm"
-            style={{ fontFamily: "var(--font-montserrat)" }}
-          >
-            Fleet
-          </h2>
+          <h2 className="font-semibold text-[#1A1A1A] text-sm">Fleet</h2>
         </div>
 
         <ProfileRow
           label="Power units"
-          value={
-            client.fleet_size != null ? client.fleet_size.toString() : null
-          }
+          value={client.fleet_size != null ? client.fleet_size.toString() : null}
         />
         <ProfileRow
           label="Drivers"
-          value={
-            client.driver_count != null
-              ? client.driver_count.toString()
-              : null
-          }
+          value={client.driver_count != null ? client.driver_count.toString() : null}
         />
       </div>
 
       {/* Subscription card */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Users2 className="w-4 h-4 text-gray-400" />
-          <h2
-            className="font-semibold text-[#222222] text-sm"
-            style={{ fontFamily: "var(--font-montserrat)" }}
-          >
-            Service tier
-          </h2>
+          <CreditCard className="w-4 h-4 text-gray-400" />
+          <h2 className="font-semibold text-[#1A1A1A] text-sm">Subscription</h2>
         </div>
 
         <div className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5]">
-          <span className="text-sm text-gray-500 shrink-0 w-40">Tier</span>
-          <span className="text-sm text-[#222222]">
+          <span className="text-sm text-gray-500 shrink-0 w-44">Service tier</span>
+          <span className="text-sm text-[#1A1A1A]">
             {client.tier ? (
               <Badge variant={tierVariant(client.tier)}>
                 {tierLabel[client.tier]}
@@ -173,11 +155,9 @@ export default async function PortalProfilePage() {
           </span>
         </div>
 
-        <div className="flex items-start justify-between gap-4 py-3">
-          <span className="text-sm text-gray-500 shrink-0 w-40">
-            Account status
-          </span>
-          <span className="text-sm text-[#222222]">
+        <div className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5]">
+          <span className="text-sm text-gray-500 shrink-0 w-44">Account status</span>
+          <span className="text-sm text-[#1A1A1A]">
             <Badge
               variant={
                 client.status === "active"
@@ -193,6 +173,76 @@ export default async function PortalProfilePage() {
             </Badge>
           </span>
         </div>
+
+        {(subscription as any)?.status && (
+          <div className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5]">
+            <span className="text-sm text-gray-500 shrink-0 w-44">Billing status</span>
+            <span className="text-sm text-[#1A1A1A] capitalize">
+              {(subscription as any).status?.replace(/_/g, " ")}
+            </span>
+          </div>
+        )}
+
+        {(subscription as any)?.current_period_end && (
+          <div className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5]">
+            <span className="text-sm text-gray-500 shrink-0 w-44">Next payment</span>
+            <span className="text-sm text-[#1A1A1A]">
+              {new Date((subscription as any).current_period_end * 1000).toLocaleDateString(
+                "en-US",
+                { month: "long", day: "numeric", year: "numeric" }
+              )}
+            </span>
+          </div>
+        )}
+
+        {(subscription as any)?.stripe_customer_id && (
+          <div className="pt-4">
+            <ManageBillingButton />
+          </div>
+        )}
+      </div>
+
+      {/* Notification preferences */}
+      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="w-4 h-4 text-gray-400" />
+          <h2 className="font-semibold text-[#1A1A1A] text-sm">Notification preferences</h2>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Choose which email alerts you want to receive. Delivered to {user.email}.
+        </p>
+        <NotificationPrefsForm />
+      </div>
+
+      {/* Service agreement */}
+      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <FileText className="w-4 h-4 text-gray-400" />
+          <h2 className="font-semibold text-[#1A1A1A] text-sm">Service agreement</h2>
+        </div>
+
+        {serviceAgreement ? (
+          <div className="flex items-center justify-between gap-4 py-2">
+            <div>
+              <p className="text-sm font-medium text-[#1A1A1A]">{serviceAgreement.filename}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Signed{" "}
+                {new Date(serviceAgreement.created_at).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+              On file
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            No service agreement on file. Contact your GEIA account manager.
+          </p>
+        )}
       </div>
 
       {/* Info notice */}
@@ -205,5 +255,19 @@ export default async function PortalProfilePage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// Client component for the billing portal button
+function ManageBillingButton() {
+  return (
+    <form action="/api/billing/portal" method="POST">
+      <button
+        type="submit"
+        className="px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-lg hover:bg-[#2a2a2a] transition-colors"
+      >
+        Manage billing
+      </button>
+    </form>
   );
 }

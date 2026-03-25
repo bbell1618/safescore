@@ -46,8 +46,8 @@ export default async function PortalReportsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Reports
           </h1>

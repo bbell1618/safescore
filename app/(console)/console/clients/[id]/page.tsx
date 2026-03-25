@@ -90,7 +90,7 @@ export default async function ClientDetailPage({
       <div className="flex items-center gap-1 text-xs text-gray-400">
         <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">{client.name}</span>
+        <span className="text-[#1A1A1A] font-medium">{client.name}</span>
       </div>
 
       {/* Header card */}
@@ -99,8 +99,8 @@ export default async function ClientDetailPage({
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
               <h1
-                className="text-xl font-bold text-[#222222]"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="text-xl font-bold text-[#1A1A1A]"
+               
               >
                 {client.name}
               </h1>
@@ -169,7 +169,7 @@ export default async function ClientDetailPage({
             <Link
               href={`/console/clients/${id}/dataq`}
               className="px-3 py-1.5 text-xs font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+             
             >
               DataQs ({caseCount ?? 0})
             </Link>
@@ -182,8 +182,8 @@ export default async function ClientDetailPage({
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <div className="flex items-center justify-between mb-4">
             <h2
-              className="font-semibold text-[#222222] text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-semibold text-[#1A1A1A] text-sm"
+             
             >
               BASIC scores
               {snapshot && (
@@ -227,7 +227,7 @@ export default async function ClientDetailPage({
               key={s.label}
               className="bg-white rounded-xl border border-[#E5E5E5] p-4"
             >
-              <p className="text-2xl font-bold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+              <p className="text-2xl font-bold text-[#1A1A1A]">
                 {s.value}
               </p>
               {s.href ? (
@@ -248,8 +248,8 @@ export default async function ClientDetailPage({
         <div className="col-span-2 bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center justify-between">
             <h3
-              className="font-semibold text-[#222222] text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-semibold text-[#1A1A1A] text-sm"
+             
             >
               Active cases
             </h3>
@@ -265,7 +265,7 @@ export default async function ClientDetailPage({
               {activeCases.map((c) => (
                 <div key={c.id} className="px-5 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#222222] truncate">
+                    <p className="text-sm font-medium text-[#1A1A1A] truncate">
                       {Array.isArray(c.violations)
                         ? `${(c.violations as { violation_code: string }[])[0]?.violation_code}`
                         : (c.violations as { violation_code: string } | null)?.violation_code ?? "—"}

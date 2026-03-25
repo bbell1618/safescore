@@ -133,12 +133,12 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
     <div className="space-y-4">
       {/* Score impact simulator */}
       {selected.size > 0 && snapshot && (
-        <div className="bg-[#222222] rounded-xl p-5">
+        <div className="bg-[#1A1A1A] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingDown className="w-5 h-5 text-[#C5A059]" />
             <h3
               className="text-white font-semibold text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+             
             >
               Score impact simulator — {selected.size} violation{selected.size > 1 ? "s" : ""} selected
             </h3>
@@ -147,7 +147,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
             {impactResults.slice(0, 4).map((r) => (
               <div key={r.basicCategory} className="bg-white/10 rounded-lg p-3">
                 <p className="text-white/60 text-xs mb-1">{r.basicCategory.replace(/_/g, " ")}</p>
-                <p className="text-white font-bold text-lg" style={{ fontFamily: "var(--font-montserrat)" }}>
+                <p className="text-white font-bold text-lg">
                   {r.projectedMeasure.toFixed(1)}
                 </p>
                 <p className={`text-xs font-medium ${r.measureDelta < 0 ? "text-green-400" : "text-white/40"}`}>
@@ -181,7 +181,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filter === f
-                  ? "bg-[#222222] text-white"
+                  ? "bg-[#1A1A1A] text-white"
                   : "bg-[#F4F4F4] text-gray-600 hover:bg-gray-200"
               }`}
             >
@@ -227,7 +227,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
               filtered.map((v) => (
                 <tr
                   key={v.id}
-                  className={`hover:bg-[#F4F4F4] transition-colors ${selected.has(v.id) ? "bg-blue-50" : ""}`}
+                  className={`hover:bg-[#F4F4F4] transition-colors ${selected.has(v.id) ? "bg-[#F5EDDB]" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <input
@@ -238,13 +238,13 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                       className="rounded border-gray-300 text-[#DC362E] focus:ring-[#DC362E]"
                     />
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-[#222222]">
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-[#1A1A1A]">
                     {v.violation_code}
                     {v.oos_violation && (
                       <span className="ml-1 text-[10px] font-sans text-[#DC362E] font-medium">OOS</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[#222222] max-w-xs">
+                  <td className="px-4 py-3 text-[#1A1A1A] max-w-xs">
                     <p className="truncate">{v.violation_description}</p>
                     {v.challenge_reason && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{v.challenge_reason}</p>

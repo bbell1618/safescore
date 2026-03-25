@@ -64,8 +64,8 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
           <div>
             <h2
-              className="font-bold text-[#222222] text-base"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-bold text-[#1A1A1A] text-base"
+             
             >
               Add new client
             </h2>
@@ -75,7 +75,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-[#222222] transition-colors"
+            className="text-gray-400 hover:text-[#1A1A1A] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -88,7 +88,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-name"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 Company name <span className="text-[#DC362E]">*</span>
               </label>
@@ -110,7 +110,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-dot"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 DOT number <span className="text-[#DC362E]">*</span>
               </label>
@@ -129,7 +129,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-mc"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 MC number{" "}
                 <span className="text-gray-400 font-normal">(optional)</span>
@@ -148,7 +148,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-email"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 Contact email{" "}
                 <span className="text-gray-400 font-normal">(optional)</span>
@@ -167,7 +167,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-tier"
-                className="block text-sm font-medium text-[#222222] mb-1"
+                className="block text-sm font-medium text-[#1A1A1A] mb-1"
               >
                 Service tier
               </label>

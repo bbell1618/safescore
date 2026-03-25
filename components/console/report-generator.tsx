@@ -58,7 +58,7 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
   return (
     <div className="bg-white rounded-xl border border-[#E5E5E5] p-5 space-y-5">
       <div>
-        <label className="block text-xs font-semibold text-[#222222] mb-2" style={{ fontFamily: "var(--font-montserrat)" }}>
+        <label className="block text-xs font-semibold text-[#1A1A1A] mb-2">
           Report type
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -72,7 +72,7 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
                   : "border-[#E5E5E5] hover:border-gray-300"
               }`}
             >
-              <p className={`text-xs font-medium ${type === rt.value ? "text-[#DC362E]" : "text-[#222222]"}`}>
+              <p className={`text-xs font-medium ${type === rt.value ? "text-[#DC362E]" : "text-[#1A1A1A]"}`}>
                 {rt.label}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">{rt.description}</p>
@@ -85,7 +85,7 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
         onClick={handleGenerate}
         disabled={generating}
         className="flex items-center gap-2 px-4 py-2.5 bg-[#DC362E] text-white rounded-lg text-sm font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
-        style={{ fontFamily: "var(--font-montserrat)" }}
+       
       >
         {generating ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -98,21 +98,21 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
       {content !== null && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+            <p className="text-xs font-semibold text-[#1A1A1A]">
               AI draft — review before sending to client
             </p>
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
                 disabled={saved}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E5E5E5] rounded-lg text-xs hover:border-[#222222] transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E5E5E5] rounded-lg text-xs hover:border-[#1A1A1A] transition-colors disabled:opacity-50"
               >
                 <FileText className="w-3.5 h-3.5" />
                 {saved ? "Saved" : "Save as reviewed"}
               </button>
               <button
                 onClick={() => setSending(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#222222] text-white rounded-lg text-xs hover:bg-black transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-black transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />
                 Send to client

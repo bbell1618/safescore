@@ -30,7 +30,7 @@ export function OnboardingBanner() {
       <div className="flex-1">
         <p
           className="text-white font-semibold text-sm"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+         
         >
           Welcome to SafeScore
         </p>

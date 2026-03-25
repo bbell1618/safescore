@@ -47,14 +47,14 @@ export default async function ReportsPage({
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">Reports</span>
+        <span className="text-[#1A1A1A] font-medium">Reports</span>
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Report generator
           </h1>
@@ -72,8 +72,8 @@ export default async function ReportsPage({
         <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
             <h2
-              className="font-semibold text-[#222222] text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-semibold text-[#1A1A1A] text-sm"
+             
             >
               Report history
             </h2>
@@ -83,7 +83,7 @@ export default async function ReportsPage({
               <div key={r.id} className="px-5 py-3.5 flex items-center gap-4">
                 <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#222222]">{r.title}</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">{r.title}</p>
                   <p className="text-xs text-gray-400">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex gap-2">

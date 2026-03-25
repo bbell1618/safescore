@@ -11,8 +11,8 @@ export default function OnboardingSuccessPage() {
           </div>
 
           <h1
-            className="text-2xl font-bold text-[#222222] mb-3"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-2xl font-bold text-[#1A1A1A] mb-3"
+           
           >
             You're all set!
           </h1>
@@ -25,7 +25,7 @@ export default function OnboardingSuccessPage() {
           <Link
             href="/portal"
             className="inline-block w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#b52a23] transition-colors text-center"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+           
           >
             Go to Dashboard
           </Link>

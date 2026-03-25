@@ -71,8 +71,8 @@ export default async function AssessPage({
         <div className="flex items-start justify-between">
           <div>
             <h1
-              className="text-xl font-bold text-[#222222]"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="text-xl font-bold text-[#1A1A1A]"
+             
             >
               {carrier.legalName}
             </h1>
@@ -108,7 +108,7 @@ export default async function AssessPage({
           >
             <stat.icon className="w-5 h-5 text-gray-400 shrink-0" />
             <div>
-              <p className="text-xl font-bold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+              <p className="text-xl font-bold text-[#1A1A1A]">
                 {stat.value}
               </p>
               <p className="text-xs text-gray-500">{stat.label}</p>
@@ -120,8 +120,8 @@ export default async function AssessPage({
       {/* BASICs */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
-          className="font-semibold text-[#222222] text-sm mb-4"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="font-semibold text-[#1A1A1A] text-sm mb-4"
+         
         >
           BASIC scores
         </h2>
@@ -142,8 +142,8 @@ export default async function AssessPage({
       {oos && (
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
-            className="font-semibold text-[#222222] text-sm mb-4"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="font-semibold text-[#1A1A1A] text-sm mb-4"
+           
           >
             Out-of-service rates
           </h2>
@@ -173,7 +173,7 @@ export default async function AssessPage({
                       ? "text-[#DC362E]"
                       : "text-green-600"
                   }`}
-                  style={{ fontFamily: "var(--font-montserrat)" }}
+                 
                 >
                   {item.value !== null ? `${item.value}%` : "—"}
                 </p>
@@ -189,8 +189,8 @@ export default async function AssessPage({
       {/* Inspection summary */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
-          className="font-semibold text-[#222222] text-sm mb-4"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="font-semibold text-[#1A1A1A] text-sm mb-4"
+         
         >
           Inspection summary ({totalViolations} violations across {inspections.length} inspections)
         </h2>
@@ -198,7 +198,7 @@ export default async function AssessPage({
           {inspections.map((insp) => (
             <div key={insp.reportNumber} className="py-3 flex items-center gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#222222]">
+                <p className="text-sm font-medium text-[#1A1A1A]">
                   {insp.inspectionDate} — {insp.state} — {insp.level}
                 </p>
                 <p className="text-xs text-gray-400">{insp.facilityName}</p>
@@ -218,8 +218,8 @@ export default async function AssessPage({
       {crashes.length > 0 && (
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
-            className="font-semibold text-[#222222] text-sm mb-4"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="font-semibold text-[#1A1A1A] text-sm mb-4"
+           
           >
             Crash history ({crashes.length} crashes — all tow-away, CPDP eligibility pending assessment)
           </h2>
@@ -227,7 +227,7 @@ export default async function AssessPage({
             {crashes.map((crash) => (
               <div key={crash.reportNumber} className="py-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-[#222222]">
+                  <p className="text-sm font-medium text-[#1A1A1A]">
                     {crash.crashDate} — {crash.city}, {crash.state}
                   </p>
                   <div className="flex gap-2">
@@ -246,8 +246,8 @@ export default async function AssessPage({
       {/* Add as client */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
-          className="font-semibold text-[#222222] text-sm mb-1"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="font-semibold text-[#1A1A1A] text-sm mb-1"
+         
         >
           Add as SafeScore client
         </h2>

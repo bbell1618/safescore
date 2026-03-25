@@ -45,9 +45,10 @@ export interface SafetyReportProps {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const RED = "#DC362E";
-const DARK = "#222222";
-const GRAY = "#666666";
-const LIGHT_GRAY = "#999999";
+// const GOLD = "#C5A059"; // available for future use
+const DARK = "#1A1A1A";
+const GRAY = "#6B6B6B";
+const LIGHT_GRAY = "#9B9B9B";
 const BORDER_GRAY = "#E5E5E5";
 const ALT_ROW = "#f9f9f9";
 const GREEN = "#16a34a";

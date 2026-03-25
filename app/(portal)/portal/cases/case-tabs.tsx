@@ -34,8 +34,8 @@ export function CaseTabs({
             className={cn(
               "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
               activeTab === tab.id
-                ? "bg-[#F4F4F4] text-[#222222]"
-                : "text-gray-500 hover:text-[#222222]"
+                ? "bg-[#F4F4F4] text-[#1A1A1A]"
+                : "text-gray-500 hover:text-[#1A1A1A]"
             )}
           >
             {tab.label}
@@ -43,7 +43,7 @@ export function CaseTabs({
               className={cn(
                 "px-1.5 py-0.5 rounded-full text-xs",
                 activeTab === tab.id
-                  ? "bg-[#222222] text-white"
+                  ? "bg-[#1A1A1A] text-white"
                   : "bg-gray-100 text-gray-500"
               )}
             >

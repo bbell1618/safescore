@@ -49,14 +49,14 @@ export default async function ViolationsPage({
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">Violations</span>
+        <span className="text-[#1A1A1A] font-medium">Violations</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Violation analyzer
           </h1>

@@ -103,7 +103,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <p className="font-mono text-xs font-semibold text-[#222222]">
+                  <p className="font-mono text-xs font-semibold text-[#1A1A1A]">
                     {c.violations?.violation_code ?? "—"}
                   </p>
                   <Badge variant={caseStatusVariant(c.status)}>
@@ -123,7 +123,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-[#222222] truncate">
+                <p className="text-sm text-[#1A1A1A] truncate">
                   {c.violations?.violation_description ?? "Unknown violation"}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -145,7 +145,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                 {/* Narrative editor */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-semibold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+                    <label className="text-xs font-semibold text-[#1A1A1A]">
                       RDR narrative
                       {c.ai_narrative && !c.final_narrative && (
                         <span className="ml-2 text-[10px] font-normal text-[#C5A059]">AI draft — review before filing</span>
@@ -166,7 +166,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       <button
                         onClick={() => saveNarrative(c.id)}
                         disabled={saving === c.id || !narratives[c.id]}
-                        className="flex items-center gap-1 px-3 py-1 text-xs bg-[#222222] text-white rounded-lg hover:bg-black transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors disabled:opacity-50"
                       >
                         {saving === c.id ? "Saving..." : "Save as reviewed"}
                       </button>
@@ -185,7 +185,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
 
                 {/* Filing checklist */}
                 <div>
-                  <p className="text-xs font-semibold text-[#222222] mb-2" style={{ fontFamily: "var(--font-montserrat)" }}>
+                  <p className="text-xs font-semibold text-[#1A1A1A] mb-2">
                     Filing checklist
                   </p>
                   <div className="space-y-1.5">
@@ -213,7 +213,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     <button
                       onClick={() => updateStatus(c.id, "filed")}
                       className="px-4 py-2 bg-[#DC362E] text-white rounded-lg text-xs font-medium hover:bg-[#b52a23] transition-colors"
-                      style={{ fontFamily: "var(--font-montserrat)" }}
+                     
                     >
                       Mark as filed
                     </button>
@@ -222,7 +222,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     <>
                       <button
                         onClick={() => updateStatus(c.id, "pending_state")}
-                        className="px-4 py-2 bg-[#222222] text-white rounded-lg text-xs font-medium hover:bg-black transition-colors"
+                        className="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs font-medium hover:bg-black transition-colors"
                       >
                         Pending state review
                       </button>

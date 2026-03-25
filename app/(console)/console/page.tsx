@@ -56,8 +56,8 @@ export default async function ConsolePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-xl font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-xl font-bold text-[#1A1A1A]"
+           
           >
             Client overview
           </h1>
@@ -74,7 +74,7 @@ export default async function ConsolePage() {
           { label: "Active clients", value: activeCount, icon: CheckCircle, color: "text-green-600" },
           { label: "Prospects", value: prospectCount, icon: Clock, color: "text-[#C5A059]" },
           { label: "Needs attention", value: alertClients.length, icon: AlertTriangle, color: "text-[#DC362E]" },
-          { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-blue-600" },
+          { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-[#1A1A1A]" },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -82,7 +82,7 @@ export default async function ConsolePage() {
           >
             <stat.icon className={`w-5 h-5 ${stat.color} shrink-0`} />
             <div>
-              <p className="text-2xl font-bold text-[#222222]" style={{ fontFamily: "var(--font-montserrat)" }}>
+              <p className="text-2xl font-bold text-[#1A1A1A]">
                 {stat.value}
               </p>
               <p className="text-xs text-gray-500">{stat.label}</p>
@@ -97,8 +97,8 @@ export default async function ConsolePage() {
           <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
             <div className="px-5 py-4 border-b border-[#E5E5E5] flex items-center justify-between">
               <h2
-                className="font-semibold text-[#222222] text-sm"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="font-semibold text-[#1A1A1A] text-sm"
+               
               >
                 All clients
               </h2>
@@ -132,7 +132,7 @@ export default async function ConsolePage() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-[#222222] text-sm truncate">
+                          <p className="font-medium text-[#1A1A1A] text-sm truncate">
                             {client.name}
                           </p>
                           {alerts > 0 && (
@@ -193,8 +193,8 @@ export default async function ConsolePage() {
               <div className="px-4 py-3 border-b border-[#E5E5E5] flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-[#DC362E]" />
                 <h3
-                  className="font-semibold text-[#222222] text-sm"
-                  style={{ fontFamily: "var(--font-montserrat)" }}
+                  className="font-semibold text-[#1A1A1A] text-sm"
+                 
                 >
                   Needs attention
                 </h3>
@@ -207,7 +207,7 @@ export default async function ConsolePage() {
                     className="flex items-center gap-3 px-4 py-3 hover:bg-[#F4F4F4] transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#222222] truncate">
+                      <p className="text-sm font-medium text-[#1A1A1A] truncate">
                         {client.name}
                       </p>
                       <p className="text-xs text-gray-400">DOT {client.dot_number}</p>
@@ -222,11 +222,11 @@ export default async function ConsolePage() {
           )}
 
           {/* Tip */}
-          <div className="bg-[#222222] rounded-xl p-4">
+          <div className="bg-[#1A1A1A] rounded-xl p-4">
             <TrendingDown className="w-5 h-5 text-[#C5A059] mb-2" />
             <p
               className="text-white text-sm font-semibold"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+             
             >
               Pilot client ready
             </p>

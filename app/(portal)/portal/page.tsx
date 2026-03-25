@@ -65,8 +65,8 @@ export default async function PortalDashboardPage() {
         </div>
         <div>
           <h2
-            className="text-lg font-bold text-[#222222]"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="text-lg font-bold text-[#1A1A1A]"
+           
           >
             Your account is being set up
           </h2>
@@ -201,8 +201,8 @@ export default async function PortalDashboardPage() {
       {/* Welcome header */}
       <div>
         <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="text-xl font-bold text-[#1A1A1A]"
+         
         >
           Welcome back, {client.name}
         </h1>
@@ -232,8 +232,8 @@ export default async function PortalDashboardPage() {
             label: "Open cases",
             value: openCaseCount,
             icon: FileSearch,
-            iconBg: "bg-blue-50",
-            iconColor: "text-blue-600",
+            iconBg: "bg-red-50",
+            iconColor: "text-[#DC362E]",
           },
         ].map((stat) => (
           <div
@@ -245,8 +245,8 @@ export default async function PortalDashboardPage() {
             </div>
             <div>
               <p
-                className="text-2xl font-bold text-[#222222]"
-                style={{ fontFamily: "var(--font-montserrat)" }}
+                className="text-2xl font-bold text-[#1A1A1A]"
+               
               >
                 {stat.value}
               </p>
@@ -260,24 +260,24 @@ export default async function PortalDashboardPage() {
       {carrier && (
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
-            className="font-semibold text-[#222222] text-sm mb-4"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="font-semibold text-[#1A1A1A] text-sm mb-4"
+           
           >
             Carrier profile
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
-              <p className="text-sm font-medium text-[#222222]">{carrier.legalName}</p>
+              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.legalName}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
-              <p className="text-sm font-medium text-[#222222]">{carrier.dotNumber}</p>
+              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.dotNumber}</p>
             </div>
             {carrier.mcNumber && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">MC number</p>
-                <p className="text-sm font-medium text-[#222222]">{carrier.mcNumber}</p>
+                <p className="text-sm font-medium text-[#1A1A1A]">{carrier.mcNumber}</p>
               </div>
             )}
             <div>
@@ -294,28 +294,28 @@ export default async function PortalDashboardPage() {
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Power units</p>
-              <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
                 <Truck className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalPowerUnits}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
-              <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
                 <Users2 className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalDrivers}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Safety rating</p>
-              <p className="text-sm font-medium text-[#222222]">
+              <p className="text-sm font-medium text-[#1A1A1A]">
                 {carrier.safetyRating ?? "Not rated"}
               </p>
             </div>
             {(carrier.phyCity || carrier.phyState) && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Location</p>
-                <p className="text-sm font-medium text-[#222222] flex items-center gap-1">
+                <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   {[carrier.phyCity, carrier.phyState].filter(Boolean).join(", ")}
                 </p>
@@ -330,8 +330,8 @@ export default async function PortalDashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2
-              className="font-semibold text-[#222222] text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-semibold text-[#1A1A1A] text-sm"
+             
             >
               Your safety score
             </h2>
@@ -367,7 +367,7 @@ export default async function PortalDashboardPage() {
         ) : (
           <div className="rounded-lg border border-[#E5E5E5] bg-[#F4F4F4] px-6 py-10 text-center">
             <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#222222]">
+            <p className="text-sm font-medium text-[#1A1A1A]">
               Your first safety assessment is being prepared.
             </p>
             <p className="text-xs text-gray-500 mt-1">
@@ -382,8 +382,8 @@ export default async function PortalDashboardPage() {
         {/* Cases summary */}
         <div className="space-y-3">
           <h2
-            className="font-semibold text-[#222222] text-sm"
-            style={{ fontFamily: "var(--font-montserrat)" }}
+            className="font-semibold text-[#1A1A1A] text-sm"
+           
           >
             GEIA work summary
           </h2>
@@ -391,13 +391,13 @@ export default async function PortalDashboardPage() {
           <div className="grid grid-cols-1 gap-3">
             {/* DataQs */}
             <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <FileSearch className="w-4 h-4 text-blue-600" />
+              <div className="w-9 h-9 rounded-lg bg-[#F5EDDB] flex items-center justify-center shrink-0">
+                <FileSearch className="w-4 h-4 text-[#8E7340]" />
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#222222]"
-                  style={{ fontFamily: "var(--font-montserrat)" }}
+                  className="text-2xl font-bold text-[#1A1A1A]"
+                 
                 >
                   {activeDataqCount}
                 </p>
@@ -412,8 +412,8 @@ export default async function PortalDashboardPage() {
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#222222]"
-                  style={{ fontFamily: "var(--font-montserrat)" }}
+                  className="text-2xl font-bold text-[#1A1A1A]"
+                 
                 >
                   {activeCpdpCount}
                 </p>
@@ -428,8 +428,8 @@ export default async function PortalDashboardPage() {
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#222222]"
-                  style={{ fontFamily: "var(--font-montserrat)" }}
+                  className="text-2xl font-bold text-[#1A1A1A]"
+                 
                 >
                   {completedActionCount ?? 0}
                 </p>
@@ -443,8 +443,8 @@ export default async function PortalDashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
             <h2
-              className="font-semibold text-[#222222] text-sm"
-              style={{ fontFamily: "var(--font-montserrat)" }}
+              className="font-semibold text-[#1A1A1A] text-sm"
+             
             >
               Open action items
             </h2>
@@ -455,7 +455,7 @@ export default async function PortalDashboardPage() {
               {actionItems.map((item: any) => (
                 <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#222222]">{item.title}</p>
+                    <p className="text-sm font-medium text-[#1A1A1A]">{item.title}</p>
                     {item.description && (
                       <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
                         {item.description}
@@ -494,7 +494,7 @@ export default async function PortalDashboardPage() {
         </div>
         <p className="text-sm text-gray-600">
           Your GEIA team is actively working on your account. Questions?{" "}
-          <span className="font-medium text-[#222222]">
+          <span className="font-medium text-[#1A1A1A]">
             Contact your account manager directly.
           </span>
         </p>

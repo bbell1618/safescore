@@ -53,7 +53,7 @@ export function ReportViewer({ reports }: ReportViewerProps) {
               >
                 <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#222222]">
+                  <p className="text-sm font-medium text-[#1A1A1A]">
                     {report.title}
                   </p>
                   {report.sent_at && (
@@ -79,8 +79,8 @@ export function ReportViewer({ reports }: ReportViewerProps) {
                   {report.final_content ? (
                     <div className="pt-4">
                       <div
-                        className="bg-white rounded-xl border border-[#E5E5E5] p-5 text-sm text-[#222222] leading-relaxed whitespace-pre-wrap"
-                        style={{ fontFamily: "var(--font-roboto)" }}
+                        className="bg-white rounded-xl border border-[#E5E5E5] p-5 text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap"
+                       
                       >
                         {report.final_content}
                       </div>

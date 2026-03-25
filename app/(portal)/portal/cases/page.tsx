@@ -110,12 +110,12 @@ export default async function PortalCasesPage() {
                       </span>
                     )}
                     {violation?.violation_code && (
-                      <span className="text-xs font-medium text-[#222222] bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="text-xs font-medium text-[#1A1A1A] bg-gray-100 px-1.5 py-0.5 rounded">
                         {violation.violation_code}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm font-medium text-[#222222]">
+                  <p className="text-sm font-medium text-[#1A1A1A]">
                     {violation?.violation_description ?? "DataQ challenge"}
                   </p>
                   <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-400">
@@ -189,7 +189,7 @@ export default async function PortalCasesPage() {
             return (
               <div key={c.id} className="px-5 py-4 flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#222222]">
+                  <p className="text-sm font-medium text-[#1A1A1A]">
                     {crash
                       ? `Crash — ${formatDate(crash.crash_date)}`
                       : "CPDP filing"}
@@ -245,8 +245,8 @@ export default async function PortalCasesPage() {
       {/* Page header */}
       <div>
         <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="text-xl font-bold text-[#1A1A1A]"
+         
         >
           Cases
         </h1>

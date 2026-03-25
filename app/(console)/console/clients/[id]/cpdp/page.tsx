@@ -63,13 +63,13 @@ export default async function CpdpPage({
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#222222] font-medium">CPDP workbench</span>
+        <span className="text-[#1A1A1A] font-medium">CPDP workbench</span>
       </div>
 
       <div>
         <h1
-          className="text-xl font-bold text-[#222222]"
-          style={{ fontFamily: "var(--font-montserrat)" }}
+          className="text-xl font-bold text-[#1A1A1A]"
+         
         >
           CPDP workbench
         </h1>
@@ -88,7 +88,7 @@ export default async function CpdpPage({
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <Car className="w-4 h-4 text-gray-400" />
-                    <p className="font-semibold text-[#222222] text-sm">
+                    <p className="font-semibold text-[#1A1A1A] text-sm">
                       {formatDate(crash.crash_date)} — {crash.city}, {crash.state}
                     </p>
                     {crash.tow_away && <Badge variant="warning">Tow-away</Badge>}

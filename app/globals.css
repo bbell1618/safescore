@@ -2,33 +2,34 @@
 
 @theme {
   --color-red: #DC362E;
-  --color-red-dark: #b52a23;
-  --color-red-light: #e85c55;
+  --color-red-dark: #A3221C;
+  --color-red-light: #F9E0DF;
   --color-gold: #C5A059;
-  --color-gold-dark: #a8873d;
-  --color-dark: #222222;
-  --color-dark-subtle: #2e2e2e;
+  --color-gold-dark: #8E7340;
+  --color-gold-light: #F5EDDB;
+  --color-dark: #1A1A1A;
+  --color-dark-subtle: #2a2a2a;
   --color-light: #F4F4F4;
   --color-light-border: #E5E5E5;
-  --color-muted: #6B7280;
+  --color-muted: #6B6B6B;
 
-  --font-heading: var(--font-montserrat);
-  --font-body: var(--font-roboto);
+  --font-heading: var(--font-inter);
+  --font-body: var(--font-inter);
 }
 
 :root {
   --background: #ffffff;
-  --foreground: #222222;
+  --foreground: #1A1A1A;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-roboto), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-montserrat), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 /* Console sidebar scrollbar */

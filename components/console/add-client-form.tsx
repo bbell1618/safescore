@@ -113,7 +113,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
         type="submit"
         disabled={loading}
         className="px-5 py-2.5 bg-[#DC362E] text-white rounded-lg text-sm font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
-        style={{ fontFamily: "var(--font-montserrat)" }}
+       
       >
         {loading ? "Adding client..." : "Add as SafeScore client"}
       </button>
