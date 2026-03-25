@@ -97,7 +97,7 @@ export default async function SafetyProfilePage() {
       .order("crash_date", { ascending: false }),
     supabase
       .from("violations")
-      .select("id, basic_category, severity_weight, time_weight, oos_violation")
+      .select("id, violation_code, basic_category, severity_weight, time_weight, oos_violation")
       .eq("client_id", clientId),
   ]);
 

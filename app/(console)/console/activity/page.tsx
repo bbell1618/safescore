@@ -43,7 +43,6 @@ export default async function ActivityPage() {
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Activity log
           </h1>

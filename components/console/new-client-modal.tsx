@@ -65,7 +65,6 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
           <div>
             <h2
               className="font-bold text-[#1A1A1A] text-base"
-             
             >
               Add new client
             </h2>

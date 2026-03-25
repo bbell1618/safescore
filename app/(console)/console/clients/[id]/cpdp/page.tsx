@@ -69,7 +69,6 @@ export default async function CpdpPage({
       <div>
         <h1
           className="text-xl font-bold text-[#1A1A1A]"
-         
         >
           CPDP workbench
         </h1>

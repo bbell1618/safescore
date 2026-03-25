@@ -80,7 +80,6 @@ export function ReportViewer({ reports }: ReportViewerProps) {
                     <div className="pt-4">
                       <div
                         className="bg-white rounded-xl border border-[#E5E5E5] p-5 text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap"
-                       
                       >
                         {report.final_content}
                       </div>

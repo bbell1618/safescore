@@ -47,7 +47,6 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
               </p>
               <p
                 className="text-[#1A1A1A] font-bold text-sm leading-tight"
-               
               >
                 SafeScore
               </p>

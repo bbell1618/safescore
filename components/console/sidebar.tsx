@@ -45,7 +45,6 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
             </p>
             <p
               className="text-white font-bold text-sm leading-tight"
-             
             >
               SafeScore
             </p>

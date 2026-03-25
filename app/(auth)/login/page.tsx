@@ -51,7 +51,6 @@ export default function LoginPage() {
           </div>
           <h1
             className="text-2xl font-bold text-[#1A1A1A]"
-           
           >
             Sign in
           </h1>
@@ -111,7 +110,6 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full py-2.5 px-4 bg-[#DC362E] text-white rounded-lg font-medium text-sm hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-             
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>

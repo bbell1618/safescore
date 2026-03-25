@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data: documents } = await supabase
     .from("documents")
-    .select("id, filename, category, file_size, created_at")
+    .select("id, filename, category, file_size, created_at, status")
     .eq("client_id", userRecord.client_id)
     .order("created_at", { ascending: false });
 

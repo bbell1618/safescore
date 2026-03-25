@@ -62,7 +62,6 @@ export default async function CompliancePage({
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Compliance manager
           </h1>
@@ -83,7 +82,6 @@ export default async function CompliancePage({
               <User className="w-4 h-4 text-gray-400" />
               <h2
                 className="font-semibold text-[#1A1A1A] text-sm"
-               
               >
                 Driver roster ({drivers?.length ?? 0})
               </h2>
@@ -128,7 +126,6 @@ export default async function CompliancePage({
               <Truck className="w-4 h-4 text-gray-400" />
               <h2
                 className="font-semibold text-[#1A1A1A] text-sm"
-               
               >
                 Vehicle fleet ({vehicles?.length ?? 0})
               </h2>
@@ -163,7 +160,6 @@ export default async function CompliancePage({
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
           className="font-semibold text-[#1A1A1A] text-sm mb-4"
-         
         >
           Mock compliance review — 6 FMCSA audit areas
         </h2>

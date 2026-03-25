@@ -36,7 +36,6 @@ export function QuickAssessment() {
     <div className="bg-white rounded-xl border border-[#E5E5E5] p-4">
       <h3
         className="font-semibold text-[#1A1A1A] text-sm mb-3"
-       
       >
         Quick assessment
       </h3>

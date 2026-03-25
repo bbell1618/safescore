@@ -138,7 +138,6 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
             <TrendingDown className="w-5 h-5 text-[#C5A059]" />
             <h3
               className="text-white font-semibold text-sm"
-             
             >
               Score impact simulator — {selected.size} violation{selected.size > 1 ? "s" : ""} selected
             </h3>

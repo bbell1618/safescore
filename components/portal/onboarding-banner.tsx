@@ -30,7 +30,6 @@ export function OnboardingBanner() {
       <div className="flex-1">
         <p
           className="text-white font-semibold text-sm"
-         
         >
           Welcome to SafeScore
         </p>

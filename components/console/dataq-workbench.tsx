@@ -213,7 +213,6 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     <button
                       onClick={() => updateStatus(c.id, "filed")}
                       className="px-4 py-2 bg-[#DC362E] text-white rounded-lg text-xs font-medium hover:bg-[#b52a23] transition-colors"
-                     
                     >
                       Mark as filed
                     </button>

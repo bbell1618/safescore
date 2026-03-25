@@ -56,7 +56,6 @@ export function InviteClientModal({
           <div>
             <h2
               className="font-bold text-[#1A1A1A] text-base"
-             
             >
               Invite client to portal
             </h2>

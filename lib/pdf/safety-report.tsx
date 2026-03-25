@@ -1,10 +1,35 @@
 import {
   Document,
+  Font,
   Page,
   Text,
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
+
+// Register Inter from Google Fonts CDN so PDF renders with brand font
+Font.register({
+  family: "Inter",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 400,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 500,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 700,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 400,
+      fontStyle: "italic",
+    },
+  ],
+});
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +85,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     paddingLeft: 40,
     paddingRight: 40,
-    fontFamily: "Helvetica",
+    fontFamily: "Inter",
     fontSize: 9,
     color: DARK,
   },
@@ -77,7 +102,7 @@ const styles = StyleSheet.create({
   },
   headerBrand: {
     fontSize: 18,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     color: RED,
     letterSpacing: 0.5,
   },
@@ -98,7 +123,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: LIGHT_GRAY,
     marginTop: 2,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Inter", fontStyle: "italic",
   },
   headerRule: {
     borderBottomWidth: 1.5,
@@ -112,7 +137,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     color: RED,
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -142,17 +167,17 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 9,
     color: DARK,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
   },
   infoValueSatisfactory: {
     fontSize: 9,
     color: GREEN,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
   },
   infoValueAlert: {
     fontSize: 9,
     color: RED,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
   },
   infoValueGray: {
     fontSize: 9,
@@ -175,7 +200,7 @@ const styles = StyleSheet.create({
   },
   tableHeaderCell: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     color: GRAY,
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -202,13 +227,13 @@ const styles = StyleSheet.create({
   tableCellRed: {
     fontSize: 8,
     color: RED,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     padding: 5,
   },
   tableCellGreen: {
     fontSize: 8,
     color: GREEN,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     padding: 5,
   },
 
@@ -248,7 +273,7 @@ const styles = StyleSheet.create({
   bulletTextBold: {
     fontSize: 9,
     color: DARK,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter", fontWeight: 700,
     flex: 1,
     lineHeight: 1.4,
   },
@@ -257,7 +282,7 @@ const styles = StyleSheet.create({
   note: {
     fontSize: 7.5,
     color: GRAY,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Inter", fontStyle: "italic",
     marginTop: 4,
   },
 
@@ -265,7 +290,7 @@ const styles = StyleSheet.create({
   emptyState: {
     fontSize: 8,
     color: LIGHT_GRAY,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Inter", fontStyle: "italic",
     paddingVertical: 10,
     textAlign: "center",
   },

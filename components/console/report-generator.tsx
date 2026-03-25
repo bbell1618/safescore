@@ -85,7 +85,6 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
         onClick={handleGenerate}
         disabled={generating}
         className="flex items-center gap-2 px-4 py-2.5 bg-[#DC362E] text-white rounded-lg text-sm font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
-       
       >
         {generating ? (
           <Loader2 className="w-4 h-4 animate-spin" />

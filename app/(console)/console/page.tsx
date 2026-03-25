@@ -57,7 +57,6 @@ export default async function ConsolePage() {
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Client overview
           </h1>
@@ -98,7 +97,6 @@ export default async function ConsolePage() {
             <div className="px-5 py-4 border-b border-[#E5E5E5] flex items-center justify-between">
               <h2
                 className="font-semibold text-[#1A1A1A] text-sm"
-               
               >
                 All clients
               </h2>
@@ -194,7 +192,6 @@ export default async function ConsolePage() {
                 <AlertTriangle className="w-4 h-4 text-[#DC362E]" />
                 <h3
                   className="font-semibold text-[#1A1A1A] text-sm"
-                 
                 >
                   Needs attention
                 </h3>
@@ -226,7 +223,6 @@ export default async function ConsolePage() {
             <TrendingDown className="w-5 h-5 text-[#C5A059] mb-2" />
             <p
               className="text-white text-sm font-semibold"
-             
             >
               Pilot client ready
             </p>

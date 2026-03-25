@@ -246,7 +246,6 @@ export default async function PortalCasesPage() {
       <div>
         <h1
           className="text-xl font-bold text-[#1A1A1A]"
-         
         >
           Cases
         </h1>

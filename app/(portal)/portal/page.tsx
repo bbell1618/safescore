@@ -66,7 +66,6 @@ export default async function PortalDashboardPage() {
         <div>
           <h2
             className="text-lg font-bold text-[#1A1A1A]"
-           
           >
             Your account is being set up
           </h2>
@@ -202,7 +201,6 @@ export default async function PortalDashboardPage() {
       <div>
         <h1
           className="text-xl font-bold text-[#1A1A1A]"
-         
         >
           Welcome back, {client.name}
         </h1>
@@ -246,7 +244,6 @@ export default async function PortalDashboardPage() {
             <div>
               <p
                 className="text-2xl font-bold text-[#1A1A1A]"
-               
               >
                 {stat.value}
               </p>
@@ -261,7 +258,6 @@ export default async function PortalDashboardPage() {
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
             className="font-semibold text-[#1A1A1A] text-sm mb-4"
-           
           >
             Carrier profile
           </h2>
@@ -331,7 +327,6 @@ export default async function PortalDashboardPage() {
           <div>
             <h2
               className="font-semibold text-[#1A1A1A] text-sm"
-             
             >
               Your safety score
             </h2>
@@ -383,7 +378,6 @@ export default async function PortalDashboardPage() {
         <div className="space-y-3">
           <h2
             className="font-semibold text-[#1A1A1A] text-sm"
-           
           >
             GEIA work summary
           </h2>
@@ -397,7 +391,6 @@ export default async function PortalDashboardPage() {
               <div>
                 <p
                   className="text-2xl font-bold text-[#1A1A1A]"
-                 
                 >
                   {activeDataqCount}
                 </p>
@@ -413,7 +406,6 @@ export default async function PortalDashboardPage() {
               <div>
                 <p
                   className="text-2xl font-bold text-[#1A1A1A]"
-                 
                 >
                   {activeCpdpCount}
                 </p>
@@ -429,7 +421,6 @@ export default async function PortalDashboardPage() {
               <div>
                 <p
                   className="text-2xl font-bold text-[#1A1A1A]"
-                 
                 >
                   {completedActionCount ?? 0}
                 </p>
@@ -444,7 +435,6 @@ export default async function PortalDashboardPage() {
           <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
             <h2
               className="font-semibold text-[#1A1A1A] text-sm"
-             
             >
               Open action items
             </h2>

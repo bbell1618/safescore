@@ -72,7 +72,6 @@ export default async function AssessPage({
           <div>
             <h1
               className="text-xl font-bold text-[#1A1A1A]"
-             
             >
               {carrier.legalName}
             </h1>
@@ -121,7 +120,6 @@ export default async function AssessPage({
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
           className="font-semibold text-[#1A1A1A] text-sm mb-4"
-         
         >
           BASIC scores
         </h2>
@@ -143,7 +141,6 @@ export default async function AssessPage({
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
             className="font-semibold text-[#1A1A1A] text-sm mb-4"
-           
           >
             Out-of-service rates
           </h2>
@@ -173,7 +170,6 @@ export default async function AssessPage({
                       ? "text-[#DC362E]"
                       : "text-green-600"
                   }`}
-                 
                 >
                   {item.value !== null ? `${item.value}%` : "—"}
                 </p>
@@ -190,7 +186,6 @@ export default async function AssessPage({
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
           className="font-semibold text-[#1A1A1A] text-sm mb-4"
-         
         >
           Inspection summary ({totalViolations} violations across {inspections.length} inspections)
         </h2>
@@ -219,7 +214,6 @@ export default async function AssessPage({
         <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
           <h2
             className="font-semibold text-[#1A1A1A] text-sm mb-4"
-           
           >
             Crash history ({crashes.length} crashes — all tow-away, CPDP eligibility pending assessment)
           </h2>
@@ -247,7 +241,6 @@ export default async function AssessPage({
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
         <h2
           className="font-semibold text-[#1A1A1A] text-sm mb-1"
-         
         >
           Add as SafeScore client
         </h2>

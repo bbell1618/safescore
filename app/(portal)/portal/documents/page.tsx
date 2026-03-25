@@ -13,10 +13,10 @@ import {
 const CATEGORIES = [
   { value: "dqf", label: "Driver qualification files" },
   { value: "maintenance", label: "Vehicle maintenance records" },
-  { value: "other", label: "ELD/HOS data" },
   { value: "clearinghouse", label: "Drug & Alcohol Clearinghouse" },
   { value: "auth_agreement", label: "Insurance documents" },
-  { value: "evidence", label: "Other" },
+  { value: "evidence", label: "Evidence & supporting docs" },
+  { value: "other", label: "Other" },
 ] as const;
 
 type DocumentCategory = (typeof CATEGORIES)[number]["value"];

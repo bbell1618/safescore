@@ -50,7 +50,6 @@ export default async function DataqPage({
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             DataQs workbench
           </h1>

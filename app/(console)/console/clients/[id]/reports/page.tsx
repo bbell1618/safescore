@@ -54,7 +54,6 @@ export default async function ReportsPage({
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Report generator
           </h1>
@@ -73,7 +72,6 @@ export default async function ReportsPage({
           <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
             <h2
               className="font-semibold text-[#1A1A1A] text-sm"
-             
             >
               Report history
             </h2>

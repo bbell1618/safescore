@@ -100,7 +100,6 @@ export default async function ClientDetailPage({
             <div className="flex items-center gap-3 mb-1">
               <h1
                 className="text-xl font-bold text-[#1A1A1A]"
-               
               >
                 {client.name}
               </h1>
@@ -169,7 +168,6 @@ export default async function ClientDetailPage({
             <Link
               href={`/console/clients/${id}/dataq`}
               className="px-3 py-1.5 text-xs font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors"
-             
             >
               DataQs ({caseCount ?? 0})
             </Link>
@@ -183,7 +181,6 @@ export default async function ClientDetailPage({
           <div className="flex items-center justify-between mb-4">
             <h2
               className="font-semibold text-[#1A1A1A] text-sm"
-             
             >
               BASIC scores
               {snapshot && (
@@ -249,7 +246,6 @@ export default async function ClientDetailPage({
           <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center justify-between">
             <h3
               className="font-semibold text-[#1A1A1A] text-sm"
-             
             >
               Active cases
             </h3>

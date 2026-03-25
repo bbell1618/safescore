@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, TrendingDown, Check, ArrowRight } from "lucide-react";
+import { ShieldCheck, TrendingDown, Check, ArrowRight, Search } from "lucide-react";
 
 const TIERS = [
   {
@@ -87,22 +87,37 @@ export default function LandingPage() {
             SafeScore monitors your CSA BASIC scores, challenges faulty violations, and helps you
             avoid costly interventions — so you can focus on the road.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <form
+            action="/login"
+            method="get"
+            className="flex flex-col items-center gap-3 max-w-md mx-auto"
+          >
+            <div className="flex w-full gap-2">
+              <input
+                type="text"
+                name="dot"
+                placeholder="Enter your DOT number"
+                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent text-sm"
+              />
+              <button
+                type="submit"
+                className="flex items-center gap-2 px-5 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors whitespace-nowrap"
+              >
+                <Search className="w-4 h-4" />
+                Get assessment
+              </button>
+            </div>
+            <p className="text-white/40 text-xs">
+              Free for carriers placing insurance through Golden Era
+            </p>
             <Link
               href="/login"
-              className="flex items-center gap-2 px-6 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
-            >
-              Get free assessment
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href="/login"
-              className="flex items-center gap-2 text-white/60 hover:text-white text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 text-white/50 hover:text-white text-xs font-medium transition-colors"
             >
               Already a client? Sign in
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-3 h-3" />
             </Link>
-          </div>
+          </form>
         </div>
       </section>
 

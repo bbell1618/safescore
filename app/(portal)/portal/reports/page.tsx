@@ -47,7 +47,6 @@ export default async function PortalReportsPage() {
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Reports
           </h1>

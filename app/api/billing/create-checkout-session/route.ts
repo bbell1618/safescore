@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/client";
+import Stripe from "stripe";
 
 const TIER_PRICE_MAP: Record<string, string> = {
   monitor: process.env.STRIPE_PRICE_MONITOR ?? "STRIPE_PRICE_MONITOR_PLACEHOLDER",
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     .eq("id", clientId)
     .single() as any;
 
-  const lineItems: Parameters<typeof stripe.checkout.sessions.create>[0]["line_items"] = [
+  const lineItems: Stripe.Checkout.SessionCreateParams["line_items"] = [
     {
       price: TIER_PRICE_MAP[tier],
       quantity: 1,

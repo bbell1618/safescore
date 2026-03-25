@@ -23,7 +23,6 @@ export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreC
       <div className="flex items-start justify-between gap-2">
         <p
           className="text-xs font-medium text-gray-500 leading-tight"
-         
         >
           {label}
         </p>
@@ -40,7 +39,6 @@ export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreC
         <>
           <p
             className={cn("text-2xl font-bold leading-none", scoreToColor(percentile))}
-           
           >
             {measure?.toFixed(1)}
           </p>

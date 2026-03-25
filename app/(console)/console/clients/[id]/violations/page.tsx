@@ -56,7 +56,6 @@ export default async function ViolationsPage({
         <div>
           <h1
             className="text-xl font-bold text-[#1A1A1A]"
-           
           >
             Violation analyzer
           </h1>
