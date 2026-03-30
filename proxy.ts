@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Not logged in — redirect to login (unless already on auth pages)
-  if (!user && !path.startsWith("/login") && !path.startsWith("/auth")) {
+  if (!user && !path.startsWith("/login") && !path.startsWith("/auth") && !path.startsWith("/portal/setup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
