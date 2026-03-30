@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { sendInviteEmail } from "@/lib/email/client";
 import { NextResponse } from "next/server";
 
 export async function POST(
@@ -26,56 +27,78 @@ export async function POST(
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
+    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/portal`;
+
     // Check if a user with this email already exists for this client
     const { data: existingUsers } = await supabase
       .from("users")
       .select("id, email")
       .eq("client_id", id);
 
-    const alreadyInvited = existingUsers?.some(
+    const existingUser = existingUsers?.find(
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
-    if (alreadyInvited) {
-      return NextResponse.json(
-        { error: "A user with this email already has access to this client account." },
-        { status: 409 }
-      );
-    }
 
-    // Send Supabase invite — triggers magic-link email
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/portal`,
-      data: {
-        role: "client_user",
-        client_id: id,
-        full_name: "",
-      },
-    });
+    let authUserId: string;
+    let linkType: "magiclink" | "invite";
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // If trigger didn't fire yet (async), ensure users row is linked to client
-    // The handle_new_user trigger creates the row on signup with client_user role,
-    // but we need to make sure client_id gets set once the user confirms.
-    // We pre-insert a users row so the client_id is ready immediately on confirm.
-    await supabase
-      .from("users")
-      .upsert(
-        {
-          id: data.user.id,
-          email: email.toLowerCase(),
+    if (existingUser) {
+      // User already exists -- generate a new magic link and resend
+      authUserId = existingUser.id;
+      linkType = "magiclink";
+    } else {
+      // New user -- create auth account first
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email,
+        email_confirm: false,
+        user_metadata: {
           role: "client_user",
           client_id: id,
+          full_name: "",
         },
-        { onConflict: "id" }
-      );
+      });
 
-    return NextResponse.json({
-      success: true,
-      message: `Invite sent to ${email}`,
+      if (createError || !newUser.user) {
+        return NextResponse.json({ error: createError?.message ?? "Failed to create user" }, { status: 500 });
+      }
+
+      authUserId = newUser.user.id;
+      linkType = "invite";
+
+      // Pre-insert users row so client_id is ready on confirm
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: authUserId,
+            email: email.toLowerCase(),
+            role: "client_user",
+            client_id: id,
+          },
+          { onConflict: "id" }
+        );
+    }
+
+    // Generate magic link without sending Supabase email
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: linkType,
+      email,
+      options: { redirectTo },
     });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      return NextResponse.json({ error: linkError?.message ?? "Failed to generate invite link" }, { status: 500 });
+    }
+
+    // Send branded invite email via nodemailer
+    await sendInviteEmail({
+      to: email,
+      companyName: client.name,
+      magicLinkUrl: linkData.properties.action_link,
+    });
+
+    const message = existingUser ? `Invite resent to ${email}` : `Invite sent to ${email}`;
+    return NextResponse.json({ success: true, message });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

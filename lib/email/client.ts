@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
 
-const FROM_ADDRESS = "safescore@goldenerainsurance.com";
+const SMTP_USER = "brandonbell@goldenerainsurance.com";
 const FROM_NAME = "Golden Era SafeScore";
+const REPLY_TO = "info@goldenerainsurance.com";
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -9,7 +10,7 @@ function getTransporter() {
     port: 587,
     secure: false, // STARTTLS
     auth: {
-      user: FROM_ADDRESS,
+      user: SMTP_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
@@ -105,6 +106,13 @@ export interface WelcomeEmailData {
   portalUrl: string;
 }
 
+
+export interface InviteEmailData {
+  to: string;
+  companyName: string;
+  magicLinkUrl: string;
+}
+
 // ── Send functions ─────────────────────────────────────────────────────────
 
 export async function sendNewViolationAlert(data: NewViolationEmailData): Promise<void> {
@@ -138,7 +146,8 @@ export async function sendNewViolationAlert(data: NewViolationEmailData): Promis
   `);
 
   await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    from: `"${FROM_NAME}" <${SMTP_USER}>`,
+    replyTo: REPLY_TO,
     to: data.to,
     subject: `New violation added — DOT ${data.dotNumber}`,
     html,
@@ -164,7 +173,8 @@ export async function sendCaseStatusChange(data: CaseStatusEmailData): Promise<v
   `);
 
   await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    from: `"${FROM_NAME}" <${SMTP_USER}>`,
+    replyTo: REPLY_TO,
     to: data.to,
     subject: `${data.caseType} case update — ${data.companyName}`,
     html,
@@ -190,7 +200,8 @@ export async function sendReportReady(data: ReportReadyEmailData): Promise<void>
   `);
 
   await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    from: `"${FROM_NAME}" <${SMTP_USER}>`,
+    replyTo: REPLY_TO,
     to: data.to,
     subject: `Your SafeScore report is ready — ${data.reportTitle}`,
     html,
@@ -212,9 +223,28 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
   `);
 
   await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+    from: `"${FROM_NAME}" <${SMTP_USER}>`,
+    replyTo: REPLY_TO,
     to: data.to,
     subject: `Welcome to SafeScore — ${data.companyName}`,
+    html,
+  });
+}
+
+export async function sendInviteEmail(data: InviteEmailData): Promise<void> {
+  const html = emailWrapper(`
+    <h2>You're invited to SafeScore</h2>
+    <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for ${data.companyName}.</p>
+    <p>Click the button below to set up your account and view your safety dashboard.</p>
+    <a href="${data.magicLinkUrl}" class="cta">Access your portal</a>
+    <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 24 hours. If it expires, contact your GEIA representative to request a new one.</p>
+  `);
+
+  await getTransporter().sendMail({
+    from: `"${FROM_NAME}" <${SMTP_USER}>`,
+    replyTo: REPLY_TO,
+    to: data.to,
+    subject: `You're invited to SafeScore — ${data.companyName}`,
     html,
   });
 }
