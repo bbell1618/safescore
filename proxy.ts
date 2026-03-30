@@ -68,7 +68,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protect /portal/* — must be client_user
-  if (path.startsWith("/portal")) {
+  if (path.startsWith("/portal") && !path.startsWith("/portal/setup")) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";

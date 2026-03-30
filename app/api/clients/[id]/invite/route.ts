@@ -27,82 +27,42 @@ export async function POST(
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/portal`;
+    // Invalidate any existing unused invites for this email + client
+    await supabase
+      .from("client_invites")
+      .update({ expires_at: new Date().toISOString() })
+      .eq("client_id", id)
+      .eq("email", email.toLowerCase())
+      .is("used_at", null);
 
-    // Check if auth user already exists
-    const { data: userList } = await supabase.auth.admin.listUsers();
-    const existingAuthUser = userList?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    let authUserId: string;
-
-    if (existingAuthUser) {
-      authUserId = existingAuthUser.id;
-      // Ensure email is confirmed so magic links work
-      if (!existingAuthUser.email_confirmed_at) {
-        await supabase.auth.admin.updateUser(existingAuthUser.id, {
-          email_confirm: true,
-        });
-      }
-    } else {
-      // Create new auth user with confirmed email so magic links work
-      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: {
-          role: "client_user",
-          client_id: id,
-          full_name: "",
-        },
-      });
-
-      if (createError || !newUser.user) {
-        return NextResponse.json(
-          { error: createError?.message ?? "Failed to create user" },
-          { status: 500 }
-        );
-      }
-
-      authUserId = newUser.user.id;
-    }
-
-    // Ensure users table row exists with correct client_id
-    await supabase.from("users").upsert(
-      {
-        id: authUserId,
-        email: email.toLowerCase(),
-        role: "client_user",
+    // Create a new invite token (7-day expiry, set by DB default)
+    const { data: invite, error: inviteError } = await supabase
+      .from("client_invites")
+      .insert({
         client_id: id,
-      },
-      { onConflict: "id" }
-    );
+        email: email.toLowerCase(),
+      })
+      .select("token")
+      .single();
 
-    // Generate magic link (user is confirmed, so magiclink type always works)
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: { redirectTo },
-    });
-
-    if (linkError || !linkData?.properties?.action_link) {
+    if (inviteError || !invite) {
       return NextResponse.json(
-        { error: linkError?.message ?? "Failed to generate invite link" },
+        { error: inviteError?.message ?? "Failed to create invite" },
         { status: 500 }
       );
     }
+
+    // Build the setup URL
+    const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/setup?token=${invite.token}`;
 
     // Send branded invite email
     await sendInviteEmail({
       to: email,
       companyName: client.name,
-      magicLinkUrl: linkData.properties.action_link,
+      magicLinkUrl: setupUrl,
     });
 
-    const message = existingAuthUser
-      ? `Invite resent to ${email}`
-      : `Invite sent to ${email}`;
-    return NextResponse.json({ success: true, message });
+    return NextResponse.json({ success: true, message: `Invite sent to ${email}` });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
