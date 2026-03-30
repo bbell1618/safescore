@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,7 +10,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  const errorCode = searchParams.get("error_code");
+  const errorParam = searchParams.get("error");
+  const linkExpired = errorCode === "otp_expired" || errorParam === "access_denied";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -60,6 +65,11 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
+        {linkExpired && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-[#DC362E]">
+            Your sign-in link has expired or was already used. Please contact your GEIA representative to request a new invitation.
+          </div>
+        )}
         <div className="bg-white rounded-xl shadow-sm border border-[#E5E5E5] p-8">
           <form onSubmit={handleLogin} className="space-y-5">
             <div>

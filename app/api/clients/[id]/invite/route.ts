@@ -29,28 +29,27 @@ export async function POST(
 
     const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/portal`;
 
-    // Check if a user with this email already exists for this client
-    const { data: existingUsers } = await supabase
-      .from("users")
-      .select("id, email")
-      .eq("client_id", id);
-
-    const existingUser = existingUsers?.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
+    // Check if auth user already exists
+    const { data: userList } = await supabase.auth.admin.listUsers();
+    const existingAuthUser = userList?.users?.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
 
     let authUserId: string;
-    let linkType: "magiclink" | "invite";
 
-    if (existingUser) {
-      // User already exists -- generate a new magic link and resend
-      authUserId = existingUser.id;
-      linkType = "magiclink";
+    if (existingAuthUser) {
+      authUserId = existingAuthUser.id;
+      // Ensure email is confirmed so magic links work
+      if (!existingAuthUser.email_confirmed_at) {
+        await supabase.auth.admin.updateUser(existingAuthUser.id, {
+          email_confirm: true,
+        });
+      }
     } else {
-      // New user -- create auth account first
+      // Create new auth user with confirmed email so magic links work
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email,
-        email_confirm: false,
+        email_confirm: true,
         user_metadata: {
           role: "client_user",
           client_id: id,
@@ -59,45 +58,50 @@ export async function POST(
       });
 
       if (createError || !newUser.user) {
-        return NextResponse.json({ error: createError?.message ?? "Failed to create user" }, { status: 500 });
+        return NextResponse.json(
+          { error: createError?.message ?? "Failed to create user" },
+          { status: 500 }
+        );
       }
 
       authUserId = newUser.user.id;
-      linkType = "invite";
-
-      // Pre-insert users row so client_id is ready on confirm
-      await supabase
-        .from("users")
-        .upsert(
-          {
-            id: authUserId,
-            email: email.toLowerCase(),
-            role: "client_user",
-            client_id: id,
-          },
-          { onConflict: "id" }
-        );
     }
 
-    // Generate magic link without sending Supabase email
+    // Ensure users table row exists with correct client_id
+    await supabase.from("users").upsert(
+      {
+        id: authUserId,
+        email: email.toLowerCase(),
+        role: "client_user",
+        client_id: id,
+      },
+      { onConflict: "id" }
+    );
+
+    // Generate magic link (user is confirmed, so magiclink type always works)
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: linkType,
+      type: "magiclink",
       email,
       options: { redirectTo },
     });
 
     if (linkError || !linkData?.properties?.action_link) {
-      return NextResponse.json({ error: linkError?.message ?? "Failed to generate invite link" }, { status: 500 });
+      return NextResponse.json(
+        { error: linkError?.message ?? "Failed to generate invite link" },
+        { status: 500 }
+      );
     }
 
-    // Send branded invite email via nodemailer
+    // Send branded invite email
     await sendInviteEmail({
       to: email,
       companyName: client.name,
       magicLinkUrl: linkData.properties.action_link,
     });
 
-    const message = existingUser ? `Invite resent to ${email}` : `Invite sent to ${email}`;
+    const message = existingAuthUser
+      ? `Invite resent to ${email}`
+      : `Invite sent to ${email}`;
     return NextResponse.json({ success: true, message });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
