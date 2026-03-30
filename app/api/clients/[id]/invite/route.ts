@@ -53,7 +53,7 @@ export async function POST(
     }
 
     // Build the setup URL
-    const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/setup?token=${invite.token}`;
+    const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/setup?token=${invite.token}`;
 
     // Send branded invite email
     await sendInviteEmail({
