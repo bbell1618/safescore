@@ -69,8 +69,8 @@ function SetupForm() {
         return;
       }
 
-      // Step 3: Redirect to portal
-      router.push("/portal");
+      // Step 3: Redirect to onboarding (new users never have a subscription yet)
+      router.push("/portal/onboarding");
     } catch {
       setError("Network error — please try again.");
       setLoading(false);

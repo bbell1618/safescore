@@ -18,6 +18,7 @@ export function InviteClientModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,6 +36,7 @@ export function InviteClientModal({
       if (!res.ok) {
         setError(data.error ?? "Failed to send invite");
       } else {
+        if (data.setupUrl) setFallbackUrl(data.setupUrl);
         setSuccess(true);
       }
     } catch {
@@ -74,11 +76,29 @@ export function InviteClientModal({
           {success ? (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <CheckCircle className="w-10 h-10 text-green-500" />
-              <p className="font-medium text-[#1A1A1A]">Invite sent</p>
-              <p className="text-sm text-gray-500">
-                <span className="font-medium">{email}</span> will receive an email
-                with a link to set up their portal account.
-              </p>
+              <p className="font-medium text-[#1A1A1A]">Invite created</p>
+              {fallbackUrl ? (
+                <div className="w-full text-left space-y-2">
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Email delivery unavailable. Share this link directly with the client:
+                  </p>
+                  <div className="bg-[#F4F4F4] rounded-lg px-3 py-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-600 break-all flex-1">{fallbackUrl}</span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(fallbackUrl)}
+                      className="text-xs font-medium text-[#DC362E] shrink-0 hover:underline"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  <span className="font-medium">{email}</span> will receive an email
+                  with a link to set up their portal account.
+                </p>
+              )}
               <button
                 onClick={onClose}
                 className="mt-2 px-4 py-2 text-sm font-medium bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors"

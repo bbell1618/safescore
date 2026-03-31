@@ -55,14 +55,27 @@ export async function POST(
     // Build the setup URL
     const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/setup?token=${invite.token}`;
 
-    // Send branded invite email
-    await sendInviteEmail({
-      to: email,
-      companyName: client.name,
-      magicLinkUrl: setupUrl,
-    });
+    // Send branded invite email — non-fatal if SMTP isn't configured yet
+    let emailSent = true;
+    try {
+      await sendInviteEmail({
+        to: email,
+        companyName: client.name,
+        magicLinkUrl: setupUrl,
+      });
+    } catch (emailErr) {
+      console.error("Invite email failed (SMTP may not be configured):", emailErr);
+      emailSent = false;
+    }
 
-    return NextResponse.json({ success: true, message: `Invite sent to ${email}` });
+    return NextResponse.json({
+      success: true,
+      emailSent,
+      setupUrl: emailSent ? undefined : setupUrl,
+      message: emailSent
+        ? `Invite sent to ${email}`
+        : `Invite created but email failed. Share this link manually: ${setupUrl}`,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
