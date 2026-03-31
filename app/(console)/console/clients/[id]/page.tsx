@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { InviteButton } from "@/components/console/invite-button";
+import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +158,12 @@ export default async function ClientDetailPage({
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 shrink-0 items-center">
+            <RunAnalysisButton
+              clientId={id}
+              dotNumber={client.dot_number}
+              hasData={(violationCount ?? 0) > 0}
+            />
             <InviteButton clientId={id} clientName={client.name} />
             <Link
               href={`/console/clients/${id}/violations`}
@@ -191,9 +197,9 @@ export default async function ClientDetailPage({
             </h2>
             <Link
               href={`/console/assess/${client.dot_number}`}
-              className="text-xs text-[#DC362E] hover:underline"
+              className="text-xs text-gray-400 hover:text-[#DC362E] transition-colors"
             >
-              Re-run analysis
+              View assessment →
             </Link>
           </div>
           <div className="grid grid-cols-4 gap-3">
