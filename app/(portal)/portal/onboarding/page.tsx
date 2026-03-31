@@ -97,9 +97,18 @@ export default function OnboardingPage() {
     if (step === 3 && client?.dot_number && !carrier) {
       setLoadingCarrier(true);
       fetch(`/api/fmcsa/carrier/${client.dot_number}`)
-        .then((r) => r.json())
-        .then((data) => setCarrier(data.carrier ?? data ?? null))
-        .catch(() => null)
+        .then((r) => {
+          if (!r.ok) throw new Error(`API error: ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          console.log("FMCSA carrier data:", data);
+          setCarrier(data.carrier ?? null);
+        })
+        .catch((err) => {
+          console.error("FMCSA fetch error:", err);
+          setCarrier(null);
+        })
         .finally(() => setLoadingCarrier(false));
     }
   }, [step, client, carrier]);

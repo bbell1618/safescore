@@ -94,6 +94,7 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
   if (!process.env.FMCSA_API_KEY) {
     return getMockCarrier(dot);
   }
+  try {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = await fetchFMCSA<{ content: { carrier: any } }>(`/carriers/${dot}`);
   const r = data.content.carrier;
@@ -126,12 +127,17 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
     statusCode: r.statusCode ?? null,
     usdotStatus: r.statusCode ?? null,
   };
+  } catch (err) {
+    console.error(`FMCSA API failed for DOT ${dot}, falling back to mock:`, err);
+    return getMockCarrier(dot);
+  }
 }
 
 export async function getBasics(dot: string): Promise<FMCSABasics> {
   if (!process.env.FMCSA_API_KEY) {
     return getMockBasics(dot);
   }
+  try {
   const data = await fetchFMCSA<{ content: { BasicsInfo: Array<{ measureValue: number; percentile: number; investigationCount: number; violationCount: number; category: string; alert: boolean; outOfService: boolean }> } }>(`/carriers/${dot}/basics`);
   const basics: FMCSABasics = {
     unsafeDriving: null,
@@ -162,12 +168,17 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
     else if (cat?.includes("crash")) basics.crashIndicator = item;
   }
   return basics;
+  } catch (err) {
+    console.error(`FMCSA basics API failed for DOT ${dot}, falling back to mock:`, err);
+    return getMockBasics(dot);
+  }
 }
 
 export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
   if (!process.env.FMCSA_API_KEY) {
     return getMockOosRates(dot);
   }
+  try {
   const data = await fetchFMCSA<{ content: Record<string, number> }>(`/carriers/${dot}/oos`);
   const c = data.content;
   return {
@@ -184,6 +195,10 @@ export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
     nationalVehicleOosRate: c.nationalVehicleOosRate ?? 22.26,
     nationalDriverOosRate: c.nationalDriverOosRate ?? 6.67,
   };
+  } catch (err) {
+    console.error(`FMCSA OOS rates API failed for DOT ${dot}, falling back to mock:`, err);
+    return getMockOosRates(dot);
+  }
 }
 
 // ── Mock data for DOT 2533650 (Nationwide Carrier Inc) ──────────────────────

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/client";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const supabase = await createServiceClient();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -39,7 +42,7 @@ export async function POST(request: NextRequest) {
 
       if (clientId) {
         // Upsert subscription record
-        await (supabase as any)
+        await supabase
           .from("subscriptions")
           .upsert(
             {
@@ -47,14 +50,14 @@ export async function POST(request: NextRequest) {
               stripe_subscription_id: subscriptionId,
               stripe_customer_id: customerId,
               status: "active",
-              tier: "tier_1",
-              mrr: 299,
+              tier: session.metadata?.tier ?? "monitor",
+              mrr: (session.amount_total ?? 0) / 100,
             },
             { onConflict: "client_id" }
           );
 
         // Update client status to active
-        await (supabase as any)
+        await supabase
           .from("clients")
           .update({ status: "active" })
           .eq("id", clientId);

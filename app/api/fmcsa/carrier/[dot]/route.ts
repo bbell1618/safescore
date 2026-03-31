@@ -11,6 +11,7 @@ export async function GET(
     return NextResponse.json({ carrier });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error(`FMCSA carrier fetch failed for DOT ${dot}:`, message);
+    return NextResponse.json({ error: message, carrier: null }, { status: 500 });
   }
 }
