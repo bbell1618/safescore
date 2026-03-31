@@ -14,32 +14,32 @@ function SuccessContent() {
 
   useEffect(() => {
     if (!sessionId) {
-      // No session_id in URL — subscription may already exist (direct nav)
+      // No session_id in URL — navigate immediately (direct nav or already synced)
       setSynced(true);
       return;
     }
-
-    fetch("/api/billing/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          setSynced(true);
-        } else {
-          console.error("Sync failed:", data.error);
-          // Still allow navigation — webhook may have already written it
-          setSynced(true);
-        }
-      })
-      .catch((err) => {
-        console.error("Sync request failed:", err);
-        // Still allow navigation — webhook may have already written it
-        setSynced(true);
-      });
+    attemptSync();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  async function attemptSync() {
+    setSyncError(null);
+    try {
+      const r = await fetch("/api/billing/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      const data = await r.json();
+      if (data.success) {
+        setSynced(true);
+      } else {
+        setSyncError(data.error ?? "Activation failed. Please contact support.");
+      }
+    } catch {
+      setSyncError("Network error — please try again.");
+    }
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-10 text-center">
@@ -56,11 +56,19 @@ function SuccessContent() {
         is being prepared and will be ready within 24 hours.
       </p>
 
-      {syncError && (
-        <p className="text-sm text-red-500 mb-4">{syncError}</p>
-      )}
-
-      {synced ? (
+      {syncError ? (
+        <div className="space-y-3">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-[#DC362E]">
+            {syncError}
+          </div>
+          <button
+            onClick={attemptSync}
+            className="w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#b52a23] transition-colors"
+          >
+            Retry activation
+          </button>
+        </div>
+      ) : synced ? (
         <button
           onClick={() => router.push("/portal")}
           className="inline-block w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#b52a23] transition-colors text-center"
