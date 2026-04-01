@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Loader2, Send, Edit3 } from "lucide-react";
+import { FileText, Loader2, Send, Edit3, CheckCircle } from "lucide-react";
 
 interface Props {
   clientId: string;
@@ -23,21 +23,28 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
   const [type, setType] = useState<ReportType>("assessment");
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   async function handleGenerate() {
     setGenerating(true);
     setContent(null);
+    setReportId(null);
     setSaved(false);
+    setSent(false);
+    setSendError(null);
     try {
-      const res = await fetch(`/api/reports/generate`, {
+      const res = await fetch(`/api/reports/generate-text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, dotNumber, carrierName, type }),
+        body: JSON.stringify({ clientId, dotNumber, type }),
       });
       const data = await res.json();
       if (data.content) setContent(data.content);
+      if (data.reportId) setReportId(data.reportId);
     } finally {
       setGenerating(false);
     }
@@ -50,7 +57,32 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clientId, type, content }),
     });
-    if (res.ok) setSaved(true);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.reportId) setReportId(data.reportId);
+      setSaved(true);
+    }
+  }
+
+  async function handleSend() {
+    if (!reportId) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch(`/api/reports/${reportId}/send`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        setSent(true);
+      } else {
+        const data = await res.json();
+        setSendError(data.error ?? "Failed to send report");
+      }
+    } catch {
+      setSendError("Network error — please try again");
+    } finally {
+      setSending(false);
+    }
   }
 
   const selectedType = reportTypes.find((r) => r.value === type)!;
@@ -109,15 +141,30 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
                 <FileText className="w-3.5 h-3.5" />
                 {saved ? "Saved" : "Save as reviewed"}
               </button>
-              <button
-                onClick={() => setSending(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-black transition-colors"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Send to client
-              </button>
+              {sent ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Sent
+                </div>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={sending || !reportId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-black transition-colors disabled:opacity-50"
+                >
+                  {sending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  {sending ? "Sending..." : "Send to client"}
+                </button>
+              )}
             </div>
           </div>
+          {sendError && (
+            <p className="text-xs text-[#DC362E]">{sendError}</p>
+          )}
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}

@@ -1,8 +1,7 @@
-import { getCarrier, getBasics, getOosRates, getMockInspections, getMockCrashes } from "@/lib/fmcsa/client";
+import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
-import { Badge } from "@/components/ui/badge";
 import { AddClientForm } from "@/components/console/add-client-form";
-import { AlertTriangle, Building2, Truck, Users2 } from "lucide-react";
+import { AlertTriangle, Truck, Users2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +41,6 @@ export default async function AssessPage({
       </div>
     );
   }
-
-  const inspections = getMockInspections(dot);
-  const crashes = getMockCrashes(dot);
-  const totalViolations = inspections.reduce((s, i) => s + i.violations.length, 0);
 
   const basicsArray = [
     { key: "unsafeDriving", label: "Unsafe driving", data: basics?.unsafeDriving },
@@ -94,12 +89,10 @@ export default async function AssessPage({
       </div>
 
       {/* Carrier info */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {[
           { label: "Power units", value: carrier.totalPowerUnits, icon: Truck },
           { label: "Drivers", value: carrier.totalDrivers, icon: Users2 },
-          { label: "Inspections (24mo)", value: inspections.length, icon: Building2 },
-          { label: "Crashes (24mo)", value: crashes.length, icon: AlertTriangle },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -182,60 +175,12 @@ export default async function AssessPage({
         </div>
       )}
 
-      {/* Inspection summary */}
+      {/* Inspection / crash history note */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
-        <h2
-          className="font-semibold text-[#1A1A1A] text-sm mb-4"
-        >
-          Inspection summary ({totalViolations} violations across {inspections.length} inspections)
-        </h2>
-        <div className="divide-y divide-[#E5E5E5]">
-          {inspections.map((insp) => (
-            <div key={insp.reportNumber} className="py-3 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#1A1A1A]">
-                  {insp.inspectionDate} — {insp.state} — {insp.level}
-                </p>
-                <p className="text-xs text-gray-400">{insp.facilityName}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge variant="default">{insp.violations.length} violations</Badge>
-                {insp.violations.some((v) => v.oosViolation) && (
-                  <Badge variant="danger">OOS</Badge>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-gray-500">
+          Detailed inspection and violation history available after running full analysis for enrolled clients.
+        </p>
       </div>
-
-      {/* Crash summary */}
-      {crashes.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
-          <h2
-            className="font-semibold text-[#1A1A1A] text-sm mb-4"
-          >
-            Crash history ({crashes.length} crashes — all tow-away, CPDP eligibility pending assessment)
-          </h2>
-          <div className="divide-y divide-[#E5E5E5]">
-            {crashes.map((crash) => (
-              <div key={crash.reportNumber} className="py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-[#1A1A1A]">
-                    {crash.crashDate} — {crash.city}, {crash.state}
-                  </p>
-                  <div className="flex gap-2">
-                    {crash.towAway && <Badge variant="warning">Tow-away</Badge>}
-                    {crash.hazmatRelease && <Badge variant="danger">Hazmat</Badge>}
-                    <Badge variant="gold">CPDP eligible?</Badge>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{crash.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Add as client */}
       <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
