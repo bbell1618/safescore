@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { InviteButton } from "@/components/console/invite-button";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
+import { FmcsaAccessBadge } from "@/components/console/fmcsa-access-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,9 @@ export default async function ClientDetailPage({
                 DOT {client.dot_number}
                 {client.mc_number ? ` · MC ${client.mc_number}` : ""}
               </span>
+              <FmcsaAccessBadge
+                hasAccess={!!(client as any)?.fmcsa_pin && !!(client as any)?.fmcsa_authorized}
+              />
               {(client.city || client.state) && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5" />

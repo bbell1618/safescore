@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { ChevronRight, User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
+import { AddDriverButton, AddVehicleButton } from "@/components/console/compliance-add-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export default async function CompliancePage({
                 Driver roster ({drivers?.length ?? 0})
               </h2>
             </div>
-            <button className="text-xs text-[#DC362E] hover:underline">+ Add driver</button>
+            <AddDriverButton clientId={id} />
           </div>
           {drivers && drivers.length > 0 ? (
             <div className="divide-y divide-[#E5E5E5]">
@@ -130,7 +131,7 @@ export default async function CompliancePage({
                 Vehicle fleet ({vehicles?.length ?? 0})
               </h2>
             </div>
-            <button className="text-xs text-[#DC362E] hover:underline">+ Add vehicle</button>
+            <AddVehicleButton clientId={id} />
           </div>
           {vehicles && vehicles.length > 0 ? (
             <div className="divide-y divide-[#E5E5E5]">

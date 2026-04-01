@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 
 interface ClientData {
   id: string;
@@ -78,6 +78,12 @@ export default function OnboardingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // Step 4: FMCSA Access
+  const [fmcsaPin, setFmcsaPin] = useState("");
+  const [fmcsaAuthorized, setFmcsaAuthorized] = useState(false);
+  const [fmcsaPinError, setFmcsaPinError] = useState<string | null>(null);
+  const [fmcsaSaving, setFmcsaSaving] = useState(false);
+
   useEffect(() => {
     async function fetchClient() {
       try {
@@ -140,7 +146,30 @@ export default function OnboardingPage() {
     }
   }
 
-  const totalSteps = 4;
+  async function handleFmcsaSaveAndContinue() {
+    setFmcsaPinError(null);
+
+    if (fmcsaPin && !/^\d{7}$/.test(fmcsaPin)) {
+      setFmcsaPinError("PIN must be exactly 7 digits.");
+      return;
+    }
+
+    setFmcsaSaving(true);
+    try {
+      await fetch("/api/portal/fmcsa-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: fmcsaPin || undefined, authorized: fmcsaAuthorized }),
+      });
+    } catch {
+      // Non-fatal — don't block onboarding
+    } finally {
+      setFmcsaSaving(false);
+    }
+    setStep(5);
+  }
+
+  const totalSteps = 5;
   const steps = Array.from({ length: totalSteps }, (_, i) => i + 1);
 
   const selectedTierData = TIERS.find((t) => t.value === selectedTier)!;
@@ -305,7 +334,7 @@ export default function OnboardingPage() {
             <div className="p-8">
               <div className="mb-6">
                 <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
-                  Step 3 of {totalSteps}
+                  Step 3 of 5
                 </p>
                 <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
                   Your safety profile
@@ -395,18 +424,110 @@ export default function OnboardingPage() {
                   onClick={() => setStep(4)}
                   className="flex-1 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
                 >
-                  Continue to subscribe
+                  Continue
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── Step 4: Subscribe ── */}
+          {/* ── Step 4: FMCSA Access ── */}
           {step === 4 && (
             <div className="p-8">
               <div className="mb-6">
                 <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
-                  Step 4 of {totalSteps}
+                  Step 4 of 5
+                </p>
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="w-5 h-5 text-[#DC362E] shrink-0" />
+                  <h1 className="text-2xl font-bold text-[#1A1A1A]">FMCSA portal access</h1>
+                </div>
+                <p className="text-gray-600 leading-relaxed">
+                  To provide complete safety analysis, we need access to your FMCSA Portal data.
+                  This includes your full BASIC scores and detailed violation history.
+                </p>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1.5">
+                    FMCSA Portal PIN
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={7}
+                    value={fmcsaPin}
+                    onChange={(e) => {
+                      setFmcsaPin(e.target.value.replace(/\D/g, "").slice(0, 7));
+                      setFmcsaPinError(null);
+                    }}
+                    placeholder="7-digit PIN"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/30 transition-colors ${
+                      fmcsaPinError ? "border-[#DC362E] bg-[#F9E0DF]" : "border-[#E5E5E5] bg-white"
+                    }`}
+                  />
+                  {fmcsaPinError && (
+                    <p className="text-xs text-[#DC362E] mt-1">{fmcsaPinError}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Your PIN was issued when you registered with FMCSA. Request a new PIN at{" "}
+                    <a
+                      href="https://portal.fmcsa.dot.gov"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#DC362E] hover:underline"
+                    >
+                      portal.fmcsa.dot.gov
+                    </a>{" "}
+                    if needed.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fmcsaAuthorized}
+                    onChange={(e) => setFmcsaAuthorized(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-[#E5E5E5] text-[#DC362E] focus:ring-[#DC362E]/30 shrink-0"
+                  />
+                  <span className="text-sm text-gray-700 leading-snug">
+                    I authorize Golden Era Insurance Agency to access my FMCSA Portal data and file
+                    DataQs/CPDP challenges on my behalf.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-3 border border-[#E5E5E5] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleFmcsaSaveAndContinue}
+                  disabled={fmcsaSaving}
+                  className="flex-1 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {fmcsaSaving ? "Saving..." : "Save & continue"}
+                </button>
+              </div>
+
+              <button
+                onClick={() => setStep(5)}
+                className="w-full mt-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Skip for now
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 5: Subscribe ── */}
+          {step === 5 && (
+            <div className="p-8">
+              <div className="mb-6">
+                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                  Step 5 of 5
                 </p>
                 <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
                   Activate your account
@@ -460,7 +581,7 @@ export default function OnboardingPage() {
               </p>
 
               <button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
                 Back
