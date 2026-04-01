@@ -269,65 +269,50 @@ export interface FMCSACrashRecord {
 }
 
 export async function getInspections(dot: string): Promise<FMCSAInspection[]> {
-  if (!process.env.FMCSA_API_KEY) {
-    console.warn(`FMCSA_API_KEY not set — no inspection data available for DOT ${dot}`);
-    return [];
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await fetchFMCSA<{ content: any }>(`/carriers/${dot}/inspections`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const records: any[] = data.content?.InspectionDetails ?? data.content?.listRecords ?? data.content?.Inspections ?? [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return records.map((r: any) => ({
-      reportNumber: String(r.reportNumber ?? r.reportNum ?? ""),
-      inspectionDate: r.inspDate ?? r.inspectionDate ?? "",
-      state: r.reportState ?? r.state ?? "",
-      level: String(r.level ?? ""),
-      facilityName: r.facilityName ?? "",
-      timeWeight: Number(r.timeWeight ?? 1),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      violations: (r.violations ?? r.Violations ?? []).map((v: any) => ({
-        violationCode: v.violCode ?? v.code ?? "",
-        description: v.violDesc ?? v.description ?? "",
-        basicCategory: normalizeBASICCategory(v.basic ?? v.basicDescription ?? ""),
-        severityWeight: Number(v.severityWeight ?? 1),
-        oosViolation: v.oos === "Y" || v.oos === true,
-        convicted: v.convicted === "Y" || v.convicted === true,
-        citationNumber: null,
-      })),
+  const { getInspectionsByDot } = await import("./datahub-client");
+  const rows = await getInspectionsByDot(dot);
+  return rows
+    .filter((r) => r.reportNumber !== "")
+    .map((r) => ({
+      reportNumber: r.reportNumber,
+      inspectionDate: formatInspDate(r.inspectionDate), // YYYYMMDD -> YYYY-MM-DD
+      state: r.reportState,
+      level: String(r.level),
+      facilityName: `Level ${r.level} — ${r.reportState}`,
+      timeWeight: calculateTimeWeight(r.inspectionDate),
+      violations: [], // violation codes come from a separate dataset
     }));
-  } catch (err) {
-    console.error(`FMCSA inspections API failed for DOT ${dot}:`, err);
-    return [];
-  }
+}
+
+function formatInspDate(yyyymmdd: string): string {
+  if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
+  return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
+}
+
+function calculateTimeWeight(inspDateYYYYMMDD: string): number {
+  if (!inspDateYYYYMMDD || inspDateYYYYMMDD.length !== 8) return 1;
+  const inspYear = parseInt(inspDateYYYYMMDD.slice(0, 4));
+  const inspMonth = parseInt(inspDateYYYYMMDD.slice(4, 6));
+  const now = new Date();
+  const monthsAgo = (now.getFullYear() - inspYear) * 12 + (now.getMonth() + 1 - inspMonth);
+  if (monthsAgo <= 6) return 3;
+  if (monthsAgo <= 12) return 2;
+  return 1;
 }
 
 export async function getCrashes(dot: string): Promise<FMCSACrashRecord[]> {
-  if (!process.env.FMCSA_API_KEY) {
-    console.warn(`FMCSA_API_KEY not set — no crash data available for DOT ${dot}`);
-    return [];
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await fetchFMCSA<{ content: any }>(`/carriers/${dot}/crashes`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const records: any[] = data.content?.CrashDetails ?? data.content?.Crashes ?? data.content?.listRecords ?? [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return records.map((r: any) => ({
-      reportNumber: String(r.reportNumber ?? r.crashId ?? ""),
-      crashDate: r.crashDate ?? "",
-      state: r.state ?? "",
-      city: r.city ?? "",
-      fatalities: Number(r.fatal ?? r.fatalities ?? 0),
-      injuries: Number(r.injuries ?? 0),
-      towAway: Number(r.towaways ?? r.towAway ?? 0) > 0,
-      hazmatRelease: r.hazmatRelease === "Y" || r.hazmatReleased === "Y" || r.hazmatRelease === true,
-    }));
-  } catch (err) {
-    console.error(`FMCSA crashes API failed for DOT ${dot}:`, err);
-    return [];
-  }
+  const { getCrashesByDot } = await import("./datahub-client");
+  const rows = await getCrashesByDot(dot);
+  return rows.map((r) => ({
+    reportNumber: r.reportNumber,
+    crashDate: r.crashDate,
+    state: r.reportState,
+    city: "",
+    fatalities: r.fatalities,
+    injuries: r.injuries,
+    towAway: r.towAway,
+    hazmatRelease: r.hazmatRelease,
+  }));
 }
 
 // ── Mock data for DOT 2533650 (Nationwide Carrier Inc) ──────────────────────
