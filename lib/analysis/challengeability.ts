@@ -27,10 +27,80 @@ export interface AssessmentResult {
   suggestedApproach: string | null;
 }
 
+function ruleBasedAssessment(v: ViolationInput): AssessmentResult {
+  if (!v.convicted) {
+    return {
+      violationId: v.id,
+      challengeable: true,
+      reason: "Violation not convicted — strong grounds for DataQs challenge on evidentiary basis",
+      priority: v.severityWeight >= 7 ? "high" : "medium",
+      confidence: 75,
+      suggestedApproach: "File DataQs requesting removal based on lack of conviction record",
+    };
+  }
+  if (v.oosViolation && v.basicCategory === "vehicle_maintenance") {
+    return {
+      violationId: v.id,
+      challengeable: false,
+      reason: "OOS vehicle maintenance violation with conviction — clear documented record, limited challenge grounds",
+      priority: "low",
+      confidence: 72,
+      suggestedApproach: null,
+    };
+  }
+  if (v.basicCategory === "hos_compliance") {
+    return {
+      violationId: v.id,
+      challengeable: true,
+      reason: "HOS recordkeeping violations are frequently challengeable on procedural or timeline grounds",
+      priority: "medium",
+      confidence: 65,
+      suggestedApproach: "Review driver logs and officer timeline for discrepancies in hours calculation",
+    };
+  }
+  if (v.basicCategory === "driver_fitness") {
+    return {
+      violationId: v.id,
+      challengeable: true,
+      reason: "Driver fitness violations often challengeable if supporting documentation can be produced",
+      priority: "high",
+      confidence: 68,
+      suggestedApproach: "Provide employment application, previous employer inquiry records, and qualification file",
+    };
+  }
+  if (v.basicCategory === "hazmat_compliance") {
+    return {
+      violationId: v.id,
+      challengeable: false,
+      reason: "Hazmat compliance violations with conviction carry significant regulatory weight — difficult to challenge",
+      priority: "low",
+      confidence: 70,
+      suggestedApproach: null,
+    };
+  }
+  return {
+    violationId: v.id,
+    challengeable: v.severityWeight < 6,
+    reason:
+      v.severityWeight < 6
+        ? "Lower severity violation — may be challengeable on procedural or minor evidentiary grounds"
+        : "High severity convicted violation — limited challenge prospects without clear procedural error",
+    priority: "low",
+    confidence: 55,
+    suggestedApproach:
+      v.severityWeight < 6 ? "Review inspection report for procedural irregularities or equipment repair documentation" : null,
+  };
+}
+
 export async function assessViolationsBatch(
   violations: ViolationInput[],
   onProgress?: (completed: number, total: number) => void
 ): Promise<AssessmentResult[]> {
+  // Use rule-based assessment if OpenRouter is not configured
+  if (!process.env.OPENROUTER_API_KEY) {
+    return violations.map(ruleBasedAssessment);
+  }
+
   const results: AssessmentResult[] = [];
   const BATCH_SIZE = 10;
 

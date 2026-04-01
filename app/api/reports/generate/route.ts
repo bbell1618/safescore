@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   let clientId: string | null = null;
 
-  if (role === "geia_admin") {
+  if (role === "geia_admin" || role === "geia_staff") {
     // Admin passes client_id in the request body
     let body: any = {};
     try {
@@ -135,9 +135,9 @@ export async function POST(request: Request) {
   // ── 6. Fetch violations from Supabase ────────────────────────────────────────
   const { data: violationRows } = await serviceSupabase
     .from("violations")
-    .select("date, description, severity_weight, oos_violation, challengeable, basic_category")
+    .select("violation_description, created_at, severity_weight, oos_violation, challengeable, basic_category")
     .eq("client_id", clientId)
-    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(50) as any;
 
   const violations: Array<{
@@ -148,8 +148,8 @@ export async function POST(request: Request) {
     challengeable: boolean | null;
     basic_category: string | null;
   }> = (violationRows ?? []).map((v: any) => ({
-    date: v.date ?? "",
-    description: v.description ?? "",
+    date: v.created_at ?? "",
+    description: v.violation_description ?? "",
     severity_weight: v.severity_weight ?? null,
     oos_violation: v.oos_violation ?? false,
     challengeable: v.challengeable ?? null,

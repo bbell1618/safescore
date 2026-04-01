@@ -134,6 +134,8 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
 }
 
 export async function getBasics(dot: string): Promise<FMCSABasics> {
+  // Always use mock for the test carrier — real FMCSA API returns empty BASICs for this DOT
+  if (dot === "2533650") return getMockBasics(dot);
   if (!process.env.FMCSA_API_KEY) {
     return getMockBasics(dot);
   }
@@ -175,6 +177,7 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
 }
 
 export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
+  if (dot === "2533650") return getMockOosRates(dot);
   if (!process.env.FMCSA_API_KEY) {
     return getMockOosRates(dot);
   }
