@@ -3,7 +3,7 @@
  * Base URL: https://mobile.fmcsa.dot.gov/qc/services
  * API key from: https://mobile.fmcsa.dot.gov/QCDevsite/
  *
- * When FMCSA_API_KEY is not set, returns mock data for DOT 2533650 (Nationwide Carrier Inc)
+ * Requires FMCSA_API_KEY env var. Returns empty data (no fallbacks) when key is missing or API fails.
  */
 
 const BASE_URL = "https://mobile.fmcsa.dot.gov/qc/services";
@@ -91,9 +91,6 @@ async function fetchFMCSA<T>(path: string): Promise<T> {
 }
 
 export async function getCarrier(dot: string): Promise<FMCSACarrier> {
-  if (!process.env.FMCSA_API_KEY) {
-    return getMockCarrier(dot);
-  }
   try {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = await fetchFMCSA<{ content: { carrier: any } }>(`/carriers/${dot}`);
