@@ -63,7 +63,8 @@ export async function POST(request: Request) {
     await supabase.from("activity_log").insert({
       client_id: clientId,
       user_id: user.id,
-      action: "fmcsa_credentials_submitted",
+      action_type: "fmcsa_credentials_submitted",
+      description: "Client submitted FMCSA portal credentials",
       metadata: { authorized, pin_provided: !!pin },
     });
   } catch (logErr) {
