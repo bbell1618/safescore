@@ -269,19 +269,49 @@ export interface FMCSACrashRecord {
 }
 
 export async function getInspections(dot: string): Promise<FMCSAInspection[]> {
-  const { getInspectionsByDot } = await import("./datahub-client");
-  const rows = await getInspectionsByDot(dot);
+  const { getInspectionsByDot, getViolationsByDot } = await import("./datahub-client");
+
+  // Fetch inspections and violations concurrently
+  const [rows, violations] = await Promise.all([
+    getInspectionsByDot(dot),
+    getViolationsByDot(dot),
+  ]);
+
+  // Group violations by normalized inspection date (YYYY-MM-DD)
+  // Violations join to inspections via dot_number + date (no direct FK between datasets)
+  const violsByDate = new Map<string, typeof violations>();
+  for (const v of violations) {
+    const key = v.inspectionDate;
+    if (!violsByDate.has(key)) violsByDate.set(key, []);
+    violsByDate.get(key)!.push(v);
+  }
+
   return rows
     .filter((r) => r.reportNumber !== "")
-    .map((r) => ({
-      reportNumber: r.reportNumber,
-      inspectionDate: formatInspDate(r.inspectionDate), // YYYYMMDD -> YYYY-MM-DD
-      state: r.reportState,
-      level: String(r.level),
-      facilityName: `Level ${r.level} — ${r.reportState}`,
-      timeWeight: calculateTimeWeight(r.inspectionDate),
-      violations: [], // violation codes come from a separate dataset
-    }));
+    .map((r) => {
+      const inspDate = formatInspDate(r.inspectionDate); // YYYYMMDD → YYYY-MM-DD
+      const matchedViolations = violsByDate.get(inspDate) ?? [];
+
+      return {
+        reportNumber: r.reportNumber,
+        inspectionDate: inspDate,
+        state: r.reportState,
+        level: String(r.level),
+        facilityName: r.facilityName
+          ? `${r.facilityName} — ${r.reportState}`
+          : `Level ${r.level} — ${r.reportState}`,
+        timeWeight: calculateTimeWeight(r.inspectionDate),
+        violations: matchedViolations.map((v) => ({
+          violationCode: v.violationCode,
+          description: v.description,
+          basicCategory: v.basicCategory,
+          severityWeight: v.severityWeight,
+          oosViolation: v.oosViolation,
+          convicted: true, // all violations in SMS dataset are convicted
+          citationNumber: null,
+        })),
+      };
+    });
 }
 
 function formatInspDate(yyyymmdd: string): string {
