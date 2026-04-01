@@ -128,16 +128,13 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
     usdotStatus: r.statusCode ?? null,
   };
   } catch (err) {
-    console.error(`FMCSA API failed for DOT ${dot}, falling back to mock:`, err);
-    return getMockCarrier(dot);
+    throw err;
   }
 }
 
 export async function getBasics(dot: string): Promise<FMCSABasics> {
-  // Always use mock for the test carrier — real FMCSA API returns empty BASICs for this DOT
-  if (dot === "2533650") return getMockBasics(dot);
   if (!process.env.FMCSA_API_KEY) {
-    return getMockBasics(dot);
+    console.warn("FMCSA_API_KEY not set"); return emptyBasics();
   }
   try {
   const data = await fetchFMCSA<{ content: { BasicsInfo: Array<{ measureValue: number; percentile: number; investigationCount: number; violationCount: number; category: string; alert: boolean; outOfService: boolean }> } }>(`/carriers/${dot}/basics`);
@@ -172,14 +169,13 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
   return basics;
   } catch (err) {
     console.error(`FMCSA basics API failed for DOT ${dot}, falling back to mock:`, err);
-    return getMockBasics(dot);
+    return emptyBasics();
   }
 }
 
 export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
-  if (dot === "2533650") return getMockOosRates(dot);
   if (!process.env.FMCSA_API_KEY) {
-    return getMockOosRates(dot);
+    console.warn("FMCSA_API_KEY not set"); return emptyOosRates();
   }
   try {
   const data = await fetchFMCSA<{ content: Record<string, number> }>(`/carriers/${dot}/oos`);
@@ -200,7 +196,140 @@ export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
   };
   } catch (err) {
     console.error(`FMCSA OOS rates API failed for DOT ${dot}, falling back to mock:`, err);
-    return getMockOosRates(dot);
+    return emptyOosRates();
+  }
+}
+
+function emptyBasics(): FMCSABasics {
+  return {
+    unsafeDriving: null,
+    hosCompliance: null,
+    driverFitness: null,
+    controlledSubstances: null,
+    vehicleMaintenance: null,
+    hmCompliance: null,
+    crashIndicator: null,
+  };
+}
+
+function emptyOosRates(): FMCSAOosRates {
+  return {
+    vehicleOosRate: null,
+    driverOosRate: null,
+    hazmatOosRate: null,
+    inspectionTotal: null,
+    vehicleInspections: null,
+    driverInspections: null,
+    hazmatInspections: null,
+    vehicleOos: null,
+    driverOos: null,
+    hazmatOos: null,
+    nationalVehicleOosRate: 22.26,
+    nationalDriverOosRate: 6.67,
+  };
+}
+
+function normalizeBASICCategory(basic: string): string {
+  const b = (basic ?? "").toLowerCase();
+  if (b.includes("unsafe")) return "unsafe_driving";
+  if (b.includes("hours") || b.includes("hos")) return "hos_compliance";
+  if (b.includes("driver") && b.includes("fit")) return "driver_fitness";
+  if (b.includes("controlled") || b.includes("substance") || b.includes("alcohol")) return "controlled_substance";
+  if (b.includes("hazmat") || b.includes("hazardous")) return "hazmat_compliance";
+  if (b.includes("crash")) return "crash_indicator";
+  return "vehicle_maintenance";
+}
+
+export interface FMCSAInspection {
+  reportNumber: string;
+  inspectionDate: string;
+  state: string;
+  level: string;
+  facilityName: string;
+  timeWeight: number;
+  violations: FMCSAViolationRecord[];
+}
+
+export interface FMCSAViolationRecord {
+  violationCode: string;
+  description: string;
+  basicCategory: string;
+  severityWeight: number;
+  oosViolation: boolean;
+  convicted: boolean;
+  citationNumber: string | null;
+}
+
+export interface FMCSACrashRecord {
+  reportNumber: string;
+  crashDate: string;
+  state: string;
+  city: string;
+  fatalities: number;
+  injuries: number;
+  towAway: boolean;
+  hazmatRelease: boolean;
+}
+
+export async function getInspections(dot: string): Promise<FMCSAInspection[]> {
+  if (!process.env.FMCSA_API_KEY) {
+    console.warn(`FMCSA_API_KEY not set — no inspection data available for DOT ${dot}`);
+    return [];
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await fetchFMCSA<{ content: any }>(`/carriers/${dot}/inspections`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const records: any[] = data.content?.InspectionDetails ?? data.content?.listRecords ?? data.content?.Inspections ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return records.map((r: any) => ({
+      reportNumber: String(r.reportNumber ?? r.reportNum ?? ""),
+      inspectionDate: r.inspDate ?? r.inspectionDate ?? "",
+      state: r.reportState ?? r.state ?? "",
+      level: String(r.level ?? ""),
+      facilityName: r.facilityName ?? "",
+      timeWeight: Number(r.timeWeight ?? 1),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      violations: (r.violations ?? r.Violations ?? []).map((v: any) => ({
+        violationCode: v.violCode ?? v.code ?? "",
+        description: v.violDesc ?? v.description ?? "",
+        basicCategory: normalizeBASICCategory(v.basic ?? v.basicDescription ?? ""),
+        severityWeight: Number(v.severityWeight ?? 1),
+        oosViolation: v.oos === "Y" || v.oos === true,
+        convicted: v.convicted === "Y" || v.convicted === true,
+        citationNumber: null,
+      })),
+    }));
+  } catch (err) {
+    console.error(`FMCSA inspections API failed for DOT ${dot}:`, err);
+    return [];
+  }
+}
+
+export async function getCrashes(dot: string): Promise<FMCSACrashRecord[]> {
+  if (!process.env.FMCSA_API_KEY) {
+    console.warn(`FMCSA_API_KEY not set — no crash data available for DOT ${dot}`);
+    return [];
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await fetchFMCSA<{ content: any }>(`/carriers/${dot}/crashes`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const records: any[] = data.content?.CrashDetails ?? data.content?.Crashes ?? data.content?.listRecords ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return records.map((r: any) => ({
+      reportNumber: String(r.reportNumber ?? r.crashId ?? ""),
+      crashDate: r.crashDate ?? "",
+      state: r.state ?? "",
+      city: r.city ?? "",
+      fatalities: Number(r.fatal ?? r.fatalities ?? 0),
+      injuries: Number(r.injuries ?? 0),
+      towAway: Number(r.towaways ?? r.towAway ?? 0) > 0,
+      hazmatRelease: r.hazmatRelease === "Y" || r.hazmatReleased === "Y" || r.hazmatRelease === true,
+    }));
+  } catch (err) {
+    console.error(`FMCSA crashes API failed for DOT ${dot}:`, err);
+    return [];
   }
 }
 

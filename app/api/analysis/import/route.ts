@@ -2,8 +2,8 @@ import { createServiceClient } from "@/lib/supabase/server";
 import {
   getBasics,
   getOosRates,
-  getMockInspections,
-  getMockCrashes,
+  getInspections,
+  getCrashes,
 } from "@/lib/fmcsa/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -72,10 +72,10 @@ export async function POST(request: Request) {
     // Delete existing inspections for this client — cascades to violations
     await supabase.from("inspections").delete().eq("client_id", clientId);
 
-    const mockInspections = getMockInspections(dotNumber);
+    const inspections = await getInspections(dotNumber);
     let violationCount = 0;
 
-    for (const insp of mockInspections) {
+    for (const insp of inspections) {
       const { data: inspRow, error: inspErr } = await supabase
         .from("inspections")
         .insert({
@@ -126,9 +126,9 @@ export async function POST(request: Request) {
     // Delete existing crashes — cascades to cpdp_cases
     await supabase.from("crashes").delete().eq("client_id", clientId);
 
-    const mockCrashes = getMockCrashes(dotNumber);
+    const crashes = await getCrashes(dotNumber);
 
-    for (const crash of mockCrashes) {
+    for (const crash of crashes) {
       const { error: crashErr } = await supabase.from("crashes").insert({
         client_id: clientId,
         dot_number: dotNumber,
@@ -141,8 +141,8 @@ export async function POST(request: Request) {
         tow_away: crash.towAway,
         hazmat_release: crash.hazmatRelease,
         preventable: null,
-        cpdp_eligible: null, // pending assessment
-        raw_data: { description: crash.description },
+        cpdp_eligible: null,
+        raw_data: {},
       });
 
       if (crashErr) {
@@ -162,14 +162,14 @@ export async function POST(request: Request) {
       client_id: clientId,
       action_type: "data_imported",
       entity_type: "client",
-      description: `Full analysis run: ${mockInspections.length} inspections, ${violationCount} violations, ${mockCrashes.length} crashes imported. BASIC scores updated.`,
+      description: `Full analysis run: ${inspections.length} inspections, ${violationCount} violations, ${crashes.length} crashes imported. BASIC scores updated.`,
     });
 
     return NextResponse.json({
       success: true,
-      inspections: mockInspections.length,
+      inspections: inspections.length,
       violations: violationCount,
-      crashes: mockCrashes.length,
+      crashes: crashes.length,
     });
   } catch (err) {
     console.error("Analysis import error:", err);
