@@ -107,34 +107,30 @@ export async function assessViolationsBatch(
   for (let i = 0; i < violations.length; i += BATCH_SIZE) {
     const batch = violations.slice(i, i + BATCH_SIZE);
 
-    // Process batch concurrently
-    const batchResults = await Promise.allSettled(
+    // Process batch concurrently — fall back to rule-based if OpenRouter fails for any individual violation
+    const batchResults = await Promise.all(
       batch.map(async (v) => {
-        const result = await assessViolationChallengeability({
-          violationCode: v.violationCode,
-          description: v.description,
-          basicCategory: v.basicCategory,
-          severityWeight: v.severityWeight,
-          oosViolation: v.oosViolation,
-          convicted: v.convicted,
-          inspectionDate: v.inspectionDate,
-          state: v.state,
-          inspectionLevel: v.inspectionLevel,
-        });
-        return {
-          violationId: v.id,
-          ...result,
-        };
+        try {
+          const result = await assessViolationChallengeability({
+            violationCode: v.violationCode,
+            description: v.description,
+            basicCategory: v.basicCategory,
+            severityWeight: v.severityWeight,
+            oosViolation: v.oosViolation,
+            convicted: v.convicted,
+            inspectionDate: v.inspectionDate,
+            state: v.state,
+            inspectionLevel: v.inspectionLevel,
+          });
+          return { violationId: v.id, ...result };
+        } catch (err) {
+          console.warn("OpenRouter assessment failed, using rule-based fallback:", err);
+          return ruleBasedAssessment(v);
+        }
       })
     );
 
-    for (const result of batchResults) {
-      if (result.status === "fulfilled") {
-        results.push(result.value);
-      } else {
-        console.error("Violation assessment failed:", result.reason);
-      }
-    }
+    results.push(...batchResults);
 
     onProgress?.(Math.min(i + BATCH_SIZE, violations.length), violations.length);
 
