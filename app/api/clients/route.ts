@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, dot_number, mc_number, contact_email, contact_phone, tier } = body;
+    const { name, dot_number, mc_number, contact_email, tier } = body;
 
     // Validate required fields
     if (!name || typeof name !== "string" || !name.trim()) {
@@ -37,9 +37,8 @@ export async function POST(request: Request) {
         name: name.trim(),
         dot_number: dot_number.trim(),
         mc_number: mc_number?.trim() || null,
-        contact_email: contact_email?.trim() || null,
-        contact_phone: contact_phone?.trim() || null,
-        tier: tier ?? "tier_1",
+        email: contact_email?.trim() || null,
+        tier: tier ?? "monitor",
         status: "active",
         geia_client: true,
       })

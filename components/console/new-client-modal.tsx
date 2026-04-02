@@ -15,7 +15,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
   const [dotNumber, setDotNumber] = useState("");
   const [mcNumber, setMcNumber] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [tier, setTier] = useState("tier_1");
+  const [tier, setTier] = useState("monitor");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,9 +176,9 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                 onChange={(e) => setTier(e.target.value)}
                 className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
               >
-                <option value="tier_1">Tier 1</option>
-                <option value="tier_2">Tier 2</option>
-                <option value="tier_3">Tier 3</option>
+                <option value="monitor">Monitor ($199/mo)</option>
+                <option value="remediate">Remediate ($599/mo)</option>
+                <option value="total_safety">Total Safety ($999/mo)</option>
               </select>
             </div>
 
