@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -41,12 +41,12 @@ export function CpdpCreateButton({ clientId, crashId }: Props) {
       <button
         onClick={handleCreate}
         disabled={loading}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors disabled:opacity-50"
       >
         {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         {loading ? "Creating..." : "Create CPDP submission"}
       </button>
-      {error && <p className="text-[10px] text-[#DC362E]">{error}</p>}
+      {error && <p className="text-[10px] text-[#C67A1E]">{error}</p>}
     </div>
   );
 }

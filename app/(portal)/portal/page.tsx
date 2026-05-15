@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
@@ -60,12 +60,12 @@ export default async function PortalDashboardPage() {
   if (!userRecord?.client_id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#F4F4F4] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
           <Info className="w-6 h-6 text-gray-400" />
         </div>
         <div>
           <h2
-            className="text-lg font-bold text-[#1A1A1A]"
+            className="text-lg font-bold text-[#1E1C1A]"
           >
             Your account is being set up
           </h2>
@@ -200,7 +200,7 @@ export default async function PortalDashboardPage() {
       {/* Welcome header */}
       <div>
         <h1
-          className="text-xl font-bold text-[#1A1A1A]"
+          className="text-xl font-bold text-[#1E1C1A]"
         >
           Welcome back, {client.name}
         </h1>
@@ -216,8 +216,8 @@ export default async function PortalDashboardPage() {
             label: "Violations on file",
             value: violationCount ?? 0,
             icon: AlertTriangle,
-            iconBg: "bg-red-50",
-            iconColor: "text-[#DC362E]",
+            iconBg: "bg-[#FDF4E7]",
+            iconColor: "text-[#C67A1E]",
           },
           {
             label: "Crashes on file",
@@ -230,20 +230,20 @@ export default async function PortalDashboardPage() {
             label: "Open cases",
             value: openCaseCount,
             icon: FileSearch,
-            iconBg: "bg-red-50",
-            iconColor: "text-[#DC362E]",
+            iconBg: "bg-[#FDF4E7]",
+            iconColor: "text-[#C67A1E]",
           },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-3"
+            className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-3"
           >
             <div className={`w-9 h-9 rounded-lg ${stat.iconBg} flex items-center justify-center shrink-0`}>
               <stat.icon className={`w-4 h-4 ${stat.iconColor}`} />
             </div>
             <div>
               <p
-                className="text-2xl font-bold text-[#1A1A1A]"
+                className="text-2xl font-bold text-[#1E1C1A]"
               >
                 {stat.value}
               </p>
@@ -255,25 +255,25 @@ export default async function PortalDashboardPage() {
 
       {/* Carrier info card (FMCSA data) */}
       {carrier && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <h2
-            className="font-semibold text-[#1A1A1A] text-sm mb-4"
+            className="font-semibold text-[#1E1C1A] text-sm mb-4"
           >
             Carrier profile
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.legalName}</p>
+              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.legalName}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.dotNumber}</p>
+              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.dotNumber}</p>
             </div>
             {carrier.mcNumber && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">MC number</p>
-                <p className="text-sm font-medium text-[#1A1A1A]">{carrier.mcNumber}</p>
+                <p className="text-sm font-medium text-[#1E1C1A]">{carrier.mcNumber}</p>
               </div>
             )}
             <div>
@@ -281,7 +281,7 @@ export default async function PortalDashboardPage() {
               <span
                 className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
                   carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
-                    ? "bg-green-100 text-green-700"
+                    ? "bg-[#E8F3EC] text-[#3D7A52]"
                     : "bg-gray-100 text-gray-600"
                 }`}
               >
@@ -290,28 +290,28 @@ export default async function PortalDashboardPage() {
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Power units</p>
-              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                 <Truck className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalPowerUnits}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
-              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                 <Users2 className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalDrivers}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Safety rating</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">
+              <p className="text-sm font-medium text-[#1E1C1A]">
                 {carrier.safetyRating ?? "Not rated"}
               </p>
             </div>
             {(carrier.phyCity || carrier.phyState) && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Location</p>
-                <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+                <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   {[carrier.phyCity, carrier.phyState].filter(Boolean).join(", ")}
                 </p>
@@ -322,11 +322,11 @@ export default async function PortalDashboardPage() {
       )}
 
       {/* Your Safety Score section */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2
-              className="font-semibold text-[#1A1A1A] text-sm"
+              className="font-semibold text-[#1E1C1A] text-sm"
             >
               Your safety score
             </h2>
@@ -360,9 +360,9 @@ export default async function PortalDashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-[#E5E5E5] bg-[#F4F4F4] px-6 py-10 text-center">
+          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-10 text-center">
             <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#1A1A1A]">
+            <p className="text-sm font-medium text-[#1E1C1A]">
               Your first safety assessment is being prepared.
             </p>
             <p className="text-xs text-gray-500 mt-1">
@@ -377,20 +377,20 @@ export default async function PortalDashboardPage() {
         {/* Cases summary */}
         <div className="space-y-3">
           <h2
-            className="font-semibold text-[#1A1A1A] text-sm"
+            className="font-semibold text-[#1E1C1A] text-sm"
           >
             GEIA work summary
           </h2>
 
           <div className="grid grid-cols-1 gap-3">
             {/* DataQs */}
-            <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
+            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-[#F5EDDB] flex items-center justify-center shrink-0">
                 <FileSearch className="w-4 h-4 text-[#8E7340]" />
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#1A1A1A]"
+                  className="text-2xl font-bold text-[#1E1C1A]"
                 >
                   {activeDataqCount}
                 </p>
@@ -399,13 +399,13 @@ export default async function PortalDashboardPage() {
             </div>
 
             {/* CPDP */}
-            <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
+            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
                 <ShieldAlert className="w-4 h-4 text-amber-600" />
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#1A1A1A]"
+                  className="text-2xl font-bold text-[#1E1C1A]"
                 >
                   {activeCpdpCount}
                 </p>
@@ -414,13 +414,13 @@ export default async function PortalDashboardPage() {
             </div>
 
             {/* Completed action items */}
-            <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-4">
+            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
               <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
               </div>
               <div>
                 <p
-                  className="text-2xl font-bold text-[#1A1A1A]"
+                  className="text-2xl font-bold text-[#1E1C1A]"
                 >
                   {completedActionCount ?? 0}
                 </p>
@@ -431,21 +431,21 @@ export default async function PortalDashboardPage() {
         </div>
 
         {/* Action items */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
+        <div className="lg:col-span-2 bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#F0E8DA]">
             <h2
-              className="font-semibold text-[#1A1A1A] text-sm"
+              className="font-semibold text-[#1E1C1A] text-sm"
             >
               Open action items
             </h2>
           </div>
 
           {actionItems && actionItems.length > 0 ? (
-            <div className="divide-y divide-[#E5E5E5]">
+            <div className="divide-y divide-[#F0E8DA]">
               {actionItems.map((item: any) => (
                 <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1A1A1A]">{item.title}</p>
+                    <p className="text-sm font-medium text-[#1E1C1A]">{item.title}</p>
                     {item.description && (
                       <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
                         {item.description}
@@ -478,13 +478,13 @@ export default async function PortalDashboardPage() {
       </div>
 
       {/* GEIA team info banner */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] px-5 py-4 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-[#DC362E]/10 flex items-center justify-center shrink-0">
-          <Info className="w-4 h-4 text-[#DC362E]" />
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-4 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0">
+          <Info className="w-4 h-4 text-[#C67A1E]" />
         </div>
         <p className="text-sm text-gray-600">
           Your GEIA team is actively working on your account. Questions?{" "}
-          <span className="font-medium text-[#1A1A1A]">
+          <span className="font-medium text-[#1E1C1A]">
             Contact your account manager directly.
           </span>
         </p>

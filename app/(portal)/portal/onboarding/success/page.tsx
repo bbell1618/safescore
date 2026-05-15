@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -42,12 +42,12 @@ function SuccessContent() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-10 text-center">
+    <div className="bg-[#FBF7F0] rounded-2xl border border-[#F0E8DA] shadow-sm p-10 text-center">
       <div className="flex justify-center mb-5">
         <CheckCircle className="w-16 h-16 text-green-500" />
       </div>
 
-      <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
+      <h1 className="text-2xl font-bold text-[#1E1C1A] mb-3">
         You're all set!
       </h1>
 
@@ -58,12 +58,12 @@ function SuccessContent() {
 
       {syncError ? (
         <div className="space-y-3">
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-[#DC362E]">
+          <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-4 py-3 text-sm text-[#C67A1E]">
             {syncError}
           </div>
           <button
             onClick={attemptSync}
-            className="w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#b52a23] transition-colors"
+            className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors"
           >
             Retry activation
           </button>
@@ -71,12 +71,12 @@ function SuccessContent() {
       ) : synced ? (
         <button
           onClick={() => router.push("/portal")}
-          className="inline-block w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#b52a23] transition-colors text-center"
+          className="inline-block w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors text-center"
         >
           Go to Dashboard
         </button>
       ) : (
-        <div className="w-full py-3 bg-[#E5E5E5] rounded-xl text-center text-sm text-gray-400">
+        <div className="w-full py-3 bg-[#F0E8DA] rounded-xl text-center text-sm text-gray-400">
           Activating your account…
         </div>
       )}
@@ -86,15 +86,15 @@ function SuccessContent() {
 
 export default function OnboardingSuccessPage() {
   return (
-    <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-[#FEFCF8] flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md">
         <Suspense
           fallback={
-            <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-10 text-center">
+            <div className="bg-[#FBF7F0] rounded-2xl border border-[#F0E8DA] shadow-sm p-10 text-center">
               <div className="flex justify-center mb-5">
                 <CheckCircle className="w-16 h-16 text-green-500" />
               </div>
-              <div className="w-full py-3 bg-[#E5E5E5] rounded-xl text-center text-sm text-gray-400">
+              <div className="w-full py-3 bg-[#F0E8DA] rounded-xl text-center text-sm text-gray-400">
                 Activating your account…
               </div>
             </div>

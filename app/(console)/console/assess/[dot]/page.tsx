@@ -1,4 +1,4 @@
-import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
+﻿import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
 import { AddClientForm } from "@/components/console/add-client-form";
 import { AlertTriangle, Truck, Users2 } from "lucide-react";
@@ -30,9 +30,9 @@ export default async function AssessPage({
   if (error || !carrier) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <AlertTriangle className="w-8 h-8 text-[#DC362E] mx-auto mb-3" />
-          <p className="font-semibold text-[#DC362E]">Could not fetch carrier data</p>
+        <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-xl p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-[#C67A1E] mx-auto mb-3" />
+          <p className="font-semibold text-[#C67A1E]">Could not fetch carrier data</p>
           <p className="text-sm text-gray-500 mt-1">{error}</p>
           <p className="text-xs text-gray-400 mt-3">
             Make sure FMCSA_API_KEY is set, or use DOT 2533650 for the Nationwide mock.
@@ -59,14 +59,14 @@ export default async function AssessPage({
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-          <a href="/console" className="hover:text-[#DC362E]">Clients</a>
+          <a href="/console" className="hover:text-[#C67A1E]">Clients</a>
           <span>›</span>
           <span>Assessment — DOT {dot}</span>
         </div>
         <div className="flex items-start justify-between">
           <div>
             <h1
-              className="text-xl font-bold text-[#1A1A1A]"
+              className="text-xl font-bold text-[#1E1C1A]"
             >
               {carrier.legalName}
             </h1>
@@ -78,9 +78,9 @@ export default async function AssessPage({
             </p>
           </div>
           {alerts > 0 && (
-            <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-              <AlertTriangle className="w-4 h-4 text-[#DC362E]" />
-              <span className="text-sm font-medium text-[#DC362E]">
+            <div className="flex items-center gap-1.5 bg-[#FDF4E7] border border-[#C67A1E]/20 rounded-lg px-3 py-1.5">
+              <AlertTriangle className="w-4 h-4 text-[#C67A1E]" />
+              <span className="text-sm font-medium text-[#C67A1E]">
                 {alerts} BASIC alert{alerts > 1 ? "s" : ""}
               </span>
             </div>
@@ -96,11 +96,11 @@ export default async function AssessPage({
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-3"
+            className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-3"
           >
             <stat.icon className="w-5 h-5 text-gray-400 shrink-0" />
             <div>
-              <p className="text-xl font-bold text-[#1A1A1A]">
+              <p className="text-xl font-bold text-[#1E1C1A]">
                 {stat.value}
               </p>
               <p className="text-xs text-gray-500">{stat.label}</p>
@@ -110,9 +110,9 @@ export default async function AssessPage({
       </div>
 
       {/* BASICs */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2
-          className="font-semibold text-[#1A1A1A] text-sm mb-4"
+          className="font-semibold text-[#1E1C1A] text-sm mb-4"
         >
           BASIC scores
         </h2>
@@ -131,9 +131,9 @@ export default async function AssessPage({
 
       {/* OOS Rates */}
       {oos && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <h2
-            className="font-semibold text-[#1A1A1A] text-sm mb-4"
+            className="font-semibold text-[#1E1C1A] text-sm mb-4"
           >
             Out-of-service rates
           </h2>
@@ -155,12 +155,12 @@ export default async function AssessPage({
                 national: null,
               },
             ].map((item) => (
-              <div key={item.label} className="border border-[#E5E5E5] rounded-lg p-3">
+              <div key={item.label} className="border border-[#F0E8DA] rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">{item.label}</p>
                 <p
                   className={`text-2xl font-bold ${
                     item.value !== null && item.national !== null && item.value > item.national
-                      ? "text-[#DC362E]"
+                      ? "text-[#C67A1E]"
                       : "text-green-600"
                   }`}
                 >
@@ -176,16 +176,16 @@ export default async function AssessPage({
       )}
 
       {/* Inspection / crash history note */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <p className="text-sm text-gray-500">
           Detailed inspection and violation history available after running full analysis for enrolled clients.
         </p>
       </div>
 
       {/* Add as client */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2
-          className="font-semibold text-[#1A1A1A] text-sm mb-1"
+          className="font-semibold text-[#1E1C1A] text-sm mb-1"
         >
           Add as SafeScore client
         </h2>

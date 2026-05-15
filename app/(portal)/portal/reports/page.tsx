@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Info } from "lucide-react";
 import { ReportViewer } from "./report-viewer";
@@ -23,7 +23,7 @@ export default async function PortalReportsPage() {
   if (!userRecord?.client_id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#F4F4F4] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
           <Info className="w-6 h-6 text-gray-400" />
         </div>
         <p className="text-sm text-gray-500">Your account is being set up.</p>
@@ -46,7 +46,7 @@ export default async function PortalReportsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Reports
           </h1>
@@ -60,7 +60,7 @@ export default async function PortalReportsPage() {
       {reports && reports.length > 0 ? (
         <ReportViewer reports={reports} />
       ) : (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] px-5 py-12 text-center">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-12 text-center">
           <p className="text-sm text-gray-500">No reports have been sent yet.</p>
           <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
             GEIA will send your first assessment report after completing your initial analysis.

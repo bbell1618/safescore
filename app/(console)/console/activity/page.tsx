@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Activity } from "lucide-react";
@@ -42,7 +42,7 @@ export default async function ActivityPage() {
         <Activity className="w-5 h-5 text-gray-400" />
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Activity log
           </h1>
@@ -50,9 +50,9 @@ export default async function ActivityPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         {logs && logs.length > 0 ? (
-          <div className="divide-y divide-[#E5E5E5]">
+          <div className="divide-y divide-[#F0E8DA]">
             {logs.map((log) => (
               <div key={log.id} className="px-5 py-3.5 flex items-start gap-4">
                 <div className="shrink-0 pt-0.5">
@@ -61,7 +61,7 @@ export default async function ActivityPage() {
                   </Badge>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#1A1A1A]">{log.description}</p>
+                  <p className="text-sm text-[#1E1C1A]">{log.description}</p>
                   <div className="flex gap-3 mt-0.5 text-xs text-gray-400">
                     {(log.clients as { name: string } | null)?.name && (
                       <span>{(log.clients as { name: string }).name}</span>

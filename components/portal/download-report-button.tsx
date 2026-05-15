@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Download } from "lucide-react";
@@ -53,7 +53,7 @@ export function PortalDownloadReportButton() {
       <button
         onClick={handleDownload}
         disabled={loading}
-        className="inline-flex items-center gap-2 bg-[#DC362E] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#b82c26] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-2 bg-[#C67A1E] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#b82c26] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <Download className="w-4 h-4" />
         {loading ? "Generating..." : "Download Safety Report"}

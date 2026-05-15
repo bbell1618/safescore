@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -32,11 +32,11 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-[#1A1A1A] flex flex-col h-screen sticky top-0">
+    <aside className="w-56 shrink-0 bg-[#1B2D4F] flex flex-col h-screen sticky top-0">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-md bg-[#DC362E] flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-md bg-[#C67A1E] flex items-center justify-center shrink-0">
             <ShieldCheck className="w-4 h-4 text-white" />
           </div>
           <div>
@@ -50,7 +50,7 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
             </p>
           </div>
         </div>
-        <div className="mt-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DC362E]/20 text-[#DC362E]">
+        <div className="mt-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#C67A1E]/20 text-[#C67A1E]">
           Console
         </div>
       </div>

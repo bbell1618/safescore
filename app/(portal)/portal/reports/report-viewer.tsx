@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +38,8 @@ export function ReportViewer({ reports }: ReportViewerProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-      <div className="divide-y divide-[#E5E5E5]">
+    <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+      <div className="divide-y divide-[#F0E8DA]">
         {reports.map((report) => {
           const isExpanded = expandedId === report.id;
 
@@ -49,11 +49,11 @@ export function ReportViewer({ reports }: ReportViewerProps) {
                 onClick={() =>
                   setExpandedId(isExpanded ? null : report.id)
                 }
-                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-[#F4F4F4] transition-colors"
+                className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-[#FBF7F0] transition-colors"
               >
                 <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1A1A1A]">
+                  <p className="text-sm font-medium text-[#1E1C1A]">
                     {report.title}
                   </p>
                   {report.sent_at && (
@@ -75,11 +75,11 @@ export function ReportViewer({ reports }: ReportViewerProps) {
               </button>
 
               {isExpanded && (
-                <div className="px-5 pb-5 border-t border-[#E5E5E5] bg-[#F4F4F4]">
+                <div className="px-5 pb-5 border-t border-[#F0E8DA] bg-[#FEFCF8]">
                   {report.final_content ? (
                     <div className="pt-4">
                       <div
-                        className="bg-white rounded-xl border border-[#E5E5E5] p-5 text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap"
+                        className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5 text-sm text-[#1E1C1A] leading-relaxed whitespace-pre-wrap"
                       >
                         {report.final_content}
                       </div>

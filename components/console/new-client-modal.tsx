@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -59,12 +59,12 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
       style={{ backdropFilter: "blur(2px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+      <div className="bg-[#FBF7F0] rounded-xl shadow-lg w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0E8DA]">
           <div>
             <h2
-              className="font-bold text-[#1A1A1A] text-base"
+              className="font-bold text-[#1E1C1A] text-base"
             >
               Add new client
             </h2>
@@ -74,7 +74,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-[#1A1A1A] transition-colors"
+            className="text-gray-400 hover:text-[#1E1C1A] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -87,9 +87,9 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-name"
-                className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                className="block text-sm font-medium text-[#1E1C1A] mb-1"
               >
-                Company name <span className="text-[#DC362E]">*</span>
+                Company name <span className="text-[#C67A1E]">*</span>
               </label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -100,7 +100,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Nationwide Carrier Inc"
-                  className="w-full pl-9 pr-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                  className="w-full pl-9 pr-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
                 />
               </div>
             </div>
@@ -109,9 +109,9 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-dot"
-                className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                className="block text-sm font-medium text-[#1E1C1A] mb-1"
               >
-                DOT number <span className="text-[#DC362E]">*</span>
+                DOT number <span className="text-[#C67A1E]">*</span>
               </label>
               <input
                 id="new-client-dot"
@@ -120,7 +120,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                 value={dotNumber}
                 onChange={(e) => setDotNumber(e.target.value.replace(/\D/g, ""))}
                 placeholder="2533650"
-                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
               />
             </div>
 
@@ -128,7 +128,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-mc"
-                className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                className="block text-sm font-medium text-[#1E1C1A] mb-1"
               >
                 MC number{" "}
                 <span className="text-gray-400 font-normal">(optional)</span>
@@ -139,7 +139,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                 value={mcNumber}
                 onChange={(e) => setMcNumber(e.target.value.replace(/\D/g, ""))}
                 placeholder="880750"
-                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
               />
             </div>
 
@@ -147,7 +147,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-email"
-                className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                className="block text-sm font-medium text-[#1E1C1A] mb-1"
               >
                 Contact email{" "}
                 <span className="text-gray-400 font-normal">(optional)</span>
@@ -158,7 +158,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
                 placeholder="contact@carrier.com"
-                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
               />
             </div>
 
@@ -166,7 +166,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             <div>
               <label
                 htmlFor="new-client-tier"
-                className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                className="block text-sm font-medium text-[#1E1C1A] mb-1"
               >
                 Service tier
               </label>
@@ -174,7 +174,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
                 id="new-client-tier"
                 value={tier}
                 onChange={(e) => setTier(e.target.value)}
-                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
               >
                 <option value="monitor">Monitor ($199/mo)</option>
                 <option value="remediate">Remediate ($599/mo)</option>
@@ -183,7 +183,7 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-[#DC362E]">
+              <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-3 py-2 text-sm text-[#B83B32]">
                 {error}
               </div>
             )}
@@ -192,14 +192,14 @@ export function NewClientModal({ onClose }: NewClientModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-600 border border-[#E5E5E5] rounded-lg hover:border-gray-300 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-600 border border-[#F0E8DA] rounded-lg hover:border-gray-300 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading || !name.trim() || !dotNumber.trim()}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#c42d26] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#c42d26] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 {loading ? "Adding…" : "Add client"}

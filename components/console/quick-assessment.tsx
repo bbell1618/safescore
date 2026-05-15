@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,9 +33,9 @@ export function QuickAssessment() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#E5E5E5] p-4">
+    <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
       <h3
-        className="font-semibold text-[#1A1A1A] text-sm mb-3"
+        className="font-semibold text-[#1E1C1A] text-sm mb-3"
       >
         Quick assessment
       </h3>
@@ -49,12 +49,12 @@ export function QuickAssessment() {
             value={dot}
             onChange={(e) => setDot(e.target.value)}
             placeholder="DOT number (e.g. 2533650)"
-            className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+            className="flex-1 px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
           />
           <button
             type="submit"
             disabled={loading || !dot.trim()}
-            className="px-3 py-2 bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -64,7 +64,7 @@ export function QuickAssessment() {
           </button>
         </div>
         {error && (
-          <p className="text-xs text-[#DC362E]">{error}</p>
+          <p className="text-xs text-[#C67A1E]">{error}</p>
         )}
       </form>
       <p className="text-[10px] text-gray-400 mt-2">

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -43,17 +43,17 @@ export default async function ReportsPage({
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
+        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">Reports</span>
+        <span className="text-[#1E1C1A] font-medium">Reports</span>
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Report generator
           </h1>
@@ -68,20 +68,20 @@ export default async function ReportsPage({
 
       {/* Report history */}
       {reports && reports.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#E5E5E5]">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#F0E8DA]">
             <h2
-              className="font-semibold text-[#1A1A1A] text-sm"
+              className="font-semibold text-[#1E1C1A] text-sm"
             >
               Report history
             </h2>
           </div>
-          <div className="divide-y divide-[#E5E5E5]">
+          <div className="divide-y divide-[#F0E8DA]">
             {reports.map((r) => (
               <div key={r.id} className="px-5 py-3.5 flex items-center gap-4">
                 <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1A1A1A]">{r.title}</p>
+                  <p className="text-sm font-medium text-[#1E1C1A]">{r.title}</p>
                   <p className="text-xs text-gray-400">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex gap-2">

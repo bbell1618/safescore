@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { Check, ShieldCheck } from "lucide-react";
@@ -175,7 +175,7 @@ export default function OnboardingPage() {
   const selectedTierData = TIERS.find((t) => t.value === selectedTier)!;
 
   return (
-    <div className="min-h-screen bg-[#F8F8F8] flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-[#FEFCF8] flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-2xl">
         {/* Progress */}
         <div className="flex items-center justify-center gap-3 mb-8">
@@ -184,31 +184,31 @@ export default function OnboardingPage() {
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
                   s < step
-                    ? "bg-[#DC362E] text-white"
+                    ? "bg-[#C67A1E] text-white"
                     : s === step
-                    ? "bg-[#DC362E] text-white ring-4 ring-[#DC362E]/20"
-                    : "bg-[#E5E5E5] text-gray-400"
+                    ? "bg-[#C67A1E] text-white ring-4 ring-[#C67A1E]/20"
+                    : "bg-[#F0E8DA] text-gray-400"
                 }`}
               >
                 {s < step ? <Check className="w-4 h-4" /> : s}
               </div>
               {s < totalSteps && (
-                <div className={`w-16 h-0.5 ${s < step ? "bg-[#DC362E]" : "bg-[#E5E5E5]"}`} />
+                <div className={`w-16 h-0.5 ${s < step ? "bg-[#C67A1E]" : "bg-[#F0E8DA]"}`} />
               )}
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm overflow-hidden">
+        <div className="bg-[#FBF7F0] rounded-2xl border border-[#F0E8DA] shadow-sm overflow-hidden">
 
           {/* ── Step 1: Welcome ── */}
           {step === 1 && (
             <div className="p-8">
               <div className="mb-6">
-                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-widest mb-2">
                   Step 1 of {totalSteps}
                 </p>
-                <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
+                <h1 className="text-2xl font-bold text-[#1E1C1A] mb-3">
                   Welcome to SafeScore
                 </h1>
                 <p className="text-gray-600 leading-relaxed">
@@ -218,14 +218,14 @@ export default function OnboardingPage() {
               </div>
 
               {loadingClient ? (
-                <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-4 animate-pulse">
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-4 animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
                   <div className="h-3 bg-gray-100 rounded w-1/4" />
                 </div>
               ) : client ? (
-                <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-4 mb-6">
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-4 mb-6">
                   <p className="text-xs text-gray-400 mb-1">Your company</p>
-                  <p className="text-base font-bold text-[#1A1A1A]">{client.name}</p>
+                  <p className="text-base font-bold text-[#1E1C1A]">{client.name}</p>
                   <p className="text-sm text-gray-500 mt-0.5">DOT {client.dot_number}</p>
                 </div>
               ) : (
@@ -239,7 +239,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => setStep(2)}
                 disabled={loadingClient}
-                className="w-full py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue
               </button>
@@ -250,10 +250,10 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="p-8">
               <div className="mb-6">
-                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-widest mb-2">
                   Step 2 of {totalSteps}
                 </p>
-                <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
+                <h1 className="text-2xl font-bold text-[#1E1C1A] mb-3">
                   Choose your plan
                 </h1>
                 <p className="text-gray-600 leading-relaxed">
@@ -269,8 +269,8 @@ export default function OnboardingPage() {
                     onClick={() => setSelectedTier(tier.value)}
                     className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
                       selectedTier === tier.value
-                        ? "border-[#DC362E] bg-[#F9E0DF]"
-                        : "border-[#E5E5E5] hover:border-gray-300 bg-white"
+                        ? "border-[#C67A1E] bg-[#F9E0DF]"
+                        : "border-[#F0E8DA] hover:border-gray-300 bg-white"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3 mb-2">
@@ -278,7 +278,7 @@ export default function OnboardingPage() {
                         <div
                           className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                             selectedTier === tier.value
-                              ? "border-[#DC362E] bg-[#DC362E]"
+                              ? "border-[#C67A1E] bg-[#C67A1E]"
                               : "border-gray-300"
                           }`}
                         >
@@ -286,15 +286,15 @@ export default function OnboardingPage() {
                             <div className="w-1.5 h-1.5 rounded-full bg-white" />
                           )}
                         </div>
-                        <span className="font-bold text-[#1A1A1A]">{tier.name}</span>
+                        <span className="font-bold text-[#1E1C1A]">{tier.name}</span>
                         {tier.highlight && (
-                          <span className="text-xs font-medium bg-[#DC362E] text-white px-2 py-0.5 rounded-full">
+                          <span className="text-xs font-medium bg-[#C67A1E] text-white px-2 py-0.5 rounded-full">
                             Most popular
                           </span>
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="font-bold text-[#1A1A1A]">{tier.price}</span>
+                        <span className="font-bold text-[#1E1C1A]">{tier.price}</span>
                         {tier.priceNote && (
                           <p className="text-xs text-gray-500">{tier.priceNote}</p>
                         )}
@@ -303,7 +303,7 @@ export default function OnboardingPage() {
                     <ul className="space-y-1 pl-6">
                       {tier.features.map((f) => (
                         <li key={f} className="flex items-center gap-2 text-xs text-gray-600">
-                          <Check className="w-3 h-3 text-[#DC362E] shrink-0" />
+                          <Check className="w-3 h-3 text-[#C67A1E] shrink-0" />
                           {f}
                         </li>
                       ))}
@@ -315,13 +315,13 @@ export default function OnboardingPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setStep(1)}
-                  className="flex-1 py-3 border border-[#E5E5E5] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
+                  className="flex-1 py-3 border border-[#F0E8DA] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  className="flex-1 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
                 >
                   Continue
                 </button>
@@ -333,10 +333,10 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div className="p-8">
               <div className="mb-6">
-                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-widest mb-2">
                   Step 3 of 5
                 </p>
-                <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
+                <h1 className="text-2xl font-bold text-[#1E1C1A] mb-3">
                   Your safety profile
                 </h1>
                 <p className="text-gray-600 leading-relaxed">
@@ -346,7 +346,7 @@ export default function OnboardingPage() {
               </div>
 
               {loadingCarrier ? (
-                <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-5 space-y-3 mb-6">
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 space-y-3 mb-6">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="flex justify-between animate-pulse">
                       <div className="h-3 bg-gray-200 rounded w-1/3" />
@@ -355,18 +355,18 @@ export default function OnboardingPage() {
                   ))}
                 </div>
               ) : carrier ? (
-                <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-5 mb-6">
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6">
                   <div className="grid grid-cols-2 gap-4">
                     {carrier.legalName && (
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
-                        <p className="text-sm font-medium text-[#1A1A1A]">{carrier.legalName}</p>
+                        <p className="text-sm font-medium text-[#1E1C1A]">{carrier.legalName}</p>
                       </div>
                     )}
                     {carrier.dotNumber && (
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
-                        <p className="text-sm font-medium text-[#1A1A1A]">{carrier.dotNumber}</p>
+                        <p className="text-sm font-medium text-[#1E1C1A]">{carrier.dotNumber}</p>
                       </div>
                     )}
                     {(carrier.usdotStatus || carrier.statusCode) && (
@@ -375,7 +375,7 @@ export default function OnboardingPage() {
                         <span
                           className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
                             carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-[#E8F3EC] text-[#3D7A52]"
                               : "bg-gray-100 text-gray-600"
                           }`}
                         >
@@ -386,19 +386,19 @@ export default function OnboardingPage() {
                     {carrier.totalPowerUnits !== undefined && (
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Power units</p>
-                        <p className="text-sm font-medium text-[#1A1A1A]">{carrier.totalPowerUnits}</p>
+                        <p className="text-sm font-medium text-[#1E1C1A]">{carrier.totalPowerUnits}</p>
                       </div>
                     )}
                     {carrier.totalDrivers !== undefined && (
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
-                        <p className="text-sm font-medium text-[#1A1A1A]">{carrier.totalDrivers}</p>
+                        <p className="text-sm font-medium text-[#1E1C1A]">{carrier.totalDrivers}</p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-5 mb-6 text-center">
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6 text-center">
                   <p className="text-sm text-gray-500">
                     Carrier data could not be loaded. You can continue — your profile will be
                     pulled after activation.
@@ -416,13 +416,13 @@ export default function OnboardingPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setStep(2)}
-                  className="flex-1 py-3 border border-[#E5E5E5] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
+                  className="flex-1 py-3 border border-[#F0E8DA] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={() => setStep(4)}
-                  className="flex-1 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors"
                 >
                   Continue
                 </button>
@@ -434,12 +434,12 @@ export default function OnboardingPage() {
           {step === 4 && (
             <div className="p-8">
               <div className="mb-6">
-                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-widest mb-2">
                   Step 4 of 5
                 </p>
                 <div className="flex items-center gap-2 mb-3">
-                  <ShieldCheck className="w-5 h-5 text-[#DC362E] shrink-0" />
-                  <h1 className="text-2xl font-bold text-[#1A1A1A]">FMCSA portal access</h1>
+                  <ShieldCheck className="w-5 h-5 text-[#C67A1E] shrink-0" />
+                  <h1 className="text-2xl font-bold text-[#1E1C1A]">FMCSA portal access</h1>
                 </div>
                 <p className="text-gray-600 leading-relaxed">
                   To provide complete safety analysis, we need access to your FMCSA Portal data.
@@ -449,7 +449,7 @@ export default function OnboardingPage() {
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1.5">
+                  <label className="block text-sm font-medium text-[#1E1C1A] mb-1.5">
                     FMCSA Portal PIN
                   </label>
                   <input
@@ -462,12 +462,12 @@ export default function OnboardingPage() {
                       setFmcsaPinError(null);
                     }}
                     placeholder="7-digit PIN"
-                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/30 transition-colors ${
-                      fmcsaPinError ? "border-[#DC362E] bg-[#F9E0DF]" : "border-[#E5E5E5] bg-white"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 transition-colors ${
+                      fmcsaPinError ? "border-[#C67A1E] bg-[#F9E0DF]" : "border-[#F0E8DA] bg-white"
                     }`}
                   />
                   {fmcsaPinError && (
-                    <p className="text-xs text-[#DC362E] mt-1">{fmcsaPinError}</p>
+                    <p className="text-xs text-[#C67A1E] mt-1">{fmcsaPinError}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-1.5">
                     Your PIN was issued when you registered with FMCSA. Request a new PIN at{" "}
@@ -475,7 +475,7 @@ export default function OnboardingPage() {
                       href="https://portal.fmcsa.dot.gov"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#DC362E] hover:underline"
+                      className="text-[#C67A1E] hover:underline"
                     >
                       portal.fmcsa.dot.gov
                     </a>{" "}
@@ -488,7 +488,7 @@ export default function OnboardingPage() {
                     type="checkbox"
                     checked={fmcsaAuthorized}
                     onChange={(e) => setFmcsaAuthorized(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-[#E5E5E5] text-[#DC362E] focus:ring-[#DC362E]/30 shrink-0"
+                    className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] text-[#C67A1E] focus:ring-[#C67A1E]/30 shrink-0"
                   />
                   <span className="text-sm text-gray-700 leading-snug">
                     I authorize Golden Era Insurance Agency to access my FMCSA Portal data and file
@@ -500,14 +500,14 @@ export default function OnboardingPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setStep(3)}
-                  className="flex-1 py-3 border border-[#E5E5E5] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
+                  className="flex-1 py-3 border border-[#F0E8DA] text-gray-600 font-medium rounded-xl hover:border-gray-300 transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleFmcsaSaveAndContinue}
                   disabled={fmcsaSaving}
-                  className="flex-1 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {fmcsaSaving ? "Saving..." : "Save & continue"}
                 </button>
@@ -526,10 +526,10 @@ export default function OnboardingPage() {
           {step === 5 && (
             <div className="p-8">
               <div className="mb-6">
-                <p className="text-xs font-semibold text-[#DC362E] uppercase tracking-widest mb-2">
+                <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-widest mb-2">
                   Step 5 of 5
                 </p>
-                <h1 className="text-2xl font-bold text-[#1A1A1A] mb-3">
+                <h1 className="text-2xl font-bold text-[#1E1C1A] mb-3">
                   Activate your account
                 </h1>
                 <p className="text-gray-600">
@@ -538,11 +538,11 @@ export default function OnboardingPage() {
               </div>
 
               {/* Plan summary */}
-              <div className="rounded-xl bg-[#F8F8F8] border border-[#E5E5E5] p-5 mb-6">
+              <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6">
                 <div className="flex items-baseline justify-between mb-4">
-                  <p className="text-sm font-semibold text-[#1A1A1A]">{selectedTierData.name}</p>
+                  <p className="text-sm font-semibold text-[#1E1C1A]">{selectedTierData.name}</p>
                   <div className="text-right">
-                    <span className="text-2xl font-bold text-[#1A1A1A]">
+                    <span className="text-2xl font-bold text-[#1E1C1A]">
                       {selectedTierData.price}
                     </span>
                     {selectedTierData.priceNote && (
@@ -553,8 +553,8 @@ export default function OnboardingPage() {
                 <ul className="space-y-2">
                   {selectedTierData.features.map((f) => (
                     <li key={f} className="flex items-start gap-2.5">
-                      <div className="w-4 h-4 rounded-full bg-[#DC362E]/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="w-2.5 h-2.5 text-[#DC362E]" />
+                      <div className="w-4 h-4 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-2.5 h-2.5 text-[#C67A1E]" />
                       </div>
                       <span className="text-sm text-gray-700">{f}</span>
                     </li>
@@ -563,15 +563,15 @@ export default function OnboardingPage() {
               </div>
 
               {checkoutError && (
-                <div className="rounded-lg bg-[#F9E0DF] border border-[#DC362E]/20 px-4 py-3 mb-4">
-                  <p className="text-sm text-[#DC362E]">{checkoutError}</p>
+                <div className="rounded-lg bg-[#F9E0DF] border border-[#C67A1E]/20 px-4 py-3 mb-4">
+                  <p className="text-sm text-[#C67A1E]">{checkoutError}</p>
                 </div>
               )}
 
               <button
                 onClick={handleSubscribe}
                 disabled={checkoutLoading}
-                className="w-full py-3.5 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
+                className="w-full py-3.5 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
               >
                 {checkoutLoading ? "Processing..." : "Subscribe and activate"}
               </button>

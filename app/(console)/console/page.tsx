@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ export default async function ConsolePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Client overview
           </h1>
@@ -71,17 +71,17 @@ export default async function ConsolePage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
           { label: "Active clients", value: activeCount, icon: CheckCircle, color: "text-green-600" },
-          { label: "Prospects", value: prospectCount, icon: Clock, color: "text-[#C5A059]" },
-          { label: "Needs attention", value: alertClients.length, icon: AlertTriangle, color: "text-[#DC362E]" },
-          { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-[#1A1A1A]" },
+          { label: "Prospects", value: prospectCount, icon: Clock, color: "text-[#DAA520]" },
+          { label: "Needs attention", value: alertClients.length, icon: AlertTriangle, color: "text-[#C67A1E]" },
+          { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-[#1E1C1A]" },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center gap-3"
+            className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-3"
           >
             <stat.icon className={`w-5 h-5 ${stat.color} shrink-0`} />
             <div>
-              <p className="text-2xl font-bold text-[#1A1A1A]">
+              <p className="text-2xl font-bold text-[#1E1C1A]">
                 {stat.value}
               </p>
               <p className="text-xs text-gray-500">{stat.label}</p>
@@ -93,23 +93,23 @@ export default async function ConsolePage() {
       <div className="grid grid-cols-3 gap-6">
         {/* Client list */}
         <div className="col-span-2">
-          <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#E5E5E5] flex items-center justify-between">
+          <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center justify-between">
               <h2
-                className="font-semibold text-[#1A1A1A] text-sm"
+                className="font-semibold text-[#1E1C1A] text-sm"
               >
                 All clients
               </h2>
               <Link
                 href="/console/clients/new"
-                className="text-xs text-[#DC362E] hover:underline font-medium"
+                className="text-xs text-[#C67A1E] hover:underline font-medium"
               >
                 + Add client
               </Link>
             </div>
 
             {clients && clients.length > 0 ? (
-              <div className="divide-y divide-[#E5E5E5]">
+              <div className="divide-y divide-[#F0E8DA]">
                 {clients.map((client) => {
                   const alerts = alertMap.get(client.id) ?? 0;
                   const latestSnapshot = client.score_snapshots?.[0];
@@ -126,15 +126,15 @@ export default async function ConsolePage() {
                     <Link
                       key={client.id}
                       href={`/console/clients/${client.id}`}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#F4F4F4] transition-colors"
+                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#FBF7F0] transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-[#1A1A1A] text-sm truncate">
+                          <p className="font-medium text-[#1E1C1A] text-sm truncate">
                             {client.name}
                           </p>
                           {alerts > 0 && (
-                            <AlertTriangle className="w-3.5 h-3.5 text-[#DC362E] shrink-0" />
+                            <AlertTriangle className="w-3.5 h-3.5 text-[#C67A1E] shrink-0" />
                           )}
                         </div>
                         <p className="text-xs text-gray-400">
@@ -154,9 +154,9 @@ export default async function ConsolePage() {
                           <span
                             className={`text-xs font-semibold ${
                               worstPct >= 80
-                                ? "text-[#DC362E]"
+                                ? "text-[#C67A1E]"
                                 : worstPct >= 65
-                                ? "text-[#C5A059]"
+                                ? "text-[#DAA520]"
                                 : "text-green-600"
                             }`}
                           >
@@ -187,24 +187,24 @@ export default async function ConsolePage() {
 
           {/* Needs attention */}
           {alertClients.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#E5E5E5] flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-[#DC362E]" />
+            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#F0E8DA] flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#C67A1E]" />
                 <h3
-                  className="font-semibold text-[#1A1A1A] text-sm"
+                  className="font-semibold text-[#1E1C1A] text-sm"
                 >
                   Needs attention
                 </h3>
               </div>
-              <div className="divide-y divide-[#E5E5E5]">
+              <div className="divide-y divide-[#F0E8DA]">
                 {alertClients.slice(0, 5).map((client) => (
                   <Link
                     key={client.id}
                     href={`/console/clients/${client.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-[#F4F4F4] transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-[#FBF7F0] transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#1A1A1A] truncate">
+                      <p className="text-sm font-medium text-[#1E1C1A] truncate">
                         {client.name}
                       </p>
                       <p className="text-xs text-gray-400">DOT {client.dot_number}</p>
@@ -219,8 +219,8 @@ export default async function ConsolePage() {
           )}
 
           {/* Tip */}
-          <div className="bg-[#1A1A1A] rounded-xl p-4">
-            <TrendingDown className="w-5 h-5 text-[#C5A059] mb-2" />
+          <div className="bg-[#1B2D4F] rounded-xl p-4">
+            <TrendingDown className="w-5 h-5 text-[#DAA520] mb-2" />
             <p
               className="text-white text-sm font-semibold"
             >

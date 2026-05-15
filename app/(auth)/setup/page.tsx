@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -17,7 +17,7 @@ function SetupForm() {
 
   if (!token) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-[#DC362E]">
+      <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-4 py-3 text-sm text-[#C67A1E]">
         Invalid setup link. Please contact your GEIA representative for a new invitation.
       </div>
     );
@@ -80,7 +80,7 @@ function SetupForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label htmlFor="fullName" className="block text-sm font-medium text-[#1A1A1A] mb-1">
+        <label htmlFor="fullName" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Full name
         </label>
         <input
@@ -88,13 +88,13 @@ function SetupForm() {
           type="text"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent bg-white"
+          className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
           placeholder="Your full name"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-[#1A1A1A] mb-1">
+        <label htmlFor="password" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Create password
         </label>
         <input
@@ -103,13 +103,13 @@ function SetupForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent bg-white"
+          className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
           placeholder="At least 8 characters"
         />
       </div>
 
       <div>
-        <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#1A1A1A] mb-1">
+        <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Confirm password
         </label>
         <input
@@ -118,13 +118,13 @@ function SetupForm() {
           required
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent bg-white"
+          className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
           placeholder="Re-enter your password"
         />
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-[#DC362E]">
+        <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-3 py-2 text-sm text-[#B83B32]">
           {error}
         </div>
       )}
@@ -132,7 +132,7 @@ function SetupForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-2.5 px-4 bg-[#DC362E] text-white rounded-lg font-medium text-sm hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Setting up your account..." : "Create account"}
       </button>
@@ -142,29 +142,29 @@ function SetupForm() {
 
 export default function SetupPage() {
   return (
-    <div className="min-h-screen bg-[#F4F4F4] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#FEFCF8] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#DC362E] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-[#C67A1E] flex items-center justify-center">
               <span className="text-white font-bold text-lg">GE</span>
             </div>
             <div className="text-left">
               <p className="text-xs text-gray-500 uppercase tracking-widest leading-none">
                 Golden Era
               </p>
-              <p className="font-bold text-[#1A1A1A] leading-none">SafeScore</p>
+              <p className="font-bold text-[#1E1C1A] leading-none">SafeScore</p>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-[#1A1A1A]">Set up your account</h1>
+          <h1 className="text-2xl font-bold text-[#1E1C1A]">Set up your account</h1>
           <p className="text-sm text-gray-500 mt-1">
             Create your password to access your safety dashboard
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E5E5E5] p-8">
+        <div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8">
           <Suspense fallback={<div className="text-center text-sm text-gray-500">Loading...</div>}>
             <SetupForm />
           </Suspense>

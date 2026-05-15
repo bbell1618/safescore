@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -75,7 +75,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
             type="text"
             defaultValue={name}
             disabled
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm bg-gray-50 text-gray-500"
+            className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-gray-50 text-gray-500"
           />
         </div>
         <div>
@@ -83,7 +83,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value as typeof tier)}
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#DC362E]"
+            className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
           >
             <option value="monitor">Monitor — $199/mo</option>
             <option value="remediate">Remediate — $599/mo</option>
@@ -98,7 +98,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
           id="geia-client"
           checked={geiaClient}
           onChange={(e) => setGeiaClient(e.target.checked)}
-          className="rounded border-gray-300 text-[#DC362E] focus:ring-[#DC362E]"
+          className="rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
         />
         <label htmlFor="geia-client" className="text-sm text-gray-700">
           This carrier is an existing GEIA insurance client (waives assessment fee)
@@ -106,13 +106,13 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
       </div>
 
       {error && (
-        <p className="text-sm text-[#DC362E]">{error}</p>
+        <p className="text-sm text-[#C67A1E]">{error}</p>
       )}
 
       <button
         type="submit"
         disabled={loading}
-        className="px-5 py-2.5 bg-[#DC362E] text-white rounded-lg text-sm font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
+        className="px-5 py-2.5 bg-[#C67A1E] text-white rounded-lg text-sm font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-50"
       >
         {loading ? "Adding client..." : "Add as SafeScore client"}
       </button>

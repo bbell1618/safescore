@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ export function CaseTabs({
   return (
     <div className="space-y-4">
       {/* Tab switcher */}
-      <div className="flex gap-1 bg-white border border-[#E5E5E5] rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-[#FBF7F0] border border-[#F0E8DA] rounded-xl p-1 w-fit">
         {(
           [
             { id: "dataq", label: "DataQs", count: dataqCount },
@@ -34,8 +34,8 @@ export function CaseTabs({
             className={cn(
               "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
               activeTab === tab.id
-                ? "bg-[#F4F4F4] text-[#1A1A1A]"
-                : "text-gray-500 hover:text-[#1A1A1A]"
+                ? "bg-[#FEFCF8] text-[#1E1C1A]"
+                : "text-gray-500 hover:text-[#1E1C1A]"
             )}
           >
             {tab.label}
@@ -43,7 +43,7 @@ export function CaseTabs({
               className={cn(
                 "px-1.5 py-0.5 rounded-full text-xs",
                 activeTab === tab.id
-                  ? "bg-[#1A1A1A] text-white"
+                  ? "bg-[#1B2D4F] text-white"
                   : "bg-gray-100 text-gray-500"
               )}
             >

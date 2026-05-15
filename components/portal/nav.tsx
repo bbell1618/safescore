@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -33,12 +33,12 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
   }
 
   return (
-    <header className="bg-white border-b border-[#E5E5E5] sticky top-0 z-50">
+    <header className="bg-white border-b border-[#F0E8DA] sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
           {/* Left: Logo + SafeScore */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-md bg-[#DC362E] flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-md bg-[#C67A1E] flex items-center justify-center shrink-0">
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -46,7 +46,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                 Golden Era
               </p>
               <p
-                className="text-[#1A1A1A] font-bold text-sm leading-tight"
+                className="text-[#1E1C1A] font-bold text-sm leading-tight"
               >
                 SafeScore
               </p>
@@ -66,8 +66,8 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-[#F4F4F4] text-[#1A1A1A]"
-                      : "text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4]"
+                      ? "bg-[#FEFCF8] text-[#1E1C1A]"
+                      : "text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0]"
                   )}
                 >
                   {item.label}
@@ -79,7 +79,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
           {/* Right: Company chip + Sign out (desktop) */}
           <div className="hidden md:flex items-center gap-3">
             {companyName && (
-              <span className="px-2.5 py-1 bg-[#F4F4F4] rounded-full text-xs font-medium text-[#1A1A1A] max-w-[160px] truncate">
+              <span className="px-2.5 py-1 bg-[#FEFCF8] rounded-full text-xs font-medium text-[#1E1C1A] max-w-[160px] truncate">
                 {companyName}
               </span>
             )}
@@ -90,7 +90,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
             )}
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0] transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sign out
@@ -99,7 +99,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
 
           {/* Mobile: hamburger */}
           <button
-            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-[#F4F4F4] transition-colors"
+            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-[#FBF7F0] transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
@@ -109,7 +109,7 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
 
         {/* Mobile nav */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-[#E5E5E5] py-3 space-y-1">
+          <div className="md:hidden border-t border-[#F0E8DA] py-3 space-y-1">
             {companyName && (
               <div className="px-3 py-2 text-xs font-medium text-gray-500">
                 {companyName}
@@ -127,21 +127,21 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                   className={cn(
                     "block px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-[#F4F4F4] text-[#1A1A1A]"
-                      : "text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4]"
+                      ? "bg-[#FEFCF8] text-[#1E1C1A]"
+                      : "text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0]"
                   )}
                 >
                   {item.label}
                 </Link>
               );
             })}
-            <div className="border-t border-[#E5E5E5] pt-2 mt-2">
+            <div className="border-t border-[#F0E8DA] pt-2 mt-2">
               {userEmail && (
                 <p className="px-3 py-1 text-xs text-gray-400 truncate">{userEmail}</p>
               )}
               <button
                 onClick={handleSignOut}
-                className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-[#1A1A1A] hover:bg-[#F4F4F4] transition-colors"
+                className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0] transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Sign out

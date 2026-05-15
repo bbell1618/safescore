@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
@@ -16,7 +16,7 @@ export function InviteButton({ clientId, clientName }: InviteButtonProps) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-[#C5A059] hover:text-[#C5A059] transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#DAA520] hover:text-[#DAA520] transition-colors"
       >
         <UserPlus className="w-3.5 h-3.5" />
         Invite client

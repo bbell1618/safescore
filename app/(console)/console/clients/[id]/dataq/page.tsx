@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -39,17 +39,17 @@ export default async function DataqPage({
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
+        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">DataQs workbench</span>
+        <span className="text-[#1E1C1A] font-medium">DataQs workbench</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             DataQs workbench
           </h1>
@@ -57,12 +57,12 @@ export default async function DataqPage({
             {cases?.length ?? 0} cases ·{" "}
             <span className="text-green-600 font-medium">{counts.approved ?? 0} approved</span>
             {" · "}
-            <span className="text-[#DC362E] font-medium">{counts.denied ?? 0} denied</span>
+            <span className="text-[#C67A1E] font-medium">{counts.denied ?? 0} denied</span>
           </p>
         </div>
         <Link
           href={`/console/clients/${id}/violations`}
-          className="px-4 py-2 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-[#DC362E] hover:text-[#DC362E] transition-colors"
+          className="px-4 py-2 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
         >
           + Create from violation
         </Link>
@@ -80,9 +80,9 @@ export default async function DataqPage({
         ].map((s) => (
           <div
             key={s.status}
-            className="flex-1 min-w-[100px] bg-white border border-[#E5E5E5] rounded-xl p-3 text-center"
+            className="flex-1 min-w-[100px] bg-[#FBF7F0] border border-[#F0E8DA] rounded-xl p-3 text-center"
           >
-            <p className="text-xl font-bold text-[#1A1A1A]">
+            <p className="text-xl font-bold text-[#1E1C1A]">
               {counts[s.status] ?? 0}
             </p>
             <p className="text-xs text-gray-500">{s.label}</p>

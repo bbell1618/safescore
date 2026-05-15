@@ -1,4 +1,4 @@
-import {
+﻿import {
   Document,
   Page,
   Text,
@@ -44,12 +44,12 @@ export interface SafetyReportProps {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const RED = "#DC362E";
-// const GOLD = "#C5A059"; // available for future use
-const DARK = "#1A1A1A";
+const RED = "#C67A1E";
+// const GOLD = "#DAA520"; // available for future use
+const DARK = "#1E1C1A";
 const GRAY = "#6B6B6B";
 const LIGHT_GRAY = "#9B9B9B";
-const BORDER_GRAY = "#E5E5E5";
+const BORDER_GRAY = "#F0E8DA";
 const ALT_ROW = "#f9f9f9";
 const GREEN = "#16a34a";
 

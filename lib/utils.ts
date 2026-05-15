@@ -1,4 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
+﻿import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -26,14 +26,14 @@ export function daysUntil(date: string | null | undefined): number | null {
 
 export function scoreToColor(percentile: number | null): string {
   if (percentile === null) return "text-gray-400";
-  if (percentile >= 80) return "text-[#DC362E]"; // alert
-  if (percentile >= 65) return "text-[#C5A059]"; // warning
+  if (percentile >= 80) return "text-[#C67A1E]"; // alert
+  if (percentile >= 65) return "text-[#DAA520]"; // warning
   return "text-green-600"; // ok
 }
 
 export function scoreToBg(percentile: number | null): string {
   if (percentile === null) return "bg-gray-100";
-  if (percentile >= 80) return "bg-red-50 border-red-200";
+  if (percentile >= 80) return "bg-[#FDF4E7] border-[#C67A1E]/20";
   if (percentile >= 65) return "bg-amber-50 border-amber-200";
   return "bg-green-50 border-green-200";
 }

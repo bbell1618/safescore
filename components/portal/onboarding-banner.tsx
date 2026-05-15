@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
@@ -25,7 +25,7 @@ export function OnboardingBanner() {
   return (
     <div
       className="rounded-xl border border-amber-300 px-5 py-4 flex items-start justify-between gap-4"
-      style={{ backgroundColor: "#C5A059" }}
+      style={{ backgroundColor: "#DAA520" }}
     >
       <div className="flex-1">
         <p

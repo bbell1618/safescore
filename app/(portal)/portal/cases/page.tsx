@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
@@ -64,7 +64,7 @@ export default async function PortalCasesPage() {
   if (!userRecord?.client_id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#F4F4F4] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
           <Info className="w-6 h-6 text-gray-400" />
         </div>
         <p className="text-sm text-gray-500">Your account is being set up.</p>
@@ -90,8 +90,8 @@ export default async function PortalCasesPage() {
   // Build DataQs content
   const dataqContent =
     dataqCases && dataqCases.length > 0 ? (
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-        <div className="divide-y divide-[#E5E5E5]">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="divide-y divide-[#F0E8DA]">
           {dataqCases.map((c) => {
             const violation = Array.isArray(c.violations)
               ? (c.violations as { violation_code: string; violation_description: string }[])[0]
@@ -110,12 +110,12 @@ export default async function PortalCasesPage() {
                       </span>
                     )}
                     {violation?.violation_code && (
-                      <span className="text-xs font-medium text-[#1A1A1A] bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="text-xs font-medium text-[#1E1C1A] bg-gray-100 px-1.5 py-0.5 rounded">
                         {violation.violation_code}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm font-medium text-[#1A1A1A]">
+                  <p className="text-sm font-medium text-[#1E1C1A]">
                     {violation?.violation_description ?? "DataQ challenge"}
                   </p>
                   <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-400">
@@ -154,7 +154,7 @@ export default async function PortalCasesPage() {
         </div>
       </div>
     ) : (
-      <div className="bg-white rounded-xl border border-[#E5E5E5] px-5 py-12 text-center">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-12 text-center">
         <p className="text-sm text-gray-500">No DataQ cases on file.</p>
         <p className="text-xs text-gray-400 mt-1">
           GEIA will open cases when violations are identified and eligible for challenge.
@@ -165,8 +165,8 @@ export default async function PortalCasesPage() {
   // Build CPDP content
   const cpdpContent =
     cpdpCases && cpdpCases.length > 0 ? (
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-        <div className="divide-y divide-[#E5E5E5]">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="divide-y divide-[#F0E8DA]">
           {cpdpCases.map((c) => {
             const crash = Array.isArray(c.crashes)
               ? (
@@ -189,7 +189,7 @@ export default async function PortalCasesPage() {
             return (
               <div key={c.id} className="px-5 py-4 flex items-start gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1A1A1A]">
+                  <p className="text-sm font-medium text-[#1E1C1A]">
                     {crash
                       ? `Crash — ${formatDate(crash.crash_date)}`
                       : "CPDP filing"}
@@ -231,7 +231,7 @@ export default async function PortalCasesPage() {
         </div>
       </div>
     ) : (
-      <div className="bg-white rounded-xl border border-[#E5E5E5] px-5 py-12 text-center">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-12 text-center">
         <p className="text-sm text-gray-500">No CPDP cases on file.</p>
         <p className="text-xs text-gray-400 mt-1">
           GEIA will file CPDP challenges when crashes are eligible for preventability
@@ -245,7 +245,7 @@ export default async function PortalCasesPage() {
       {/* Page header */}
       <div>
         <h1
-          className="text-xl font-bold text-[#1A1A1A]"
+          className="text-xl font-bold text-[#1E1C1A]"
         >
           Cases
         </h1>

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
@@ -90,18 +90,18 @@ export default async function ClientDetailPage({
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">{client.name}</span>
+        <span className="text-[#1E1C1A] font-medium">{client.name}</span>
       </div>
 
       {/* Header card */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
               <h1
-                className="text-xl font-bold text-[#1A1A1A]"
+                className="text-xl font-bold text-[#1E1C1A]"
               >
                 {client.name}
               </h1>
@@ -171,13 +171,13 @@ export default async function ClientDetailPage({
             <InviteButton clientId={id} clientName={client.name} />
             <Link
               href={`/console/clients/${id}/violations`}
-              className="px-3 py-1.5 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-[#DC362E] hover:text-[#DC362E] transition-colors"
+              className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
             >
               Violations ({violationCount ?? 0})
             </Link>
             <Link
               href={`/console/clients/${id}/dataq`}
-              className="px-3 py-1.5 text-xs font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors"
+              className="px-3 py-1.5 text-xs font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors"
             >
               DataQs ({caseCount ?? 0})
             </Link>
@@ -187,10 +187,10 @@ export default async function ClientDetailPage({
 
       {/* Score snapshot */}
       {basicsArray.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center justify-between mb-4">
             <h2
-              className="font-semibold text-[#1A1A1A] text-sm"
+              className="font-semibold text-[#1E1C1A] text-sm"
             >
               BASIC scores
               {snapshot && (
@@ -201,7 +201,7 @@ export default async function ClientDetailPage({
             </h2>
             <Link
               href={`/console/assess/${client.dot_number}`}
-              className="text-xs text-gray-400 hover:text-[#DC362E] transition-colors"
+              className="text-xs text-gray-400 hover:text-[#C67A1E] transition-colors"
             >
               View assessment →
             </Link>
@@ -232,15 +232,15 @@ export default async function ClientDetailPage({
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-white rounded-xl border border-[#E5E5E5] p-4"
+              className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4"
             >
-              <p className="text-2xl font-bold text-[#1A1A1A]">
+              <p className="text-2xl font-bold text-[#1E1C1A]">
                 {s.value}
               </p>
               {s.href ? (
                 <Link
                   href={`/console/clients/${id}/${s.href}`}
-                  className="text-xs text-[#DC362E] hover:underline"
+                  className="text-xs text-[#C67A1E] hover:underline"
                 >
                   {s.label}
                 </Link>
@@ -252,26 +252,26 @@ export default async function ClientDetailPage({
         </div>
 
         {/* Active cases */}
-        <div className="col-span-2 bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center justify-between">
+        <div className="col-span-2 bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
             <h3
-              className="font-semibold text-[#1A1A1A] text-sm"
+              className="font-semibold text-[#1E1C1A] text-sm"
             >
               Active cases
             </h3>
             <Link
               href={`/console/clients/${id}/dataq`}
-              className="text-xs text-[#DC362E] hover:underline"
+              className="text-xs text-[#C67A1E] hover:underline"
             >
               View all
             </Link>
           </div>
           {activeCases && activeCases.length > 0 ? (
-            <div className="divide-y divide-[#E5E5E5]">
+            <div className="divide-y divide-[#F0E8DA]">
               {activeCases.map((c) => (
                 <div key={c.id} className="px-5 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1A1A1A] truncate">
+                    <p className="text-sm font-medium text-[#1E1C1A] truncate">
                       {Array.isArray(c.violations)
                         ? `${(c.violations as { violation_code: string }[])[0]?.violation_code}`
                         : (c.violations as { violation_code: string } | null)?.violation_code ?? "—"}
@@ -293,7 +293,7 @@ export default async function ClientDetailPage({
               <p className="text-sm text-gray-400">No active cases</p>
               <Link
                 href={`/console/clients/${id}/violations`}
-                className="text-xs text-[#DC362E] hover:underline mt-1 inline-block"
+                className="text-xs text-[#C67A1E] hover:underline mt-1 inline-block"
               >
                 Analyze violations to create cases
               </Link>

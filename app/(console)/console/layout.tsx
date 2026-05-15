@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ConsoleSidebar } from "@/components/console/sidebar";
 
@@ -18,7 +18,7 @@ export default async function ConsoleLayout({
   if (role === "client_user") redirect("/portal");
 
   return (
-    <div className="flex h-screen bg-[#F4F4F4] overflow-hidden">
+    <div className="flex h-screen bg-[#FEFCF8] overflow-hidden">
       <ConsoleSidebar userEmail={user.email} />
       <main className="flex-1 overflow-y-auto">
         {children}

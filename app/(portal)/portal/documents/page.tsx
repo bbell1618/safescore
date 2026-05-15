@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -46,9 +46,9 @@ function formatDate(iso: string): string {
 }
 
 const statusConfig = {
-  pending_review: { label: "Pending review", icon: Clock, color: "text-[#C5A059]" },
+  pending_review: { label: "Pending review", icon: Clock, color: "text-[#DAA520]" },
   reviewed: { label: "Reviewed", icon: CheckCircle, color: "text-green-600" },
-  action_needed: { label: "Action needed", icon: AlertCircle, color: "text-[#DC362E]" },
+  action_needed: { label: "Action needed", icon: AlertCircle, color: "text-[#C67A1E]" },
 };
 
 export default function DocumentVaultPage() {
@@ -134,15 +134,15 @@ export default function DocumentVaultPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-[#1A1A1A]">Document vault</h1>
+        <h1 className="text-xl font-bold text-[#1E1C1A]">Document vault</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Upload and manage your compliance documents. All files are stored securely.
         </p>
       </div>
 
       {/* Upload area */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
-        <h2 className="font-semibold text-[#1A1A1A] text-sm mb-4">Upload a document</h2>
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">Upload a document</h2>
 
         <div className="flex gap-3 mb-4">
           <div className="flex-1">
@@ -150,7 +150,7 @@ export default function DocumentVaultPage() {
             <select
               value={uploadCategory}
               onChange={(e) => setUploadCategory(e.target.value as DocumentCategory)}
-              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+              className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm text-[#1E1C1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -164,8 +164,8 @@ export default function DocumentVaultPage() {
         <div
           className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
             dragOver
-              ? "border-[#DC362E] bg-[#F9E0DF]"
-              : "border-[#E5E5E5] hover:border-gray-300 hover:bg-[#F4F4F4]"
+              ? "border-[#C67A1E] bg-[#F9E0DF]"
+              : "border-[#F0E8DA] hover:border-gray-300 hover:bg-[#FBF7F0]"
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -173,7 +173,7 @@ export default function DocumentVaultPage() {
           onClick={() => fileInputRef.current?.click()}
         >
           <Upload className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-          <p className="text-sm font-medium text-[#1A1A1A] mb-1">
+          <p className="text-sm font-medium text-[#1E1C1A] mb-1">
             {uploading ? "Uploading..." : "Drop a file here or click to browse"}
           </p>
           <p className="text-xs text-gray-400">
@@ -189,9 +189,9 @@ export default function DocumentVaultPage() {
         </div>
 
         {uploadError && (
-          <div className="mt-3 rounded-lg bg-[#F9E0DF] border border-[#DC362E]/20 px-4 py-2.5 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-[#DC362E] shrink-0" />
-            <p className="text-sm text-[#DC362E]">{uploadError}</p>
+          <div className="mt-3 rounded-lg bg-[#F9E0DF] border border-[#C67A1E]/20 px-4 py-2.5 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-[#C67A1E] shrink-0" />
+            <p className="text-sm text-[#C67A1E]">{uploadError}</p>
           </div>
         )}
         {uploadSuccess && (
@@ -215,7 +215,7 @@ export default function DocumentVaultPage() {
           <ul className="space-y-1.5">
             {missingCategories.map((c) => (
               <li key={c.value} className="flex items-center gap-2 text-xs text-[#8E7340]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C5A059] shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#DAA520] shrink-0" />
                 {c.label}
               </li>
             ))}
@@ -227,14 +227,14 @@ export default function DocumentVaultPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-[#E5E5E5] p-4 animate-pulse">
+            <div key={i} className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-1/4 mb-3" />
               <div className="h-3 bg-gray-100 rounded w-3/4" />
             </div>
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] px-5 py-12 text-center">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-12 text-center">
           <Folder className="w-8 h-8 text-gray-300 mx-auto mb-3" />
           <p className="text-sm text-gray-500">No documents uploaded yet</p>
           <p className="text-xs text-gray-400 mt-1">
@@ -247,13 +247,13 @@ export default function DocumentVaultPage() {
             const docs = byCategory[cat.value];
             if (!docs?.length) return null;
             return (
-              <div key={cat.value} className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-[#C5A059]" />
-                  <h3 className="font-semibold text-[#1A1A1A] text-sm">{cat.label}</h3>
+              <div key={cat.value} className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center gap-2">
+                  <Folder className="w-4 h-4 text-[#DAA520]" />
+                  <h3 className="font-semibold text-[#1E1C1A] text-sm">{cat.label}</h3>
                   <span className="text-xs text-gray-400 ml-auto">{docs.length} file{docs.length !== 1 ? "s" : ""}</span>
                 </div>
-                <div className="divide-y divide-[#E5E5E5]">
+                <div className="divide-y divide-[#F0E8DA]">
                   {docs.map((doc) => {
                     const statusInfo = doc.status ? statusConfig[doc.status] : statusConfig.pending_review;
                     const StatusIcon = statusInfo.icon;
@@ -261,7 +261,7 @@ export default function DocumentVaultPage() {
                       <div key={doc.id} className="px-5 py-3 flex items-center gap-3">
                         <File className="w-4 h-4 text-gray-400 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1A1A1A] truncate">{doc.filename}</p>
+                          <p className="text-sm font-medium text-[#1E1C1A] truncate">{doc.filename}</p>
                           <p className="text-xs text-gray-400">
                             {formatDate(doc.created_at)} · {formatBytes(doc.file_size)}
                           </p>

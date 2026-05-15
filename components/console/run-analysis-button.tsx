@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -61,7 +61,7 @@ export function RunAnalysisButton({
       <button
         onClick={handleRun}
         disabled={running}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
       >
         <RefreshCw className={`w-3.5 h-3.5 ${running ? "animate-spin" : ""}`} />
         {running
@@ -79,7 +79,7 @@ export function RunAnalysisButton({
       )}
 
       {error && (
-        <span className="text-xs text-[#DC362E] font-medium">{error}</span>
+        <span className="text-xs text-[#C67A1E] font-medium">{error}</span>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -42,16 +42,16 @@ export default async function CpdpPage({
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
+        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">CPDP workbench</span>
+        <span className="text-[#1E1C1A] font-medium">CPDP workbench</span>
       </div>
 
       <div>
         <h1
-          className="text-xl font-bold text-[#1A1A1A]"
+          className="text-xl font-bold text-[#1E1C1A]"
         >
           CPDP workbench
         </h1>
@@ -63,9 +63,9 @@ export default async function CpdpPage({
       {/* Crash list */}
       <div className="space-y-3">
         {displayCrashes.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[#E5E5E5] p-8 text-center">
+          <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-8 text-center">
             <AlertTriangle className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#1A1A1A]">No crash records found</p>
+            <p className="text-sm font-medium text-[#1E1C1A]">No crash records found</p>
             <p className="text-xs text-gray-400 mt-1">
               Run full analysis to import crash data.
             </p>
@@ -74,12 +74,12 @@ export default async function CpdpPage({
           displayCrashes.map((crash: any) => {
             const hasCase = Array.isArray(crash.cpdp_cases) && crash.cpdp_cases.length > 0;
             return (
-              <div key={crash.id} className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+              <div key={crash.id} className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Car className="w-4 h-4 text-gray-400" />
-                      <p className="font-semibold text-[#1A1A1A] text-sm">
+                      <p className="font-semibold text-[#1E1C1A] text-sm">
                         {formatDate(crash.crash_date)} — {crash.city}, {crash.state}
                       </p>
                       {crash.tow_away && <Badge variant="warning">Tow-away</Badge>}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { X, Mail, Send, CheckCircle } from "lucide-react";
@@ -52,12 +52,12 @@ export function InviteClientModal({
       className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+      <div className="bg-[#FBF7F0] rounded-xl shadow-xl w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E5]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0E8DA]">
           <div>
             <h2
-              className="font-bold text-[#1A1A1A] text-base"
+              className="font-bold text-[#1E1C1A] text-base"
             >
               Invite client to portal
             </h2>
@@ -65,7 +65,7 @@ export function InviteClientModal({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-[#1A1A1A] transition-colors"
+            className="text-gray-400 hover:text-[#1E1C1A] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -76,18 +76,18 @@ export function InviteClientModal({
           {success ? (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <CheckCircle className="w-10 h-10 text-green-500" />
-              <p className="font-medium text-[#1A1A1A]">Invite created</p>
+              <p className="font-medium text-[#1E1C1A]">Invite created</p>
               {fallbackUrl ? (
                 <div className="w-full text-left space-y-2">
                   <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     Email delivery unavailable. Share this link directly with the client:
                   </p>
-                  <div className="bg-[#F4F4F4] rounded-lg px-3 py-2 flex items-center gap-2">
+                  <div className="bg-[#FEFCF8] rounded-lg px-3 py-2 flex items-center gap-2">
                     <span className="text-xs text-gray-600 break-all flex-1">{fallbackUrl}</span>
                     <button
                       type="button"
                       onClick={() => navigator.clipboard.writeText(fallbackUrl)}
-                      className="text-xs font-medium text-[#DC362E] shrink-0 hover:underline"
+                      className="text-xs font-medium text-[#C67A1E] shrink-0 hover:underline"
                     >
                       Copy
                     </button>
@@ -101,7 +101,7 @@ export function InviteClientModal({
               )}
               <button
                 onClick={onClose}
-                className="mt-2 px-4 py-2 text-sm font-medium bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors"
+                className="mt-2 px-4 py-2 text-sm font-medium bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors"
               >
                 Done
               </button>
@@ -110,7 +110,7 @@ export function InviteClientModal({
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-sm text-gray-600">
                 Enter the email address of the contact at{" "}
-                <span className="font-medium text-[#1A1A1A]">{clientName}</span>.
+                <span className="font-medium text-[#1E1C1A]">{clientName}</span>.
                 They will receive a link to create their account and access the
                 client portal.
               </p>
@@ -118,7 +118,7 @@ export function InviteClientModal({
               <div>
                 <label
                   htmlFor="invite-email"
-                  className="block text-sm font-medium text-[#1A1A1A] mb-1"
+                  className="block text-sm font-medium text-[#1E1C1A] mb-1"
                 >
                   Email address
                 </label>
@@ -131,13 +131,13 @@ export function InviteClientModal({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contact@carrier.com"
-                    className="w-full pl-9 pr-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent"
+                    className="w-full pl-9 pr-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
                   />
                 </div>
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-[#DC362E]">
+                <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-3 py-2 text-sm text-[#B83B32]">
                   {error}
                 </div>
               )}
@@ -146,14 +146,14 @@ export function InviteClientModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 border border-[#E5E5E5] rounded-lg hover:border-gray-300 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 border border-[#F0E8DA] rounded-lg hover:border-gray-300 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading || !email}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" />
                   {loading ? "Sending…" : "Send invite"}

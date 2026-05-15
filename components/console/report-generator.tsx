@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { FileText, Loader2, Send, Edit3, CheckCircle } from "lucide-react";
@@ -88,9 +88,9 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
   const selectedType = reportTypes.find((r) => r.value === type)!;
 
   return (
-    <div className="bg-white rounded-xl border border-[#E5E5E5] p-5 space-y-5">
+    <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5 space-y-5">
       <div>
-        <label className="block text-xs font-semibold text-[#1A1A1A] mb-2">
+        <label className="block text-xs font-semibold text-[#1E1C1A] mb-2">
           Report type
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -100,11 +100,11 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
               onClick={() => setType(rt.value)}
               className={`text-left px-3 py-2.5 rounded-lg border transition-colors ${
                 type === rt.value
-                  ? "border-[#DC362E] bg-red-50"
-                  : "border-[#E5E5E5] hover:border-gray-300"
+                  ? "border-[#C67A1E] bg-[#FDF4E7]"
+                  : "border-[#F0E8DA] hover:border-gray-300"
               }`}
             >
-              <p className={`text-xs font-medium ${type === rt.value ? "text-[#DC362E]" : "text-[#1A1A1A]"}`}>
+              <p className={`text-xs font-medium ${type === rt.value ? "text-[#C67A1E]" : "text-[#1E1C1A]"}`}>
                 {rt.label}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">{rt.description}</p>
@@ -116,7 +116,7 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
       <button
         onClick={handleGenerate}
         disabled={generating}
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#DC362E] text-white rounded-lg text-sm font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
+        className="flex items-center gap-2 px-4 py-2.5 bg-[#C67A1E] text-white rounded-lg text-sm font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-50"
       >
         {generating ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -129,14 +129,14 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
       {content !== null && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[#1A1A1A]">
+            <p className="text-xs font-semibold text-[#1E1C1A]">
               AI draft — review before sending to client
             </p>
             <div className="flex gap-2">
               <button
                 onClick={handleSave}
                 disabled={saved}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E5E5E5] rounded-lg text-xs hover:border-[#1A1A1A] transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-[#F0E8DA] rounded-lg text-xs hover:border-[#1B2D4F] transition-colors disabled:opacity-50"
               >
                 <FileText className="w-3.5 h-3.5" />
                 {saved ? "Saved" : "Save as reviewed"}
@@ -150,7 +150,7 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
                 <button
                   onClick={handleSend}
                   disabled={sending || !reportId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs hover:bg-black transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1B2D4F] text-white rounded-lg text-xs hover:bg-[#2A4270] transition-colors disabled:opacity-50"
                 >
                   {sending ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -163,13 +163,13 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
             </div>
           </div>
           {sendError && (
-            <p className="text-xs text-[#DC362E]">{sendError}</p>
+            <p className="text-xs text-[#C67A1E]">{sendError}</p>
           )}
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={16}
-            className="w-full px-4 py-3 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] resize-y"
+            className="w-full px-4 py-3 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] resize-y"
           />
         </div>
       )}

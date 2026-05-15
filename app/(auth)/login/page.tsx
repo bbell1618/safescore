@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -37,16 +37,16 @@ function LoginForm() {
   return (
     <>
       {linkExpired && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-[#DC362E]">
+        <div className="mb-4 bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-4 py-3 text-sm text-[#C67A1E]">
           Your sign-in link has expired or was already used. Please contact your GEIA representative to request a new invitation.
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-[#E5E5E5] p-8">
+      <div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8">
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[#1A1A1A] mb-1"
+              className="block text-sm font-medium text-[#1E1C1A] mb-1"
             >
               Email address
             </label>
@@ -57,7 +57,7 @@ function LoginForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent bg-white"
+              className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
               placeholder="you@example.com"
             />
           </div>
@@ -65,7 +65,7 @@ function LoginForm() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[#1A1A1A] mb-1"
+              className="block text-sm font-medium text-[#1E1C1A] mb-1"
             >
               Password
             </label>
@@ -76,13 +76,13 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent bg-white"
+              className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-[#DC362E]">
+            <div className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-3 py-2 text-sm text-[#B83B32]">
               {error}
             </div>
           )}
@@ -90,7 +90,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-[#DC362E] text-white rounded-lg font-medium text-sm hover:bg-[#b52a23] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
@@ -102,12 +102,12 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#F4F4F4] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#FEFCF8] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#DC362E] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-[#C67A1E] flex items-center justify-center">
               <span className="text-white font-bold text-lg">
                 GE
               </span>
@@ -116,19 +116,19 @@ export default function LoginPage() {
               <p className="text-xs text-gray-500 uppercase tracking-widest leading-none">
                 Golden Era
               </p>
-              <p className="font-bold text-[#1A1A1A] leading-none">
+              <p className="font-bold text-[#1E1C1A] leading-none">
                 SafeScore
               </p>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-[#1A1A1A]">Sign in</h1>
+          <h1 className="text-2xl font-bold text-[#1E1C1A]">Sign in</h1>
           <p className="text-sm text-gray-500 mt-1">
             CSA/DOT safety score improvement platform
           </p>
         </div>
 
         {/* Card */}
-        <Suspense fallback={<div className="bg-white rounded-xl shadow-sm border border-[#E5E5E5] p-8" />}>
+        <Suspense fallback={<div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8" />}>
           <LoginForm />
         </Suspense>
 

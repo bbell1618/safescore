@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+﻿import nodemailer from "nodemailer";
 
 const SMTP_USER = "brandonbell@goldenerainsurance.com";
 const FROM_NAME = "Golden Era SafeScore";
@@ -27,24 +27,24 @@ function emailWrapper(content: string): string {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: #F4F4F4; color: #1A1A1A; }
-    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E5E5E5; }
-    .header { background: #1A1A1A; padding: 24px 32px; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: #F4F4F4; color: #1E1C1A; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #F0E8DA; }
+    .header { background: #1E1C1A; padding: 24px 32px; }
     .header-logo { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; }
     .header-title { font-size: 18px; font-weight: 700; color: #ffffff; }
-    .header-accent { display: inline-block; width: 24px; height: 3px; background: #DC362E; margin-top: 8px; border-radius: 2px; }
+    .header-accent { display: inline-block; width: 24px; height: 3px; background: #C67A1E; margin-top: 8px; border-radius: 2px; }
     .body { padding: 32px; }
-    .footer { padding: 20px 32px; border-top: 1px solid #E5E5E5; }
+    .footer { padding: 20px 32px; border-top: 1px solid #F0E8DA; }
     .footer p { font-size: 11px; color: #6B6B6B; }
-    h2 { font-size: 20px; font-weight: 700; color: #1A1A1A; margin-bottom: 8px; }
-    p { font-size: 14px; color: #1A1A1A; line-height: 1.6; margin-bottom: 16px; }
+    h2 { font-size: 20px; font-weight: 700; color: #1E1C1A; margin-bottom: 8px; }
+    p { font-size: 14px; color: #1E1C1A; line-height: 1.6; margin-bottom: 16px; }
     .label { font-size: 11px; color: #6B6B6B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
-    .value { font-size: 14px; font-weight: 500; color: #1A1A1A; }
-    .detail-row { padding: 12px 0; border-bottom: 1px solid #E5E5E5; }
+    .value { font-size: 14px; font-weight: 500; color: #1E1C1A; }
+    .detail-row { padding: 12px 0; border-bottom: 1px solid #F0E8DA; }
     .detail-row:last-child { border-bottom: none; }
-    .badge-red { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #F9E0DF; color: #DC362E; font-size: 12px; font-weight: 600; }
+    .badge-red { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #F9E0DF; color: #C67A1E; font-size: 12px; font-weight: 600; }
     .badge-gold { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #F5EDDB; color: #8E7340; font-size: 12px; font-weight: 600; }
-    .cta { display: inline-block; margin-top: 8px; padding: 12px 24px; background: #DC362E; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; }
+    .cta { display: inline-block; margin-top: 8px; padding: 12px 24px; background: #C67A1E; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; }
   </style>
 </head>
 <body>

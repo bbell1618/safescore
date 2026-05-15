@@ -1,35 +1,58 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 @theme {
-  --color-red: #DC362E;
-  --color-red-dark: #A3221C;
-  --color-red-light: #F9E0DF;
-  --color-gold: #C5A059;
-  --color-gold-dark: #8E7340;
-  --color-gold-light: #F5EDDB;
-  --color-dark: #1A1A1A;
-  --color-dark-subtle: #2a2a2a;
-  --color-light: #F4F4F4;
-  --color-light-border: #E5E5E5;
-  --color-muted: #6B6B6B;
+  /* Primary — Amber/Saffron */
+  --color-amber: #C67A1E;
+  --color-amber-dark: #B86E18;
+  --color-amber-hover: #A36015;
+  --color-amber-light: #E8A84C;
+  --color-amber-subtle: #FDF4E7;
+  --color-saffron: #D4872C;
 
-  --font-heading: var(--font-inter);
-  --font-body: var(--font-inter);
+  /* Grounding — Navy */
+  --color-navy: #1B2D4F;
+  --color-navy-light: #2A4270;
+  --color-navy-subtle: #E8ECF2;
+
+  /* Accent — Gold */
+  --color-gold: #DAA520;
+  --color-gold-light: #E8C050;
+
+  /* Warm Neutrals */
+  --color-warm-white: #FEFCF8;
+  --color-cream: #FBF7F0;
+  --color-sand: #F0E8DA;
+  --color-warm-gray: #8B8178;
+  --color-warm-mid: #5C554E;
+  --color-warm-dark: #1E1C1A;
+
+  /* Semantic */
+  --color-success: #3D7A52;
+  --color-success-light: #E8F3EC;
+  --color-error: #B83B32;
+  --color-error-light: #FAECEB;
+  --color-info: #2A4270;
+  --color-info-light: #E8ECF2;
+
+  /* Fonts */
+  --font-heading: var(--font-source-serif);
+  --font-body: var(--font-dm-sans);
+  --font-mono: var(--font-dm-mono);
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #1A1A1A;
+  --background: #FEFCF8;
+  --foreground: #1E1C1A;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-source-serif), Georgia, serif;
 }
 
 /* Console sidebar scrollbar */
@@ -40,11 +63,20 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #444;
+  background: #2A4270;
   border-radius: 2px;
 }
 
 /* Score badge colors */
-.score-alert { color: #DC362E; }
-.score-warning { color: #C5A059; }
-.score-ok { color: #16a34a; }
+.score-alert { color: #B83B32; }
+.score-warning { color: #C67A1E; }
+.score-ok { color: #3D7A52; }
+
+/* Mono label utility */
+.mono-label {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -133,9 +133,9 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
     <div className="space-y-4">
       {/* Score impact simulator */}
       {selected.size > 0 && snapshot && (
-        <div className="bg-[#1A1A1A] rounded-xl p-5">
+        <div className="bg-[#1B2D4F] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingDown className="w-5 h-5 text-[#C5A059]" />
+            <TrendingDown className="w-5 h-5 text-[#DAA520]" />
             <h3
               className="text-white font-semibold text-sm"
             >
@@ -164,7 +164,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
             </span>
             {impact.alertsRemoved > 0 && (
               <span>
-                BASIC alerts cleared: <strong className="text-[#C5A059]">{impact.alertsRemoved}</strong>
+                BASIC alerts cleared: <strong className="text-[#DAA520]">{impact.alertsRemoved}</strong>
               </span>
             )}
           </div>
@@ -172,7 +172,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
       )}
 
       {/* Controls */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-4 flex items-center justify-between gap-4">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center justify-between gap-4">
         <div className="flex gap-2">
           {(["all", "challengeable", "not_challengeable", "pending"] as const).map((f) => (
             <button
@@ -180,8 +180,8 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filter === f
-                  ? "bg-[#1A1A1A] text-white"
-                  : "bg-[#F4F4F4] text-gray-600 hover:bg-gray-200"
+                  ? "bg-[#1B2D4F] text-white"
+                  : "bg-[#FEFCF8] text-gray-600 hover:bg-gray-200"
               }`}
             >
               {f === "all" ? "All" : f === "challengeable" ? "Challengeable" : f === "not_challengeable" ? "Not challengeable" : "Pending assessment"}
@@ -192,7 +192,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
           <button
             onClick={handleAssessAll}
             disabled={assessingAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#DC362E] text-white rounded-lg text-xs font-medium hover:bg-[#b52a23] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C67A1E] text-white rounded-lg text-xs font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-50"
           >
             <Clock className="w-3.5 h-3.5" />
             {assessingAll ? `Assessing... (${assessProgress}/${pendingCount})` : `AI assess ${pendingCount} pending`}
@@ -201,9 +201,9 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
       </div>
 
       {/* Violations table */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="border-b border-[#E5E5E5] bg-[#F4F4F4]">
+          <thead className="border-b border-[#F0E8DA] bg-[#FEFCF8]">
             <tr>
               <th className="w-10 px-4 py-3"></th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Code</th>
@@ -215,7 +215,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E5E5E5]">
+          <tbody className="divide-y divide-[#F0E8DA]">
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">
@@ -226,7 +226,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
               filtered.map((v) => (
                 <tr
                   key={v.id}
-                  className={`hover:bg-[#F4F4F4] transition-colors ${selected.has(v.id) ? "bg-[#F5EDDB]" : ""}`}
+                  className={`hover:bg-[#FBF7F0] transition-colors ${selected.has(v.id) ? "bg-[#F5EDDB]" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <input
@@ -234,16 +234,16 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                       checked={selected.has(v.id)}
                       onChange={() => toggleSelect(v.id)}
                       disabled={v.challengeable === false}
-                      className="rounded border-gray-300 text-[#DC362E] focus:ring-[#DC362E]"
+                      className="rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
                     />
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-[#1A1A1A]">
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-[#1E1C1A]">
                     {v.violation_code}
                     {v.oos_violation && (
-                      <span className="ml-1 text-[10px] font-sans text-[#DC362E] font-medium">OOS</span>
+                      <span className="ml-1 text-[10px] font-sans text-[#C67A1E] font-medium">OOS</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[#1A1A1A] max-w-xs">
+                  <td className="px-4 py-3 text-[#1E1C1A] max-w-xs">
                     <p className="truncate">{v.violation_description}</p>
                     {v.challenge_reason && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{v.challenge_reason}</p>
@@ -279,9 +279,9 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                     <span
                       className={`text-xs font-semibold ${
                         (v.severity_weight ?? 0) >= 8
-                          ? "text-[#DC362E]"
+                          ? "text-[#C67A1E]"
                           : (v.severity_weight ?? 0) >= 5
-                          ? "text-[#C5A059]"
+                          ? "text-[#DAA520]"
                           : "text-gray-400"
                       }`}
                     >
@@ -292,7 +292,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                     {v.challengeable && (
                       <button
                         onClick={() => createDataqCase(v.id)}
-                        className="flex items-center gap-1 text-xs text-[#DC362E] hover:underline font-medium"
+                        className="flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
                       >
                         <Plus className="w-3 h-3" />
                         Create case

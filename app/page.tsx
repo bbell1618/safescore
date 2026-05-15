@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { ShieldCheck, TrendingDown, Check, ArrowRight, Search } from "lucide-react";
 
 const TIERS = [
@@ -47,25 +47,25 @@ const TIERS = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#F4F4F4]">
+    <div className="min-h-screen bg-[#FEFCF8]">
       {/* Nav */}
-      <header className="bg-white border-b border-[#E5E5E5] sticky top-0 z-50">
+      <header className="bg-white border-b border-[#F0E8DA] sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-md bg-[#DC362E] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-md bg-[#C67A1E] flex items-center justify-center">
                 <ShieldCheck className="w-4 h-4 text-white" />
               </div>
               <div>
                 <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-none">
                   Golden Era
                 </p>
-                <p className="text-[#1A1A1A] font-bold text-sm leading-tight">SafeScore</p>
+                <p className="text-[#1E1C1A] font-bold text-sm leading-tight">SafeScore</p>
               </div>
             </div>
             <Link
               href="/login"
-              className="text-sm text-gray-500 hover:text-[#1A1A1A] font-medium transition-colors"
+              className="text-sm text-gray-500 hover:text-[#1E1C1A] font-medium transition-colors"
             >
               Sign in
             </Link>
@@ -74,14 +74,14 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="bg-[#1A1A1A] text-white">
+      <section className="bg-[#1B2D4F] text-white">
         <div className="max-w-6xl mx-auto px-6 py-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-[#DC362E]/20 text-[#DC362E] text-xs font-semibold px-3 py-1.5 rounded-full mb-6 uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 bg-[#C67A1E]/20 text-[#C67A1E] text-xs font-semibold px-3 py-1.5 rounded-full mb-6 uppercase tracking-widest">
             Golden Era Insurance Agency
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-3xl mx-auto">
             Lower your DOT safety scores.{" "}
-            <span className="text-[#C5A059]">Lower your insurance premiums.</span>
+            <span className="text-[#DAA520]">Lower your insurance premiums.</span>
           </h1>
           <p className="text-white/60 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
             SafeScore monitors your CSA BASIC scores, challenges faulty violations, and helps you
@@ -97,11 +97,11 @@ export default function LandingPage() {
                 type="text"
                 name="dot"
                 placeholder="Enter your DOT number"
-                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:border-transparent text-sm"
+                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent text-sm"
               />
               <button
                 type="submit"
-                className="flex items-center gap-2 px-5 py-3 bg-[#DC362E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors whitespace-nowrap"
+                className="flex items-center gap-2 px-5 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#A3221C] transition-colors whitespace-nowrap"
               >
                 <Search className="w-4 h-4" />
                 Get assessment
@@ -122,9 +122,9 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section className="bg-white py-16 border-b border-[#E5E5E5]">
+      <section className="bg-white py-16 border-b border-[#F0E8DA]">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-2xl font-bold text-[#1A1A1A] text-center mb-12">
+          <h2 className="text-2xl font-bold text-[#1E1C1A] text-center mb-12">
             How SafeScore works
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
@@ -146,8 +146,8 @@ export default function LandingPage() {
               },
             ].map((item) => (
               <div key={item.step} className="text-center sm:text-left">
-                <div className="text-[#DC362E] font-bold text-3xl mb-3">{item.step}</div>
-                <h3 className="font-bold text-[#1A1A1A] mb-2">{item.title}</h3>
+                <div className="text-[#C67A1E] font-bold text-3xl mb-3">{item.step}</div>
+                <h3 className="font-bold text-[#1E1C1A] mb-2">{item.title}</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">{item.body}</p>
               </div>
             ))}
@@ -156,11 +156,11 @@ export default function LandingPage() {
       </section>
 
       {/* Why it matters */}
-      <section className="py-16 border-b border-[#E5E5E5]">
+      <section className="py-16 border-b border-[#F0E8DA]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-2xl font-bold text-[#1A1A1A] mb-4">
+              <h2 className="text-2xl font-bold text-[#1E1C1A] mb-4">
                 Your CSA score affects more than compliance
               </h2>
               <p className="text-gray-600 leading-relaxed mb-6">
@@ -175,16 +175,16 @@ export default function LandingPage() {
                   "Lower scores lead directly to lower commercial auto premiums",
                 ].map((fact) => (
                   <div key={fact} className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-[#DC362E]/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3 h-3 text-[#DC362E]" />
+                    <div className="w-5 h-5 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-[#C67A1E]" />
                     </div>
                     <p className="text-sm text-gray-700">{fact}</p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="bg-[#1A1A1A] rounded-2xl p-8 text-white">
-              <TrendingDown className="w-8 h-8 text-[#C5A059] mb-4" />
+            <div className="bg-[#1B2D4F] rounded-2xl p-8 text-white">
+              <TrendingDown className="w-8 h-8 text-[#DAA520] mb-4" />
               <p className="font-bold text-xl mb-2">Pilot result</p>
               <p className="text-white/60 text-sm leading-relaxed">
                 SafeScore reduced a client&apos;s Vehicle Maintenance BASIC percentile from the
@@ -197,9 +197,9 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section className="bg-white py-16 border-b border-[#E5E5E5]">
+      <section className="bg-white py-16 border-b border-[#F0E8DA]">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-2xl font-bold text-[#1A1A1A] text-center mb-4">
+          <h2 className="text-2xl font-bold text-[#1E1C1A] text-center mb-4">
             Simple, transparent pricing
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
@@ -211,18 +211,18 @@ export default function LandingPage() {
                 key={tier.name}
                 className={`rounded-2xl border-2 p-6 ${
                   tier.highlight
-                    ? "border-[#DC362E] bg-[#1A1A1A] text-white"
-                    : "border-[#E5E5E5] bg-white"
+                    ? "border-[#C67A1E] bg-[#1B2D4F] text-white"
+                    : "border-[#F0E8DA] bg-white"
                 }`}
               >
                 {tier.highlight && (
-                  <div className="text-[10px] font-bold text-[#DC362E] uppercase tracking-widest mb-3">
+                  <div className="text-[10px] font-bold text-[#C67A1E] uppercase tracking-widest mb-3">
                     Most popular
                   </div>
                 )}
                 <h3
                   className={`font-bold text-xl mb-1 ${
-                    tier.highlight ? "text-white" : "text-[#1A1A1A]"
+                    tier.highlight ? "text-white" : "text-[#1E1C1A]"
                   }`}
                 >
                   {tier.name}
@@ -230,7 +230,7 @@ export default function LandingPage() {
                 <div className="mb-1">
                   <span
                     className={`text-3xl font-bold ${
-                      tier.highlight ? "text-white" : "text-[#1A1A1A]"
+                      tier.highlight ? "text-white" : "text-[#1E1C1A]"
                     }`}
                   >
                     {tier.price}
@@ -257,7 +257,7 @@ export default function LandingPage() {
                     <li key={f} className="flex items-start gap-2.5">
                       <Check
                         className={`w-4 h-4 shrink-0 mt-0.5 ${
-                          tier.highlight ? "text-[#C5A059]" : "text-[#DC362E]"
+                          tier.highlight ? "text-[#DAA520]" : "text-[#C67A1E]"
                         }`}
                       />
                       <span
@@ -277,7 +277,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-[#DC362E] py-14">
+      <section className="bg-[#C67A1E] py-14">
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">
             Get your free DOT safety assessment
@@ -288,7 +288,7 @@ export default function LandingPage() {
           </p>
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#1A1A1A] text-white font-semibold rounded-xl hover:bg-[#2a2a2a] transition-colors"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#1B2D4F] text-white font-semibold rounded-xl hover:bg-[#2a2a2a] transition-colors"
           >
             Request free assessment
             <ArrowRight className="w-4 h-4" />
@@ -297,10 +297,10 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#1A1A1A] py-8">
+      <footer className="bg-[#1B2D4F] py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-[#DC362E] flex items-center justify-center">
+            <div className="w-6 h-6 rounded bg-[#C67A1E] flex items-center justify-center">
               <ShieldCheck className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="text-sm text-white/60">Golden Era Insurance Agency — SafeScore</span>

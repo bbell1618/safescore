@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+﻿import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type BadgeVariant =
@@ -12,12 +12,12 @@ type BadgeVariant =
 
 const variants: Record<BadgeVariant, string> = {
   default: "bg-gray-100 text-gray-700",
-  success: "bg-green-100 text-green-700",
-  warning: "bg-amber-100 text-amber-700",
-  danger: "bg-red-100 text-[#DC362E]",
+  success: "bg-[#E8F3EC] text-[#3D7A52]",
+  warning: "bg-[#FDF4E7] text-[#C67A1E]",
+  danger: "bg-[#FAECEB] text-[#B83B32]",
   info: "bg-[#F5EDDB] text-[#8E7340]",
-  outline: "border border-[#E5E5E5] text-gray-600 bg-white",
-  gold: "bg-amber-50 text-[#a8873d] border border-amber-200",
+  outline: "border border-[#F0E8DA] text-gray-600 bg-white",
+  gold: "bg-amber-50 text-[#C67A1E] border border-amber-200",
 };
 
 interface BadgeProps {

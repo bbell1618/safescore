@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -52,17 +52,17 @@ export default async function CompliancePage({
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
+        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">Compliance manager</span>
+        <span className="text-[#1E1C1A] font-medium">Compliance manager</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Compliance manager
           </h1>
@@ -77,12 +77,12 @@ export default async function CompliancePage({
 
       <div className="grid grid-cols-2 gap-5">
         {/* Driver roster */}
-        <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center justify-between">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400" />
               <h2
-                className="font-semibold text-[#1A1A1A] text-sm"
+                className="font-semibold text-[#1E1C1A] text-sm"
               >
                 Driver roster ({drivers?.length ?? 0})
               </h2>
@@ -90,7 +90,7 @@ export default async function CompliancePage({
             <AddDriverButton clientId={id} />
           </div>
           {drivers && drivers.length > 0 ? (
-            <div className="divide-y divide-[#E5E5E5]">
+            <div className="divide-y divide-[#F0E8DA]">
               {drivers.map((d) => {
                 const cdlDays = daysUntil(d.cdl_expiry);
                 const medDays = daysUntil(d.medical_cert_expiry);
@@ -98,13 +98,13 @@ export default async function CompliancePage({
                 return (
                   <div key={d.id} className="px-5 py-3 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[#1A1A1A]">{d.full_name}</p>
+                      <p className="text-sm font-medium text-[#1E1C1A]">{d.full_name}</p>
                       <p className="text-xs text-gray-400">
                         CDL exp: {formatDate(d.cdl_expiry)} · Med cert: {formatDate(d.medical_cert_expiry)}
                       </p>
                     </div>
                     {hasExpiring ? (
-                      <AlertTriangle className="w-4 h-4 text-[#C5A059]" />
+                      <AlertTriangle className="w-4 h-4 text-[#DAA520]" />
                     ) : (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
@@ -121,12 +121,12 @@ export default async function CompliancePage({
         </div>
 
         {/* Vehicle fleet */}
-        <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#E5E5E5] flex items-center justify-between">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-gray-400" />
               <h2
-                className="font-semibold text-[#1A1A1A] text-sm"
+                className="font-semibold text-[#1E1C1A] text-sm"
               >
                 Vehicle fleet ({vehicles?.length ?? 0})
               </h2>
@@ -134,11 +134,11 @@ export default async function CompliancePage({
             <AddVehicleButton clientId={id} />
           </div>
           {vehicles && vehicles.length > 0 ? (
-            <div className="divide-y divide-[#E5E5E5]">
+            <div className="divide-y divide-[#F0E8DA]">
               {vehicles.map((v) => (
                 <div key={v.id} className="px-5 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[#1A1A1A]">
+                    <p className="text-sm font-medium text-[#1E1C1A]">
                       Unit {v.unit_number ?? "—"} · {v.year} {v.make} {v.model}
                     </p>
                     <p className="text-xs text-gray-400">
@@ -158,9 +158,9 @@ export default async function CompliancePage({
       </div>
 
       {/* Mock audit checklist */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2
-          className="font-semibold text-[#1A1A1A] text-sm mb-4"
+          className="font-semibold text-[#1E1C1A] text-sm mb-4"
         >
           Mock compliance review — 6 FMCSA audit areas
         </h2>
@@ -177,10 +177,10 @@ export default async function CompliancePage({
               {area.status === "ok" ? (
                 <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
               ) : (
-                <AlertTriangle className="w-4 h-4 text-[#C5A059] shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-[#DAA520] shrink-0" />
               )}
               <div>
-                <p className="text-sm font-medium text-[#1A1A1A]">{area.area}</p>
+                <p className="text-sm font-medium text-[#1E1C1A]">{area.area}</p>
                 <p className="text-xs text-gray-500">
                   {area.status === "ok" ? "Passing" : "Needs review"}
                 </p>

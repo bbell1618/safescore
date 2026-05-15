@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -45,17 +45,17 @@ export default async function ViolationsPage({
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#DC362E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#DC362E]">{client.name}</Link>
+        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1A1A1A] font-medium">Violations</span>
+        <span className="text-[#1E1C1A] font-medium">Violations</span>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <h1
-            className="text-xl font-bold text-[#1A1A1A]"
+            className="text-xl font-bold text-[#1E1C1A]"
           >
             Violation analyzer
           </h1>

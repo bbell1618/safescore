@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 
@@ -91,10 +91,10 @@ export function NotificationPrefsForm() {
       {PREF_LABELS.map(({ key, label, description }) => (
         <div
           key={key}
-          className="flex items-start justify-between gap-4 py-3 border-b border-[#E5E5E5] last:border-0"
+          className="flex items-start justify-between gap-4 py-3 border-b border-[#F0E8DA] last:border-0"
         >
           <div>
-            <p className="text-sm font-medium text-[#1A1A1A]">{label}</p>
+            <p className="text-sm font-medium text-[#1E1C1A]">{label}</p>
             <p className="text-xs text-gray-400 mt-0.5">{description}</p>
           </div>
           <button
@@ -102,8 +102,8 @@ export function NotificationPrefsForm() {
             role="switch"
             aria-checked={prefs[key]}
             onClick={() => setPrefs((p) => ({ ...p, [key]: !p[key] }))}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-[#DC362E] focus:ring-offset-2 ${
-              prefs[key] ? "bg-[#DC362E]" : "bg-gray-200"
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:ring-offset-2 ${
+              prefs[key] ? "bg-[#C67A1E]" : "bg-gray-200"
             }`}
           >
             <span
@@ -120,7 +120,7 @@ export function NotificationPrefsForm() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 bg-[#DC362E] text-white text-sm font-medium rounded-lg hover:bg-[#A3221C] transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-[#C67A1E] text-white text-sm font-medium rounded-lg hover:bg-[#A3221C] transition-colors disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save preferences"}
         </button>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -67,7 +67,7 @@ export function AddDriverButton({ clientId }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-xs text-[#DC362E] hover:underline"
+        className="text-xs text-[#C67A1E] hover:underline"
       >
         + Add driver
       </button>
@@ -75,9 +75,9 @@ export function AddDriverButton({ clientId }: Props) {
       {open && (
         <form
           onSubmit={handleSubmit}
-          className="mt-3 mx-4 mb-3 p-4 rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] space-y-3"
+          className="mt-3 mx-4 mb-3 p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] space-y-3"
         >
-          <p className="text-xs font-semibold text-[#1A1A1A] mb-1">New driver</p>
+          <p className="text-xs font-semibold text-[#1E1C1A] mb-1">New driver</p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
@@ -87,7 +87,7 @@ export function AddDriverButton({ clientId }: Props) {
                 value={form.name}
                 onChange={(e) => update("name", e.target.value)}
                 placeholder="Full name"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -97,7 +97,7 @@ export function AddDriverButton({ clientId }: Props) {
                 value={form.cdl_number}
                 onChange={(e) => update("cdl_number", e.target.value)}
                 placeholder="CDL number"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -108,7 +108,7 @@ export function AddDriverButton({ clientId }: Props) {
                 onChange={(e) => update("cdl_state", e.target.value.toUpperCase().slice(0, 2))}
                 placeholder="TX"
                 maxLength={2}
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -117,7 +117,7 @@ export function AddDriverButton({ clientId }: Props) {
                 type="date"
                 value={form.cdl_expiry}
                 onChange={(e) => update("cdl_expiry", e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -126,25 +126,25 @@ export function AddDriverButton({ clientId }: Props) {
                 type="date"
                 value={form.medical_cert_expiry}
                 onChange={(e) => update("medical_cert_expiry", e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
           </div>
 
-          {error && <p className="text-xs text-[#DC362E]">{error}</p>}
+          {error && <p className="text-xs text-[#C67A1E]">{error}</p>}
 
           <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={() => { setOpen(false); setError(null); }}
-              className="flex-1 py-2 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-gray-300 transition-colors"
+              className="flex-1 py-2 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2 text-xs font-semibold bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 py-2 text-xs font-semibold bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? "Saving..." : "Add driver"}
             </button>
@@ -211,7 +211,7 @@ export function AddVehicleButton({ clientId }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-xs text-[#DC362E] hover:underline"
+        className="text-xs text-[#C67A1E] hover:underline"
       >
         + Add vehicle
       </button>
@@ -219,9 +219,9 @@ export function AddVehicleButton({ clientId }: Props) {
       {open && (
         <form
           onSubmit={handleSubmit}
-          className="mt-3 mx-4 mb-3 p-4 rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] space-y-3"
+          className="mt-3 mx-4 mb-3 p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] space-y-3"
         >
-          <p className="text-xs font-semibold text-[#1A1A1A] mb-1">New vehicle</p>
+          <p className="text-xs font-semibold text-[#1E1C1A] mb-1">New vehicle</p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -231,7 +231,7 @@ export function AddVehicleButton({ clientId }: Props) {
                 value={form.unit_number}
                 onChange={(e) => update("unit_number", e.target.value)}
                 placeholder="e.g. 101"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -243,7 +243,7 @@ export function AddVehicleButton({ clientId }: Props) {
                 placeholder="2022"
                 min={1900}
                 max={2100}
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -253,7 +253,7 @@ export function AddVehicleButton({ clientId }: Props) {
                 value={form.make}
                 onChange={(e) => update("make", e.target.value)}
                 placeholder="Peterbilt"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div>
@@ -263,7 +263,7 @@ export function AddVehicleButton({ clientId }: Props) {
                 value={form.license_plate}
                 onChange={(e) => update("license_plate", e.target.value)}
                 placeholder="ABC1234"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
             <div className="col-span-2">
@@ -273,25 +273,25 @@ export function AddVehicleButton({ clientId }: Props) {
                 value={form.vin}
                 onChange={(e) => update("vin", e.target.value)}
                 placeholder="17-character VIN"
-                className="w-full px-3 py-2 rounded-lg border border-[#E5E5E5] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E]/20"
+                className="w-full px-3 py-2 rounded-lg border border-[#F0E8DA] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/20"
               />
             </div>
           </div>
 
-          {error && <p className="text-xs text-[#DC362E]">{error}</p>}
+          {error && <p className="text-xs text-[#C67A1E]">{error}</p>}
 
           <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={() => { setOpen(false); setError(null); }}
-              className="flex-1 py-2 text-xs font-medium border border-[#E5E5E5] rounded-lg hover:border-gray-300 transition-colors"
+              className="flex-1 py-2 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-gray-300 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2 text-xs font-semibold bg-[#DC362E] text-white rounded-lg hover:bg-[#b52a23] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 py-2 text-xs font-semibold bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? "Saving..." : "Add vehicle"}
             </button>

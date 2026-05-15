@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { formatDate } from "@/lib/utils";
@@ -28,21 +28,21 @@ function PercentileBar({ value }: { value: number | null }) {
   if (value === null) return <span className="text-xs text-gray-400">—</span>;
   const color =
     value >= 80
-      ? "bg-[#DC362E]"
+      ? "bg-[#C67A1E]"
       : value >= 65
-      ? "bg-[#C5A059]"
+      ? "bg-[#DAA520]"
       : "bg-green-500";
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-[#E5E5E5] rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-[#F0E8DA] rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
       </div>
       <span
         className={`text-xs font-semibold w-10 text-right ${
           value >= 80
-            ? "text-[#DC362E]"
+            ? "text-[#C67A1E]"
             : value >= 65
-            ? "text-[#C5A059]"
+            ? "text-[#DAA520]"
             : "text-green-600"
         }`}
       >
@@ -134,7 +134,7 @@ export default async function SafetyProfilePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-[#1A1A1A]">Safety profile</h1>
+        <h1 className="text-xl font-bold text-[#1E1C1A]">Safety profile</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Carrier details, inspection history, and BASIC breakdown for DOT {client.dot_number}
         </p>
@@ -142,24 +142,24 @@ export default async function SafetyProfilePage() {
 
       {/* Carrier info card */}
       {carrier && (
-        <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center gap-2 mb-4">
             <Building2 className="w-4 h-4 text-gray-400" />
-            <h2 className="font-semibold text-[#1A1A1A] text-sm">Carrier information</h2>
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">Carrier information</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.legalName}</p>
+              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.legalName}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">{carrier.dotNumber}</p>
+              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.dotNumber}</p>
             </div>
             {carrier.mcNumber && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">MC number</p>
-                <p className="text-sm font-medium text-[#1A1A1A]">{carrier.mcNumber}</p>
+                <p className="text-sm font-medium text-[#1E1C1A]">{carrier.mcNumber}</p>
               </div>
             )}
             <div>
@@ -167,7 +167,7 @@ export default async function SafetyProfilePage() {
               <span
                 className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
                   carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
-                    ? "bg-green-100 text-green-700"
+                    ? "bg-[#E8F3EC] text-[#3D7A52]"
                     : "bg-gray-100 text-gray-600"
                 }`}
               >
@@ -176,28 +176,28 @@ export default async function SafetyProfilePage() {
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Power units</p>
-              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                 <Truck className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalPowerUnits}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
-              <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                 <Users2 className="w-3.5 h-3.5 text-gray-400" />
                 {carrier.totalDrivers}
               </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Safety rating</p>
-              <p className="text-sm font-medium text-[#1A1A1A]">
+              <p className="text-sm font-medium text-[#1E1C1A]">
                 {carrier.safetyRating ?? "Not rated"}
               </p>
             </div>
             {(carrier.phyCity || carrier.phyState) && (
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Location</p>
-                <p className="text-sm font-medium text-[#1A1A1A] flex items-center gap-1">
+                <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
                   {[carrier.phyCity, carrier.phyState].filter(Boolean).join(", ")}
                 </p>
@@ -208,10 +208,10 @@ export default async function SafetyProfilePage() {
       )}
 
       {/* BASICs breakdown */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-5">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-4 h-4 text-gray-400" />
-          <h2 className="font-semibold text-[#1A1A1A] text-sm">BASICs breakdown</h2>
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">BASICs breakdown</h2>
           {snapshot && (
             <span className="text-xs text-gray-400 ml-auto">
               As of {formatDate(snapshot.snapshot_date)}
@@ -220,7 +220,7 @@ export default async function SafetyProfilePage() {
         </div>
 
         {basicsArray.length > 0 ? (
-          <div className="divide-y divide-[#E5E5E5]">
+          <div className="divide-y divide-[#F0E8DA]">
             {basicsArray.map((b) => {
               const categoryViolations = violationsByBasic[b.key] ?? [];
               const alerting = (b.percentile ?? 0) >= 80;
@@ -229,11 +229,11 @@ export default async function SafetyProfilePage() {
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#1A1A1A]">
+                        <span className="text-sm font-medium text-[#1E1C1A]">
                           {basicLabels[b.key]}
                         </span>
                         {alerting && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-[#DC362E] shrink-0" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-[#C67A1E] shrink-0" />
                         )}
                         <span className="text-xs text-gray-400 ml-auto">
                           Measure: {b.measure?.toFixed(1) ?? "—"}
@@ -245,14 +245,14 @@ export default async function SafetyProfilePage() {
                     </div>
                   </div>
                   {categoryViolations.length > 0 && (
-                    <div className="mt-2 pl-2 border-l-2 border-[#E5E5E5] space-y-1">
+                    <div className="mt-2 pl-2 border-l-2 border-[#F0E8DA] space-y-1">
                       {categoryViolations.slice(0, 5).map((v) => (
                         <div key={v.id} className="flex items-center gap-2 text-xs text-gray-500">
-                          <span className="font-mono font-medium text-[#1A1A1A]">
+                          <span className="font-mono font-medium text-[#1E1C1A]">
                             {v.violation_code}
                           </span>
                           {v.oos_violation && (
-                            <span className="text-[#DC362E] font-medium">OOS</span>
+                            <span className="text-[#C67A1E] font-medium">OOS</span>
                           )}
                           <span className="text-gray-400">
                             Severity: {v.severity_weight ?? "—"} · Time weight: {v.time_weight ?? "—"}
@@ -271,9 +271,9 @@ export default async function SafetyProfilePage() {
             })}
           </div>
         ) : (
-          <div className="rounded-lg border border-[#E5E5E5] bg-[#F4F4F4] px-6 py-10 text-center">
+          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-10 text-center">
             <Shield className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#1A1A1A]">No score data yet</p>
+            <p className="text-sm font-medium text-[#1E1C1A]">No score data yet</p>
             <p className="text-xs text-gray-500 mt-1">
               Your first safety assessment is being prepared.
             </p>
@@ -282,15 +282,15 @@ export default async function SafetyProfilePage() {
       </div>
 
       {/* Inspection history */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#E5E5E5] flex items-center justify-between">
-          <h2 className="font-semibold text-[#1A1A1A] text-sm">Inspection history</h2>
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center justify-between">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">Inspection history</h2>
           <span className="text-xs text-gray-400">{inspections?.length ?? 0} inspections</span>
         </div>
 
         {inspections && inspections.length > 0 ? (
           <table className="w-full text-sm">
-            <thead className="bg-[#F4F4F4] border-b border-[#E5E5E5]">
+            <thead className="bg-[#FEFCF8] border-b border-[#F0E8DA]">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">State</th>
@@ -300,10 +300,10 @@ export default async function SafetyProfilePage() {
                 <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">OOS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E5E5]">
+            <tbody className="divide-y divide-[#F0E8DA]">
               {inspections.map((insp) => (
-                <tr key={insp.id} className="hover:bg-[#F4F4F4] transition-colors">
-                  <td className="px-5 py-3 text-xs text-[#1A1A1A] whitespace-nowrap">
+                <tr key={insp.id} className="hover:bg-[#FBF7F0] transition-colors">
+                  <td className="px-5 py-3 text-xs text-[#1E1C1A] whitespace-nowrap">
                     {formatDate(insp.inspection_date)}
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-500">{insp.state ?? "—"}</td>
@@ -314,7 +314,7 @@ export default async function SafetyProfilePage() {
                   <td className="px-5 py-3 text-right">
                     <span
                       className={`text-xs font-semibold ${
-                        insp.total_violations > 0 ? "text-[#DC362E]" : "text-gray-400"
+                        insp.total_violations > 0 ? "text-[#C67A1E]" : "text-gray-400"
                       }`}
                     >
                       {insp.total_violations}
@@ -323,7 +323,7 @@ export default async function SafetyProfilePage() {
                   <td className="px-5 py-3 text-right">
                     <span
                       className={`text-xs font-semibold ${
-                        insp.oos_violations > 0 ? "text-[#DC362E]" : "text-gray-400"
+                        insp.oos_violations > 0 ? "text-[#C67A1E]" : "text-gray-400"
                       }`}
                     >
                       {insp.oos_violations}
@@ -342,15 +342,15 @@ export default async function SafetyProfilePage() {
       </div>
 
       {/* Crash history */}
-      <div className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#E5E5E5] flex items-center justify-between">
-          <h2 className="font-semibold text-[#1A1A1A] text-sm">Crash history</h2>
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center justify-between">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">Crash history</h2>
           <span className="text-xs text-gray-400">{crashes?.length ?? 0} crashes</span>
         </div>
 
         {crashes && crashes.length > 0 ? (
           <table className="w-full text-sm">
-            <thead className="bg-[#F4F4F4] border-b border-[#E5E5E5]">
+            <thead className="bg-[#FEFCF8] border-b border-[#F0E8DA]">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Location</th>
@@ -360,10 +360,10 @@ export default async function SafetyProfilePage() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">CPDP eligible</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E5E5]">
+            <tbody className="divide-y divide-[#F0E8DA]">
               {crashes.map((crash) => (
-                <tr key={crash.id} className="hover:bg-[#F4F4F4] transition-colors">
-                  <td className="px-5 py-3 text-xs text-[#1A1A1A] whitespace-nowrap">
+                <tr key={crash.id} className="hover:bg-[#FBF7F0] transition-colors">
+                  <td className="px-5 py-3 text-xs text-[#1E1C1A] whitespace-nowrap">
                     {formatDate(crash.crash_date)}
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-500">
@@ -372,7 +372,7 @@ export default async function SafetyProfilePage() {
                   <td className="px-5 py-3 text-right">
                     <span
                       className={`text-xs font-semibold ${
-                        crash.fatalities > 0 ? "text-[#DC362E]" : "text-gray-400"
+                        crash.fatalities > 0 ? "text-[#C67A1E]" : "text-gray-400"
                       }`}
                     >
                       {crash.fatalities}
@@ -381,7 +381,7 @@ export default async function SafetyProfilePage() {
                   <td className="px-5 py-3 text-right">
                     <span
                       className={`text-xs font-semibold ${
-                        crash.injuries > 0 ? "text-[#C5A059]" : "text-gray-400"
+                        crash.injuries > 0 ? "text-[#DAA520]" : "text-gray-400"
                       }`}
                     >
                       {crash.injuries}
@@ -392,7 +392,7 @@ export default async function SafetyProfilePage() {
                   </td>
                   <td className="px-5 py-3">
                     {crash.cpdp_eligible ? (
-                      <span className="text-xs font-medium text-[#C5A059]">Eligible</span>
+                      <span className="text-xs font-medium text-[#DAA520]">Eligible</span>
                     ) : crash.cpdp_eligible === false ? (
                       <span className="text-xs text-gray-400">Not eligible</span>
                     ) : (

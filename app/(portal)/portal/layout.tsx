@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PortalNav } from "@/components/portal/nav";
 
@@ -32,7 +32,7 @@ export default async function PortalLayout({
       : undefined;
 
   return (
-    <div className="min-h-screen bg-[#F4F4F4]">
+    <div className="min-h-screen bg-[#FEFCF8]">
       <PortalNav userEmail={user.email} companyName={clientName} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {children}

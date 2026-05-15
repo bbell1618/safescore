@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -74,7 +74,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
 
   if (cases.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-[#E5E5E5] p-12 text-center">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-12 text-center">
         <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
         <p className="text-sm text-gray-500">No DataQs cases yet</p>
         <p className="text-xs text-gray-400 mt-1">
@@ -94,16 +94,16 @@ export function DataqWorkbench({ clientId, cases }: Props) {
         return (
           <div
             key={c.id}
-            className="bg-white rounded-xl border border-[#E5E5E5] overflow-hidden"
+            className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden"
           >
             {/* Case header */}
             <div
-              className="px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-[#F4F4F4] transition-colors"
+              className="px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-[#FBF7F0] transition-colors"
               onClick={() => setExpandedId(isExpanded ? null : c.id)}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <p className="font-mono text-xs font-semibold text-[#1A1A1A]">
+                  <p className="font-mono text-xs font-semibold text-[#1E1C1A]">
                     {c.violations?.violation_code ?? "—"}
                   </p>
                   <Badge variant={caseStatusVariant(c.status)}>
@@ -115,15 +115,15 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     </Badge>
                   )}
                   {deadline !== null && deadline <= 3 && (
-                    <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
-                      <AlertTriangle className="w-3 h-3 text-[#DC362E]" />
-                      <span className="text-[10px] font-medium text-[#DC362E]">
+                    <div className="flex items-center gap-1 bg-[#FDF4E7] border border-[#C67A1E]/20 rounded px-1.5 py-0.5">
+                      <AlertTriangle className="w-3 h-3 text-[#C67A1E]" />
+                      <span className="text-[10px] font-medium text-[#C67A1E]">
                         {deadline <= 0 ? "OVERDUE" : `${deadline}d deadline`}
                       </span>
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-[#1A1A1A] truncate">
+                <p className="text-sm text-[#1E1C1A] truncate">
                   {c.violations?.violation_description ?? "Unknown violation"}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -141,14 +141,14 @@ export function DataqWorkbench({ clientId, cases }: Props) {
 
             {/* Expanded detail */}
             {isExpanded && (
-              <div className="border-t border-[#E5E5E5] px-5 py-5 space-y-5">
+              <div className="border-t border-[#F0E8DA] px-5 py-5 space-y-5">
                 {/* Narrative editor */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-semibold text-[#1A1A1A]">
+                    <label className="text-xs font-semibold text-[#1E1C1A]">
                       RDR narrative
                       {c.ai_narrative && !c.final_narrative && (
-                        <span className="ml-2 text-[10px] font-normal text-[#C5A059]">AI draft — review before filing</span>
+                        <span className="ml-2 text-[10px] font-normal text-[#DAA520]">AI draft — review before filing</span>
                       )}
                       {c.final_narrative && (
                         <span className="ml-2 text-[10px] font-normal text-green-600">Human-reviewed</span>
@@ -158,7 +158,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       <button
                         onClick={() => generateNarrative(c.id)}
                         disabled={generating === c.id}
-                        className="flex items-center gap-1 px-3 py-1 text-xs border border-[#E5E5E5] rounded-lg hover:border-[#DC362E] hover:text-[#DC362E] transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1 px-3 py-1 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
                       >
                         <Edit3 className="w-3 h-3" />
                         {generating === c.id ? "Generating..." : "AI draft"}
@@ -166,7 +166,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       <button
                         onClick={() => saveNarrative(c.id)}
                         disabled={saving === c.id || !narratives[c.id]}
-                        className="flex items-center gap-1 px-3 py-1 text-xs bg-[#1A1A1A] text-white rounded-lg hover:bg-black transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
                       >
                         {saving === c.id ? "Saving..." : "Save as reviewed"}
                       </button>
@@ -179,13 +179,13 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     }
                     placeholder={narrative || "No narrative yet. Click 'AI draft' to generate."}
                     rows={8}
-                    className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#DC362E] resize-y font-mono"
+                    className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] resize-y font-mono"
                   />
                 </div>
 
                 {/* Filing checklist */}
                 <div>
-                  <p className="text-xs font-semibold text-[#1A1A1A] mb-2">
+                  <p className="text-xs font-semibold text-[#1E1C1A] mb-2">
                     Filing checklist
                   </p>
                   <div className="space-y-1.5">
@@ -212,7 +212,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                   {c.status === "draft" && (
                     <button
                       onClick={() => updateStatus(c.id, "filed")}
-                      className="px-4 py-2 bg-[#DC362E] text-white rounded-lg text-xs font-medium hover:bg-[#b52a23] transition-colors"
+                      className="px-4 py-2 bg-[#C67A1E] text-white rounded-lg text-xs font-medium hover:bg-[#B86E18] transition-colors"
                     >
                       Mark as filed
                     </button>
@@ -221,7 +221,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                     <>
                       <button
                         onClick={() => updateStatus(c.id, "pending_state")}
-                        className="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs font-medium hover:bg-black transition-colors"
+                        className="px-4 py-2 bg-[#1B2D4F] text-white rounded-lg text-xs font-medium hover:bg-[#2A4270] transition-colors"
                       >
                         Pending state review
                       </button>
@@ -237,7 +237,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       </button>
                       <button
                         onClick={() => updateStatus(c.id, "denied")}
-                        className="px-4 py-2 bg-red-100 text-[#DC362E] rounded-lg text-xs font-medium hover:bg-red-200 transition-colors"
+                        className="px-4 py-2 bg-[#FAECEB] text-[#B83B32] rounded-lg text-xs font-medium hover:bg-[#FAECEB] transition-colors"
                       >
                         Mark denied
                       </button>
@@ -246,7 +246,7 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                   {c.status === "denied" && (
                     <button
                       onClick={() => updateStatus(c.id, "reconsidering")}
-                      className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200 transition-colors"
+                      className="px-4 py-2 bg-[#FDF4E7] text-[#C67A1E] rounded-lg text-xs font-medium hover:bg-[#FBF7F0] transition-colors"
                     >
                       Request reconsideration
                     </button>

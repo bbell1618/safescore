@@ -1,4 +1,4 @@
-import { cn, scoreToColor, scoreToBg } from "@/lib/utils";
+﻿import { cn, scoreToColor, scoreToBg } from "@/lib/utils";
 import { AlertTriangle, CheckCircle, Minus } from "lucide-react";
 
 interface ScoreCardProps {
@@ -27,7 +27,7 @@ export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreC
           {label}
         </p>
         {hasData && alert && (
-          <AlertTriangle className="w-3.5 h-3.5 text-[#DC362E] shrink-0 mt-0.5" />
+          <AlertTriangle className="w-3.5 h-3.5 text-[#C67A1E] shrink-0 mt-0.5" />
         )}
         {hasData && !alert && percentile !== null && percentile < 65 && (
           <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
