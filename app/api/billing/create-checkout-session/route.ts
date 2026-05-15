@@ -68,8 +68,8 @@ export async function POST(request: Request) {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: lineItems,
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/portal/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/portal/onboarding`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding`,
     customer_email: user.email,
     metadata: {
       client_id: clientId,

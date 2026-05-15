@@ -1,0 +1,741 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Check, ShieldCheck, ChevronRight } from "lucide-react";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ClientData {
+  id: string;
+  name: string;
+  dot_number: string;
+  status: string;
+  primary_contact?: string;
+  phone?: string;
+  email?: string;
+}
+
+interface CarrierData {
+  legalName?: string;
+  dotNumber?: string;
+  totalPowerUnits?: number;
+  totalDrivers?: number;
+  usdotStatus?: string;
+  statusCode?: string;
+  phyCity?: string;
+  phyState?: string;
+}
+
+type Tier = "monitor" | "remediate" | "total_safety";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TIERS: {
+  value: Tier;
+  name: string;
+  price: string;
+  priceNote?: string;
+  features: string[];
+  highlight?: boolean;
+  dataqAccess: boolean;
+}[] = [
+  {
+    value: "monitor",
+    name: "Monitor",
+    price: "$199/mo",
+    dataqAccess: false,
+    features: [
+      "BASIC score monitoring",
+      "Monthly safety reports",
+      "Alert notifications",
+      "Portal access",
+    ],
+  },
+  {
+    value: "remediate",
+    name: "Remediate",
+    price: "$599/mo",
+    highlight: true,
+    dataqAccess: true,
+    features: [
+      "Everything in Monitor",
+      "DataQ challenge management",
+      "CPDP crash preventability review",
+      "AI violation assessment",
+      "Action item tracking",
+    ],
+  },
+  {
+    value: "total_safety",
+    name: "Total Safety",
+    price: "$999/mo",
+    priceNote: "+ $29/driver/mo",
+    dataqAccess: true,
+    features: [
+      "Everything in Remediate",
+      "Dedicated safety specialist",
+      "MCS-150 compliance support",
+      "Priority case handling",
+      "Quarterly strategic review",
+    ],
+  },
+];
+
+const VEHICLE_TYPES = [
+  "Dry van", "Reefer", "Flatbed", "Tanker", "Auto hauler",
+  "Lowboy / heavy haul", "Box truck", "Dump truck", "Other",
+];
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
+  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
+];
+
+const STEP_LABELS = [
+  "Your carrier",
+  "Contact info",
+  "Fleet profile",
+  "Choose plan",
+  "Authorization",
+  "Subscribe",
+];
+
+const TOTAL_STEPS = 6;
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function OnboardingPage() {
+  const [step, setStep] = useState(1);
+
+  // Client / carrier data
+  const [client, setClient] = useState<ClientData | null>(null);
+  const [carrier, setCarrier] = useState<CarrierData | null>(null);
+  const [loadingClient, setLoadingClient] = useState(true);
+  const [loadingCarrier, setLoadingCarrier] = useState(false);
+
+  // Step 2 — Contact info
+  const [contactName, setContactName] = useState("");
+  const [contactTitle, setContactTitle] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+
+  // Step 3 — Fleet profile
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
+  const [operatingStates, setOperatingStates] = useState<string[]>([]);
+  const [operatingRadius, setOperatingRadius] = useState<"local" | "regional" | "otr" | "">("");
+
+  // Step 4 — Tier
+  const [selectedTier, setSelectedTier] = useState<Tier>("remediate");
+
+  // Step 5 — Authorization
+  const [agreementChecked, setAgreementChecked] = useState(false);
+  const [dataAccessChecked, setDataAccessChecked] = useState(false);
+  const [dataqChecked, setDataqChecked] = useState(false);
+
+  // Step 6 — Checkout
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Saving profile
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // ── Fetch client on mount ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    async function fetchClient() {
+      try {
+        const res = await fetch("/api/portal/me");
+        const data = await res.json();
+        if (data.client) {
+          setClient(data.client);
+          setContactName(data.client.primary_contact ?? "");
+          setContactPhone(data.client.phone ?? "");
+          setContactEmail(data.client.email ?? "");
+        }
+      } catch { /* fail silently */ }
+      finally { setLoadingClient(false); }
+    }
+    fetchClient();
+  }, []);
+
+  // ── Fetch carrier from FMCSA when reaching step 1 with a DOT number ─────────
+
+  useEffect(() => {
+    if (step >= 1 && client?.dot_number && !carrier && !loadingCarrier) {
+      setLoadingCarrier(true);
+      fetch(`/api/fmcsa/carrier/${client.dot_number}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => setCarrier(data?.carrier ?? null))
+        .catch(() => setCarrier(null))
+        .finally(() => setLoadingCarrier(false));
+    }
+  }, [step, client, carrier, loadingCarrier]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  function toggleVehicleType(v: string) {
+    setVehicleTypes((prev) =>
+      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
+    );
+  }
+
+  function toggleState(s: string) {
+    setOperatingStates((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  }
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    try {
+      await fetch("/api/portal/onboarding-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactName,
+          contactTitle,
+          contactPhone,
+          contactEmail,
+          vehicleTypes,
+          operatingStates,
+          operatingRadius: operatingRadius || undefined,
+        }),
+      });
+    } catch { /* non-fatal */ }
+    finally { setSavingProfile(false); }
+  }
+
+  async function saveAgreement() {
+    try {
+      await fetch("/api/portal/onboarding-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceAgreementAccepted: true }),
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleSubscribe() {
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/billing/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: selectedTier }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCheckoutError(data.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch {
+      setCheckoutError("Network error. Please try again.");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+  const selectedTierData = TIERS.find((t) => t.value === selectedTier)!;
+  const canProceedStep2 = contactName.trim().length > 0 && contactPhone.trim().length > 0;
+  const canProceedStep3 = vehicleTypes.length > 0 && operatingStates.length > 0 && operatingRadius !== "";
+  const canProceedStep5 =
+    agreementChecked &&
+    dataAccessChecked &&
+    (selectedTierData.dataqAccess ? dataqChecked : true);
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-[#FEFCF8] flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-2xl">
+
+        {/* Progress bar */}
+        <div className="flex items-center justify-center gap-2 mb-8">
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
+            <div key={s} className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                    s < step
+                      ? "bg-[#C67A1E] text-white"
+                      : s === step
+                      ? "bg-[#C67A1E] text-white ring-4 ring-[#C67A1E]/20"
+                      : "bg-[#F0E8DA] text-[#8B8178]"
+                  }`}
+                >
+                  {s < step ? <Check className="w-3.5 h-3.5" /> : s}
+                </div>
+                <span className={`text-[10px] hidden sm:block ${s === step ? "text-[#C67A1E] font-medium" : "text-[#8B8178]"}`}>
+                  {STEP_LABELS[s - 1]}
+                </span>
+              </div>
+              {s < TOTAL_STEPS && (
+                <div className={`w-8 sm:w-12 h-0.5 mb-4 ${s < step ? "bg-[#C67A1E]" : "bg-[#F0E8DA]"}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-[#FBF7F0] rounded-2xl border border-[#F0E8DA] shadow-sm overflow-hidden">
+
+          {/* ── Step 1: Your Carrier ────────────────────────────────────────────── */}
+          {step === 1 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 1 of {TOTAL_STEPS} — Your Carrier</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Welcome to SafeScore</h1>
+              <p className="text-[#5C554E] leading-relaxed mb-6">
+                We pulled your carrier profile from FMCSA. Confirm this is your company and we&apos;ll get started.
+              </p>
+
+              {loadingClient || loadingCarrier ? (
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6 space-y-3 animate-pulse">
+                  <div className="h-4 bg-[#F0E8DA] rounded w-2/3" />
+                  <div className="h-3 bg-[#F0E8DA] rounded w-1/3" />
+                  <div className="h-3 bg-[#F0E8DA] rounded w-1/2" />
+                </div>
+              ) : carrier ? (
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <p className="mono-label text-[#8B8178] mb-1">Legal name</p>
+                      <p className="font-bold text-[#1E1C1A] text-base">{carrier.legalName ?? client?.name}</p>
+                    </div>
+                    <div>
+                      <p className="mono-label text-[#8B8178] mb-1">USDOT</p>
+                      <p className="text-sm font-medium text-[#1E1C1A]">{carrier.dotNumber ?? client?.dot_number}</p>
+                    </div>
+                    {carrier.phyCity && (
+                      <div>
+                        <p className="mono-label text-[#8B8178] mb-1">Location</p>
+                        <p className="text-sm font-medium text-[#1E1C1A]">{carrier.phyCity}, {carrier.phyState}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="mono-label text-[#8B8178] mb-1">Power units</p>
+                      <p className="text-sm font-medium text-[#1E1C1A]">{carrier.totalPowerUnits ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="mono-label text-[#8B8178] mb-1">Drivers</p>
+                      <p className="text-sm font-medium text-[#1E1C1A]">{carrier.totalDrivers ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="mono-label text-[#8B8178] mb-1">Status</p>
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
+                          ? "bg-[#E8F3EC] text-[#3D7A52]"
+                          : "bg-[#F0E8DA] text-[#8B8178]"
+                      }`}>
+                        {carrier.usdotStatus ?? carrier.statusCode ?? "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : client ? (
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6">
+                  <p className="mono-label text-[#8B8178] mb-1">Company</p>
+                  <p className="font-bold text-[#1E1C1A]">{client.name}</p>
+                  <p className="text-sm text-[#8B8178] mt-1">DOT {client.dot_number}</p>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-[#FDF4E7] border border-[#C67A1E]/20 p-4 mb-6">
+                  <p className="text-sm text-[#C67A1E]">
+                    Your account is still being set up. Contact your GEIA account manager.
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={() => setStep(2)}
+                disabled={loadingClient || !client}
+                className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                Yes, that&apos;s my company
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 2: Contact Info ─────────────────────────────────────────────── */}
+          {step === 2 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 2 of {TOTAL_STEPS} — Contact Info</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Who are we working with?</h1>
+              <p className="text-[#5C554E] leading-relaxed mb-6">
+                This is who we&apos;ll contact for case updates, reports, and important alerts.
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-1.5">Full name *</label>
+                    <input
+                      type="text"
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder="Jane Smith"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-1.5">Title / role</label>
+                    <input
+                      type="text"
+                      value={contactTitle}
+                      onChange={(e) => setContactTitle(e.target.value)}
+                      placeholder="Owner / Safety Director"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block mono-label text-[#5C554E] mb-1.5">Phone number *</label>
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="(555) 555-5555"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
+                  />
+                </div>
+                <div>
+                  <label className="block mono-label text-[#5C554E] mb-1.5">Email address</label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="jane@yourcompany.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
+                  />
+                  <p className="text-xs text-[#8B8178] mt-1">Used for case updates and report delivery.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={!canProceedStep2}
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Fleet Profile ────────────────────────────────────────────── */}
+          {step === 3 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 3 of {TOTAL_STEPS} — Fleet Profile</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Tell us about your fleet</h1>
+              <p className="text-[#5C554E] leading-relaxed mb-6">
+                This helps us tailor your safety reports and identify the right violations to challenge.
+              </p>
+
+              <div className="space-y-6 mb-6">
+                {/* Vehicle types */}
+                <div>
+                  <label className="block mono-label text-[#5C554E] mb-2">Equipment types *</label>
+                  <div className="flex flex-wrap gap-2">
+                    {VEHICLE_TYPES.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => toggleVehicleType(v)}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                          vehicleTypes.includes(v)
+                            ? "bg-[#C67A1E] border-[#C67A1E] text-white"
+                            : "bg-[#FEFCF8] border-[#F0E8DA] text-[#5C554E] hover:border-[#C67A1E]/40"
+                        }`}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Operating radius */}
+                <div>
+                  <label className="block mono-label text-[#5C554E] mb-2">Operating radius *</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(["local", "regional", "otr"] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setOperatingRadius(r)}
+                        className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                          operatingRadius === r
+                            ? "border-[#C67A1E] bg-[#FDF4E7] text-[#C67A1E]"
+                            : "border-[#F0E8DA] bg-[#FEFCF8] text-[#5C554E] hover:border-[#C67A1E]/40"
+                        }`}
+                      >
+                        {r === "local" ? "Local" : r === "regional" ? "Regional" : "OTR"}
+                        <p className="text-[10px] font-normal text-[#8B8178] mt-0.5">
+                          {r === "local" ? "0–150 mi" : r === "regional" ? "150–500 mi" : "500+ mi"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Operating states */}
+                <div>
+                  <label className="block mono-label text-[#5C554E] mb-2">
+                    States of operation *
+                    {operatingStates.length > 0 && (
+                      <span className="ml-2 text-[#C67A1E]">{operatingStates.length} selected</span>
+                    )}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
+                    {US_STATES.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleState(s)}
+                        className={`w-10 h-8 rounded-md border text-xs font-semibold transition-all ${
+                          operatingStates.includes(s)
+                            ? "bg-[#C67A1E] border-[#C67A1E] text-white"
+                            : "bg-[#FEFCF8] border-[#F0E8DA] text-[#5C554E] hover:border-[#C67A1E]/40"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep(2)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep(4)}
+                  disabled={!canProceedStep3}
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Choose Plan ──────────────────────────────────────────────── */}
+          {step === 4 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 4 of {TOTAL_STEPS} — Choose Plan</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Choose your plan</h1>
+              <p className="text-[#5C554E] leading-relaxed mb-6">
+                Your full BASIC score analysis runs immediately after activation. You can upgrade anytime.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {TIERS.map((tier) => (
+                  <button
+                    key={tier.value}
+                    type="button"
+                    onClick={() => setSelectedTier(tier.value)}
+                    className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
+                      selectedTier === tier.value
+                        ? "border-[#C67A1E] bg-[#FDF4E7]"
+                        : "border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          selectedTier === tier.value ? "border-[#C67A1E] bg-[#C67A1E]" : "border-[#F0E8DA]"
+                        }`}>
+                          {selectedTier === tier.value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                        <span className="font-bold text-[#1E1C1A]">{tier.name}</span>
+                        {tier.highlight && (
+                          <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full">
+                            Most popular
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-[#1E1C1A]">{tier.price}</span>
+                        {tier.priceNote && <p className="text-xs text-[#8B8178]">{tier.priceNote}</p>}
+                      </div>
+                    </div>
+                    <ul className="space-y-1 pl-6">
+                      {tier.features.map((f) => (
+                        <li key={f} className="flex items-center gap-2 text-xs text-[#5C554E]">
+                          <Check className="w-3 h-3 text-[#C67A1E] shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep(3)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep(5)}
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 5: Authorization ────────────────────────────────────────────── */}
+          {step === 5 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 5 of {TOTAL_STEPS} — Authorization</p>
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="w-5 h-5 text-[#C67A1E] shrink-0" />
+                <h1 className="text-2xl font-bold text-[#1E1C1A]">Before we activate</h1>
+              </div>
+              <p className="text-[#5C554E] leading-relaxed mb-6">
+                We need your authorization to access your FMCSA data and act on your behalf.
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={agreementChecked}
+                    onChange={(e) => setAgreementChecked(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
+                  />
+                  <span className="text-sm text-[#1E1C1A] leading-snug">
+                    <strong>Service agreement</strong> — I agree to Golden Era Insurance Agency&apos;s{" "}
+                    <span className="text-[#C67A1E] underline cursor-pointer">terms of service</span>{" "}
+                    and authorize GEIA to provide SafeScore services to my carrier.
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={dataAccessChecked}
+                    onChange={(e) => setDataAccessChecked(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
+                  />
+                  <span className="text-sm text-[#1E1C1A] leading-snug">
+                    <strong>FMCSA data access</strong> — I authorize Golden Era Insurance Agency to access my carrier&apos;s FMCSA safety data, including BASIC scores, violations, inspections, and crash records.
+                  </span>
+                </label>
+
+                {selectedTierData.dataqAccess && (
+                  <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={dataqChecked}
+                      onChange={(e) => setDataqChecked(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
+                    />
+                    <span className="text-sm text-[#1E1C1A] leading-snug">
+                      <strong>DataQ filing authorization</strong> — I authorize Golden Era Insurance Agency to submit DataQ challenges and CPDP preventability requests to FMCSA on my carrier&apos;s behalf.
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep(4)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                  Back
+                </button>
+                <button
+                  onClick={async () => {
+                    await saveProfile();
+                    await saveAgreement();
+                    setStep(6);
+                  }}
+                  disabled={!canProceedStep5 || savingProfile}
+                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {savingProfile ? "Saving..." : "I agree — continue"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 6: Subscribe ────────────────────────────────────────────────── */}
+          {step === 6 && (
+            <div className="p-8">
+              <p className="mono-label text-[#C67A1E] mb-3">Step 6 of {TOTAL_STEPS} — Subscribe</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Activate your account</h1>
+              <p className="text-[#5C554E] mb-6">
+                You selected the <strong>{selectedTierData.name}</strong> plan for <strong>{selectedTierData.price}</strong>.
+              </p>
+
+              {/* Plan summary */}
+              <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-4">
+                <div className="flex items-baseline justify-between mb-4">
+                  <p className="font-bold text-[#1E1C1A]">{selectedTierData.name}</p>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-[#1E1C1A]">{selectedTierData.price}</span>
+                    {selectedTierData.priceNote && (
+                      <p className="text-xs text-[#8B8178]">{selectedTierData.priceNote}</p>
+                    )}
+                  </div>
+                </div>
+                <ul className="space-y-2">
+                  {selectedTierData.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5">
+                      <div className="w-4 h-4 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="w-2.5 h-2.5 text-[#C67A1E]" />
+                      </div>
+                      <span className="text-sm text-[#5C554E]">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Profile summary */}
+              <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-4 mb-6 text-sm">
+                <p className="mono-label text-[#8B8178] mb-2">Your info</p>
+                <p className="text-[#1E1C1A]">{contactName}{contactTitle ? ` · ${contactTitle}` : ""}</p>
+                {contactPhone && <p className="text-[#5C554E]">{contactPhone}</p>}
+                {vehicleTypes.length > 0 && (
+                  <p className="text-[#5C554E] mt-1">{vehicleTypes.slice(0, 3).join(", ")}{vehicleTypes.length > 3 ? ` +${vehicleTypes.length - 3} more` : ""}</p>
+                )}
+                <button onClick={() => setStep(2)} className="text-[#C67A1E] text-xs hover:underline mt-1">
+                  Edit
+                </button>
+              </div>
+
+              {checkoutError && (
+                <div className="rounded-lg bg-[#FAECEB] border border-[#B83B32]/20 px-4 py-3 mb-4">
+                  <p className="text-sm text-[#B83B32]">{checkoutError}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSubscribe}
+                disabled={checkoutLoading}
+                className="w-full py-3.5 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
+              >
+                {checkoutLoading ? "Processing..." : "Subscribe and activate →"}
+              </button>
+              <p className="text-xs text-center text-[#8B8178] mt-3">
+                Redirects to Stripe&apos;s secure checkout. Cancel anytime.
+              </p>
+
+              <button onClick={() => setStep(5)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
+                Back
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
