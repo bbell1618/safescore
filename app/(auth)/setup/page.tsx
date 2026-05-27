@@ -1,19 +1,44 @@
-﻿"use client";
+"use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+interface TokenInfo {
+  companyName: string | null;
+  email: string;
+  primaryContact: string | null;
+}
 
 function SetupForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
 
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) {
+      setTokenLoading(false);
+      return;
+    }
+    fetch(`/api/auth/setup?token=${encodeURIComponent(token)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: TokenInfo | null) => {
+        if (data) {
+          setTokenInfo(data);
+          if (data.primaryContact) setFullName(data.primaryContact);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setTokenLoading(false));
+  }, [token]);
 
   if (!token) {
     return (
@@ -40,7 +65,6 @@ function SetupForm() {
     setLoading(true);
 
     try {
-      // Step 1: Create the account via our API
       const res = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,7 +78,6 @@ function SetupForm() {
         return;
       }
 
-      // Step 2: Sign in with the credentials they just created
       const supabase = createClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
@@ -69,7 +92,6 @@ function SetupForm() {
         return;
       }
 
-      // Step 3: Redirect to onboarding (new users never have a subscription yet)
       router.push("/portal/onboarding");
     } catch {
       setError("Network error — please try again.");
@@ -79,6 +101,14 @@ function SetupForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Company context */}
+      {tokenInfo?.companyName && (
+        <div className="bg-[#E8ECF2] border border-[#1B2D4F]/10 rounded-lg px-4 py-3 text-sm text-[#2A4270]">
+          Setting up account for <strong>{tokenInfo.companyName}</strong>
+        </div>
+      )}
+
+      {/* Full name */}
       <div>
         <label htmlFor="fullName" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Full name
@@ -90,9 +120,30 @@ function SetupForm() {
           onChange={(e) => setFullName(e.target.value)}
           className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
           placeholder="Your full name"
+          disabled={tokenLoading}
         />
       </div>
 
+      {/* Email — read-only */}
+      <div>
+        <label className="block text-sm font-medium text-[#1E1C1A] mb-1">
+          Email address
+        </label>
+        {tokenLoading ? (
+          <div className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-[#F5F3F0] text-[#8B8178] animate-pulse h-9" />
+        ) : (
+          <input
+            type="email"
+            value={tokenInfo?.email ?? ""}
+            readOnly
+            className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-[#F5F3F0] text-[#8B8178] cursor-not-allowed select-all"
+            tabIndex={-1}
+          />
+        )}
+        <p className="text-xs text-gray-400 mt-1">This is the email your invitation was sent to.</p>
+      </div>
+
+      {/* Password */}
       <div>
         <label htmlFor="password" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Create password
@@ -108,6 +159,7 @@ function SetupForm() {
         />
       </div>
 
+      {/* Confirm password */}
       <div>
         <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Confirm password
@@ -131,7 +183,7 @@ function SetupForm() {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || tokenLoading}
         className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? "Setting up your account..." : "Create account"}

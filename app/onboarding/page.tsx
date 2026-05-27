@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, ShieldCheck, ChevronRight } from "lucide-react";
+import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -10,9 +10,10 @@ interface ClientData {
   name: string;
   dot_number: string;
   status: string;
+  tier?: string;
+  email?: string;
   primary_contact?: string;
   phone?: string;
-  email?: string;
 }
 
 interface CarrierData {
@@ -95,15 +96,13 @@ const US_STATES = [
 ];
 
 const STEP_LABELS = [
-  "Your carrier",
-  "Contact info",
-  "Fleet profile",
-  "Choose plan",
+  "Confirm Company",
+  "Fleet Profile",
   "Authorization",
   "Subscribe",
 ];
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 4;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -116,31 +115,36 @@ export default function OnboardingPage() {
   const [loadingClient, setLoadingClient] = useState(true);
   const [loadingCarrier, setLoadingCarrier] = useState(false);
 
-  // Step 2 — Contact info
+  // Step 1 — Contact info (merged with company confirm)
   const [contactName, setContactName] = useState("");
   const [contactTitle, setContactTitle] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
 
-  // Step 3 — Fleet profile
+  // Step 2 — Fleet profile
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [operatingStates, setOperatingStates] = useState<string[]>([]);
   const [operatingRadius, setOperatingRadius] = useState<"local" | "regional" | "otr" | "">("");
 
-  // Step 4 — Tier
-  const [selectedTier, setSelectedTier] = useState<Tier>("remediate");
-
-  // Step 5 — Authorization
+  // Step 3 — Authorization checkboxes
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [dataAccessChecked, setDataAccessChecked] = useState(false);
   const [dataqChecked, setDataqChecked] = useState(false);
 
-  // Step 6 — Checkout
+  // Step 3 — FMCSA PIN
+  const [pin, setPin] = useState("");
+  const [pinVisible, setPinVisible] = useState(false);
+
+  // Step 4 — Checkout
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Saving profile
+  // Saving state
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Assigned tier from client record (GEIA sets this)
+  const assignedTier: Tier = (client?.tier as Tier) ?? "monitor";
+  const assignedTierData = TIERS.find((t) => t.value === assignedTier) ?? TIERS[0];
 
   // ── Fetch client on mount ────────────────────────────────────────────────────
 
@@ -161,10 +165,10 @@ export default function OnboardingPage() {
     fetchClient();
   }, []);
 
-  // ── Fetch carrier from FMCSA when reaching step 1 with a DOT number ─────────
+  // ── Fetch carrier from FMCSA when client is loaded ───────────────────────────
 
   useEffect(() => {
-    if (step >= 1 && client?.dot_number && !carrier && !loadingCarrier) {
+    if (client?.dot_number && !carrier && !loadingCarrier) {
       setLoadingCarrier(true);
       fetch(`/api/fmcsa/carrier/${client.dot_number}`)
         .then((r) => r.ok ? r.json() : null)
@@ -172,7 +176,7 @@ export default function OnboardingPage() {
         .catch(() => setCarrier(null))
         .finally(() => setLoadingCarrier(false));
     }
-  }, [step, client, carrier, loadingCarrier]);
+  }, [client, carrier, loadingCarrier]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -218,6 +222,17 @@ export default function OnboardingPage() {
     } catch { /* non-fatal */ }
   }
 
+  async function savePinIfProvided() {
+    if (!pin.trim()) return;
+    try {
+      await fetch("/api/portal/fmcsa-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pin.trim(), authorized: true }),
+      });
+    } catch { /* non-fatal */ }
+  }
+
   async function handleSubscribe() {
     setCheckoutLoading(true);
     setCheckoutError(null);
@@ -225,7 +240,7 @@ export default function OnboardingPage() {
       const res = await fetch("/api/billing/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: selectedTier }),
+        body: JSON.stringify({ tier: assignedTier }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -240,13 +255,18 @@ export default function OnboardingPage() {
     }
   }
 
-  const selectedTierData = TIERS.find((t) => t.value === selectedTier)!;
-  const canProceedStep2 = contactName.trim().length > 0 && contactPhone.trim().length > 0;
-  const canProceedStep3 = vehicleTypes.length > 0 && operatingStates.length > 0 && operatingRadius !== "";
-  const canProceedStep5 =
+  // ── Can-proceed guards ────────────────────────────────────────────────────────
+
+  const canProceedStep1 =
+    !loadingClient && !!client && contactName.trim().length > 0 && contactPhone.trim().length > 0;
+
+  const canProceedStep2 =
+    vehicleTypes.length > 0 && operatingStates.length > 0 && operatingRadius !== "";
+
+  const canProceedStep3 =
     agreementChecked &&
     dataAccessChecked &&
-    (selectedTierData.dataqAccess ? dataqChecked : true);
+    (assignedTierData.dataqAccess ? dataqChecked : true);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -283,15 +303,16 @@ export default function OnboardingPage() {
 
         <div className="bg-[#FBF7F0] rounded-2xl border border-[#F0E8DA] shadow-sm overflow-hidden">
 
-          {/* ── Step 1: Your Carrier ────────────────────────────────────────────── */}
+          {/* ── Step 1: Confirm Company + Contact Info ───────────────────────────── */}
           {step === 1 && (
             <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 1 of {TOTAL_STEPS} — Your Carrier</p>
+              <p className="mono-label text-[#C67A1E] mb-3">Step 1 of {TOTAL_STEPS} — Confirm Company</p>
               <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Welcome to SafeScore</h1>
               <p className="text-[#5C554E] leading-relaxed mb-6">
-                We pulled your carrier profile from FMCSA. Confirm this is your company and we&apos;ll get started.
+                Confirm your carrier and tell us who we&apos;ll be working with.
               </p>
 
+              {/* Carrier card */}
               {loadingClient || loadingCarrier ? (
                 <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6 space-y-3 animate-pulse">
                   <div className="h-4 bg-[#F0E8DA] rounded w-2/3" />
@@ -349,27 +370,9 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <button
-                onClick={() => setStep(2)}
-                disabled={loadingClient || !client}
-                className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                Yes, that&apos;s my company
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 2: Contact Info ─────────────────────────────────────────────── */}
-          {step === 2 && (
-            <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 2 of {TOTAL_STEPS} — Contact Info</p>
-              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Who are we working with?</h1>
-              <p className="text-[#5C554E] leading-relaxed mb-6">
-                This is who we&apos;ll contact for case updates, reports, and important alerts.
-              </p>
-
+              {/* Contact info */}
               <div className="space-y-4 mb-6">
+                <p className="text-sm font-semibold text-[#1E1C1A]">Your contact information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block mono-label text-[#5C554E] mb-1.5">Full name *</label>
@@ -407,33 +410,29 @@ export default function OnboardingPage() {
                   <input
                     type="email"
                     value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="jane@yourcompany.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
+                    readOnly
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#F5F3F0] text-sm text-[#8B8178] cursor-not-allowed"
+                    tabIndex={-1}
                   />
                   <p className="text-xs text-[#8B8178] mt-1">Used for case updates and report delivery.</p>
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
-                  Back
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  disabled={!canProceedStep2}
-                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Continue
-                </button>
-              </div>
+              <button
+                onClick={() => setStep(2)}
+                disabled={!canProceedStep1}
+                className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                This is correct — continue
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           )}
 
-          {/* ── Step 3: Fleet Profile ────────────────────────────────────────────── */}
-          {step === 3 && (
+          {/* ── Step 2: Fleet Profile ────────────────────────────────────────────── */}
+          {step === 2 && (
             <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 3 of {TOTAL_STEPS} — Fleet Profile</p>
+              <p className="mono-label text-[#C67A1E] mb-3">Step 2 of {TOTAL_STEPS} — Fleet Profile</p>
               <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Tell us about your fleet</h1>
               <p className="text-[#5C554E] leading-relaxed mb-6">
                 This helps us tailor your safety reports and identify the right violations to challenge.
@@ -513,90 +512,30 @@ export default function OnboardingPage() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
                   Back
                 </button>
                 <button
-                  onClick={() => setStep(4)}
-                  disabled={!canProceedStep3}
+                  onClick={() => setStep(3)}
+                  disabled={!canProceedStep2}
                   className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continue
                 </button>
               </div>
+              <button
+                onClick={() => setStep(3)}
+                className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors"
+              >
+                I&apos;ll do this later →
+              </button>
             </div>
           )}
 
-          {/* ── Step 4: Choose Plan ──────────────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── Step 3: Authorization + FMCSA PIN ───────────────────────────────── */}
+          {step === 3 && (
             <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 4 of {TOTAL_STEPS} — Choose Plan</p>
-              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Choose your plan</h1>
-              <p className="text-[#5C554E] leading-relaxed mb-6">
-                Your full BASIC score analysis runs immediately after activation. You can upgrade anytime.
-              </p>
-
-              <div className="space-y-3 mb-6">
-                {TIERS.map((tier) => (
-                  <button
-                    key={tier.value}
-                    type="button"
-                    onClick={() => setSelectedTier(tier.value)}
-                    className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
-                      selectedTier === tier.value
-                        ? "border-[#C67A1E] bg-[#FDF4E7]"
-                        : "border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/40"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                          selectedTier === tier.value ? "border-[#C67A1E] bg-[#C67A1E]" : "border-[#F0E8DA]"
-                        }`}>
-                          {selectedTier === tier.value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </div>
-                        <span className="font-bold text-[#1E1C1A]">{tier.name}</span>
-                        {tier.highlight && (
-                          <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full">
-                            Most popular
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-bold text-[#1E1C1A]">{tier.price}</span>
-                        {tier.priceNote && <p className="text-xs text-[#8B8178]">{tier.priceNote}</p>}
-                      </div>
-                    </div>
-                    <ul className="space-y-1 pl-6">
-                      {tier.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-xs text-[#5C554E]">
-                          <Check className="w-3 h-3 text-[#C67A1E] shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3">
-                <button onClick={() => setStep(3)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
-                  Back
-                </button>
-                <button
-                  onClick={() => setStep(5)}
-                  className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors"
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 5: Authorization ────────────────────────────────────────────── */}
-          {step === 5 && (
-            <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 5 of {TOTAL_STEPS} — Authorization</p>
+              <p className="mono-label text-[#C67A1E] mb-3">Step 3 of {TOTAL_STEPS} — Authorization</p>
               <div className="flex items-center gap-2 mb-2">
                 <ShieldCheck className="w-5 h-5 text-[#C67A1E] shrink-0" />
                 <h1 className="text-2xl font-bold text-[#1E1C1A]">Before we activate</h1>
@@ -605,7 +544,8 @@ export default function OnboardingPage() {
                 We need your authorization to access your FMCSA data and act on your behalf.
               </p>
 
-              <div className="space-y-4 mb-6">
+              {/* Authorization checkboxes */}
+              <div className="space-y-3 mb-6">
                 <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
                   <input
                     type="checkbox"
@@ -632,7 +572,7 @@ export default function OnboardingPage() {
                   </span>
                 </label>
 
-                {selectedTierData.dataqAccess && (
+                {assignedTierData.dataqAccess && (
                   <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
                     <input
                       type="checkbox"
@@ -647,17 +587,55 @@ export default function OnboardingPage() {
                 )}
               </div>
 
+              {/* FMCSA PIN */}
+              <div className="border-t border-[#F0E8DA] pt-6 mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheck className="w-4 h-4 text-[#C67A1E]" />
+                  <p className="text-sm font-semibold text-[#1E1C1A]">FMCSA Portal PIN <span className="font-normal text-[#8B8178]">(optional)</span></p>
+                </div>
+                <p className="text-sm text-[#5C554E] mb-4">
+                  To file DataQ disputes on your behalf, we need your FMCSA portal PIN. You can also add this later in Settings.
+                </p>
+
+                <div className="bg-[#E8ECF2] border border-[#1B2D4F]/10 rounded-xl px-4 py-3 mb-4 text-sm text-[#2A4270]">
+                  <strong>Where to find your PIN:</strong> Log in to the{" "}
+                  <span className="font-mono text-xs">ai.fmcsa.dot.gov</span> portal and look under your profile settings.
+                </div>
+
+                <div>
+                  <label className="mono-label block text-[#8B8178] mb-2">FMCSA Portal PIN</label>
+                  <div className="relative">
+                    <input
+                      type={pinVisible ? "text" : "password"}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      placeholder="Enter PIN"
+                      maxLength={30}
+                      className="w-full px-4 py-3 pr-12 border border-[#F0E8DA] rounded-xl bg-white text-[#1E1C1A] font-mono text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] placeholder:text-[#D4C9BC] placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPinVisible((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B8178] hover:text-[#5C554E]"
+                    >
+                      {pinVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3">
-                <button onClick={() => setStep(4)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                <button onClick={() => setStep(2)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
                   Back
                 </button>
                 <button
                   onClick={async () => {
                     await saveProfile();
                     await saveAgreement();
-                    setStep(6);
+                    void savePinIfProvided();
+                    setStep(4);
                   }}
-                  disabled={!canProceedStep5 || savingProfile}
+                  disabled={!canProceedStep3 || savingProfile}
                   className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {savingProfile ? "Saving..." : "I agree — continue"}
@@ -666,28 +644,36 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 6: Subscribe ────────────────────────────────────────────────── */}
-          {step === 6 && (
+          {/* ── Step 4: Confirm & Subscribe ──────────────────────────────────────── */}
+          {step === 4 && (
             <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 6 of {TOTAL_STEPS} — Subscribe</p>
-              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Activate your account</h1>
+              <p className="mono-label text-[#C67A1E] mb-3">Step 4 of {TOTAL_STEPS} — Subscribe</p>
+              <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Confirm and activate</h1>
               <p className="text-[#5C554E] mb-6">
-                You selected the <strong>{selectedTierData.name}</strong> plan for <strong>{selectedTierData.price}</strong>.
+                Your GEIA account manager has selected the{" "}
+                <strong>{assignedTierData.name}</strong> plan for your carrier.
               </p>
 
               {/* Plan summary */}
               <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-4">
                 <div className="flex items-baseline justify-between mb-4">
-                  <p className="font-bold text-[#1E1C1A]">{selectedTierData.name}</p>
+                  <div>
+                    <p className="font-bold text-[#1E1C1A]">{assignedTierData.name}</p>
+                    {assignedTierData.highlight && (
+                      <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full mt-1 inline-block">
+                        Most popular
+                      </span>
+                    )}
+                  </div>
                   <div className="text-right">
-                    <span className="text-2xl font-bold text-[#1E1C1A]">{selectedTierData.price}</span>
-                    {selectedTierData.priceNote && (
-                      <p className="text-xs text-[#8B8178]">{selectedTierData.priceNote}</p>
+                    <span className="text-2xl font-bold text-[#1E1C1A]">{assignedTierData.price}</span>
+                    {assignedTierData.priceNote && (
+                      <p className="text-xs text-[#8B8178]">{assignedTierData.priceNote}</p>
                     )}
                   </div>
                 </div>
                 <ul className="space-y-2">
-                  {selectedTierData.features.map((f) => (
+                  {assignedTierData.features.map((f) => (
                     <li key={f} className="flex items-start gap-2.5">
                       <div className="w-4 h-4 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
                         <Check className="w-2.5 h-2.5 text-[#C67A1E]" />
@@ -698,18 +684,20 @@ export default function OnboardingPage() {
                 </ul>
               </div>
 
-              {/* Profile summary */}
-              <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-4 mb-6 text-sm">
-                <p className="mono-label text-[#8B8178] mb-2">Your info</p>
-                <p className="text-[#1E1C1A]">{contactName}{contactTitle ? ` · ${contactTitle}` : ""}</p>
-                {contactPhone && <p className="text-[#5C554E]">{contactPhone}</p>}
-                {vehicleTypes.length > 0 && (
-                  <p className="text-[#5C554E] mt-1">{vehicleTypes.slice(0, 3).join(", ")}{vehicleTypes.length > 3 ? ` +${vehicleTypes.length - 3} more` : ""}</p>
-                )}
-                <button onClick={() => setStep(2)} className="text-[#C67A1E] text-xs hover:underline mt-1">
-                  Edit
-                </button>
-              </div>
+              {/* Contact summary */}
+              {(contactName || contactPhone) && (
+                <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-4 mb-6 text-sm">
+                  <p className="mono-label text-[#8B8178] mb-2">Your info</p>
+                  <p className="text-[#1E1C1A]">{contactName}{contactTitle ? ` · ${contactTitle}` : ""}</p>
+                  {contactPhone && <p className="text-[#5C554E]">{contactPhone}</p>}
+                  {vehicleTypes.length > 0 && (
+                    <p className="text-[#5C554E] mt-1">{vehicleTypes.slice(0, 3).join(", ")}{vehicleTypes.length > 3 ? ` +${vehicleTypes.length - 3} more` : ""}</p>
+                  )}
+                  <button onClick={() => setStep(1)} className="text-[#C67A1E] text-xs hover:underline mt-1">
+                    Edit
+                  </button>
+                </div>
+              )}
 
               {checkoutError && (
                 <div className="rounded-lg bg-[#FAECEB] border border-[#B83B32]/20 px-4 py-3 mb-4">
@@ -728,7 +716,7 @@ export default function OnboardingPage() {
                 Redirects to Stripe&apos;s secure checkout. Cancel anytime.
               </p>
 
-              <button onClick={() => setStep(5)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
+              <button onClick={() => setStep(3)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
                 Back
               </button>
             </div>

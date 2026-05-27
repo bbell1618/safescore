@@ -2,6 +2,43 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWelcomeEmail } from "@/lib/email/client";
 import { NextResponse } from "next/server";
 
+// GET /api/auth/setup?token=xxx — look up invite to pre-populate setup page
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const token = searchParams.get("token");
+
+  if (!token) {
+    return NextResponse.json({ error: "Token required" }, { status: 400 });
+  }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: invite } = await supabase
+    .from("client_invites")
+    .select("client_id, email, used_at, expires_at")
+    .eq("token", token)
+    .single();
+
+  if (!invite) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 404 });
+  }
+
+  const { data: clientRecord } = await supabase
+    .from("clients")
+    .select("name, primary_contact")
+    .eq("id", invite.client_id)
+    .single();
+
+  return NextResponse.json({
+    companyName: clientRecord?.name ?? null,
+    email: invite.email,
+    primaryContact: clientRecord?.primary_contact ?? null,
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const { token, password, fullName } = await request.json();
