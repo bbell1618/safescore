@@ -2,6 +2,28 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { NextResponse } from "next/server";
 
+// Normalize FMCSA date strings to ISO YYYY-MM-DD for Postgres date column.
+function parseFmcsaDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  try {
+    if (/^\d{8}$/.test(dateStr)) {
+      const m = dateStr.slice(0, 2);
+      const d = dateStr.slice(2, 4);
+      const y = dateStr.slice(4, 8);
+      return `${y}-${m}-${d}`;
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+      const [m, d, y] = dateStr.split("/");
+      return `${y}-${m}-${d}`;
+    }
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // GET — return cached carrier profile from DB
 export async function GET(
   _request: Request,
@@ -58,7 +80,7 @@ export async function POST(
           .join(", "),
         power_units: carrier.totalPowerUnits ?? null,
         drivers: carrier.totalDrivers ?? null,
-        mcs150_date: carrier.mcs150FormDate ?? null,
+        mcs150_date: parseFmcsaDate(carrier.mcs150FormDate),
         mcs150_mileage: carrier.mcs150Mileage ?? null,
         safety_rating: carrier.safetyRating ?? null,
         raw_api_response: carrier as unknown as Record<string, unknown>,

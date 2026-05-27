@@ -14,6 +14,7 @@ interface ClientData {
   email?: string;
   primary_contact?: string;
   phone?: string;
+  driver_count?: number | null;
 }
 
 interface CarrierData {
@@ -419,7 +420,14 @@ export default function OnboardingPage() {
               </div>
 
               <button
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  // Bug 3 fix: persist carrier profile to DB on confirmation (fire-and-forget)
+                  if (client?.id) {
+                    void fetch(`/api/clients/${client.id}/carrier-profile`, { method: "POST" })
+                      .catch(() => {}); // non-fatal — auto-fetch on creation is the primary path
+                  }
+                  setStep(2);
+                }}
                 disabled={!canProceedStep1}
                 className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
@@ -632,7 +640,7 @@ export default function OnboardingPage() {
                   onClick={async () => {
                     await saveProfile();
                     await saveAgreement();
-                    void savePinIfProvided();
+                    await savePinIfProvided(); // await so PIN reaches DB before step advances
                     setStep(4);
                   }}
                   disabled={!canProceedStep3 || savingProfile}
@@ -655,34 +663,69 @@ export default function OnboardingPage() {
               </p>
 
               {/* Plan summary */}
-              <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-4">
-                <div className="flex items-baseline justify-between mb-4">
-                  <div>
-                    <p className="font-bold text-[#1E1C1A]">{assignedTierData.name}</p>
-                    {assignedTierData.highlight && (
-                      <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full mt-1 inline-block">
-                        Most popular
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-[#1E1C1A]">{assignedTierData.price}</span>
-                    {assignedTierData.priceNote && (
-                      <p className="text-xs text-[#8B8178]">{assignedTierData.priceNote}</p>
-                    )}
-                  </div>
-                </div>
-                <ul className="space-y-2">
-                  {assignedTierData.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5">
-                      <div className="w-4 h-4 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <Check className="w-2.5 h-2.5 text-[#C67A1E]" />
+              {(() => {
+                // Driver count cost calculation (Bug 5)
+                // Prefer FMCSA-reported drivers, fall back to GEIA-entered driver_count
+                const driverCount = carrier?.totalDrivers ?? client?.driver_count ?? null;
+                const isTotalSafety = assignedTier === "total_safety";
+                const estimatedMonthly =
+                  isTotalSafety && driverCount != null
+                    ? 999 + driverCount * 29
+                    : null;
+
+                return (
+                  <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-4">
+                    <div className="flex items-baseline justify-between mb-4">
+                      <div>
+                        <p className="font-bold text-[#1E1C1A]">{assignedTierData.name}</p>
+                        {assignedTierData.highlight && (
+                          <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full mt-1 inline-block">
+                            Most popular
+                          </span>
+                        )}
                       </div>
-                      <span className="text-sm text-[#5C554E]">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      <div className="text-right">
+                        <span className="text-2xl font-bold text-[#1E1C1A]">{assignedTierData.price}</span>
+                        {assignedTierData.priceNote && (
+                          <p className="text-xs text-[#8B8178]">{assignedTierData.priceNote}</p>
+                        )}
+                      </div>
+                    </div>
+                    <ul className="space-y-2 mb-4">
+                      {assignedTierData.features.map((f) => (
+                        <li key={f} className="flex items-start gap-2.5">
+                          <div className="w-4 h-4 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
+                            <Check className="w-2.5 h-2.5 text-[#C67A1E]" />
+                          </div>
+                          <span className="text-sm text-[#5C554E]">{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {/* Total Safety cost breakdown */}
+                    {isTotalSafety && estimatedMonthly != null && (
+                      <div className="border-t border-[#F0E8DA] pt-3 space-y-1.5">
+                        <div className="flex justify-between text-xs text-[#5C554E]">
+                          <span>Base plan</span>
+                          <span>$999/mo</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-[#5C554E]">
+                          <span>{driverCount} driver{driverCount === 1 ? "" : "s"} × $29</span>
+                          <span>${(driverCount! * 29).toLocaleString()}/mo</span>
+                        </div>
+                        <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-[#F0E8DA]">
+                          <span className="text-[#1E1C1A]">Estimated total</span>
+                          <span className="text-[#C67A1E]">${estimatedMonthly.toLocaleString()}/mo</span>
+                        </div>
+                        <p className="text-[10px] text-[#8B8178]">
+                          Driver count from{" "}
+                          {carrier?.totalDrivers != null ? "FMCSA carrier profile" : "your account record"}.
+                          Final billing reflects actual driver count at subscription start.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Contact summary */}
               {(contactName || contactPhone) && (
