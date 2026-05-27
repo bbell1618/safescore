@@ -1,6 +1,15 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { NextResponse } from "next/server";
+
+// Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
+// Works correctly for both console (staff) and portal (client) callers.
+function getAdmin() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Normalize FMCSA date strings to ISO YYYY-MM-DD for Postgres date column.
 function parseFmcsaDate(dateStr: string | null | undefined): string | null {
@@ -30,9 +39,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createServiceClient();
+  const admin = getAdmin();
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await admin
     .from("carrier_profiles")
     .select("*")
     .eq("client_id", id)
@@ -40,24 +49,45 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
+  if (error) {
+    console.error(
+      "carrier-profile GET: query failed:",
+      error.code,
+      error.message,
+      error.details
+    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
   return NextResponse.json({ profile: profile ?? null });
 }
 
-// POST — fetch fresh data from FMCSA and upsert into DB
+// POST — fetch fresh data from FMCSA and upsert into DB.
+// Called from both the console (staff) and the portal (onboarding wizard Step 1).
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createServiceClient();
+  const admin = getAdmin();
 
-  const { data: client, error: clientError } = await supabase
+  const { data: client, error: clientError } = await admin
     .from("clients")
     .select("id, dot_number")
     .eq("id", id)
     .single();
 
-  if (clientError || !client) {
+  if (clientError) {
+    console.error(
+      "carrier-profile POST: client lookup failed:",
+      clientError.code,
+      clientError.message,
+      clientError.details
+    );
+    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  }
+
+  if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
@@ -65,9 +95,22 @@ export async function POST(
     const carrier = await getCarrier(client.dot_number);
 
     // Delete old profile rows for this client before inserting fresh one
-    await supabase.from("carrier_profiles").delete().eq("client_id", id);
+    const { error: deleteError } = await admin
+      .from("carrier_profiles")
+      .delete()
+      .eq("client_id", id);
 
-    const { data: profile, error: insertError } = await supabase
+    if (deleteError) {
+      console.error(
+        "carrier-profile POST: delete old profiles failed:",
+        deleteError.code,
+        deleteError.message,
+        deleteError.details
+      );
+      // Non-fatal — proceed with insert; unique constraint will handle duplicates
+    }
+
+    const { data: profile, error: insertError } = await admin
       .from("carrier_profiles")
       .insert({
         client_id: id,
@@ -89,9 +132,23 @@ export async function POST(
       .select("*")
       .single();
 
-    if (insertError || !profile) {
+    if (insertError) {
+      console.error(
+        "carrier-profile POST: insert failed:",
+        insertError.code,
+        insertError.message,
+        insertError.details,
+        insertError.hint
+      );
       return NextResponse.json(
-        { error: insertError?.message ?? "Failed to store carrier profile" },
+        { error: insertError.message ?? "Failed to store carrier profile" },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: "Insert returned no data" },
         { status: 500 }
       );
     }
@@ -99,6 +156,7 @@ export async function POST(
     return NextResponse.json({ profile });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("carrier-profile POST: unexpected error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
