@@ -1,6 +1,6 @@
 export type UserRole = "geia_admin" | "geia_staff" | "client_user";
 export type ClientTier = "monitor" | "remediate" | "total_safety";
-export type ClientStatus = "prospect" | "active" | "paused" | "churned";
+export type ClientStatus = "onboarding" | "prospect" | "active" | "paused" | "churned";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
 export type BasicCategory =
   | "unsafe_driving"

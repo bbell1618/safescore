@@ -1,24 +1,26 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
-import { X, Mail, Send, CheckCircle } from "lucide-react";
+import { X, Mail, Send, CheckCircle, AlertTriangle, Copy } from "lucide-react";
 
 interface InviteClientModalProps {
   clientId: string;
   clientName: string;
+  contactEmail?: string;
   onClose: () => void;
 }
 
 export function InviteClientModal({
   clientId,
   clientName,
+  contactEmail,
   onClose,
 }: InviteClientModalProps) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(contactEmail ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const [result, setResult] = useState<{ emailSent: boolean; setupUrl: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,8 +38,7 @@ export function InviteClientModal({
       if (!res.ok) {
         setError(data.error ?? "Failed to send invite");
       } else {
-        if (data.setupUrl) setFallbackUrl(data.setupUrl);
-        setSuccess(true);
+        setResult({ emailSent: data.emailSent, setupUrl: data.setupUrl });
       }
     } catch {
       setError("Network error — please try again");
@@ -46,8 +47,15 @@ export function InviteClientModal({
     }
   }
 
+  function copyLink() {
+    if (!result?.setupUrl) return;
+    navigator.clipboard.writeText(result.setupUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
-    /* Backdrop */
     <div
       className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -56,70 +64,70 @@ export function InviteClientModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0E8DA]">
           <div>
-            <h2
-              className="font-bold text-[#1E1C1A] text-base"
-            >
-              Invite client to portal
-            </h2>
+            <h2 className="font-bold text-[#1E1C1A] text-base">Invite client to portal</h2>
             <p className="text-xs text-gray-500 mt-0.5">{clientName}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-[#1E1C1A] transition-colors"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-[#1E1C1A] transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5">
-          {success ? (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <CheckCircle className="w-10 h-10 text-green-500" />
-              <p className="font-medium text-[#1E1C1A]">Invite created</p>
-              {fallbackUrl ? (
-                <div className="w-full text-left space-y-2">
-                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Email delivery unavailable. Share this link directly with the client:
-                  </p>
-                  <div className="bg-[#FEFCF8] rounded-lg px-3 py-2 flex items-center gap-2">
-                    <span className="text-xs text-gray-600 break-all flex-1">{fallbackUrl}</span>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(fallbackUrl)}
-                      className="text-xs font-medium text-[#C67A1E] shrink-0 hover:underline"
-                    >
-                      Copy
-                    </button>
-                  </div>
+          {result ? (
+            <div className="space-y-4">
+              {/* Status banner */}
+              {result.emailSent ? (
+                <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span className="text-sm font-medium">Invite sent to {email}</span>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
-                  <span className="font-medium">{email}</span> will receive an email
-                  with a link to set up their portal account.
-                </p>
+                <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="text-sm">
+                    Invite created, but email could not be sent. Share the link below directly with the client.
+                  </span>
+                </div>
               )}
-              <button
-                onClick={onClose}
-                className="mt-2 px-4 py-2 text-sm font-medium bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors"
-              >
-                Done
-              </button>
+
+              {/* Always show copy link */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1.5">Invite link</p>
+                <div className="bg-white border border-[#F0E8DA] rounded-lg px-3 py-2.5 flex items-center gap-2">
+                  <span className="text-xs text-gray-600 break-all flex-1 font-mono">
+                    {result.setupUrl}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyLink}
+                    className="flex items-center gap-1 text-xs font-medium text-[#C67A1E] shrink-0 hover:underline"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-sm text-gray-600">
                 Enter the email address of the contact at{" "}
-                <span className="font-medium text-[#1E1C1A]">{clientName}</span>.
-                They will receive a link to create their account and access the
-                client portal.
+                <span className="font-medium text-[#1E1C1A]">{clientName}</span>. They will receive
+                a link to create their account and access the client portal.
               </p>
 
               <div>
-                <label
-                  htmlFor="invite-email"
-                  className="block text-sm font-medium text-[#1E1C1A] mb-1"
-                >
+                <label htmlFor="invite-email" className="block text-sm font-medium text-[#1E1C1A] mb-1">
                   Email address
                 </label>
                 <div className="relative">

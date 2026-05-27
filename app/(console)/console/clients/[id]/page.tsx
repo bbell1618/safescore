@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
@@ -18,8 +18,25 @@ import {
 import { InviteButton } from "@/components/console/invite-button";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 import { FmcsaAccessBadge } from "@/components/console/fmcsa-access-badge";
+import { CarrierProfileSection } from "@/components/console/carrier-profile-section";
 
 export const dynamic = "force-dynamic";
+
+const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
+  onboarding: "warning",
+  active: "success",
+  prospect: "outline",
+  paused: "warning",
+  churned: "default",
+};
+
+const statusLabel: Record<string, string> = {
+  onboarding: "Onboarding",
+  active: "Active",
+  prospect: "Prospect",
+  paused: "Paused",
+  churned: "Churned",
+};
 
 export default async function ClientDetailPage({
   params,
@@ -37,36 +54,54 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
-  // Fetch latest score snapshot
-  const { data: snapshot } = await supabase
-    .from("score_snapshots")
-    .select("*")
-    .eq("client_id", id)
-    .order("snapshot_date", { ascending: false })
-    .limit(1)
-    .single();
-
-  // Fetch counts
+  // Fetch latest score snapshot, counts, active cases, credentials, and carrier profile concurrently
   const [
+    { data: snapshot },
     { count: violationCount },
     { count: caseCount },
     { count: crashCount },
     { count: alertCount },
+    { data: activeCases },
+    { data: credentials },
+    { data: carrierProfile },
   ] = await Promise.all([
+    supabase
+      .from("score_snapshots")
+      .select("*")
+      .eq("client_id", id)
+      .order("snapshot_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("crashes").select("*", { count: "exact", head: true }).eq("client_id", id),
-    supabase.from("alerts").select("*", { count: "exact", head: true }).eq("client_id", id).is("dismissed_at", null),
+    supabase
+      .from("alerts")
+      .select("*", { count: "exact", head: true })
+      .eq("client_id", id)
+      .is("dismissed_at", null),
+    supabase
+      .from("dataq_cases")
+      .select("*, violations(violation_code, violation_description)")
+      .eq("client_id", id)
+      .not("status", "in", '("approved","denied","closed")')
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("client_credentials")
+      .select("fmcsa_pin_encrypted")
+      .eq("client_id", id)
+      .maybeSingle(),
+    supabase
+      .from("carrier_profiles")
+      .select("*")
+      .eq("client_id", id)
+      .order("fetched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
-  // Recent active cases
-  const { data: activeCases } = await supabase
-    .from("dataq_cases")
-    .select("*, violations(violation_code, violation_description)")
-    .eq("client_id", id)
-    .not("status", "in", '("approved","denied","closed")')
-    .order("created_at", { ascending: false })
-    .limit(5);
+  const hasFmcsaAccess = !!(credentials as { fmcsa_pin_encrypted?: unknown } | null)?.fmcsa_pin_encrypted;
 
   const basicsArray = snapshot
     ? [
@@ -100,18 +135,14 @@ export default async function ClientDetailPage({
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
-              <h1
-                className="text-xl font-bold text-[#1E1C1A]"
-              >
-                {client.name}
-              </h1>
+              <h1 className="text-xl font-bold text-[#1E1C1A]">{client.name}</h1>
               {client.tier && (
                 <Badge variant={client.tier === "total_safety" ? "gold" : client.tier === "remediate" ? "info" : "default"}>
                   {tierLabel[client.tier]}
                 </Badge>
               )}
-              <Badge variant={client.status === "active" ? "success" : client.status === "prospect" ? "warning" : "default"}>
-                {client.status}
+              <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
+                {statusLabel[client.status] ?? client.status}
               </Badge>
             </div>
 
@@ -121,13 +152,11 @@ export default async function ClientDetailPage({
                 DOT {client.dot_number}
                 {client.mc_number ? ` · MC ${client.mc_number}` : ""}
               </span>
-              <FmcsaAccessBadge
-                hasAccess={!!(client as any)?.fmcsa_pin && !!(client as any)?.fmcsa_authorized}
-              />
+              <FmcsaAccessBadge hasAccess={hasFmcsaAccess} />
               {(client.city || client.state) && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5" />
-                  {client.city}, {client.state}
+                  {[client.city, client.state].filter(Boolean).join(", ")}
                 </span>
               )}
               {client.phone && (
@@ -167,8 +196,13 @@ export default async function ClientDetailPage({
               clientId={id}
               dotNumber={client.dot_number}
               hasData={(violationCount ?? 0) > 0}
+              hasFmcsaAccess={hasFmcsaAccess}
             />
-            <InviteButton clientId={id} clientName={client.name} />
+            <InviteButton
+              clientId={id}
+              clientName={client.name}
+              contactEmail={client.email ?? undefined}
+            />
             <Link
               href={`/console/clients/${id}/violations`}
               className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
@@ -185,13 +219,14 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
+      {/* Carrier Profile */}
+      <CarrierProfileSection clientId={id} profile={carrierProfile ?? null} />
+
       {/* Score snapshot */}
       {basicsArray.length > 0 && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2
-              className="font-semibold text-[#1E1C1A] text-sm"
-            >
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">
               BASIC scores
               {snapshot && (
                 <span className="text-gray-400 font-normal text-xs ml-2">
@@ -222,7 +257,6 @@ export default async function ClientDetailPage({
 
       {/* Quick stats + active cases */}
       <div className="grid grid-cols-3 gap-6">
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-3 content-start">
           {[
             { label: "Violations", value: violationCount ?? 0, href: `violations` },
@@ -230,13 +264,8 @@ export default async function ClientDetailPage({
             { label: "Crashes", value: crashCount ?? 0, href: `cpdp` },
             { label: "Active alerts", value: alertCount ?? 0, href: null },
           ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4"
-            >
-              <p className="text-2xl font-bold text-[#1E1C1A]">
-                {s.value}
-              </p>
+            <div key={s.label} className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
+              <p className="text-2xl font-bold text-[#1E1C1A]">{s.value}</p>
               {s.href ? (
                 <Link
                   href={`/console/clients/${id}/${s.href}`}
@@ -251,18 +280,10 @@ export default async function ClientDetailPage({
           ))}
         </div>
 
-        {/* Active cases */}
         <div className="col-span-2 bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
-            <h3
-              className="font-semibold text-[#1E1C1A] text-sm"
-            >
-              Active cases
-            </h3>
-            <Link
-              href={`/console/clients/${id}/dataq`}
-              className="text-xs text-[#C67A1E] hover:underline"
-            >
+            <h3 className="font-semibold text-[#1E1C1A] text-sm">Active cases</h3>
+            <Link href={`/console/clients/${id}/dataq`} className="text-xs text-[#C67A1E] hover:underline">
               View all
             </Link>
           </div>

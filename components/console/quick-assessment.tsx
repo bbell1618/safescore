@@ -67,9 +67,6 @@ export function QuickAssessment() {
           <p className="text-xs text-[#C67A1E]">{error}</p>
         )}
       </form>
-      <p className="text-[10px] text-gray-400 mt-2">
-        Try DOT 2533650 — Nationwide Carrier (pilot client)
-      </p>
     </div>
   );
 }

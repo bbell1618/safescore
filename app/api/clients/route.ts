@@ -4,9 +4,8 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, dot_number, mc_number, contact_email, tier } = body;
+    const { name, dot_number, mc_number, contact_email, contact_name, driver_count, tier } = body;
 
-    // Validate required fields
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
     }
@@ -16,7 +15,6 @@ export async function POST(request: Request) {
 
     const supabase = await createServiceClient();
 
-    // Check for duplicate DOT number
     const { data: existing } = await supabase
       .from("clients")
       .select("id, name")
@@ -30,7 +28,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert new client
     const { data: client, error: insertError } = await supabase
       .from("clients")
       .insert({
@@ -38,8 +35,10 @@ export async function POST(request: Request) {
         dot_number: dot_number.trim(),
         mc_number: mc_number?.trim() || null,
         email: contact_email?.trim() || null,
+        primary_contact: contact_name?.trim() || null,
+        driver_count: driver_count ? Number(driver_count) : null,
         tier: tier ?? "monitor",
-        status: "active",
+        status: "onboarding",
         geia_client: true,
       })
       .select("id, name, dot_number")

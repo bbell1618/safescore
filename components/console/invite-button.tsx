@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
@@ -7,9 +7,10 @@ import { InviteClientModal } from "./invite-client-modal";
 interface InviteButtonProps {
   clientId: string;
   clientName: string;
+  contactEmail?: string;
 }
 
-export function InviteButton({ clientId, clientName }: InviteButtonProps) {
+export function InviteButton({ clientId, clientName, contactEmail }: InviteButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -26,6 +27,7 @@ export function InviteButton({ clientId, clientName }: InviteButtonProps) {
         <InviteClientModal
           clientId={clientId}
           clientName={clientName}
+          contactEmail={contactEmail}
           onClose={() => setOpen(false)}
         />
       )}

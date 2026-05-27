@@ -110,6 +110,7 @@ export interface WelcomeEmailData {
 export interface InviteEmailData {
   to: string;
   companyName: string;
+  contactName?: string;
   magicLinkUrl: string;
 }
 
@@ -232,12 +233,13 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
 }
 
 export async function sendInviteEmail(data: InviteEmailData): Promise<void> {
+  const greeting = data.contactName ? `Hi ${data.contactName},` : "You have been invited to SafeScore.";
   const html = emailWrapper(`
-    <h2>You're invited to SafeScore</h2>
-    <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for ${data.companyName}.</p>
+    <h2>${greeting}</h2>
+    <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for <strong>${data.companyName}</strong>.</p>
     <p>Click the button below to set up your account and view your safety dashboard.</p>
     <a href="${data.magicLinkUrl}" class="cta">Access your portal</a>
-    <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 24 hours. If it expires, contact your GEIA representative to request a new one.</p>
+    <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 7 days. If it expires, contact your GEIA representative to request a new one.</p>
   `);
 
   await getTransporter().sendMail({

@@ -1,10 +1,10 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { QuickAssessment } from "@/components/console/quick-assessment";
 import { NewClientButton } from "@/components/console/new-client-button";
-import { AlertTriangle, CheckCircle, Clock, Users, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +20,20 @@ const tierVariant: Record<string, "default" | "info" | "gold" | "warning"> = {
   total_safety: "gold",
 };
 
-const statusVariant: Record<string, "success" | "default" | "warning" | "danger"> = {
+const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
+  onboarding: "warning",
   active: "success",
-  prospect: "outline" as "default",
+  prospect: "outline",
   paused: "warning",
   churned: "default",
+};
+
+const statusLabel: Record<string, string> = {
+  onboarding: "Onboarding",
+  active: "Active",
+  prospect: "Prospect",
+  paused: "Paused",
+  churned: "Churned",
 };
 
 export default async function ConsolePage() {
@@ -47,7 +56,7 @@ export default async function ConsolePage() {
   }
 
   const activeCount = clients?.filter((c) => c.status === "active").length ?? 0;
-  const prospectCount = clients?.filter((c) => c.status === "prospect").length ?? 0;
+  const onboardingCount = clients?.filter((c) => c.status === "onboarding").length ?? 0;
   const alertClients = clients?.filter((c) => (alertMap.get(c.id) ?? 0) > 0) ?? [];
 
   return (
@@ -55,14 +64,8 @@ export default async function ConsolePage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1
-            className="text-xl font-bold text-[#1E1C1A]"
-          >
-            Client overview
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            All SafeScore clients and prospects
-          </p>
+          <h1 className="text-xl font-bold text-[#1E1C1A]">Client overview</h1>
+          <p className="text-sm text-gray-500 mt-0.5">All SafeScore clients and prospects</p>
         </div>
         <NewClientButton />
       </div>
@@ -71,7 +74,7 @@ export default async function ConsolePage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
           { label: "Active clients", value: activeCount, icon: CheckCircle, color: "text-green-600" },
-          { label: "Prospects", value: prospectCount, icon: Clock, color: "text-[#DAA520]" },
+          { label: "Onboarding", value: onboardingCount, icon: Clock, color: "text-[#DAA520]" },
           { label: "Needs attention", value: alertClients.length, icon: AlertTriangle, color: "text-[#C67A1E]" },
           { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-[#1E1C1A]" },
         ].map((stat) => (
@@ -81,9 +84,7 @@ export default async function ConsolePage() {
           >
             <stat.icon className={`w-5 h-5 ${stat.color} shrink-0`} />
             <div>
-              <p className="text-2xl font-bold text-[#1E1C1A]">
-                {stat.value}
-              </p>
+              <p className="text-2xl font-bold text-[#1E1C1A]">{stat.value}</p>
               <p className="text-xs text-gray-500">{stat.label}</p>
             </div>
           </div>
@@ -95,11 +96,7 @@ export default async function ConsolePage() {
         <div className="col-span-2">
           <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
             <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center justify-between">
-              <h2
-                className="font-semibold text-[#1E1C1A] text-sm"
-              >
-                All clients
-              </h2>
+              <h2 className="font-semibold text-[#1E1C1A] text-sm">All clients</h2>
               <Link
                 href="/console/clients/new"
                 className="text-xs text-[#C67A1E] hover:underline font-medium"
@@ -122,6 +119,8 @@ export default async function ConsolePage() {
                       )
                     : null;
 
+                  const locationParts = [client.city, client.state].filter(Boolean);
+
                   return (
                     <Link
                       key={client.id}
@@ -138,7 +137,8 @@ export default async function ConsolePage() {
                           )}
                         </div>
                         <p className="text-xs text-gray-400">
-                          DOT {client.dot_number} · {client.city ?? "—"}, {client.state ?? "—"}
+                          DOT {client.dot_number}
+                          {locationParts.length > 0 ? ` · ${locationParts.join(", ")}` : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -147,8 +147,8 @@ export default async function ConsolePage() {
                             {tierLabel[client.tier]}
                           </Badge>
                         )}
-                        <Badge variant={statusVariant[client.status] ?? "default"}>
-                          {client.status}
+                        <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
+                          {statusLabel[client.status] ?? client.status}
                         </Badge>
                         {worstPct !== null && (
                           <span
@@ -182,19 +182,13 @@ export default async function ConsolePage() {
 
         {/* Right column */}
         <div className="space-y-4">
-          {/* Quick Assessment */}
           <QuickAssessment />
 
-          {/* Needs attention */}
           {alertClients.length > 0 && (
             <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#F0E8DA] flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-[#C67A1E]" />
-                <h3
-                  className="font-semibold text-[#1E1C1A] text-sm"
-                >
-                  Needs attention
-                </h3>
+                <h3 className="font-semibold text-[#1E1C1A] text-sm">Needs attention</h3>
               </div>
               <div className="divide-y divide-[#F0E8DA]">
                 {alertClients.slice(0, 5).map((client) => (
@@ -204,9 +198,7 @@ export default async function ConsolePage() {
                     className="flex items-center gap-3 px-4 py-3 hover:bg-[#FBF7F0] transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#1E1C1A] truncate">
-                        {client.name}
-                      </p>
+                      <p className="text-sm font-medium text-[#1E1C1A] truncate">{client.name}</p>
                       <p className="text-xs text-gray-400">DOT {client.dot_number}</p>
                     </div>
                     <Badge variant="danger">
@@ -217,19 +209,6 @@ export default async function ConsolePage() {
               </div>
             </div>
           )}
-
-          {/* Tip */}
-          <div className="bg-[#1B2D4F] rounded-xl p-4">
-            <TrendingDown className="w-5 h-5 text-[#DAA520] mb-2" />
-            <p
-              className="text-white text-sm font-semibold"
-            >
-              Pilot client ready
-            </p>
-            <p className="text-white/60 text-xs mt-1">
-              DOT 2533650 — Nationwide Carrier Inc. Run a quick assessment to see the full analysis.
-            </p>
-          </div>
         </div>
       </div>
     </div>

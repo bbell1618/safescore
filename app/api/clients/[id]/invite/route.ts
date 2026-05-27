@@ -16,10 +16,9 @@ export async function POST(
 
     const supabase = await createServiceClient();
 
-    // Verify client exists
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, name")
+      .select("id, name, primary_contact")
       .eq("id", id)
       .single();
 
@@ -35,7 +34,6 @@ export async function POST(
       .eq("email", email.toLowerCase())
       .is("used_at", null);
 
-    // Create a new invite token (7-day expiry, set by DB default)
     const { data: invite, error: inviteError } = await supabase
       .from("client_invites")
       .insert({
@@ -52,15 +50,14 @@ export async function POST(
       );
     }
 
-    // Build the setup URL
     const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/setup?token=${invite.token}`;
 
-    // Send branded invite email — non-fatal if SMTP isn't configured yet
     let emailSent = true;
     try {
       await sendInviteEmail({
         to: email,
         companyName: client.name,
+        contactName: client.primary_contact ?? undefined,
         magicLinkUrl: setupUrl,
       });
     } catch (emailErr) {
@@ -68,13 +65,14 @@ export async function POST(
       emailSent = false;
     }
 
+    // Always return setupUrl so the employee can copy the link regardless of email status
     return NextResponse.json({
       success: true,
       emailSent,
-      setupUrl: emailSent ? undefined : setupUrl,
+      setupUrl,
       message: emailSent
         ? `Invite sent to ${email}`
-        : `Invite created but email failed. Share this link manually: ${setupUrl}`,
+        : `Invite created but email failed. Share this link manually.`,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
