@@ -52,18 +52,12 @@ export async function POST(
 
     const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL}/setup?token=${invite.token}`;
 
-    let emailSent = true;
-    try {
-      await sendInviteEmail({
-        to: email,
-        companyName: client.name,
-        contactName: client.primary_contact ?? undefined,
-        magicLinkUrl: setupUrl,
-      });
-    } catch (emailErr) {
-      console.error("Invite email failed (SMTP may not be configured):", emailErr);
-      emailSent = false;
-    }
+    const { success: emailSent } = await sendInviteEmail({
+      to: email,
+      companyName: client.name,
+      contactName: client.primary_contact ?? undefined,
+      magicLinkUrl: setupUrl,
+    });
 
     // Always return setupUrl so the employee can copy the link regardless of email status
     return NextResponse.json({
@@ -72,7 +66,7 @@ export async function POST(
       setupUrl,
       message: emailSent
         ? `Invite sent to ${email}`
-        : `Invite created but email failed. Share this link manually.`,
+        : "Invite created but email could not be sent. Share the link manually.",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

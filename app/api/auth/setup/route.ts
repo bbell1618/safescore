@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { sendWelcomeEmail } from "@/lib/email/client";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -61,7 +62,6 @@ export async function POST(request: Request) {
     let authUserId: string;
 
     if (existingAuthUser) {
-      // Update existing user with new password and confirmed email
       const { error: updateError } = await supabase.auth.admin.updateUserById(
         existingAuthUser.id,
         {
@@ -81,7 +81,6 @@ export async function POST(request: Request) {
 
       authUserId = existingAuthUser.id;
     } else {
-      // Create new auth user with the password they chose
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: invite.email,
         password,
@@ -120,6 +119,24 @@ export async function POST(request: Request) {
       .from("client_invites")
       .update({ used_at: new Date().toISOString() })
       .eq("id", invite.id);
+
+    // Send welcome email — non-fatal if it fails
+    const { data: clientRecord } = await supabase
+      .from("clients")
+      .select("name, dot_number")
+      .eq("id", invite.client_id)
+      .single();
+
+    if (clientRecord) {
+      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal`;
+      await sendWelcomeEmail({
+        to: invite.email,
+        companyName: clientRecord.name,
+        dotNumber: clientRecord.dot_number,
+        userFullName: fullName || undefined,
+        portalUrl,
+      });
+    }
 
     return NextResponse.json({ success: true, email: invite.email });
   } catch (err) {

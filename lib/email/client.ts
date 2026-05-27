@@ -1,19 +1,70 @@
-﻿import nodemailer from "nodemailer";
+// ── Transport ──────────────────────────────────────────────────────────────
+// Sends email via n8n webhook → Gmail OAuth (info@goldenerainsurance.com).
+// Requires:
+//   N8N_EMAIL_WEBHOOK_URL    — full webhook endpoint URL
+//   N8N_EMAIL_WEBHOOK_SECRET — Header Auth secret value (X-Webhook-Secret)
 
-const SMTP_USER = "brandonbell@goldenerainsurance.com";
-const FROM_NAME = "Golden Era SafeScore";
-const REPLY_TO = "info@goldenerainsurance.com";
+const DEFAULT_SENDER = "Golden Era SafeScore";
+const DEFAULT_REPLY_TO = "info@goldenerainsurance.com";
 
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // STARTTLS
-    auth: {
-      user: SMTP_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
+async function sendEmail({
+  to,
+  subject,
+  htmlBody,
+  senderName,
+  replyTo,
+  cc,
+  bcc,
+}: {
+  to: string;
+  subject: string;
+  htmlBody: string;
+  senderName?: string;
+  replyTo?: string;
+  cc?: string;
+  bcc?: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const webhookUrl = process.env.N8N_EMAIL_WEBHOOK_URL;
+  const webhookSecret = process.env.N8N_EMAIL_WEBHOOK_SECRET;
+
+  if (!webhookUrl) {
+    console.error("N8N_EMAIL_WEBHOOK_URL is not configured");
+    return { success: false, error: "Email service not configured" };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(webhookSecret ? { "X-Webhook-Secret": webhookSecret } : {}),
+      },
+      body: JSON.stringify({
+        to,
+        subject,
+        htmlBody,
+        senderName: senderName ?? DEFAULT_SENDER,
+        replyTo: replyTo ?? DEFAULT_REPLY_TO,
+        ...(cc ? { cc } : {}),
+        ...(bcc ? { bcc } : {}),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Email webhook failed:", response.status, errorText);
+      return { success: false, error: `Email send failed: ${response.status}` };
+    }
+
+    const result = await response.json();
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error("Email webhook error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
 }
 
 // ── Shared HTML wrapper ────────────────────────────────────────────────────
@@ -66,7 +117,7 @@ function emailWrapper(content: string): string {
 </html>`;
 }
 
-// ── Template functions ─────────────────────────────────────────────────────
+// ── Data interfaces ────────────────────────────────────────────────────────
 
 export interface NewViolationEmailData {
   to: string;
@@ -106,7 +157,6 @@ export interface WelcomeEmailData {
   portalUrl: string;
 }
 
-
 export interface InviteEmailData {
   to: string;
   companyName: string;
@@ -116,7 +166,9 @@ export interface InviteEmailData {
 
 // ── Send functions ─────────────────────────────────────────────────────────
 
-export async function sendNewViolationAlert(data: NewViolationEmailData): Promise<void> {
+export async function sendNewViolationAlert(
+  data: NewViolationEmailData
+): Promise<{ success: boolean }> {
   const html = emailWrapper(`
     <h2>New violation added</h2>
     <p>A new violation has been added to DOT ${data.dotNumber} — ${data.companyName}.</p>
@@ -146,16 +198,22 @@ export async function sendNewViolationAlert(data: NewViolationEmailData): Promis
     <a href="${data.portalUrl}" class="cta">View in portal</a>
   `);
 
-  await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${SMTP_USER}>`,
-    replyTo: REPLY_TO,
+  const result = await sendEmail({
     to: data.to,
     subject: `New violation added — DOT ${data.dotNumber}`,
-    html,
+    htmlBody: html,
   });
+
+  if (!result.success) {
+    console.error("sendNewViolationAlert failed:", result.error);
+  }
+
+  return { success: result.success };
 }
 
-export async function sendCaseStatusChange(data: CaseStatusEmailData): Promise<void> {
+export async function sendCaseStatusChange(
+  data: CaseStatusEmailData
+): Promise<{ success: boolean }> {
   const html = emailWrapper(`
     <h2>${data.caseType} case status update</h2>
     <p>The status of a ${data.caseType} case for ${data.companyName} has changed.</p>
@@ -173,16 +231,22 @@ export async function sendCaseStatusChange(data: CaseStatusEmailData): Promise<v
     <a href="${data.portalUrl}" class="cta">View case</a>
   `);
 
-  await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${SMTP_USER}>`,
-    replyTo: REPLY_TO,
+  const result = await sendEmail({
     to: data.to,
     subject: `${data.caseType} case update — ${data.companyName}`,
-    html,
+    htmlBody: html,
   });
+
+  if (!result.success) {
+    console.error("sendCaseStatusChange failed:", result.error);
+  }
+
+  return { success: result.success };
 }
 
-export async function sendReportReady(data: ReportReadyEmailData): Promise<void> {
+export async function sendReportReady(
+  data: ReportReadyEmailData
+): Promise<{ success: boolean }> {
   const html = emailWrapper(`
     <h2>Your safety report is ready</h2>
     <p>A new report has been prepared for ${data.companyName}.</p>
@@ -200,16 +264,22 @@ export async function sendReportReady(data: ReportReadyEmailData): Promise<void>
     <a href="${data.portalUrl}" class="cta">View report</a>
   `);
 
-  await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${SMTP_USER}>`,
-    replyTo: REPLY_TO,
+  const result = await sendEmail({
     to: data.to,
     subject: `Your SafeScore report is ready — ${data.reportTitle}`,
-    html,
+    htmlBody: html,
   });
+
+  if (!result.success) {
+    console.error("sendReportReady failed:", result.error);
+  }
+
+  return { success: result.success };
 }
 
-export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
+export async function sendWelcomeEmail(
+  data: WelcomeEmailData
+): Promise<{ success: boolean }> {
   const greeting = data.userFullName ? `Hi ${data.userFullName},` : "Welcome to SafeScore,";
 
   const html = emailWrapper(`
@@ -223,17 +293,26 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
     <a href="${data.portalUrl}" class="cta">Access your portal</a>
   `);
 
-  await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${SMTP_USER}>`,
-    replyTo: REPLY_TO,
+  const result = await sendEmail({
     to: data.to,
     subject: `Welcome to SafeScore — ${data.companyName}`,
-    html,
+    htmlBody: html,
   });
+
+  if (!result.success) {
+    console.error("sendWelcomeEmail failed:", result.error);
+  }
+
+  return { success: result.success };
 }
 
-export async function sendInviteEmail(data: InviteEmailData): Promise<void> {
-  const greeting = data.contactName ? `Hi ${data.contactName},` : "You have been invited to SafeScore.";
+export async function sendInviteEmail(
+  data: InviteEmailData
+): Promise<{ success: boolean }> {
+  const greeting = data.contactName
+    ? `Hi ${data.contactName},`
+    : "You have been invited to SafeScore.";
+
   const html = emailWrapper(`
     <h2>${greeting}</h2>
     <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for <strong>${data.companyName}</strong>.</p>
@@ -242,11 +321,15 @@ export async function sendInviteEmail(data: InviteEmailData): Promise<void> {
     <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 7 days. If it expires, contact your GEIA representative to request a new one.</p>
   `);
 
-  await getTransporter().sendMail({
-    from: `"${FROM_NAME}" <${SMTP_USER}>`,
-    replyTo: REPLY_TO,
+  const result = await sendEmail({
     to: data.to,
     subject: `You're invited to SafeScore — ${data.companyName}`,
-    html,
+    htmlBody: html,
   });
+
+  if (!result.success) {
+    console.error("sendInviteEmail failed:", result.error);
+  }
+
+  return { success: result.success };
 }

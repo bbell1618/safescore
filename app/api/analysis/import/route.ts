@@ -150,12 +150,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 5. Activate client if still in prospect status ───────────────────────
+    // TODO: Send new violation alert emails via sendNewViolationAlert() from @/lib/email/client.
+    // After violations are inserted above, identify net-new violations (compare with pre-import
+    // snapshot) and send one alert per high-severity (severity_weight >= 8) new violation.
+    // Requires fetching the client's portal user email from the users table. Batch or
+    // debounce to avoid spamming when a full history import runs (could be dozens of violations).
+    // Recommended: send at most one "summary" alert email per analysis run rather than per-violation.
+
+    // ── 5. Activate client if still in onboarding or prospect status ─────────
     await supabase
       .from("clients")
       .update({ status: "active" })
       .eq("id", clientId)
-      .eq("status", "prospect");
+      .in("status", ["onboarding", "prospect"]);
 
     // ── 6. Log activity ──────────────────────────────────────────────────────
     await supabase.from("activity_log").insert({

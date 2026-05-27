@@ -34,6 +34,12 @@ export async function PATCH(
       entity_id: id,
       description: `DataQs case status updated to ${body.status}`,
     });
+
+    // TODO: Send case status change email via sendCaseStatusChange() from @/lib/email/client.
+    // Need to: (1) fetch the client's portal user email from the users table using c.client_id,
+    // (2) fetch the client name and previous case status, (3) call sendCaseStatusChange with
+    // { to, companyName, caseType: "DataQ", caseNumber, oldStatus, newStatus, portalUrl }.
+    // Gate on meaningful transitions only (e.g. filed → approved/denied, not every draft update).
   }
 
   return NextResponse.json({ ok: true });
