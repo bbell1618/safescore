@@ -134,38 +134,70 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
     console.warn("FMCSA_API_KEY not set"); return emptyBasics();
   }
   try {
-  const data = await fetchFMCSA<{ content: { BasicsInfo: Array<{ measureValue: number; percentile: number; investigationCount: number; violationCount: number; category: string; alert: boolean; outOfService: boolean }> } }>(`/carriers/${dot}/basics`);
-  const basics: FMCSABasics = {
-    unsafeDriving: null,
-    hosCompliance: null,
-    driverFitness: null,
-    controlledSubstances: null,
-    vehicleMaintenance: null,
-    hmCompliance: null,
-    crashIndicator: null,
-  };
-  for (const b of data.content.BasicsInfo || []) {
-    const item: FMCSABasic = {
-      measureValue: b.measureValue,
-      percentile: b.percentile,
-      investigationCount: b.investigationCount,
-      violationCount: b.violationCount,
-      category: b.category,
-      alert: b.alert,
-      outofservice: b.outOfService,
+    // The API returns { content: Array<{ basic: { basicsType: { basicsCode }, measureValue, basicsPercentile, ... } }> }
+    // NOT the previously assumed { content: { BasicsInfo: [] } } shape.
+    const data = await fetchFMCSA<{
+      content: Array<{
+        basic: {
+          basicsType: { basicsCode: string; basicsId: number };
+          measureValue: string | number;
+          basicsPercentile: string | number | null;
+          totalViolation: number;
+          totalInspectionWithViolation: number;
+          exceededFMCSAInterventionThreshold: string;
+          onRoadPerformanceThresholdViolationIndicator?: string;
+        };
+      }>;
+    }>(`/carriers/${dot}/basics`);
+
+    const basics: FMCSABasics = {
+      unsafeDriving: null,
+      hosCompliance: null,
+      driverFitness: null,
+      controlledSubstances: null,
+      vehicleMaintenance: null,
+      hmCompliance: null,
+      crashIndicator: null,
     };
-    const cat = b.category?.toLowerCase().replace(/\s+/g, "");
-    if (cat?.includes("unsafe")) basics.unsafeDriving = item;
-    else if (cat?.includes("hos") || cat?.includes("hoursofservice")) basics.hosCompliance = item;
-    else if (cat?.includes("driver") && cat?.includes("fit")) basics.driverFitness = item;
-    else if (cat?.includes("controlled") || cat?.includes("substance")) basics.controlledSubstances = item;
-    else if (cat?.includes("vehicle") || cat?.includes("maint")) basics.vehicleMaintenance = item;
-    else if (cat?.includes("hm") || cat?.includes("hazmat")) basics.hmCompliance = item;
-    else if (cat?.includes("crash")) basics.crashIndicator = item;
-  }
-  return basics;
+
+    const items = Array.isArray(data.content) ? data.content : [];
+    for (const entry of items) {
+      const b = entry?.basic;
+      if (!b) continue;
+
+      const code = b.basicsType?.basicsCode ?? "";
+      const measureValue = parseFloat(String(b.measureValue ?? "0")) || 0;
+
+      // basicsPercentile is "Not Public" when carrier is not publicly scored;
+      // a numeric string like "75" or a number when public.
+      let percentile: number | null = null;
+      if (b.basicsPercentile !== null && b.basicsPercentile !== undefined) {
+        const pctNum = parseFloat(String(b.basicsPercentile));
+        if (!isNaN(pctNum)) percentile = pctNum;
+      }
+
+      const item: FMCSABasic = {
+        measureValue,
+        percentile,
+        investigationCount: b.totalInspectionWithViolation ?? 0,
+        violationCount: b.totalViolation ?? 0,
+        category: code,
+        alert: b.exceededFMCSAInterventionThreshold === "1",
+        outofservice: b.onRoadPerformanceThresholdViolationIndicator === "Yes",
+      };
+
+      const cat = code.toLowerCase();
+      if (cat.includes("unsafe")) basics.unsafeDriving = item;
+      else if (cat.includes("hos") || cat.includes("hours")) basics.hosCompliance = item;
+      else if (cat.includes("driver") && cat.includes("fit")) basics.driverFitness = item;
+      else if (cat.includes("drug") || cat.includes("alcohol") || cat.includes("controlled") || cat.includes("substance")) basics.controlledSubstances = item;
+      else if (cat.includes("vehicle") || cat.includes("maint")) basics.vehicleMaintenance = item;
+      else if (cat.includes("hm") || cat.includes("hazmat") || cat.includes("hazardous")) basics.hmCompliance = item;
+      else if (cat.includes("crash")) basics.crashIndicator = item;
+    }
+    return basics;
   } catch (err) {
-    console.error(`FMCSA basics API failed for DOT ${dot}, falling back to mock:`, err);
+    console.error(`FMCSA basics API failed for DOT ${dot}:`, err);
     return emptyBasics();
   }
 }

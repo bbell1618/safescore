@@ -98,7 +98,7 @@ export default async function PortalDashboardPage() {
       .eq("client_id", clientId)
       .order("snapshot_date", { ascending: false })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("dataq_cases")
       .select("id, status")

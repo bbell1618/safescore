@@ -84,7 +84,7 @@ export default async function SafetyProfilePage() {
       .eq("client_id", clientId)
       .order("snapshot_date", { ascending: false })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("inspections")
       .select("*, violations(id, violation_code, violation_description, basic_category, severity_weight, oos_violation)")

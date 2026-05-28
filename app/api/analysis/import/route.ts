@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import {
   getBasics,
   getOosRates,
@@ -7,6 +7,14 @@ import {
 } from "@/lib/fmcsa/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+// Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
+function getAdmin() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const schema = z.object({
   clientId: z.string().uuid(),
@@ -21,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const { clientId, dotNumber } = parsed.data;
-  const supabase = await createServiceClient();
+  const supabase = getAdmin();
 
   try {
     // ── 1. Fetch BASIC scores + OOS rates ────────────────────────────────────
@@ -65,7 +73,15 @@ export async function POST(request: Request) {
       );
 
     if (snapshotErr) {
-      console.error("Score snapshot upsert failed:", snapshotErr);
+      console.error(
+        "Score snapshot upsert failed:",
+        snapshotErr.code,
+        snapshotErr.message,
+        snapshotErr.details,
+        snapshotErr.hint
+      );
+    } else {
+      console.log(`Score snapshot upserted for client ${clientId} on ${today}. Measures: unsafe=${basics.unsafeDriving?.measureValue ?? "null"}, vehicle=${basics.vehicleMaintenance?.measureValue ?? "null"}`);
     }
 
     // ── 3. Import inspections + violations ───────────────────────────────────
