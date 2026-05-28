@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,26 @@ export default async function DataqPage({
 
   const { data: cases } = await supabase
     .from("dataq_cases")
-    .select("*, violations(violation_code, violation_description, basic_category, severity_weight)")
+    .select(
+      `*,
+      violations(
+        violation_code,
+        violation_description,
+        basic_category,
+        severity_weight,
+        oos_violation,
+        challenge_reason,
+        challenge_priority,
+        inspection_id
+      ),
+      inspections(
+        inspection_date,
+        state,
+        level,
+        facility_name,
+        report_number
+      )`
+    )
     .eq("client_id", id)
     .order("created_at", { ascending: false });
 
@@ -48,9 +67,7 @@ export default async function DataqPage({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1
-            className="text-xl font-bold text-[#1E1C1A]"
-          >
+          <h1 className="text-xl font-bold text-[#1E1C1A]">
             DataQs workbench
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">

@@ -1,6 +1,13 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { draftDataqNarrative } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
+
+function getAdmin() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function PATCH(
   request: Request,
@@ -8,7 +15,7 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const supabase = await createServiceClient();
+  const supabase = getAdmin();
 
   const { error } = await supabase
     .from("dataq_cases")
@@ -49,24 +56,55 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // POST to /api/cases/dataq/[id]/narrative — but we handle sub-routes via slug
   const { id } = await params;
-  const supabase = await createServiceClient();
+  const supabase = getAdmin();
 
   const { data: c } = await supabase
     .from("dataq_cases")
-    .select("*, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)")
+    .select(
+      "*, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
+    )
     .eq("id", id)
     .single();
 
   if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const violation = c.violations as { violation_code: string; violation_description: string; challenge_reason: string | null; challenge_priority: string | null } | null;
+  const violation = c.violations as {
+    violation_code: string;
+    violation_description: string;
+    challenge_reason: string | null;
+    challenge_priority: string | null;
+  } | null;
   const client = c.clients as { name: string; dot_number: string } | null;
-  const inspection = c.inspections as { inspection_date: string; state: string; level: string; facility_name: string } | null;
+  const inspection = c.inspections as {
+    inspection_date: string;
+    state: string;
+    level: string;
+    facility_name: string;
+  } | null;
 
-  if (!violation || !client || !inspection) {
-    return NextResponse.json({ error: "Missing case data" }, { status: 400 });
+  if (!client) {
+    return NextResponse.json({ error: "Client data missing" }, { status: 400 });
+  }
+
+  if (!violation) {
+    return NextResponse.json(
+      {
+        error:
+          "This case has no linked violation. Re-run analysis or use the re-link button in the workbench to restore the connection.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!inspection) {
+    return NextResponse.json(
+      {
+        error:
+          "This case has no linked inspection. Re-run analysis to restore the connection.",
+      },
+      { status: 400 }
+    );
   }
 
   const narrative = await draftDataqNarrative({
@@ -76,13 +114,14 @@ export async function POST(
     state: inspection.state,
     inspectionLevel: inspection.level,
     facilityName: inspection.facility_name,
-    challengeReason: violation.challenge_reason ?? "Violation was incorrectly recorded",
+    challengeReason:
+      violation.challenge_reason ?? "Violation was incorrectly recorded",
     suggestedApproach: `Challenge based on ${violation.challenge_priority ?? "medium"} priority assessment`,
     carrierName: client.name,
     dotNumber: client.dot_number,
   });
 
-  // Save AI narrative
+  // Save AI narrative to the case record
   await supabase
     .from("dataq_cases")
     .update({ ai_narrative: narrative })

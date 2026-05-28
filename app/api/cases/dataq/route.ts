@@ -1,6 +1,13 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+function getAdmin() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const schema = z.object({
   clientId: z.string().uuid(),
@@ -15,14 +22,14 @@ export async function POST(request: Request) {
   }
 
   const { clientId, violationId } = parsed.data;
-  const supabase = await createServiceClient();
+  const supabase = getAdmin();
 
   // Check existing case for this violation
   const { data: existing } = await supabase
     .from("dataq_cases")
     .select("id")
     .eq("violation_id", violationId)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     return NextResponse.json({ caseId: existing.id, existing: true });
