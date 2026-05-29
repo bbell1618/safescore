@@ -161,7 +161,8 @@ export async function draftDataqNarrative(params: {
 
 Carrier: ${params.carrierName} (DOT ${params.dotNumber})
 Violation: ${params.violationCode} — ${params.violationDescription}
-Inspection: ${params.inspectionDate}, ${params.facilityName}, ${params.state}, ${params.inspectionLevel}
+Inspection date (use EXACTLY this date — do not change or approximate it): ${params.inspectionDate}
+Inspection location: ${params.facilityName}, ${params.state} — Level ${params.inspectionLevel}
 Challenge basis: ${params.challengeReason}
 Suggested approach: ${params.suggestedApproach}
 ${params.additionalContext ? `Additional context: ${params.additionalContext}` : ""}
@@ -238,7 +239,7 @@ export async function generateAssessmentReport(params: {
   const basicsText = Object.entries(params.basics)
     .map(([name, data]) => {
       if (!data) return null;
-      const alert = data.alert ? " ⚠ ALERT" : "";
+      const alert = data.alert ? " ALERT" : "";
       const pct = data.percentile != null ? ` (${data.percentile}th percentile)` : "";
       return `- ${name}: ${data.measureValue.toFixed(1)}${pct}${alert}`;
     })
