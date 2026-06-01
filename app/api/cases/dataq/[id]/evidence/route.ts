@@ -13,8 +13,7 @@ const postSchema = z.object({
   action: z.literal("generate"),
 });
 
-type EvidenceRow = {
-  case_id: string;
+type EvidenceItem = {
   doc_type: string;
   label: string;
   context_note: string;
@@ -22,29 +21,48 @@ type EvidenceRow = {
   required: boolean;
 };
 
-function buildEvidenceRows(
-  caseId: string,
-  basicCategory: string | null | undefined,
-  canonicalDate: string
-): EvidenceRow[] {
+type EvidenceRow = EvidenceItem & { case_id: string };
+
+export function buildEvidenceItems(
+  basicCategory: string | null,
+  canonDate: string,
+  inspState: string
+): EvidenceItem[] {
   const cat = (basicCategory ?? "").toLowerCase();
 
-  if (cat === "vehicle_maintenance" || cat === "hos_compliance") {
+  if (cat === "vehicle_maintenance") {
     return [
       {
-        case_id: caseId,
         doc_type: "eld_record",
         label: "ELD/driver log records",
         fmcsa_category: "Electronic Logging Device (ELD) Records",
-        context_note: `Records for ${canonicalDate}`,
+        context_note: `Records for ${canonDate} (${inspState})`,
         required: true,
       },
       {
-        case_id: caseId,
         doc_type: "vehicle_inspection",
-        label: "Vehicle inspection/maintenance records",
+        label: "Vehicle maintenance/repair records",
         fmcsa_category: "Vehicle Inspection Records",
-        context_note: "Records from the inspection date",
+        context_note: "Maintenance records relevant to the inspection date",
+        required: false,
+      },
+    ];
+  }
+
+  if (cat === "hos_compliance") {
+    return [
+      {
+        doc_type: "eld_record",
+        label: "ELD records and driver hours logs",
+        fmcsa_category: "Electronic Logging Device (ELD) Records",
+        context_note: `Hours of service records for ${canonDate} (${inspState})`,
+        required: true,
+      },
+      {
+        doc_type: "driver_log",
+        label: "Driver recap/70-hour records",
+        fmcsa_category: "Driver Logs",
+        context_note: `70-hour period including ${canonDate}`,
         required: false,
       },
     ];
@@ -53,19 +71,17 @@ function buildEvidenceRows(
   if (cat === "driver_fitness") {
     return [
       {
-        case_id: caseId,
         doc_type: "driver_log",
         label: "Driver qualification file",
         fmcsa_category: "Driver Qualification File",
-        context_note: "Driver file at time of inspection",
+        context_note: `Driver file current as of ${canonDate}`,
         required: true,
       },
       {
-        case_id: caseId,
         doc_type: "driver_log",
-        label: "Medical certification",
+        label: "Medical examiner certificate",
         fmcsa_category: "Medical Certificate",
-        context_note: `Current at time of ${canonicalDate}`,
+        context_note: `Valid certificate at time of ${canonDate} (${inspState})`,
         required: false,
       },
     ];
@@ -74,11 +90,10 @@ function buildEvidenceRows(
   if (cat === "unsafe_driving") {
     return [
       {
-        case_id: caseId,
         doc_type: "eld_record",
-        label: "ELD location/speed data",
+        label: "ELD location and speed data",
         fmcsa_category: "Electronic Logging Device (ELD) Records",
-        context_note: `GPS/speed records for ${canonicalDate}`,
+        context_note: `GPS/speed records for ${canonDate} (${inspState})`,
         required: true,
       },
     ];
@@ -87,11 +102,10 @@ function buildEvidenceRows(
   if (cat === "controlled_substance") {
     return [
       {
-        case_id: caseId,
         doc_type: "driver_log",
-        label: "Drug/alcohol test records",
+        label: "Drug and alcohol test records",
         fmcsa_category: "Drug and Alcohol Testing Records",
-        context_note: `Testing records relevant to ${canonicalDate}`,
+        context_note: `Testing records relevant to ${canonDate}`,
         required: true,
       },
     ];
@@ -100,27 +114,36 @@ function buildEvidenceRows(
   if (cat === "hazmat_compliance") {
     return [
       {
-        case_id: caseId,
         doc_type: "bol",
-        label: "Hazmat shipping papers/placards",
+        label: "Hazmat shipping papers and placards",
         fmcsa_category: "Bill of Lading/Shipping Papers",
-        context_note: `From ${canonicalDate} shipment`,
+        context_note: `Hazmat shipment documentation for ${canonDate} (${inspState})`,
         required: true,
       },
     ];
   }
 
-  // Default
+  // Default — null or unrecognized category
   return [
     {
-      case_id: caseId,
       doc_type: "other",
-      label: "Inspection report documentation",
+      label: "Inspection report and supporting documentation",
       fmcsa_category: "Other",
-      context_note: `Supporting documentation for ${canonicalDate} inspection`,
+      context_note: `Supporting documentation for ${canonDate} inspection in ${inspState}`,
       required: true,
     },
   ];
+}
+
+function buildEvidenceRows(
+  caseId: string,
+  basicCategory: string | null,
+  canonDate: string,
+  inspState: string
+): EvidenceRow[] {
+  return buildEvidenceItems(basicCategory, canonDate, inspState).map(
+    (item) => ({ ...item, case_id: caseId })
+  );
 }
 
 export async function GET(
@@ -172,14 +195,18 @@ export async function POST(
   }
 
   if (existing && existing.length > 0) {
-    return NextResponse.json({ evidence: existing, generated: 0 });
+    return NextResponse.json({
+      evidence: existing,
+      generated: 0,
+      alreadyExisted: true,
+    });
   }
 
   // Fetch case with violation + inspection data
   const { data: c, error: caseError } = await supabase
     .from("dataq_cases")
     .select(
-      "id, canonical_inspection_date, violations(basic_category), inspections(inspection_date)"
+      "id, canonical_inspection_date, violations(basic_category), inspections(inspection_date, state)"
     )
     .eq("id", id)
     .single();
@@ -192,17 +219,25 @@ export async function POST(
   const violation = (
     Array.isArray(violationRaw) ? violationRaw[0] : violationRaw
   ) as { basic_category: string | null } | null;
+
   const inspectionRaw = c.inspections as unknown;
   const inspection = (
     Array.isArray(inspectionRaw) ? inspectionRaw[0] : inspectionRaw
-  ) as { inspection_date: string } | null;
+  ) as { inspection_date: string; state: string | null } | null;
 
   const canonicalDate: string =
     (c.canonical_inspection_date as string | null) ??
     inspection?.inspection_date ??
-    "unknown date";
+    "the inspection date";
 
-  const rows = buildEvidenceRows(id, violation?.basic_category, canonicalDate);
+  const inspState: string = inspection?.state ?? "inspection state";
+
+  const rows = buildEvidenceRows(
+    id,
+    violation?.basic_category ?? null,
+    canonicalDate,
+    inspState
+  );
 
   const { data: inserted, error: insertError } = await supabase
     .from("dataq_evidence")

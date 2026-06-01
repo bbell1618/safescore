@@ -346,14 +346,192 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── 6. Activate client if still in onboarding or prospect status ─────────
+    // ── 6. Generate evidence items for DataQ cases that have none ────────────
+    function buildEvidenceItems(
+      basicCategory: string | null,
+      canonDate: string,
+      inspState: string
+    ): Array<{
+      doc_type: string;
+      label: string;
+      context_note: string;
+      fmcsa_category: string;
+      required: boolean;
+    }> {
+      const cat = (basicCategory ?? "").toLowerCase();
+
+      if (cat === "vehicle_maintenance") {
+        return [
+          {
+            doc_type: "eld_record",
+            label: "ELD/driver log records",
+            fmcsa_category: "Electronic Logging Device (ELD) Records",
+            context_note: `Records for ${canonDate} (${inspState})`,
+            required: true,
+          },
+          {
+            doc_type: "vehicle_inspection",
+            label: "Vehicle maintenance/repair records",
+            fmcsa_category: "Vehicle Inspection Records",
+            context_note: "Maintenance records relevant to the inspection date",
+            required: false,
+          },
+        ];
+      }
+
+      if (cat === "hos_compliance") {
+        return [
+          {
+            doc_type: "eld_record",
+            label: "ELD records and driver hours logs",
+            fmcsa_category: "Electronic Logging Device (ELD) Records",
+            context_note: `Hours of service records for ${canonDate} (${inspState})`,
+            required: true,
+          },
+          {
+            doc_type: "driver_log",
+            label: "Driver recap/70-hour records",
+            fmcsa_category: "Driver Logs",
+            context_note: `70-hour period including ${canonDate}`,
+            required: false,
+          },
+        ];
+      }
+
+      if (cat === "driver_fitness") {
+        return [
+          {
+            doc_type: "driver_log",
+            label: "Driver qualification file",
+            fmcsa_category: "Driver Qualification File",
+            context_note: `Driver file current as of ${canonDate}`,
+            required: true,
+          },
+          {
+            doc_type: "driver_log",
+            label: "Medical examiner certificate",
+            fmcsa_category: "Medical Certificate",
+            context_note: `Valid certificate at time of ${canonDate} (${inspState})`,
+            required: false,
+          },
+        ];
+      }
+
+      if (cat === "unsafe_driving") {
+        return [
+          {
+            doc_type: "eld_record",
+            label: "ELD location and speed data",
+            fmcsa_category: "Electronic Logging Device (ELD) Records",
+            context_note: `GPS/speed records for ${canonDate} (${inspState})`,
+            required: true,
+          },
+        ];
+      }
+
+      if (cat === "controlled_substance") {
+        return [
+          {
+            doc_type: "driver_log",
+            label: "Drug and alcohol test records",
+            fmcsa_category: "Drug and Alcohol Testing Records",
+            context_note: `Testing records relevant to ${canonDate}`,
+            required: true,
+          },
+        ];
+      }
+
+      if (cat === "hazmat_compliance") {
+        return [
+          {
+            doc_type: "bol",
+            label: "Hazmat shipping papers and placards",
+            fmcsa_category: "Bill of Lading/Shipping Papers",
+            context_note: `Hazmat shipment documentation for ${canonDate} (${inspState})`,
+            required: true,
+          },
+        ];
+      }
+
+      // Default — null or unrecognized category
+      return [
+        {
+          doc_type: "other",
+          label: "Inspection report and supporting documentation",
+          fmcsa_category: "Other",
+          context_note: `Supporting documentation for ${canonDate} inspection in ${inspState}`,
+          required: true,
+        },
+      ];
+    }
+
+    const { data: casesNeedingEvidence } = await supabase
+      .from("dataq_cases")
+      .select("id")
+      .eq("client_id", clientId);
+
+    for (const dc of casesNeedingEvidence ?? []) {
+      const { count } = await supabase
+        .from("dataq_evidence")
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", dc.id);
+
+      if ((count ?? 0) === 0) {
+        const { data: caseData } = await supabase
+          .from("dataq_cases")
+          .select(
+            "*, violations(basic_category, violation_code), inspections(inspection_date, state)"
+          )
+          .eq("id", dc.id)
+          .single();
+
+        if (caseData) {
+          const viol = Array.isArray(caseData.violations)
+            ? caseData.violations[0]
+            : caseData.violations;
+          const insp = Array.isArray(caseData.inspections)
+            ? caseData.inspections[0]
+            : caseData.inspections;
+          const canonDate =
+            (caseData.canonical_inspection_date as string | null) ??
+            (insp as { inspection_date: string } | null)?.inspection_date ??
+            "the inspection date";
+          const inspState =
+            (insp as { state: string } | null)?.state ?? "unknown";
+          const basicCat =
+            (viol as { basic_category: string | null } | null)
+              ?.basic_category ?? null;
+
+          const evidenceItems = buildEvidenceItems(basicCat, canonDate, inspState);
+
+          if (evidenceItems.length > 0) {
+            const { error: evidErr } = await supabase
+              .from("dataq_evidence")
+              .insert(evidenceItems.map((item) => ({ ...item, case_id: dc.id })));
+
+            if (evidErr) {
+              console.error(
+                `Evidence generation failed for case ${dc.id}:`,
+                evidErr.message
+              );
+            } else {
+              console.log(
+                `Generated ${evidenceItems.length} evidence item(s) for DataQ case ${dc.id}`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // ── 7. Activate client if still in onboarding or prospect status ─────────
     await supabase
       .from("clients")
       .update({ status: "active" })
       .eq("id", clientId)
       .in("status", ["onboarding", "prospect"]);
 
-    // ── 7. Log activity ──────────────────────────────────────────────────────
+    // ── 8. Log activity ──────────────────────────────────────────────────────
     await supabase.from("activity_log").insert({
       client_id: clientId,
       action_type: "data_imported",

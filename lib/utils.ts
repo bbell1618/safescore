@@ -11,7 +11,12 @@ export function formatDot(dot: string): string {
 
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
+  // Date-only strings (YYYY-MM-DD) must not be parsed as UTC midnight
+  // to avoid timezone shift. Append T12:00:00 to anchor to noon.
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? date + "T12:00:00"
+    : date;
+  return new Date(normalized).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",

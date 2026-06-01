@@ -175,6 +175,10 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
   const [evidenceLinkCopied, setEvidenceLinkCopied] = useState<string | null>(null);
   const [evidenceRequestError, setEvidenceRequestError] = useState<Record<string, string>>({});
 
+  // Evidence generation state
+  const [generatingEvidence, setGeneratingEvidence] = useState<string | null>(null);
+  const [generationMsg, setGenerationMsg] = useState<Record<string, string>>({});
+
   // Evidence upload (staff) state
   const [uploadingEvidId, setUploadingEvidId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
@@ -315,7 +319,45 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
     }
   }
 
+  async function generateEvidence(caseId: string) {
+    setGeneratingEvidence(caseId);
+    try {
+      const res = await fetch(`/api/cases/dataq/${caseId}/evidence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGenerationMsg((prev) => ({ ...prev, [caseId]: data.error ?? "Generation failed" }));
+        return;
+      }
+      if (data.alreadyExisted) {
+        setGenerationMsg((prev) => ({
+          ...prev,
+          [caseId]: "Evidence list already generated — reload to see latest",
+        }));
+      } else {
+        setGenerationMsg((prev) => ({
+          ...prev,
+          [caseId]: `Generated ${data.generated ?? 0} evidence items`,
+        }));
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch {
+      setGenerationMsg((prev) => ({ ...prev, [caseId]: "Network error" }));
+    } finally {
+      setGeneratingEvidence(null);
+    }
+  }
+
   async function sendEvidenceRequest(caseId: string) {
+    const caseEvidence = evidenceMap[caseId] ?? [];
+    if (caseEvidence.length === 0) {
+      // Auto-generate evidence list first, then let the user send after reload
+      await generateEvidence(caseId);
+      return;
+    }
     setSendingEvidenceRequest(caseId);
     setEvidenceRequestError((prev) => { const n = { ...prev }; delete n[caseId]; return n; });
     try {
@@ -867,6 +909,9 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                       onCopyEvidenceLink={(link) => copyEvidenceLink(c.id, link)}
                       onDownload={(evidId) => downloadEvidence(c.id, evidId)}
                       onUploadFile={(evidId, file) => uploadEvidenceStaff(c.id, evidId, file)}
+                      generatingEvidence={generatingEvidence === c.id}
+                      generationMsg={generationMsg[c.id]}
+                      onGenerateEvidence={() => generateEvidence(c.id)}
                     />
 
                     {/* Narrative editor */}
@@ -1382,6 +1427,10 @@ interface EvidenceSectionProps {
   onCopyEvidenceLink: (link: string) => void;
   onDownload: (evidId: string) => void;
   onUploadFile: (evidId: string, file: File) => void;
+  // Evidence generation (draft mode)
+  generatingEvidence?: boolean;
+  generationMsg?: string;
+  onGenerateEvidence?: () => void;
 }
 
 function EvidenceSection({
@@ -1400,15 +1449,38 @@ function EvidenceSection({
   onCopyEvidenceLink,
   onDownload,
   onUploadFile,
+  generatingEvidence,
+  generationMsg,
+  onGenerateEvidence,
 }: EvidenceSectionProps) {
   if (evidence.length === 0 && mode === "readonly") return null;
 
   const sectionTitle =
     mode === "draft" ? "Evidence required" : "Evidence submitted";
+  const hasEvidence = evidence.length > 0;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-[#1E1C1A]">{sectionTitle}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#1E1C1A]">{sectionTitle}</p>
+        {mode === "draft" && onGenerateEvidence && (
+          <button
+            onClick={onGenerateEvidence}
+            disabled={generatingEvidence}
+            className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+          >
+            {generatingEvidence
+              ? "Generating..."
+              : hasEvidence
+              ? "Refresh evidence list"
+              : "Generate evidence list"}
+          </button>
+        )}
+      </div>
+
+      {generationMsg && mode === "draft" && (
+        <p className="text-xs text-gray-500">{generationMsg}</p>
+      )}
 
       {evidence.length === 0 && mode === "draft" && (
         <p className="text-xs text-gray-400 italic">
