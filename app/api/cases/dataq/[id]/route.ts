@@ -17,6 +17,46 @@ export async function PATCH(
   const body = await request.json();
   const supabase = getAdmin();
 
+  // A6 server-side filing gate
+  if (body.status === "filed") {
+    // Check whether any required evidence has been received
+    const { count: receivedCount } = await supabase
+      .from("dataq_evidence")
+      .select("id", { count: "exact", head: true })
+      .eq("case_id", id)
+      .eq("required", true)
+      .eq("status", "received");
+
+    // Check whether evidence is present at all (skip gate if no evidence rows defined)
+    const { count: totalCount } = await supabase
+      .from("dataq_evidence")
+      .select("id", { count: "exact", head: true })
+      .eq("case_id", id);
+
+    if ((totalCount ?? 0) > 0 && (receivedCount ?? 0) === 0) {
+      // Check override flag on the case
+      const { data: caseRow } = await supabase
+        .from("dataq_cases")
+        .select("filed_without_evidence")
+        .eq("id", id)
+        .single();
+
+      const overrideEnabled =
+        caseRow?.filed_without_evidence === true ||
+        body.filed_without_evidence === true;
+
+      if (!overrideEnabled) {
+        return NextResponse.json(
+          {
+            error:
+              "Evidence required before filing. Upload at least one required document or enable the override.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("dataq_cases")
     .update({ ...body, updated_at: new Date().toISOString() })
@@ -62,10 +102,15 @@ export async function POST(
   const { data: c } = await supabase
     .from("dataq_cases")
     .select(
-      "*, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
+      "*, canonical_inspection_date, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
     )
     .eq("id", id)
     .single();
+
+  const { data: evidenceRows } = await supabase
+    .from("dataq_evidence")
+    .select("label, fmcsa_category, status")
+    .eq("case_id", id);
 
   if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -107,10 +152,17 @@ export async function POST(
     );
   }
 
+  const evidenceItems = (evidenceRows ?? []) as Array<{
+    label: string;
+    fmcsa_category: string;
+    status: 'requested' | 'received';
+  }>;
+  const isProvisional = !evidenceItems.some(e => e.status === 'received');
+
   const narrative = await draftDataqNarrative({
     violationCode: violation.violation_code,
     violationDescription: violation.violation_description,
-    inspectionDate: inspection.inspection_date,
+    inspectionDate: (c.canonical_inspection_date as string | null) ?? inspection.inspection_date,
     state: inspection.state,
     inspectionLevel: inspection.level,
     facilityName: inspection.facility_name,
@@ -119,6 +171,8 @@ export async function POST(
     suggestedApproach: `Challenge based on ${violation.challenge_priority ?? "medium"} priority assessment`,
     carrierName: client.name,
     dotNumber: client.dot_number,
+    evidenceItems,
+    isProvisional,
   });
 
   // Save AI narrative to the case record

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   caseStatusLabel,
@@ -17,7 +17,13 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Download,
+  Upload,
+  Copy,
+  Send,
 } from "lucide-react";
+import { mapReasonCode } from "@/lib/analysis/reason-codes";
+import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 
 interface ViolationDetail {
   violation_code: string;
@@ -50,13 +56,30 @@ interface CaseRow {
   filing_notes: string | null;
   case_number: string | null;
   outcome: string | null;
+  canonical_inspection_date: string | null;
+  dataqs_reason_code: string | null;
+  filed_without_evidence: boolean;
+  override_reason: string | null;
   violations: ViolationDetail | null;
   inspections: InspectionDetail | null;
+}
+
+export interface EvidenceItem {
+  id: string;
+  doc_type: string;
+  label: string;
+  context_note: string | null;
+  fmcsa_category: string | null;
+  required: boolean;
+  status: string;
+  storage_path: string | null;
+  uploaded_by: string | null;
 }
 
 interface Props {
   clientId: string;
   cases: CaseRow[];
+  evidenceMap: Record<string, EvidenceItem[]>;
 }
 
 interface RelinkViolation {
@@ -117,7 +140,22 @@ function StatusPill({ label, done }: { label: string; done: boolean }) {
   );
 }
 
-export function DataqWorkbench({ clientId, cases }: Props) {
+function EvidenceStatusPill({ status }: { status: string }) {
+  const received = status === "received";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+        received
+          ? "bg-green-100 text-green-700"
+          : "bg-gray-100 text-gray-500"
+      }`}
+    >
+      {received ? "Received" : "Requested"}
+    </span>
+  );
+}
+
+export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState<string | null>(null);
@@ -131,11 +169,34 @@ export function DataqWorkbench({ clientId, cases }: Props) {
   const [copied, setCopied] = useState<string | null>(null);
   const [filingNotes, setFilingNotes] = useState<Record<string, string>>({});
 
+  // Evidence request state
+  const [sendingEvidenceRequest, setSendingEvidenceRequest] = useState<string | null>(null);
+  const [evidenceRequestLinks, setEvidenceRequestLinks] = useState<Record<string, string>>({});
+  const [evidenceLinkCopied, setEvidenceLinkCopied] = useState<string | null>(null);
+  const [evidenceRequestError, setEvidenceRequestError] = useState<Record<string, string>>({});
+
+  // Evidence upload (staff) state
+  const [uploadingEvidId, setUploadingEvidId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<Record<string, string>>({});
+  const [downloadingEvidId, setDownloadingEvidId] = useState<string | null>(null);
+
+  // Filing gate override state
+  const [overrideChecked, setOverrideChecked] = useState<Record<string, boolean>>({});
+  const [overrideReason, setOverrideReason] = useState<Record<string, string>>({});
+  const [savingOverride, setSavingOverride] = useState<string | null>(null);
+  const [overrideSaved, setOverrideSaved] = useState<Record<string, boolean>>({});
+
+  // Filing error state
+  const [filingError, setFilingError] = useState<Record<string, string>>({});
+
   // Re-link state
   const [relinking, setRelinking] = useState<string | null>(null);
   const [relinkViolations, setRelinkViolations] = useState<RelinkViolation[]>([]);
   const [relinkLoading, setRelinkLoading] = useState(false);
   const [selectedRelink, setSelectedRelink] = useState<Record<string, string>>({});
+
+  // Upload file input refs per evidence item
+  const uploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   async function generateNarrative(caseId: string) {
     setGenerating(caseId);
@@ -201,7 +262,8 @@ export function DataqWorkbench({ clientId, cases }: Props) {
   }
 
   async function markAsFiled(caseId: string, caseNumber: string) {
-    await fetch(`/api/cases/dataq/${caseId}`, {
+    setFilingError((prev) => { const n = { ...prev }; delete n[caseId]; return n; });
+    const res = await fetch(`/api/cases/dataq/${caseId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -210,6 +272,14 @@ export function DataqWorkbench({ clientId, cases }: Props) {
         case_number: caseNumber,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setFilingError((prev) => ({
+        ...prev,
+        [caseId]: data.error ?? "Failed to mark as filed",
+      }));
+      return;
+    }
     window.location.reload();
   }
 
@@ -242,6 +312,98 @@ export function DataqWorkbench({ clientId, cases }: Props) {
       }, 2000);
     } catch {
       // clipboard unavailable — ignore
+    }
+  }
+
+  async function sendEvidenceRequest(caseId: string) {
+    setSendingEvidenceRequest(caseId);
+    setEvidenceRequestError((prev) => { const n = { ...prev }; delete n[caseId]; return n; });
+    try {
+      const res = await fetch(`/api/cases/dataq/${caseId}/evidence-request`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setEvidenceRequestError((prev) => ({
+          ...prev,
+          [caseId]: data.error ?? "Failed to send evidence request",
+        }));
+        return;
+      }
+      if (data.uploadUrl) {
+        setEvidenceRequestLinks((prev) => ({ ...prev, [caseId]: data.uploadUrl }));
+      }
+    } catch {
+      setEvidenceRequestError((prev) => ({
+        ...prev,
+        [caseId]: "Network error — could not send evidence request",
+      }));
+    } finally {
+      setSendingEvidenceRequest(null);
+    }
+  }
+
+  async function copyEvidenceLink(caseId: string, link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setEvidenceLinkCopied(caseId);
+      setTimeout(() => {
+        setEvidenceLinkCopied((current) => (current === caseId ? null : current));
+      }, 2000);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function downloadEvidence(caseId: string, evidId: string) {
+    setDownloadingEvidId(evidId);
+    try {
+      const res = await fetch(`/api/cases/dataq/${caseId}/evidence/${evidId}/download`);
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, "_blank");
+      }
+    } finally {
+      setDownloadingEvidId(null);
+    }
+  }
+
+  async function uploadEvidenceStaff(caseId: string, evidId: string, file: File) {
+    setUploadingEvidId(evidId);
+    setUploadError((prev) => { const n = { ...prev }; delete n[evidId]; return n; });
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/cases/dataq/${caseId}/evidence/${evidId}/upload`, {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setUploadError((prev) => ({ ...prev, [evidId]: data.error ?? "Upload failed" }));
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setUploadError((prev) => ({ ...prev, [evidId]: "Network error during upload" }));
+    } finally {
+      setUploadingEvidId(null);
+    }
+  }
+
+  async function saveOverride(caseId: string) {
+    const reason = overrideReason[caseId] ?? "";
+    if (!reason.trim()) return;
+    setSavingOverride(caseId);
+    try {
+      await fetch(`/api/cases/dataq/${caseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filed_without_evidence: true, override_reason: reason }),
+      });
+      setOverrideSaved((prev) => ({ ...prev, [caseId]: true }));
+    } finally {
+      setSavingOverride(null);
     }
   }
 
@@ -317,7 +479,32 @@ export function DataqWorkbench({ clientId, cases }: Props) {
 
         const errMsg = generationError[c.id];
 
-        // Progress pills (Bug 1)
+        // Evidence gate logic
+        const caseEvidence = evidenceMap[c.id] ?? [];
+        const receivedRequired = caseEvidence.filter(
+          (e) => e.required && e.status === "received"
+        );
+        const hasRequiredEvidence = receivedRequired.length > 0;
+        const hasAnyEvidence = caseEvidence.length > 0;
+        // Gate blocks if no required evidence received AND not already overridden
+        const evidenceGateBlocking =
+          hasAnyEvidence &&
+          !hasRequiredEvidence &&
+          !c.filed_without_evidence &&
+          !overrideSaved[c.id];
+
+        // Override is considered enabled when checkbox is checked AND reason provided AND saved
+        const overrideActive = c.filed_without_evidence || overrideSaved[c.id];
+        const overrideEnabled =
+          overrideChecked[c.id] &&
+          (overrideReason[c.id] ?? "").trim().length > 0;
+
+        // Mark as filed is disabled when: no case number OR (evidence gate blocking AND no active override)
+        const filedDisabled =
+          !currentCaseNumber.trim() ||
+          (evidenceGateBlocking && !overrideActive);
+
+        // Progress pills
         const pills = [
           { label: "Narrative generated", done: c.ai_narrative != null },
           {
@@ -336,6 +523,30 @@ export function DataqWorkbench({ clientId, cases }: Props) {
         const isDraft = c.status === "draft";
         const isFiled = FILED_STATES.includes(c.status);
         const isResolved = RESOLVED_STATES.includes(c.status);
+
+        // Reason code mapping (G)
+        const reasonCodeResult = c.violations
+          ? mapReasonCode({
+              challengeReason: c.violations.challenge_reason,
+              violationCode: c.violations.violation_code,
+              basicCategory: c.violations.basic_category,
+            })
+          : null;
+
+        // Challengeability factors (H)
+        const challengeScore =
+          c.violations && isDraft
+            ? scoreChallenge({
+                violationCode: c.violations.violation_code,
+                basicCategory: c.violations.basic_category,
+                severityWeight: c.violations.severity_weight,
+                timeWeight: 2,
+                challengeReason: c.violations.challenge_reason,
+                oosViolation: c.violations.oos_violation ?? false,
+              })
+            : null;
+
+        const evidenceRequestLink = evidenceRequestLinks[c.id];
 
         return (
           <div
@@ -521,7 +732,55 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                               </span>
                             )}
                           </div>
-                          {c.violations?.challenge_reason && (
+
+                          {/* H — Challengeability factors */}
+                          {challengeScore && (
+                            <div className="pt-1 border-t border-[#F0E8DA] space-y-1">
+                              <p className="text-[10px] font-semibold text-gray-400 mb-0.5">
+                                Challenge assessment
+                              </p>
+                              <div className="space-y-1">
+                                <div className="flex items-start gap-1.5">
+                                  <span className="text-[10px] text-gray-500 min-w-[140px]">
+                                    Evidence obtainability:
+                                  </span>
+                                  <span className="text-[10px] font-medium text-[#1E1C1A]">
+                                    {challengeScore.factors.evidenceObtainability}/100
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 leading-relaxed">
+                                  {challengeScore.factors.evidenceObtainabilityNote}
+                                </p>
+                                <div className="flex items-start gap-1.5 mt-1">
+                                  <span className="text-[10px] text-gray-500 min-w-[140px]">
+                                    Score impact:
+                                  </span>
+                                  <span className="text-[10px] font-medium text-[#1E1C1A]">
+                                    {challengeScore.factors.scoreImpact}/100
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 leading-relaxed">
+                                  {challengeScore.factors.scoreImpactNote}
+                                </p>
+                              </div>
+                              <div className="mt-1 pt-1 border-t border-[#F0E8DA]">
+                                <span
+                                  className={`text-[10px] font-semibold ${
+                                    challengeScore.label === "strong"
+                                      ? "text-green-700"
+                                      : challengeScore.label === "moderate"
+                                      ? "text-[#C67A1E]"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  Overall: {challengeScore.overall}/100 — {challengeScore.label}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Fallback: AI challenge reason if no score */}
+                          {!challengeScore && c.violations?.challenge_reason && (
                             <div className="pt-1 border-t border-[#F0E8DA]">
                               <p className="text-[10px] font-semibold text-gray-400 mb-0.5">
                                 AI assessment
@@ -578,30 +837,37 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       </div>
                     )}
 
-                    {/* Evidence guidance (Bug 4) */}
-                    <div className="bg-[#FBF7F0] border border-[#F0E8DA] rounded-lg px-4 py-3">
-                      <p className="text-xs font-semibold text-[#1E1C1A] mb-2">
-                        Evidence needed
-                      </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs text-gray-600">
-                        <li>
-                          ELD/driver logs from{" "}
-                          {c.inspections?.inspection_date
-                            ? formatDate(c.inspections.inspection_date)
-                            : "the inspection date"}{" "}
-                          (the inspection date)
-                        </li>
-                        <li>Driver certification records for the 24-hour period</li>
-                        <li>
-                          Any correspondence or documentation related to this
-                          inspection
-                        </li>
-                        <li>
-                          Request these from the client via the Documents tab, then
-                          attach when filing on the DataQs portal
-                        </li>
-                      </ul>
-                    </div>
+                    {/* G — FMCSA reason code display */}
+                    {reasonCodeResult && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">FMCSA reason category:</span>
+                        <span className="text-xs font-medium text-[#1E1C1A]">
+                          {reasonCodeResult.label}
+                        </span>
+                        <span className="text-[10px] bg-[#FBF7F0] border border-[#F0E8DA] rounded px-1.5 py-0.5 text-gray-500 font-mono">
+                          {reasonCodeResult.code}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* C — Evidence section (DRAFT) */}
+                    <EvidenceSection
+                      caseId={c.id}
+                      evidence={caseEvidence}
+                      mode="draft"
+                      sendingEvidenceRequest={sendingEvidenceRequest === c.id}
+                      evidenceRequestLink={evidenceRequestLink}
+                      evidenceLinkCopied={evidenceLinkCopied === c.id}
+                      evidenceRequestError={evidenceRequestError[c.id]}
+                      uploadingEvidId={uploadingEvidId}
+                      uploadError={uploadError}
+                      downloadingEvidId={downloadingEvidId}
+                      uploadRefs={uploadRefs}
+                      onSendEvidenceRequest={() => sendEvidenceRequest(c.id)}
+                      onCopyEvidenceLink={(link) => copyEvidenceLink(c.id, link)}
+                      onDownload={(evidId) => downloadEvidence(c.id, evidId)}
+                      onUploadFile={(evidId, file) => uploadEvidenceStaff(c.id, evidId, file)}
+                    />
 
                     {/* Narrative editor */}
                     <div>
@@ -694,14 +960,14 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       </div>
                     </div>
 
-                    {/* Progress pills (Bug 1) */}
+                    {/* Progress pills */}
                     <div className="flex flex-wrap gap-2">
                       {pills.map((p) => (
                         <StatusPill key={p.label} label={p.label} done={p.done} />
                       ))}
                     </div>
 
-                    {/* Case number (Bug 2) */}
+                    {/* Case number */}
                     <div>
                       <label className="text-xs font-semibold text-[#1E1C1A] block mb-1.5">
                         DataQs case number
@@ -740,15 +1006,90 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                       </div>
                     </div>
 
-                    {/* Mark as filed */}
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        onClick={() => markAsFiled(c.id, currentCaseNumber)}
-                        disabled={!currentCaseNumber.trim()}
-                        className="px-4 py-2 bg-[#C67A1E] text-white rounded-lg text-xs font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-40"
-                      >
-                        Mark as filed
-                      </button>
+                    {/* F — Mark as filed + evidence gate */}
+                    <div className="space-y-3">
+                      <div className="flex gap-2 flex-wrap items-center">
+                        <button
+                          onClick={() => markAsFiled(c.id, currentCaseNumber)}
+                          disabled={filedDisabled}
+                          title={
+                            evidenceGateBlocking && !overrideActive
+                              ? "At least one required evidence document must be received before filing, or use the override below."
+                              : !currentCaseNumber.trim()
+                              ? "Enter a case number before filing"
+                              : undefined
+                          }
+                          className="px-4 py-2 bg-[#C67A1E] text-white rounded-lg text-xs font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Mark as filed
+                        </button>
+                        {evidenceGateBlocking && !overrideActive && (
+                          <p className="text-xs text-[#B83B32]">
+                            At least one required evidence document must be received before filing, or use the override below.
+                          </p>
+                        )}
+                      </div>
+
+                      {filingError[c.id] && (
+                        <div className="px-3 py-2 bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg">
+                          <p className="text-xs text-[#B83B32]">{filingError[c.id]}</p>
+                        </div>
+                      )}
+
+                      {/* Override section — only show when gate is blocking */}
+                      {evidenceGateBlocking && !overrideActive && (
+                        <div className="bg-white border border-[#F0E8DA] rounded-lg p-3 space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={overrideChecked[c.id] ?? false}
+                              onChange={(e) =>
+                                setOverrideChecked((prev) => ({
+                                  ...prev,
+                                  [c.id]: e.target.checked,
+                                }))
+                              }
+                              className="rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
+                            />
+                            <span className="text-xs text-gray-700">
+                              File without evidence (override)
+                            </span>
+                          </label>
+
+                          {overrideChecked[c.id] && (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={overrideReason[c.id] ?? ""}
+                                onChange={(e) =>
+                                  setOverrideReason((prev) => ({
+                                    ...prev,
+                                    [c.id]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Reason for filing without evidence (required)"
+                                className="w-full px-3 py-1.5 border border-[#F0E8DA] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
+                              />
+                              <button
+                                onClick={() => saveOverride(c.id)}
+                                disabled={
+                                  !overrideEnabled ||
+                                  savingOverride === c.id
+                                }
+                                className="px-3 py-1.5 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-40"
+                              >
+                                {savingOverride === c.id ? "Saving..." : "Save override"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {overrideActive && c.override_reason && (
+                        <p className="text-xs text-gray-500">
+                          Override active — filed without evidence: {c.override_reason}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -808,6 +1149,27 @@ export function DataqWorkbench({ clientId, cases }: Props) {
                         });
                       })()}
                     </div>
+
+                    {/* D — Evidence section (FILED, read-only) */}
+                    {caseEvidence.length > 0 && (
+                      <EvidenceSection
+                        caseId={c.id}
+                        evidence={caseEvidence}
+                        mode="readonly"
+                        sendingEvidenceRequest={false}
+                        evidenceRequestLink={undefined}
+                        evidenceLinkCopied={false}
+                        evidenceRequestError={undefined}
+                        uploadingEvidId={uploadingEvidId}
+                        uploadError={uploadError}
+                        downloadingEvidId={downloadingEvidId}
+                        uploadRefs={uploadRefs}
+                        onSendEvidenceRequest={() => {}}
+                        onCopyEvidenceLink={() => {}}
+                        onDownload={(evidId) => downloadEvidence(c.id, evidId)}
+                        onUploadFile={() => {}}
+                      />
+                    )}
 
                     {/* Read-only narrative */}
                     <div>
@@ -996,6 +1358,192 @@ export function DataqWorkbench({ clientId, cases }: Props) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EvidenceSection sub-component
+// ---------------------------------------------------------------------------
+
+interface EvidenceSectionProps {
+  caseId: string;
+  evidence: EvidenceItem[];
+  mode: "draft" | "readonly";
+  sendingEvidenceRequest: boolean;
+  evidenceRequestLink: string | undefined;
+  evidenceLinkCopied: boolean;
+  evidenceRequestError: string | undefined;
+  uploadingEvidId: string | null;
+  uploadError: Record<string, string>;
+  downloadingEvidId: string | null;
+  uploadRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  onSendEvidenceRequest: () => void;
+  onCopyEvidenceLink: (link: string) => void;
+  onDownload: (evidId: string) => void;
+  onUploadFile: (evidId: string, file: File) => void;
+}
+
+function EvidenceSection({
+  caseId: _caseId,
+  evidence,
+  mode,
+  sendingEvidenceRequest,
+  evidenceRequestLink,
+  evidenceLinkCopied,
+  evidenceRequestError,
+  uploadingEvidId,
+  uploadError,
+  downloadingEvidId,
+  uploadRefs,
+  onSendEvidenceRequest,
+  onCopyEvidenceLink,
+  onDownload,
+  onUploadFile,
+}: EvidenceSectionProps) {
+  if (evidence.length === 0 && mode === "readonly") return null;
+
+  const sectionTitle =
+    mode === "draft" ? "Evidence required" : "Evidence submitted";
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-[#1E1C1A]">{sectionTitle}</p>
+
+      {evidence.length === 0 && mode === "draft" && (
+        <p className="text-xs text-gray-400 italic">
+          No evidence items defined for this case yet.
+        </p>
+      )}
+
+      {evidence.map((ev) => (
+        <div
+          key={ev.id}
+          className="bg-white border border-[#F0E8DA] rounded-lg p-3 space-y-1.5"
+        >
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[#1E1C1A]">{ev.label}</p>
+              {ev.context_note && (
+                <p className="text-[11px] text-gray-500 mt-0.5">{ev.context_note}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {ev.fmcsa_category && (
+                <span className="text-[10px] bg-[#FBF7F0] border border-[#F0E8DA] rounded px-1.5 py-0.5 text-gray-500 font-mono">
+                  {ev.fmcsa_category}
+                </span>
+              )}
+              {ev.required && (
+                <span className="text-[10px] bg-[#FDF4E7] border border-[#C67A1E]/20 rounded px-1.5 py-0.5 text-[#C67A1E] font-medium">
+                  Required
+                </span>
+              )}
+              <EvidenceStatusPill status={ev.status} />
+            </div>
+          </div>
+
+          {/* Staff actions */}
+          {mode === "draft" && (
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              {ev.status === "received" && ev.storage_path && (
+                <button
+                  onClick={() => onDownload(ev.id)}
+                  disabled={downloadingEvidId === ev.id}
+                  className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+                >
+                  <Download className="w-3 h-3" />
+                  {downloadingEvidId === ev.id ? "Loading..." : "Download"}
+                </button>
+              )}
+
+              {/* Upload on behalf */}
+              <button
+                onClick={() => uploadRefs.current[ev.id]?.click()}
+                disabled={uploadingEvidId === ev.id}
+                className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+              >
+                <Upload className="w-3 h-3" />
+                {uploadingEvidId === ev.id ? "Uploading..." : "Upload on behalf"}
+              </button>
+              <input
+                ref={(el) => { uploadRefs.current[ev.id] = el; }}
+                type="file"
+                accept=".pdf,.doc,.docx,.tif,.tiff,.txt,.xls,.xlsx,.jpg,.jpeg,.gif,.png"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onUploadFile(ev.id, file);
+                  e.target.value = "";
+                }}
+              />
+              {uploadError[ev.id] && (
+                <span className="text-[10px] text-[#B83B32]">{uploadError[ev.id]}</span>
+              )}
+            </div>
+          )}
+
+          {/* Download for readonly (filed phase) */}
+          {mode === "readonly" && ev.status === "received" && ev.storage_path && (
+            <div className="pt-1">
+              <button
+                onClick={() => onDownload(ev.id)}
+                disabled={downloadingEvidId === ev.id}
+                className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+              >
+                <Download className="w-3 h-3" />
+                {downloadingEvidId === ev.id ? "Loading..." : "Download"}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Send evidence request to client (draft mode only) */}
+      {mode === "draft" && (
+        <div className="space-y-2">
+          {evidenceRequestError && (
+            <p className="text-xs text-[#B83B32]">{evidenceRequestError}</p>
+          )}
+
+          {evidenceRequestLink ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-green-700 font-medium">
+                Link sent to client
+              </span>
+              <code className="text-[10px] bg-gray-100 rounded px-2 py-1 text-gray-600 max-w-xs truncate">
+                {evidenceRequestLink}
+              </code>
+              <button
+                onClick={() => onCopyEvidenceLink(evidenceRequestLink)}
+                className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
+              >
+                <Copy className="w-3 h-3" />
+                {evidenceLinkCopied ? "Copied" : "Copy link"}
+              </button>
+              <button
+                onClick={onSendEvidenceRequest}
+                disabled={sendingEvidenceRequest}
+                className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+              >
+                <Send className="w-3 h-3" />
+                Resend
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onSendEvidenceRequest}
+              disabled={sendingEvidenceRequest}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
+            >
+              <Send className="w-3 h-3" />
+              {sendingEvidenceRequest
+                ? "Sending..."
+                : "Send evidence request to client"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

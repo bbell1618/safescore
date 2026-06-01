@@ -154,27 +154,39 @@ export async function draftDataqNarrative(params: {
   carrierName: string;
   dotNumber: string;
   additionalContext?: string;
+  evidenceItems?: Array<{ label: string; fmcsa_category: string; status: 'requested' | 'received' }>;
+  isProvisional?: boolean;
 }): Promise<string> {
   const client = getClient();
+
+  const receivedItems = (params.evidenceItems ?? []).filter(e => e.status === 'received');
+  const hasEvidence = receivedItems.length > 0;
+
+  const evidenceBlock = hasEvidence
+    ? `Attached evidence: ${receivedItems.map(e => `${e.label} (${e.fmcsa_category})`).join(', ')}`
+    : params.isProvisional
+      ? `Note: This is a PROVISIONAL narrative — evidence has not yet been received. Write in a way that references the forthcoming evidence as 'per the attached [doc type]' to be updated.`
+      : '';
 
   const prompt = `You are drafting a DataQs Request for Data Review (RDR) submission for a trucking carrier. Write a professional, factual challenge narrative.
 
 Carrier: ${params.carrierName} (DOT ${params.dotNumber})
 Violation: ${params.violationCode} — ${params.violationDescription}
-Inspection date (use EXACTLY this date — do not change or approximate it): ${params.inspectionDate}
+Inspection date (use EXACTLY this date, do not modify): ${params.inspectionDate}
 Inspection location: ${params.facilityName}, ${params.state} — Level ${params.inspectionLevel}
 Challenge basis: ${params.challengeReason}
 Suggested approach: ${params.suggestedApproach}
-${params.additionalContext ? `Additional context: ${params.additionalContext}` : ""}
+${evidenceBlock ? `${evidenceBlock}\n` : ''}${params.additionalContext ? `Additional context: ${params.additionalContext}` : ""}
 
 Write a 2-4 paragraph RDR narrative that:
 1. Clearly identifies the specific violation being challenged
-2. States the factual basis for the challenge
-3. References any regulatory citations if applicable
-4. Requests the specific correction or removal
-5. Maintains a professional, factual tone throughout
+2. States the factual basis for the challenge, citing the controlling CFR section
+3. References specific evidence by document type (e.g., "per the attached driver qualification file")
+4. States a falsifiable factual claim — not hedged language
+5. Requests the specific correction or removal
+6. Maintains a professional, factual tone throughout
 
-Do not include legal opinions or guarantees. Stick to facts and regulatory references.`;
+Do not write phrases like 'may have', 'possibly', 'if the officer', or any other speculative language. State only facts and regulatory references. Do not include legal opinions or guarantees.`;
 
   const response = await client.chat.completions.create({
     model: MODEL,

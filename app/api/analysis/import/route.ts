@@ -146,6 +146,33 @@ export async function POST(request: Request) {
         continue;
       }
 
+      // Backfill canonical_inspection_date on any dataq_cases linked to
+      // violations in this inspection that have not yet been assigned a
+      // canonical date. Uses the authoritative date from the FMCSA inspection
+      // record rather than whatever value may have been inferred elsewhere.
+      {
+        const { data: linkedViolIds } = await supabase
+          .from("violations")
+          .select("id")
+          .eq("inspection_id", inspRow.id);
+
+        if (linkedViolIds && linkedViolIds.length > 0) {
+          const violIds = linkedViolIds.map((v: { id: string }) => v.id);
+          const { error: canonErr } = await supabase
+            .from("dataq_cases")
+            .update({ canonical_inspection_date: insp.inspectionDate })
+            .in("violation_id", violIds)
+            .is("canonical_inspection_date", null);
+
+          if (canonErr) {
+            console.error(
+              "canonical_inspection_date backfill failed:",
+              canonErr.message
+            );
+          }
+        }
+      }
+
       for (const viol of insp.violations) {
         const mapKey = `${inspRow.id}:${viol.violationCode}`;
         const existing = existingViolMap.get(mapKey);

@@ -28,6 +28,10 @@ export default async function DataqPage({
     .from("dataq_cases")
     .select(
       `*,
+      canonical_inspection_date,
+      dataqs_reason_code,
+      filed_without_evidence,
+      override_reason,
       violations(
         violation_code,
         violation_description,
@@ -48,6 +52,45 @@ export default async function DataqPage({
     )
     .eq("client_id", id)
     .order("created_at", { ascending: false });
+
+  // Fetch evidence for all cases server-side
+  const caseIds = (cases ?? []).map((c) => c.id);
+  const { data: evidenceRows } = caseIds.length
+    ? await supabase
+        .from("dataq_evidence")
+        .select(
+          "id, case_id, doc_type, label, context_note, fmcsa_category, required, status, storage_path, uploaded_by"
+        )
+        .in("case_id", caseIds)
+    : { data: [] };
+
+  // Build evidenceMap: Record<caseId, EvidenceItem[]>
+  const evidenceMap: Record<string, Array<{
+    id: string;
+    doc_type: string;
+    label: string;
+    context_note: string | null;
+    fmcsa_category: string | null;
+    required: boolean;
+    status: string;
+    storage_path: string | null;
+    uploaded_by: string | null;
+  }>> = {};
+  for (const row of evidenceRows ?? []) {
+    const cid = row.case_id as string;
+    if (!evidenceMap[cid]) evidenceMap[cid] = [];
+    evidenceMap[cid].push({
+      id: row.id as string,
+      doc_type: row.doc_type as string,
+      label: row.label as string,
+      context_note: row.context_note as string | null,
+      fmcsa_category: row.fmcsa_category as string | null,
+      required: row.required as boolean,
+      status: row.status as string,
+      storage_path: row.storage_path as string | null,
+      uploaded_by: row.uploaded_by as string | null,
+    });
+  }
 
   const counts: Record<string, number> = {};
   for (const c of cases ?? []) {
@@ -107,7 +150,7 @@ export default async function DataqPage({
         ))}
       </div>
 
-      <DataqWorkbench clientId={id} cases={cases ?? []} />
+      <DataqWorkbench clientId={id} cases={cases ?? []} evidenceMap={evidenceMap} />
     </div>
   );
 }
