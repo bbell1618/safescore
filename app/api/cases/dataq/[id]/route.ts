@@ -2,6 +2,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { draftDataqNarrative } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 function getAdmin() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -99,87 +101,112 @@ export async function POST(
   const { id } = await params;
   const supabase = getAdmin();
 
-  const { data: c } = await supabase
-    .from("dataq_cases")
-    .select(
-      "*, canonical_inspection_date, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
-    )
-    .eq("id", id)
-    .single();
+  try {
+    const { data: c } = await supabase
+      .from("dataq_cases")
+      .select(
+        "*, canonical_inspection_date, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
+      )
+      .eq("id", id)
+      .single();
 
-  const { data: evidenceRows } = await supabase
-    .from("dataq_evidence")
-    .select("label, fmcsa_category, status")
-    .eq("case_id", id);
+    const { data: evidenceRows } = await supabase
+      .from("dataq_evidence")
+      .select("label, fmcsa_category, status")
+      .eq("case_id", id);
 
-  if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const violation = c.violations as {
-    violation_code: string;
-    violation_description: string;
-    challenge_reason: string | null;
-    challenge_priority: string | null;
-  } | null;
-  const client = c.clients as { name: string; dot_number: string } | null;
-  const inspection = c.inspections as {
-    inspection_date: string;
-    state: string;
-    level: string;
-    facility_name: string;
-  } | null;
+    const violation = c.violations as {
+      violation_code: string;
+      violation_description: string;
+      challenge_reason: string | null;
+      challenge_priority: string | null;
+    } | null;
+    const client = c.clients as { name: string; dot_number: string } | null;
+    const inspection = c.inspections as {
+      inspection_date: string;
+      state: string;
+      level: string;
+      facility_name: string;
+    } | null;
 
-  if (!client) {
-    return NextResponse.json({ error: "Client data missing" }, { status: 400 });
-  }
+    if (!client) {
+      return NextResponse.json({ error: "Client data missing" }, { status: 400 });
+    }
 
-  if (!violation) {
+    if (!violation) {
+      return NextResponse.json(
+        {
+          error:
+            "This case has no linked violation. Re-run analysis or use the re-link button in the workbench to restore the connection.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!inspection) {
+      return NextResponse.json(
+        {
+          error:
+            "This case has no linked inspection. Re-run analysis to restore the connection.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const evidenceItems = (evidenceRows ?? []).map((e) => {
+      const row = e as Record<string, unknown>;
+      return {
+        label: (row.label as string) ?? "",
+        fmcsa_category: (row.fmcsa_category as string | null) ?? "",
+        status: (row.status as string) as "requested" | "received",
+      };
+    });
+    const isProvisional = !evidenceItems.some((e) => e.status === "received");
+
+    console.log(
+      "[narrative POST] Generating for case:",
+      id,
+      "canonical date:",
+      c.canonical_inspection_date,
+      "evidence count:",
+      evidenceItems.length
+    );
+
+    const narrative = await draftDataqNarrative({
+      violationCode: violation.violation_code,
+      violationDescription: violation.violation_description,
+      inspectionDate: (c.canonical_inspection_date as string | null) ?? inspection.inspection_date,
+      state: inspection.state,
+      inspectionLevel: inspection.level,
+      facilityName: inspection.facility_name,
+      challengeReason:
+        violation.challenge_reason ?? "Violation was incorrectly recorded",
+      suggestedApproach: `Challenge based on ${violation.challenge_priority ?? "medium"} priority assessment`,
+      carrierName: client.name,
+      dotNumber: client.dot_number,
+      evidenceItems,
+      isProvisional,
+    });
+
+    console.log("[narrative POST] Narrative generated, length:", narrative.length);
+
+    // Save AI narrative to the case record
+    await supabase
+      .from("dataq_cases")
+      .update({ ai_narrative: narrative })
+      .eq("id", id);
+
+    return NextResponse.json({ narrative });
+  } catch (err) {
+    console.error(
+      "[narrative POST] Unhandled error:",
+      err instanceof Error ? err.message : err
+    );
     return NextResponse.json(
-      {
-        error:
-          "This case has no linked violation. Re-run analysis or use the re-link button in the workbench to restore the connection.",
-      },
-      { status: 400 }
+      { error: err instanceof Error ? err.message : "Narrative generation failed" },
+      { status: 500 }
     );
   }
-
-  if (!inspection) {
-    return NextResponse.json(
-      {
-        error:
-          "This case has no linked inspection. Re-run analysis to restore the connection.",
-      },
-      { status: 400 }
-    );
-  }
-
-  const evidenceItems = (evidenceRows ?? []) as Array<{
-    label: string;
-    fmcsa_category: string;
-    status: 'requested' | 'received';
-  }>;
-  const isProvisional = !evidenceItems.some(e => e.status === 'received');
-
-  const narrative = await draftDataqNarrative({
-    violationCode: violation.violation_code,
-    violationDescription: violation.violation_description,
-    inspectionDate: (c.canonical_inspection_date as string | null) ?? inspection.inspection_date,
-    state: inspection.state,
-    inspectionLevel: inspection.level,
-    facilityName: inspection.facility_name,
-    challengeReason:
-      violation.challenge_reason ?? "Violation was incorrectly recorded",
-    suggestedApproach: `Challenge based on ${violation.challenge_priority ?? "medium"} priority assessment`,
-    carrierName: client.name,
-    dotNumber: client.dot_number,
-    evidenceItems,
-    isProvisional,
-  });
-
-  // Save AI narrative to the case record
-  await supabase
-    .from("dataq_cases")
-    .update({ ai_narrative: narrative })
-    .eq("id", id);
-
-  return NextResponse.json({ narrative });
 }

@@ -210,8 +210,10 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
       return next;
     });
     try {
-      const res = await fetch(`/api/cases/dataq/${caseId}/narrative`, {
+      const res = await fetch(`/api/cases/dataq/${caseId}`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _action: "narrative" }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {

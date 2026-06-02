@@ -188,13 +188,20 @@ Write a 2-4 paragraph RDR narrative that:
 
 Do not write phrases like 'may have', 'possibly', 'if the officer', or any other speculative language. State only facts and regulatory references. Do not include legal opinions or guarantees.`;
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
-  });
-
-  return response.choices[0]?.message?.content || "";
+  try {
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+    });
+    return response.choices[0]?.message?.content || "";
+  } catch (err) {
+    console.error(
+      "[draftDataqNarrative] OpenRouter API call failed:",
+      err instanceof Error ? err.message : err
+    );
+    throw err;
+  }
 }
 
 export async function draftCpdpNarrative(params: {
