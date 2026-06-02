@@ -200,7 +200,7 @@ Read the attached document(s) carefully before writing. The narrative must:
 4. If no evidence is attached or documents are insufficient: write "INSUFFICIENT EVIDENCE: [reason]" as the first line and do not write a narrative
 5. Maintain a professional, factual tone — no legal opinions or guarantees
 
-EVIDENCE STATUS: ${params.isProvisional ? "PROVISIONAL — no evidence received yet; write a placeholder narrative only, prefixed with PROVISIONAL DRAFT:" : "FINAL — evidence attached below"}
+EVIDENCE STATUS: ${params.isProvisional ? "PROVISIONAL — no evidence received yet; write a placeholder narrative only, prefixed with PROVISIONAL DRAFT:" : (params.evidenceFiles ?? []).filter(f => f.sizeBytes > 0).length > 0 ? "FINAL — evidence file(s) attached above for your review" : "EVIDENCE STATUS: No files could be loaded for attachment. Treat as provisional and mark uncertain claims [VERIFY: ...]"}
 
 Write the 2-4 paragraph RDR narrative now. Every factual assertion must be traceable to the documents above.${params.additionalContext ? `\n\nAdditional context: ${params.additionalContext}` : ""}`;
 
@@ -212,10 +212,15 @@ Write the 2-4 paragraph RDR narrative now. Every factual assertion must be trace
       continue;
     }
     if (ef.mimeType === 'application/pdf') {
+      // Use OpenRouter "file" block format — the Anthropic-native "document" type is not valid
+      // on the OpenAI-compatible endpoint and is rejected. OpenRouter accepts type:"file" with
+      // file_data as a base64 data URI for PDF transmission to Claude models.
       contentParts.push({
-        type: 'document',
-        source: { type: 'base64', media_type: 'application/pdf', data: ef.base64Data },
-        title: ef.label,
+        type: 'file',
+        file: {
+          filename: ef.label.replace(/[^a-z0-9_.-]/gi, '_') + '.pdf',
+          file_data: `data:application/pdf;base64,${ef.base64Data}`,
+        },
       });
     } else if (ef.mimeType.startsWith('image/')) {
       contentParts.push({
@@ -225,6 +230,18 @@ Write the 2-4 paragraph RDR narrative now. Every factual assertion must be trace
     }
   }
   contentParts.push({ type: 'text', text: prompt });
+
+  // Log exactly what is being sent to the model
+  const partTypes = contentParts.map((p) => {
+    if (p.type === 'file') return 'file(pdf)';
+    if (p.type === 'document') return 'document(pdf)';
+    if (p.type === 'image_url') return 'image_url';
+    if (p.type === 'image') return 'image';
+    if (p.type === 'text') return 'text';
+    return p.type;
+  });
+  console.log('[draftDataqNarrative] Content parts:', partTypes, '| model:', NARRATIVE_MODEL);
+
   const messageContent = contentParts.length === 1 ? prompt : contentParts;
 
   try {

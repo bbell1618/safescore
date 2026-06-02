@@ -220,7 +220,12 @@ export async function POST(
         };
         const mimeType = mimeMap[ext] ?? 'application/octet-stream';
         evidenceFiles.push({ label, mimeType, base64Data, sizeBytes });
-        console.log('[narrative POST] Loaded evidence file:', label, mimeType, sizeBytes, 'bytes');
+        console.log('[narrative POST] Evidence file loaded:', {
+          label,
+          mimeType,
+          sizeBytes,
+          storagePath,
+        });
       } catch (err) {
         console.warn('[narrative POST] Evidence download exception:', storagePath, err instanceof Error ? err.message : err);
       }
@@ -235,6 +240,13 @@ export async function POST(
       evidenceItems.length,
       "files loaded:",
       evidenceFiles.length
+    );
+
+    console.log(
+      '[narrative POST] Calling draftDataqNarrative with',
+      evidenceFiles.length,
+      'files:',
+      evidenceFiles.map(f => ({ label: f.label, mimeType: f.mimeType, sizeBytes: f.sizeBytes }))
     );
 
     const narrative = await draftDataqNarrative({
