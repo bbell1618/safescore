@@ -255,10 +255,29 @@ export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
     try {
       const data = await fetchFMCSA<{ content: Record<string, number> }>(`/carriers/${dot}/oos`);
       const c = data.content ?? {};
+
+      // QCMobile sometimes returns the OOS *counts* (inspections + OOS totals)
+      // but leaves the pre-computed *Rate fields null. When that happens, derive
+      // the rate from the counts so we don't fall back to DataHub unnecessarily.
+      console.log("[getOosRates] Raw counts:", {
+        vi: c.vehicleInspections,
+        vo: c.vehicleOos,
+        di: c.driverInspections,
+        do_: c.driverOos,
+        hi: c.hazmatInspections,
+        ho: c.hazmatOos,
+      });
+
+      const rateFromCounts = (oos: number, insp: number): number | null =>
+        insp && oos != null ? Math.round((oos / insp) * 10000) / 100 : null;
+
       qc = {
-        vehicleOosRate: c.vehicleOosRate ?? null,
-        driverOosRate: c.driverOosRate ?? null,
-        hazmatOosRate: c.hazmatOosRate ?? null,
+        vehicleOosRate:
+          c.vehicleOosRate ?? rateFromCounts(c.vehicleOos, c.vehicleInspections),
+        driverOosRate:
+          c.driverOosRate ?? rateFromCounts(c.driverOos, c.driverInspections),
+        hazmatOosRate:
+          c.hazmatOosRate ?? rateFromCounts(c.hazmatOos, c.hazmatInspections),
         inspectionTotal: c.inspectionTotal ?? null,
         vehicleInspections: c.vehicleInspections ?? null,
         driverInspections: c.driverInspections ?? null,

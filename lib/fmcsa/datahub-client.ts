@@ -156,9 +156,17 @@ export async function getViolationsByDot(dot: string): Promise<DatahubViolation[
 export async function getCrashesByDot(dot: string): Promise<DatahubCrash[]> {
   try {
     // FMCSA Crash File (aayw-vxb3) keys crashes on dot_number with a YYYYMMDD
-    // report_date. Order by report_date DESC; pull the full carrier history and
-    // let the caller window to the trailing 24 months if needed.
-    const url = `${CRASH_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=200&$order=report_date+DESC`;
+    // report_date. Order by report_date DESC and window to the trailing 24
+    // months — matching the FMCSA SMS crash-indicator measurement period.
+    // "sv-SE" locale formats today as YYYY-MM-DD; subtract 2 from the year and
+    // strip dashes to get the YYYYMMDD cutoff the dataset stores.
+    const todayYmd = new Intl.DateTimeFormat("sv-SE").format();
+    const cutoffYr = parseInt(todayYmd.slice(0, 4)) - 2;
+    const cutoffYYYYMMDD = cutoffYr.toString() + todayYmd.slice(4).replace(/-/g, "");
+    const url =
+      `${CRASH_ENDPOINT}?dot_number=${encodeURIComponent(dot)}` +
+      "&$limit=200&$order=report_date+DESC" +
+      "&" + "$where=report_date>='" + cutoffYYYYMMDD + "'";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = await fetchSocrata<any>(url);
 

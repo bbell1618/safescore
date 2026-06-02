@@ -39,7 +39,10 @@ export async function POST(request: Request) {
     // needs no key) still runs.
     const [carrier, basics, oos] = await Promise.all([
       getCarrier(dotNumber).catch((err) => {
-        console.error(`getCarrier failed for DOT ${dotNumber}:`, err);
+        console.error(
+          "[import] Census fetch/upsert FAILED:",
+          err instanceof Error ? err.message : JSON.stringify(err)
+        );
         return null;
       }),
       getBasics(dotNumber),
@@ -96,10 +99,11 @@ export async function POST(request: Request) {
 
       if (profileErr) {
         console.error(
-          "carrier_profiles upsert failed:",
+          "[import] carrier_profiles upsert DB error:",
           profileErr.code,
           profileErr.message,
-          profileErr.details
+          profileErr.details,
+          profileErr.hint
         );
       } else {
         console.log(
