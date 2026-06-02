@@ -82,13 +82,19 @@ export interface FMCSACarrierResponse {
   content: Record<string, unknown>;
 }
 
-async function fetchFMCSA<T>(path: string): Promise<T> {
+async function fetchFMCSA<T>(path: string, opts?: { revalidate?: number }): Promise<T> {
   const apiKey = process.env.FMCSA_API_KEY;
   if (!apiKey) {
     throw new Error("FMCSA_API_KEY not configured");
   }
   const url = `${BASE_URL}${path}?webKey=${apiKey}`;
-  const res = await fetch(url, { next: { revalidate: 3600 } });
+  // Default: no cache so analysis import runs always get fresh data.
+  // Pass opts.revalidate to opt into Next.js Data Cache for display-only reads.
+  const fetchOpts: RequestInit =
+    opts?.revalidate != null
+      ? { next: { revalidate: opts.revalidate } }
+      : { cache: "no-store" };
+  const res = await fetch(url, fetchOpts);
   if (!res.ok) {
     throw new Error(`FMCSA API error: ${res.status} ${res.statusText}`);
   }
@@ -365,7 +371,12 @@ async function computeOosFromDatahub(dot: string): Promise<FMCSAOosRates | null>
         [1, 2, 5].includes(r.level) || r.vehicleViolTotal > 0 || r.vehicleOosTotal > 0;
       const driverInspected =
         [1, 2, 3, 6].includes(r.level) || r.driverViolTotal > 0 || r.driverOosTotal > 0;
-      const hazmatInspected = r.hazmatViolTotal > 0 || r.hazmatOosTotal > 0;
+      // Hazmat inspections: FMCSA counts only Level 1 (full), Level 3 (driver+HM),
+      // or Level 4 (special purpose / hazmat-specific) inspections, NOT every
+      // inspection that happened to uncover a hazmat violation. Using the violation
+      // totals alone overestimates the denominator and understates the rate.
+      const hazmatInspected =
+        [1, 3, 4].includes(r.level) && (r.hazmatViolTotal > 0 || r.hazmatOosTotal > 0);
 
       if (vehicleInspected) vehInsp++;
       if (driverInspected) drvInsp++;

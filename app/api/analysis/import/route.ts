@@ -52,7 +52,10 @@ export async function POST(request: Request) {
     // ── 1a. Reconcile carrier census into carrier_profiles ───────────────────
     // Census (power_units/drivers/MCS-150) and safety-review data drift over
     // time; refresh on every analysis run. raw_api_response keeps the full
-    // payload for audit. Upsert keyed on the unique client_id.
+    // payload for audit.
+    //
+    // Uses explicit SELECT → UPDATE/INSERT instead of .upsert() to avoid
+    // silent failures observed with PostgREST onConflict on this table.
     if (carrier) {
       const address = [
         carrier.phyStreet,
@@ -68,47 +71,84 @@ export async function POST(request: Request) {
       const cargoTypes =
         carrier.hmFlag === "Y" ? ["Hazardous Materials"] : null;
 
-      const { error: profileErr } = await supabase
-        .from("carrier_profiles")
-        .upsert(
-          {
-            client_id: clientId,
-            dot_number: dotNumber,
-            mc_number: carrier.mcNumber,
-            legal_name: carrier.legalName || null,
-            dba_name: carrier.dbaName,
-            address: address || null,
-            power_units: carrier.totalPowerUnits,
-            drivers: carrier.totalDrivers,
-            mcs150_date: carrier.mcs150FormDate,
-            mcs150_mileage: carrier.mcs150Mileage,
-            mcs150_mileage_year: carrier.mcs150MileageYear,
-            cargo_types: cargoTypes,
-            authority_status: carrier.authorityStatus,
-            safety_rating: carrier.safetyRating,
-            safety_rating_date: carrier.safetyRatingDate,
-            review_type: carrier.reviewType,
-            review_date: carrier.reviewDate,
-            entity_type: carrier.entityType ?? carrier.censusTypeDesc,
-            carrier_operation: carrier.carrierOperation || null,
-            raw_api_response: carrier as unknown as Record<string, unknown>,
-            fetched_at: new Date().toISOString(),
-          },
-          { onConflict: "client_id" }
-        );
+      const censusPayload = {
+        dot_number: dotNumber,
+        mc_number: carrier.mcNumber,
+        legal_name: carrier.legalName || null,
+        dba_name: carrier.dbaName,
+        address: address || null,
+        power_units: carrier.totalPowerUnits,
+        drivers: carrier.totalDrivers,
+        mcs150_date: carrier.mcs150FormDate,
+        mcs150_mileage: carrier.mcs150Mileage,
+        mcs150_mileage_year: carrier.mcs150MileageYear,
+        cargo_types: cargoTypes,
+        authority_status: carrier.authorityStatus,
+        safety_rating: carrier.safetyRating,
+        safety_rating_date: carrier.safetyRatingDate,
+        review_type: carrier.reviewType,
+        review_date: carrier.reviewDate,
+        entity_type: carrier.entityType ?? carrier.censusTypeDesc,
+        carrier_operation: carrier.carrierOperation || null,
+        raw_api_response: carrier as unknown as Record<string, unknown>,
+        fetched_at: new Date().toISOString(),
+      };
 
-      if (profileErr) {
-        console.error(
-          "[import] carrier_profiles upsert DB error:",
-          profileErr.code,
-          profileErr.message,
-          profileErr.details,
-          profileErr.hint
-        );
+      console.log("[import] Census payload:", {
+        power_units: censusPayload.power_units,
+        drivers: censusPayload.drivers,
+        mcs150_date: censusPayload.mcs150_date,
+        authority_status: censusPayload.authority_status,
+        mc_number: censusPayload.mc_number,
+      });
+
+      // Check if a profile already exists for this client
+      const { data: existingProfile } = await supabase
+        .from("carrier_profiles")
+        .select("id")
+        .eq("client_id", clientId)
+        .maybeSingle();
+
+      if (existingProfile) {
+        const { error: profileErr } = await supabase
+          .from("carrier_profiles")
+          .update(censusPayload)
+          .eq("client_id", clientId);
+
+        if (profileErr) {
+          console.error(
+            "[import] carrier_profiles UPDATE error:",
+            profileErr.code,
+            profileErr.message,
+            profileErr.details,
+            profileErr.hint
+          );
+        } else {
+          console.log(
+            `[import] carrier_profiles updated for client ${clientId}: ` +
+            `power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}, ` +
+            `authority=${carrier.authorityStatus ?? "null"}, mc=${carrier.mcNumber ?? "null"}`
+          );
+        }
       } else {
-        console.log(
-          `carrier_profiles updated for client ${clientId}: power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}, mc=${carrier.mcNumber ?? "null"}`
-        );
+        const { error: profileErr } = await supabase
+          .from("carrier_profiles")
+          .insert({ client_id: clientId, ...censusPayload });
+
+        if (profileErr) {
+          console.error(
+            "[import] carrier_profiles INSERT error:",
+            profileErr.code,
+            profileErr.message,
+            profileErr.details,
+            profileErr.hint
+          );
+        } else {
+          console.log(
+            `[import] carrier_profiles inserted for client ${clientId}: ` +
+            `power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}`
+          );
+        }
       }
     }
 
