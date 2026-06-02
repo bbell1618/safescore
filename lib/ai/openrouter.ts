@@ -6,6 +6,8 @@
 import OpenAI from "openai";
 
 const MODEL = "anthropic/claude-sonnet-4-6";
+const NARRATIVE_MODEL = "anthropic/claude-opus-4.8";
+export const NARRATIVE_MODEL_SLUG = NARRATIVE_MODEL;
 
 function getClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -20,6 +22,13 @@ function getClient(): OpenAI {
       "X-Title": "Golden Era SafeScore",
     },
   });
+}
+
+export interface EvidenceFile {
+  label: string;
+  mimeType: string;           // 'application/pdf', 'image/jpeg', etc.
+  base64Data: string;         // base64 encoded file contents
+  sizeBytes: number;
 }
 
 export interface ChallengeabilityResult {
@@ -156,42 +165,72 @@ export async function draftDataqNarrative(params: {
   additionalContext?: string;
   evidenceItems?: Array<{ label: string; fmcsa_category: string; status: 'requested' | 'received' }>;
   isProvisional?: boolean;
+  evidenceFiles?: EvidenceFile[];
 }): Promise<string> {
   const client = getClient();
 
-  const receivedItems = (params.evidenceItems ?? []).filter(e => e.status === 'received');
-  const hasEvidence = receivedItems.length > 0;
+  const receivedItems = params.evidenceItems?.filter(e => e.status === 'received') ?? [];
+  const receivedSummary = receivedItems.length > 0
+    ? "Attached evidence: " + receivedItems.map(e => e.label + (e.fmcsa_category ? " (" + e.fmcsa_category + ")" : "")).join(", ")
+    : "No evidence received yet.";
 
-  const evidenceBlock = hasEvidence
-    ? `Attached evidence: ${receivedItems.map(e => `${e.label} (${e.fmcsa_category})`).join(', ')}`
-    : params.isProvisional
-      ? `Note: This is a PROVISIONAL narrative — evidence has not yet been received. Write in a way that references the forthcoming evidence as 'per the attached [doc type]' to be updated.`
-      : '';
+  const prompt = `You are drafting a DataQs Request for Data Review (RDR) submission for a trucking carrier.
+You will be given the structured case data and the actual evidence documents.
 
-  const prompt = `You are drafting a DataQs Request for Data Review (RDR) submission for a trucking carrier. Write a professional, factual challenge narrative.
+ROLE AND AUTHORITY:
+- You are a technical compliance specialist, not a legal advocate.
+- You may only assert facts that you can directly verify from the provided documents or the structured case data below.
+- DO NOT speculate, infer, or fabricate ANY factual claim not supported by the documents.
+- If a document does not clearly support a specific claim, mark that claim with [VERIFY: <what needs human confirmation>] and do NOT state it as fact.
+- If the provided documents do NOT support the challenge (wrong document type, illegible, unrelated content, or clearly from a different date), state clearly: "The attached documents do not appear to directly support this challenge. The case should not be filed until appropriate evidence is obtained." Do not write a challenge narrative in that case.
 
+CASE DATA:
 Carrier: ${params.carrierName} (DOT ${params.dotNumber})
 Violation: ${params.violationCode} — ${params.violationDescription}
-Inspection date (use EXACTLY this date, do not modify): ${params.inspectionDate}
+Inspection date (use EXACTLY this date — do not change or approximate it): ${params.inspectionDate}
 Inspection location: ${params.facilityName}, ${params.state} — Level ${params.inspectionLevel}
 Challenge basis: ${params.challengeReason}
-Suggested approach: ${params.suggestedApproach}
-${evidenceBlock ? `${evidenceBlock}\n` : ''}${params.additionalContext ? `Additional context: ${params.additionalContext}` : ""}
+${receivedSummary}
 
-Write a 2-4 paragraph RDR narrative that:
-1. Clearly identifies the specific violation being challenged
-2. States the factual basis for the challenge, citing the controlling CFR section
-3. References specific evidence by document type (e.g., "per the attached driver qualification file")
-4. States a falsifiable factual claim — not hedged language
-5. Requests the specific correction or removal
-6. Maintains a professional, factual tone throughout
+GROUNDING INSTRUCTIONS:
+Read the attached document(s) carefully before writing. The narrative must:
+1. Cite the controlling CFR section relevant to this violation
+2. Reference specific, verifiable facts from the attached documents (e.g. exact times, totals, form fields visible in the document)
+3. Use ONLY the inspection date above — do not use any other date
+4. If no evidence is attached or documents are insufficient: write "INSUFFICIENT EVIDENCE: [reason]" as the first line and do not write a narrative
+5. Maintain a professional, factual tone — no legal opinions or guarantees
 
-Do not write phrases like 'may have', 'possibly', 'if the officer', or any other speculative language. State only facts and regulatory references. Do not include legal opinions or guarantees.`;
+EVIDENCE STATUS: ${params.isProvisional ? "PROVISIONAL — no evidence received yet; write a placeholder narrative only, prefixed with PROVISIONAL DRAFT:" : "FINAL — evidence attached below"}
+
+Write the 2-4 paragraph RDR narrative now. Every factual assertion must be traceable to the documents above.${params.additionalContext ? `\n\nAdditional context: ${params.additionalContext}` : ""}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentParts: any[] = [];
+  for (const ef of params.evidenceFiles ?? []) {
+    if (ef.sizeBytes > 8388608) {
+      console.warn('[draftDataqNarrative] Skipping oversized file:', ef.label, ef.sizeBytes, 'bytes');
+      continue;
+    }
+    if (ef.mimeType === 'application/pdf') {
+      contentParts.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: ef.base64Data },
+        title: ef.label,
+      });
+    } else if (ef.mimeType.startsWith('image/')) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: `data:${ef.mimeType};base64,${ef.base64Data}` },
+      });
+    }
+  }
+  contentParts.push({ type: 'text', text: prompt });
+  const messageContent = contentParts.length === 1 ? prompt : contentParts;
 
   try {
     const response = await client.chat.completions.create({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
+      model: NARRATIVE_MODEL,
+      messages: [{ role: 'user', content: messageContent }],
       temperature: 0.2,
     });
     return response.choices[0]?.message?.content || "";

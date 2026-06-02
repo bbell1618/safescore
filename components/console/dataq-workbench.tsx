@@ -60,6 +60,7 @@ interface CaseRow {
   dataqs_reason_code: string | null;
   filed_without_evidence: boolean;
   override_reason: string | null;
+  narrative_evidence_verified: boolean;
   violations: ViolationDetail | null;
   inspections: InspectionDetail | null;
 }
@@ -168,6 +169,10 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
   const [approvedLocal, setApprovedLocal] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [filingNotes, setFilingNotes] = useState<Record<string, string>>({});
+
+  // Evidence verification state
+  const [evidenceVerified, setEvidenceVerified] = useState<Record<string, boolean>>({});
+  const [verifyingEvidence, setVerifyingEvidence] = useState<string | null>(null);
 
   // Evidence request state
   const [sendingEvidenceRequest, setSendingEvidenceRequest] = useState<string | null>(null);
@@ -307,6 +312,30 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filing_notes: value }),
     });
+  }
+
+  async function verifyEvidence(caseId: string, checked: boolean) {
+    setEvidenceVerified((prev) => ({ ...prev, [caseId]: checked }));
+    if (checked) {
+      setVerifyingEvidence(caseId);
+      try {
+        const res = await fetch(`/api/cases/dataq/${caseId}/verify-narrative`, {
+          method: "POST",
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setEvidenceVerified((prev) => ({ ...prev, [caseId]: false }));
+          setGenerationError((prev) => ({
+            ...prev,
+            [caseId]: data.error ?? "Verification failed",
+          }));
+        }
+      } catch {
+        setEvidenceVerified((prev) => ({ ...prev, [caseId]: false }));
+      } finally {
+        setVerifyingEvidence(null);
+      }
+    }
   }
 
   async function copyNarrative(caseId: string, value: string) {
@@ -965,46 +994,103 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                         className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] resize-y font-mono"
                       />
 
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <button
-                          onClick={() => approveNarrative(c.id, narrative)}
-                          disabled={!narrative.trim()}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
-                        >
-                          Approve narrative
-                        </button>
-                        <button
-                          onClick={() => approveNarrative(c.id, narrative)}
-                          disabled={!narrative.trim()}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
-                        >
-                          Edit &amp; approve
-                        </button>
-                        {narrativeApproved === c.id && (
-                          <span className="text-xs text-green-600 font-medium">
-                            Approved
-                          </span>
-                        )}
-                        {finalNarrativeReady && (
+                      {(() => {
+                        const isVerified =
+                          evidenceVerified[c.id] ??
+                          c.narrative_evidence_verified;
+                        const narrativeHasPlaceholders = (
+                          narratives[c.id] ??
+                          c.final_narrative ??
+                          c.ai_narrative ??
+                          ""
+                        ).includes("[VERIFY:");
+                        return (
                           <>
-                            <button
-                              onClick={() => copyNarrative(c.id, narrative)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
-                            >
-                              {copied === c.id ? "Copied" : "Copy for filing"}
-                            </button>
-                            <a
-                              href="https://dataqs.fmcsa.dot.gov"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-3 py-1.5 text-xs text-[#C67A1E] hover:underline font-medium"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              Open DataQs portal
-                            </a>
+                            <div className="flex items-start gap-2 p-3 bg-[#FBF7F0] border border-[#F0E8DA] rounded-lg mt-2">
+                              <input
+                                type="checkbox"
+                                id={`verify-${c.id}`}
+                                checked={isVerified}
+                                onChange={(e) =>
+                                  verifyEvidence(c.id, e.target.checked)
+                                }
+                                disabled={verifyingEvidence === c.id}
+                                className="mt-0.5 h-4 w-4 accent-[#C67A1E] cursor-pointer"
+                              />
+                              <label
+                                htmlFor={`verify-${c.id}`}
+                                className="text-xs text-gray-700 cursor-pointer"
+                              >
+                                I have reviewed the attached evidence and confirm
+                                the narrative&apos;s factual claims are supported
+                                by the documents.
+                              </label>
+                            </div>
+                            {narrativeHasPlaceholders && (
+                              <p className="text-xs text-[#B83B32] mt-1">
+                                Narrative contains [VERIFY: ...] placeholders —
+                                resolve them in the text before approving.
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              <button
+                                onClick={() =>
+                                  approveNarrative(c.id, narrative)
+                                }
+                                disabled={
+                                  !narrative.trim() ||
+                                  !isVerified ||
+                                  narrativeHasPlaceholders
+                                }
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
+                              >
+                                Approve narrative
+                              </button>
+                              <button
+                                onClick={() =>
+                                  approveNarrative(c.id, narrative)
+                                }
+                                disabled={
+                                  !narrative.trim() ||
+                                  !isVerified ||
+                                  narrativeHasPlaceholders
+                                }
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
+                              >
+                                Edit &amp; approve
+                              </button>
+                              {narrativeApproved === c.id && (
+                                <span className="text-xs text-green-600 font-medium">
+                                  Approved
+                                </span>
+                              )}
+                              {finalNarrativeReady && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      copyNarrative(c.id, narrative)
+                                    }
+                                    className="flex items-center gap-1 px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
+                                  >
+                                    {copied === c.id
+                                      ? "Copied"
+                                      : "Copy for filing"}
+                                  </button>
+                                  <a
+                                    href="https://dataqs.fmcsa.dot.gov"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-[#C67A1E] hover:underline font-medium"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Open DataQs portal
+                                  </a>
+                                </>
+                              )}
+                            </div>
                           </>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Progress pills */}

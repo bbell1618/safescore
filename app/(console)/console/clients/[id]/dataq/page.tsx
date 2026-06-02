@@ -32,6 +32,7 @@ export default async function DataqPage({
       dataqs_reason_code,
       filed_without_evidence,
       override_reason,
+      narrative_evidence_verified,
       violations(
         violation_code,
         violation_description,

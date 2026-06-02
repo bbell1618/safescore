@@ -19,6 +19,22 @@ export async function PATCH(
   const body = await request.json();
   const supabase = getAdmin();
 
+  // Narrative placeholder gate — block approval if unresolved [VERIFY: ...] tokens present
+  if (body.final_narrative !== undefined) {
+    if (
+      typeof body.final_narrative === "string" &&
+      body.final_narrative.includes("[VERIFY:")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Resolve all [VERIFY: ...] placeholders before approving narrative.",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   // A6 server-side filing gate
   if (body.status === "filed") {
     // Check whether any required evidence has been received
@@ -112,7 +128,7 @@ export async function POST(
 
     const { data: evidenceRows } = await supabase
       .from("dataq_evidence")
-      .select("label, fmcsa_category, status")
+      .select("label, fmcsa_category, status, storage_path")
       .eq("case_id", id);
 
     if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -165,13 +181,60 @@ export async function POST(
     });
     const isProvisional = !evidenceItems.some((e) => e.status === "received");
 
+    // Download received evidence files for document grounding
+    const evidenceFiles: Array<{
+      label: string;
+      mimeType: string;
+      base64Data: string;
+      sizeBytes: number;
+    }> = [];
+
+    const receivedRows = (evidenceRows ?? []).filter(
+      (e) => (e as Record<string, unknown>).status === 'received' &&
+              (e as Record<string, unknown>).storage_path
+    );
+
+    for (const row of receivedRows) {
+      const storagePath = (row as Record<string, unknown>).storage_path as string;
+      const label = (row as Record<string, unknown>).label as string;
+      try {
+        const { data: fileData, error: dlErr } = await supabase.storage
+          .from('dataq-evidence')
+          .download(storagePath);
+        if (dlErr || !fileData) {
+          console.warn('[narrative POST] Could not download evidence:', storagePath, dlErr?.message);
+          continue;
+        }
+        const arrayBuf = await fileData.arrayBuffer();
+        const sizeBytes = arrayBuf.byteLength;
+        if (sizeBytes > 20971520) { // 20MB hard cap
+          console.warn('[narrative POST] Skipping oversized evidence file:', storagePath, sizeBytes);
+          continue;
+        }
+        const base64Data = Buffer.from(arrayBuf).toString('base64');
+        // Infer MIME type from path extension
+        const ext = storagePath.split('.').pop()?.toLowerCase() ?? '';
+        const mimeMap: Record<string, string> = {
+          pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          png: 'image/png', gif: 'image/gif', tif: 'image/tiff', tiff: 'image/tiff',
+        };
+        const mimeType = mimeMap[ext] ?? 'application/octet-stream';
+        evidenceFiles.push({ label, mimeType, base64Data, sizeBytes });
+        console.log('[narrative POST] Loaded evidence file:', label, mimeType, sizeBytes, 'bytes');
+      } catch (err) {
+        console.warn('[narrative POST] Evidence download exception:', storagePath, err instanceof Error ? err.message : err);
+      }
+    }
+
     console.log(
       "[narrative POST] Generating for case:",
       id,
       "canonical date:",
       c.canonical_inspection_date,
       "evidence count:",
-      evidenceItems.length
+      evidenceItems.length,
+      "files loaded:",
+      evidenceFiles.length
     );
 
     const narrative = await draftDataqNarrative({
@@ -188,6 +251,7 @@ export async function POST(
       dotNumber: client.dot_number,
       evidenceItems,
       isProvisional,
+      evidenceFiles,
     });
 
     console.log("[narrative POST] Narrative generated, length:", narrative.length);

@@ -350,7 +350,8 @@ export async function POST(request: Request) {
     function buildEvidenceItems(
       basicCategory: string | null,
       canonDate: string,
-      inspState: string
+      inspState: string,
+      violationCode?: string | null
     ): Array<{
       doc_type: string;
       label: string;
@@ -380,22 +381,42 @@ export async function POST(request: Request) {
       }
 
       if (cat === "hos_compliance") {
-        return [
-          {
-            doc_type: "eld_record",
-            label: "ELD records and driver hours logs",
-            fmcsa_category: "Electronic Logging Device (ELD) Records",
-            context_note: `Hours of service records for ${canonDate} (${inspState})`,
-            required: true,
-          },
-          {
-            doc_type: "driver_log",
-            label: "Driver recap/70-hour records",
-            fmcsa_category: "Driver Logs",
-            context_note: `70-hour period including ${canonDate}`,
-            required: false,
-          },
-        ];
+        const is395_8 = violationCode?.startsWith("395.8") ?? false;
+        if (is395_8) {
+          return [
+            {
+              doc_type: "driver_log",
+              label: "Record of Duty Status (RODS) — paper logs",
+              fmcsa_category: "Driver Logs",
+              context_note: `Paper daily log / RODS for ${canonDate} (${inspState})`,
+              required: true,
+            },
+            {
+              doc_type: "bol",
+              label: "Supporting documentation (bills of lading, fuel receipts)",
+              fmcsa_category: "Bill of Lading/Shipping Papers",
+              context_note: `Supporting records for the duty period on ${canonDate}`,
+              required: false,
+            },
+          ];
+        } else {
+          return [
+            {
+              doc_type: "eld_record",
+              label: "ELD records and driver hours logs",
+              fmcsa_category: "Electronic Logging Device (ELD) Records",
+              context_note: `Hours of service records for ${canonDate} (${inspState})`,
+              required: true,
+            },
+            {
+              doc_type: "driver_log",
+              label: "Driver recap/70-hour records",
+              fmcsa_category: "Driver Logs",
+              context_note: `70-hour period including ${canonDate}`,
+              required: false,
+            },
+          ];
+        }
       }
 
       if (cat === "driver_fitness") {
@@ -501,8 +522,10 @@ export async function POST(request: Request) {
           const basicCat =
             (viol as { basic_category: string | null } | null)
               ?.basic_category ?? null;
+          const violCode =
+            (viol as Record<string, unknown>)?.violation_code as string | null ?? undefined;
 
-          const evidenceItems = buildEvidenceItems(basicCat, canonDate, inspState);
+          const evidenceItems = buildEvidenceItems(basicCat, canonDate, inspState, violCode);
 
           if (evidenceItems.length > 0) {
             const { error: evidErr } = await supabase

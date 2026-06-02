@@ -26,7 +26,8 @@ type EvidenceRow = EvidenceItem & { case_id: string };
 export function buildEvidenceItems(
   basicCategory: string | null,
   canonDate: string,
-  inspState: string
+  inspState: string,
+  violationCode?: string | null
 ): EvidenceItem[] {
   const cat = (basicCategory ?? "").toLowerCase();
 
@@ -50,22 +51,42 @@ export function buildEvidenceItems(
   }
 
   if (cat === "hos_compliance") {
-    return [
-      {
-        doc_type: "eld_record",
-        label: "ELD records and driver hours logs",
-        fmcsa_category: "Electronic Logging Device (ELD) Records",
-        context_note: `Hours of service records for ${canonDate} (${inspState})`,
-        required: true,
-      },
-      {
-        doc_type: "driver_log",
-        label: "Driver recap/70-hour records",
-        fmcsa_category: "Driver Logs",
-        context_note: `70-hour period including ${canonDate}`,
-        required: false,
-      },
-    ];
+    const is395_8 = violationCode?.startsWith("395.8") ?? false;
+    if (is395_8) {
+      return [
+        {
+          doc_type: "driver_log",
+          label: "Record of Duty Status (RODS) — paper logs",
+          fmcsa_category: "Driver Logs",
+          context_note: `Paper daily log / RODS for ${canonDate} (${inspState})`,
+          required: true,
+        },
+        {
+          doc_type: "bol",
+          label: "Supporting documentation (bills of lading, fuel receipts)",
+          fmcsa_category: "Bill of Lading/Shipping Papers",
+          context_note: `Supporting records for the duty period on ${canonDate}`,
+          required: false,
+        },
+      ];
+    } else {
+      return [
+        {
+          doc_type: "eld_record",
+          label: "ELD records and driver hours logs",
+          fmcsa_category: "Electronic Logging Device (ELD) Records",
+          context_note: `Hours of service records for ${canonDate} (${inspState})`,
+          required: true,
+        },
+        {
+          doc_type: "driver_log",
+          label: "Driver recap/70-hour records",
+          fmcsa_category: "Driver Logs",
+          context_note: `70-hour period including ${canonDate}`,
+          required: false,
+        },
+      ];
+    }
   }
 
   if (cat === "driver_fitness") {
@@ -139,9 +160,10 @@ function buildEvidenceRows(
   caseId: string,
   basicCategory: string | null,
   canonDate: string,
-  inspState: string
+  inspState: string,
+  violationCode?: string | null
 ): EvidenceRow[] {
-  return buildEvidenceItems(basicCategory, canonDate, inspState).map(
+  return buildEvidenceItems(basicCategory, canonDate, inspState, violationCode).map(
     (item) => ({ ...item, case_id: caseId })
   );
 }
@@ -206,7 +228,7 @@ export async function POST(
   const { data: c, error: caseError } = await supabase
     .from("dataq_cases")
     .select(
-      "id, canonical_inspection_date, violations(basic_category), inspections(inspection_date, state)"
+      "id, canonical_inspection_date, violations(basic_category, violation_code), inspections(inspection_date, state)"
     )
     .eq("id", id)
     .single();
@@ -218,7 +240,7 @@ export async function POST(
   const violationRaw = c.violations as unknown;
   const violation = (
     Array.isArray(violationRaw) ? violationRaw[0] : violationRaw
-  ) as { basic_category: string | null } | null;
+  ) as { basic_category: string | null; violation_code: string | null } | null;
 
   const inspectionRaw = c.inspections as unknown;
   const inspection = (
@@ -231,12 +253,14 @@ export async function POST(
     "the inspection date";
 
   const inspState: string = inspection?.state ?? "inspection state";
+  const violCode: string | null | undefined = violation?.violation_code ?? undefined;
 
   const rows = buildEvidenceRows(
     id,
     violation?.basic_category ?? null,
     canonicalDate,
-    inspState
+    inspState,
+    violCode
   );
 
   const { data: inserted, error: insertError } = await supabase
