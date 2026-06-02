@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { draftDataqNarrative } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
+import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 
 export const maxDuration = 60;
 
@@ -19,24 +20,32 @@ export async function PATCH(
   const body = await request.json();
   const supabase = getAdmin();
 
-  // Narrative placeholder gate — block approval if unresolved [VERIFY: ...] tokens present
-  if (body.final_narrative !== undefined) {
-    if (
-      typeof body.final_narrative === "string" &&
-      body.final_narrative.includes("[VERIFY:")
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Resolve all [VERIFY: ...] placeholders before approving narrative.",
-        },
-        { status: 400 }
-      );
+  // Narrative sentinel gate — block approval if narrative contains any sentinel tokens
+  if (body.final_narrative !== undefined && typeof body.final_narrative === "string") {
+    const blockReason = narrativeBlockReason(body.final_narrative);
+    if (blockReason) {
+      return NextResponse.json({ error: blockReason }, { status: 400 });
     }
   }
 
   // A6 server-side filing gate
   if (body.status === "filed") {
+    // Narrative sentinel gate — block filing if the current narrative has an AI refusal sentinel
+    const { data: caseForNarrative } = await supabase
+      .from("dataq_cases")
+      .select("final_narrative, ai_narrative")
+      .eq("id", id)
+      .single();
+    const activeNarrative =
+      caseForNarrative?.final_narrative ?? caseForNarrative?.ai_narrative;
+    const narrativeBlock = narrativeBlockReason(activeNarrative ?? undefined);
+    if (narrativeBlock) {
+      return NextResponse.json(
+        { error: "Cannot file: " + narrativeBlock },
+        { status: 400 }
+      );
+    }
+
     // Check whether any required evidence has been received
     const { count: receivedCount } = await supabase
       .from("dataq_evidence")

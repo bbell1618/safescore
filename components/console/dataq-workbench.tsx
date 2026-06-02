@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { mapReasonCode } from "@/lib/analysis/reason-codes";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
+import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 
 interface ViolationDetail {
   violation_code: string;
@@ -572,10 +573,16 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
           overrideChecked[c.id] &&
           (overrideReason[c.id] ?? "").trim().length > 0;
 
-        // Mark as filed is disabled when: no case number OR (evidence gate blocking AND no active override)
+        // Narrative sentinel gate (for filing button — computed at case scope)
+        const narrativeValueForFiling =
+          narratives[c.id] ?? c.final_narrative ?? c.ai_narrative ?? "";
+        const narrativeBlockedForFiling = narrativeBlockReason(narrativeValueForFiling || undefined) !== null;
+
+        // Mark as filed is disabled when: no case number OR (evidence gate blocking AND no active override) OR narrative is blocked
         const filedDisabled =
           !currentCaseNumber.trim() ||
-          (evidenceGateBlocking && !overrideActive);
+          (evidenceGateBlocking && !overrideActive) ||
+          narrativeBlockedForFiling;
 
         // Progress pills
         const pills = [
@@ -995,43 +1002,59 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                       />
 
                       {(() => {
+                        const narrativeValue =
+                          narratives[c.id] ?? c.final_narrative ?? c.ai_narrative ?? "";
                         const isVerified =
-                          evidenceVerified[c.id] ??
-                          c.narrative_evidence_verified;
-                        const narrativeHasPlaceholders = (
-                          narratives[c.id] ??
-                          c.final_narrative ??
-                          c.ai_narrative ??
-                          ""
-                        ).includes("[VERIFY:");
+                          evidenceVerified[c.id] ?? c.narrative_evidence_verified;
+                        const blockReason = narrativeBlockReason(narrativeValue || undefined);
+                        const hasInsufficientEvidence = narrativeValue.includes("INSUFFICIENT EVIDENCE");
+                        const hasVerifyPlaceholders = narrativeValue.includes("[VERIFY:");
+                        const isNarrativeBlocked = blockReason !== null;
                         return (
                           <>
-                            <div className="flex items-start gap-2 p-3 bg-[#FBF7F0] border border-[#F0E8DA] rounded-lg mt-2">
-                              <input
-                                type="checkbox"
-                                id={`verify-${c.id}`}
-                                checked={isVerified}
-                                onChange={(e) =>
-                                  verifyEvidence(c.id, e.target.checked)
-                                }
-                                disabled={verifyingEvidence === c.id}
-                                className="mt-0.5 h-4 w-4 accent-[#C67A1E] cursor-pointer"
-                              />
-                              <label
-                                htmlFor={`verify-${c.id}`}
-                                className="text-xs text-gray-700 cursor-pointer"
-                              >
-                                I have reviewed the attached evidence and confirm
-                                the narrative&apos;s factual claims are supported
-                                by the documents.
-                              </label>
+                            <div className="mt-2">
+                              {hasInsufficientEvidence ? (
+                                // Hard block — evidence itself is wrong, checkbox cannot override
+                                <div className="flex items-start gap-2 p-3 bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg">
+                                  <AlertTriangle className="w-4 h-4 text-[#B83B32] mt-0.5 shrink-0" />
+                                  <div>
+                                    <p className="text-xs font-medium text-[#B83B32]">Evidence does not support this challenge</p>
+                                    <p className="text-xs text-[#B83B32]/80 mt-0.5">
+                                      The AI determined the attached document does not support a challenge. Obtain the correct evidence documents, upload them, and regenerate the narrative before this case can be approved or filed.
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                // Soft block — placeholders need resolving, or no block at all
+                                <>
+                                  <div className="flex items-start gap-2 p-3 bg-[#FBF7F0] border border-[#F0E8DA] rounded-lg">
+                                    <input
+                                      type="checkbox"
+                                      id={`verify-${c.id}`}
+                                      checked={isVerified}
+                                      onChange={(e) =>
+                                        verifyEvidence(c.id, e.target.checked)
+                                      }
+                                      disabled={verifyingEvidence === c.id || hasVerifyPlaceholders}
+                                      className="mt-0.5 h-4 w-4 accent-[#C67A1E] cursor-pointer disabled:opacity-40"
+                                    />
+                                    <label
+                                      htmlFor={`verify-${c.id}`}
+                                      className="text-xs text-gray-700 cursor-pointer"
+                                    >
+                                      I have reviewed the attached evidence and confirm
+                                      the narrative&apos;s factual claims are supported
+                                      by the documents.
+                                    </label>
+                                  </div>
+                                  {hasVerifyPlaceholders && (
+                                    <p className="text-xs text-[#B83B32] mt-1">
+                                      Narrative contains [VERIFY: ...] placeholders — resolve them in the text before approving.
+                                    </p>
+                                  )}
+                                </>
+                              )}
                             </div>
-                            {narrativeHasPlaceholders && (
-                              <p className="text-xs text-[#B83B32] mt-1">
-                                Narrative contains [VERIFY: ...] placeholders —
-                                resolve them in the text before approving.
-                              </p>
-                            )}
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <button
                                 onClick={() =>
@@ -1039,8 +1062,8 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                                 }
                                 disabled={
                                   !narrative.trim() ||
-                                  !isVerified ||
-                                  narrativeHasPlaceholders
+                                  isNarrativeBlocked ||
+                                  !isVerified
                                 }
                                 className="flex items-center gap-1 px-3 py-1.5 text-xs bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"
                               >
@@ -1052,8 +1075,8 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                                 }
                                 disabled={
                                   !narrative.trim() ||
-                                  !isVerified ||
-                                  narrativeHasPlaceholders
+                                  isNarrativeBlocked ||
+                                  !isVerified
                                 }
                                 className="flex items-center gap-1 px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
                               >
@@ -1064,7 +1087,7 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                                   Approved
                                 </span>
                               )}
-                              {finalNarrativeReady && (
+                              {!isNarrativeBlocked && isVerified && (c.final_narrative || approvedLocal[c.id]) && (
                                 <>
                                   <button
                                     onClick={() =>
@@ -1146,7 +1169,9 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                           onClick={() => markAsFiled(c.id, currentCaseNumber)}
                           disabled={filedDisabled}
                           title={
-                            evidenceGateBlocking && !overrideActive
+                            narrativeBlockedForFiling
+                              ? "Narrative contains an AI refusal sentinel — resolve it before filing."
+                              : evidenceGateBlocking && !overrideActive
                               ? "At least one required evidence document must be received before filing, or use the override below."
                               : !currentCaseNumber.trim()
                               ? "Enter a case number before filing"
@@ -1156,7 +1181,12 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                         >
                           Mark as filed
                         </button>
-                        {evidenceGateBlocking && !overrideActive && (
+                        {narrativeBlockedForFiling && (
+                          <p className="text-xs text-[#B83B32]">
+                            {narrativeBlockReason(narrativeValueForFiling || undefined)}
+                          </p>
+                        )}
+                        {!narrativeBlockedForFiling && evidenceGateBlocking && !overrideActive && (
                           <p className="text-xs text-[#B83B32]">
                             At least one required evidence document must be received before filing, or use the override below.
                           </p>
