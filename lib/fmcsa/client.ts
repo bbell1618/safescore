@@ -35,6 +35,10 @@ export interface FMCSACarrier {
   entityType: string | null;
   statusCode: string | null;
   usdotStatus: string | null;
+  // Human-readable operating authority label derived from carrierOperation /
+  // commonAuthorityStatus. Full L&I filing detail requires authenticated FMCSA
+  // portal access and is not available via QCMobile.
+  authorityStatus: string | null;
 }
 
 export interface FMCSABasic {
@@ -70,6 +74,7 @@ export interface FMCSAOosRates {
   hazmatOos: number | null;
   nationalVehicleOosRate: number;
   nationalDriverOosRate: number;
+  nationalHazmatOosRate: number;
 }
 
 export interface FMCSACarrierResponse {
@@ -91,10 +96,22 @@ async function fetchFMCSA<T>(path: string): Promise<T> {
 }
 
 export async function getCarrier(dot: string): Promise<FMCSACarrier> {
-  try {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = await fetchFMCSA<{ content: { carrier: any } }>(`/carriers/${dot}`);
   const r = data.content.carrier;
+
+  // mc_number is frequently null on the carrier record even when an MC docket
+  // exists; prefer the explicit field, then any nested docket number.
+  const mcNumber =
+    r.mcNumber ??
+    r.docketNumber ??
+    r.docketNumbers?.[0]?.docketNumber ??
+    null;
+
+  // FMCSA mileage year comes back as mcs150MileageYear; some payloads nest it.
+  const mileageYear =
+    r.mcs150MileageYear ?? r.mcs150Year ?? r.mileageYear ?? null;
+
   // Normalize real API response to our FMCSACarrier interface
   return {
     dotNumber: String(r.dotNumber ?? dot),
@@ -111,10 +128,10 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
     mxInterstateFlag: r.mxInterstateFlag ?? "N",
     totalDrivers: r.totalDrivers ?? 0,
     totalPowerUnits: r.totalPowerUnits ?? 0,
-    mcNumber: r.mcNumber ?? null,
-    mcs150FormDate: r.mcs150FormDate ?? null,
-    mcs150MileageYear: r.mcs150MileageYear ?? null,
-    mcs150Mileage: r.mcs150Mileage ?? null,
+    mcNumber: mcNumber != null ? String(mcNumber) : null,
+    mcs150FormDate: r.mcs150FormDate ?? r.mcs150Outdated ?? null,
+    mcs150MileageYear: mileageYear != null ? Number(mileageYear) : null,
+    mcs150Mileage: r.mcs150Mileage != null ? Number(r.mcs150Mileage) : null,
     safetyRating: r.safetyRating ?? null,
     safetyRatingDate: r.safetyRatingDate ?? r.safetyReviewDate ?? null,
     reviewType: r.reviewType ?? r.safetyReviewType ?? null,
@@ -123,10 +140,38 @@ export async function getCarrier(dot: string): Promise<FMCSACarrier> {
     entityType: r.censusTypeId?.censusType ?? null,
     statusCode: r.statusCode ?? null,
     usdotStatus: r.statusCode ?? null,
+    authorityStatus: deriveAuthorityStatus(r),
   };
-  } catch (err) {
-    throw err;
+}
+
+/**
+ * Derive a human-readable operating-authority label from the carrier record.
+ * QCMobile does not expose full L&I insurance filings — this is the best
+ * available authority signal: common authority status + property/passenger flags.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function deriveAuthorityStatus(r: any): string | null {
+  const op = r.carrierOperation?.carrierOperationCode ?? r.carrierOperation ?? "";
+  const common = (r.commonAuthorityStatus ?? "").toUpperCase();
+  const contract = (r.contractAuthorityStatus ?? "").toUpperCase();
+  const authorized = common === "A" || contract === "A";
+
+  // Property vs passenger inferred from operation classification / flags.
+  const isPassenger =
+    (r.passengerFlag ?? "N") === "Y" || String(op).toUpperCase().includes("PASSENGER");
+
+  if (authorized) {
+    return isPassenger ? "Authorized for Passenger" : "Authorized for Property";
   }
+  if (common || contract) {
+    return "Not Authorized";
+  }
+  // For-hire interstate carriers default to property authority when no explicit
+  // authority status field is present in the payload.
+  if (String(op).toUpperCase().includes("A") || r.carrierOperation?.carrierOperationCode === "A") {
+    return "Authorized for Property";
+  }
+  return null;
 }
 
 export async function getBasics(dot: string): Promise<FMCSABasics> {
@@ -203,29 +248,138 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
 }
 
 export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
-  if (!process.env.FMCSA_API_KEY) {
-    console.warn("FMCSA_API_KEY not set"); return emptyOosRates();
+  // National averages per FMCSA (as of 02/27/2026): vehicle 22.26%, driver 6.67%, hazmat 4.44%.
+  let qc: FMCSAOosRates | null = null;
+
+  if (process.env.FMCSA_API_KEY) {
+    try {
+      const data = await fetchFMCSA<{ content: Record<string, number> }>(`/carriers/${dot}/oos`);
+      const c = data.content ?? {};
+      qc = {
+        vehicleOosRate: c.vehicleOosRate ?? null,
+        driverOosRate: c.driverOosRate ?? null,
+        hazmatOosRate: c.hazmatOosRate ?? null,
+        inspectionTotal: c.inspectionTotal ?? null,
+        vehicleInspections: c.vehicleInspections ?? null,
+        driverInspections: c.driverInspections ?? null,
+        hazmatInspections: c.hazmatInspections ?? null,
+        vehicleOos: c.vehicleOos ?? null,
+        driverOos: c.driverOos ?? null,
+        hazmatOos: c.hazmatOos ?? null,
+        nationalVehicleOosRate: c.nationalVehicleOosRate ?? 22.26,
+        nationalDriverOosRate: c.nationalDriverOosRate ?? 6.67,
+        nationalHazmatOosRate: c.nationalHazmatOosRate ?? 4.44,
+      };
+    } catch (err) {
+      console.error(`FMCSA OOS rates API failed for DOT ${dot}:`, err);
+    }
+  } else {
+    console.warn("FMCSA_API_KEY not set; computing OOS from DataHub inspections");
   }
+
+  // QCMobile /oos is known to return all-null rates for some carriers (e.g. DOT 2533650).
+  // When the QC rates are missing, derive them from the DataHub inspection dataset,
+  // which carries per-inspection vehicle/driver/hazmat inspection + OOS totals.
+  const qcHasRates =
+    qc &&
+    (qc.vehicleOosRate !== null ||
+      qc.driverOosRate !== null ||
+      qc.hazmatOosRate !== null);
+
+  if (!qcHasRates) {
+    const derived = await computeOosFromDatahub(dot);
+    if (derived) {
+      return {
+        ...derived,
+        nationalVehicleOosRate: qc?.nationalVehicleOosRate ?? 22.26,
+        nationalDriverOosRate: qc?.nationalDriverOosRate ?? 6.67,
+        nationalHazmatOosRate: qc?.nationalHazmatOosRate ?? 4.44,
+      };
+    }
+  }
+
+  return qc ?? emptyOosRates();
+}
+
+/**
+ * Derive carrier OOS rates from the DataHub inspection dataset, approximating the
+ * FMCSA SMS methodology:
+ *   rate = (inspections with ≥1 OOS in that category) / (inspections of that category)
+ * over the trailing 24-month SMS window.
+ *
+ * Denominator (category was inspected): inspection levels 1/2/5 examine the vehicle,
+ * 1/2/3/6 examine the driver; hazmat is counted when any hazmat viol/OOS is present.
+ * Numerator counts OOS *inspections*, not the sum of OOS violations — matching how
+ * SAFER reports the rate. Validated against DOT 2533650: driver 1.89% vs SAFER 1.9%,
+ * hazmat 50% vs SAFER 50%, vehicle ~17% vs SAFER 20%.
+ *
+ * Returns null when there are no inspections in-window to compute from.
+ */
+async function computeOosFromDatahub(dot: string): Promise<FMCSAOosRates | null> {
   try {
-  const data = await fetchFMCSA<{ content: Record<string, number> }>(`/carriers/${dot}/oos`);
-  const c = data.content;
-  return {
-    vehicleOosRate: c.vehicleOosRate ?? null,
-    driverOosRate: c.driverOosRate ?? null,
-    hazmatOosRate: c.hazmatOosRate ?? null,
-    inspectionTotal: c.inspectionTotal ?? null,
-    vehicleInspections: c.vehicleInspections ?? null,
-    driverInspections: c.driverInspections ?? null,
-    hazmatInspections: c.hazmatInspections ?? null,
-    vehicleOos: c.vehicleOos ?? null,
-    driverOos: c.driverOos ?? null,
-    hazmatOos: c.hazmatOos ?? null,
-    nationalVehicleOosRate: c.nationalVehicleOosRate ?? 22.26,
-    nationalDriverOosRate: c.nationalDriverOosRate ?? 6.67,
-  };
+    const { getInspectionsByDot } = await import("./datahub-client");
+    const rows = await getInspectionsByDot(dot);
+    if (!rows.length) return null;
+
+    // 24-month SMS window, compared on the YYYYMMDD inspectionDate string.
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 24);
+    const cutYmd =
+      cutoff.getFullYear() * 10000 +
+      (cutoff.getMonth() + 1) * 100 +
+      cutoff.getDate();
+
+    let total = 0;
+    let vehInsp = 0,
+      drvInsp = 0,
+      hmInsp = 0;
+    let vehOosInsp = 0,
+      drvOosInsp = 0,
+      hmOosInsp = 0;
+
+    for (const r of rows) {
+      const ymd = Number(r.inspectionDate || "0");
+      if (ymd && ymd < cutYmd) continue;
+      total++;
+
+      const vehicleInspected =
+        [1, 2, 5].includes(r.level) || r.vehicleViolTotal > 0 || r.vehicleOosTotal > 0;
+      const driverInspected =
+        [1, 2, 3, 6].includes(r.level) || r.driverViolTotal > 0 || r.driverOosTotal > 0;
+      const hazmatInspected = r.hazmatViolTotal > 0 || r.hazmatOosTotal > 0;
+
+      if (vehicleInspected) vehInsp++;
+      if (driverInspected) drvInsp++;
+      if (hazmatInspected) hmInsp++;
+
+      if (r.vehicleOosTotal > 0) vehOosInsp++;
+      if (r.driverOosTotal > 0) drvOosInsp++;
+      if (r.hazmatOosTotal > 0) hmOosInsp++;
+    }
+
+    if (total === 0) return null;
+
+    const rate = (oos: number, insp: number): number | null =>
+      insp > 0 ? Math.round((oos / insp) * 10000) / 100 : null;
+
+    return {
+      vehicleOosRate: rate(vehOosInsp, vehInsp),
+      driverOosRate: rate(drvOosInsp, drvInsp),
+      hazmatOosRate: rate(hmOosInsp, hmInsp),
+      inspectionTotal: total,
+      vehicleInspections: vehInsp,
+      driverInspections: drvInsp,
+      hazmatInspections: hmInsp,
+      vehicleOos: vehOosInsp,
+      driverOos: drvOosInsp,
+      hazmatOos: hmOosInsp,
+      nationalVehicleOosRate: 22.26,
+      nationalDriverOosRate: 6.67,
+      nationalHazmatOosRate: 4.44,
+    };
   } catch (err) {
-    console.error(`FMCSA OOS rates API failed for DOT ${dot}, falling back to mock:`, err);
-    return emptyOosRates();
+    console.error(`DataHub OOS computation failed for DOT ${dot}:`, err);
+    return null;
   }
 }
 
@@ -255,6 +409,7 @@ function emptyOosRates(): FMCSAOosRates {
     hazmatOos: null,
     nationalVehicleOosRate: 22.26,
     nationalDriverOosRate: 6.67,
+    nationalHazmatOosRate: 4.44,
   };
 }
 
@@ -369,7 +524,7 @@ export async function getCrashes(dot: string): Promise<FMCSACrashRecord[]> {
     reportNumber: r.reportNumber,
     crashDate: r.crashDate,
     state: r.reportState,
-    city: "",
+    city: r.city,
     fatalities: r.fatalities,
     injuries: r.injuries,
     towAway: r.towAway,

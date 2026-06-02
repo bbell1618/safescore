@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import {
+  getCarrier,
   getBasics,
   getOosRates,
   getInspections,
@@ -32,11 +33,80 @@ export async function POST(request: Request) {
   const supabase = getAdmin();
 
   try {
-    // ── 1. Fetch BASIC scores + OOS rates ────────────────────────────────────
-    const [basics, oos] = await Promise.all([
+    // ── 1. Fetch carrier census + BASIC scores + OOS rates ───────────────────
+    // getCarrier may throw if FMCSA_API_KEY is missing; tolerate that so the
+    // rest of the import (inspections/violations/crashes from DataHub, which
+    // needs no key) still runs.
+    const [carrier, basics, oos] = await Promise.all([
+      getCarrier(dotNumber).catch((err) => {
+        console.error(`getCarrier failed for DOT ${dotNumber}:`, err);
+        return null;
+      }),
       getBasics(dotNumber),
       getOosRates(dotNumber),
     ]);
+
+    // ── 1a. Reconcile carrier census into carrier_profiles ───────────────────
+    // Census (power_units/drivers/MCS-150) and safety-review data drift over
+    // time; refresh on every analysis run. raw_api_response keeps the full
+    // payload for audit. Upsert keyed on the unique client_id.
+    if (carrier) {
+      const address = [
+        carrier.phyStreet,
+        carrier.phyCity,
+        carrier.phyState,
+        carrier.phyZip,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      // hmFlag === "Y" indicates a hazmat-authorized carrier; surface it as a
+      // cargo hint until structured cargo-carried data is ingested.
+      const cargoTypes =
+        carrier.hmFlag === "Y" ? ["Hazardous Materials"] : null;
+
+      const { error: profileErr } = await supabase
+        .from("carrier_profiles")
+        .upsert(
+          {
+            client_id: clientId,
+            dot_number: dotNumber,
+            mc_number: carrier.mcNumber,
+            legal_name: carrier.legalName || null,
+            dba_name: carrier.dbaName,
+            address: address || null,
+            power_units: carrier.totalPowerUnits,
+            drivers: carrier.totalDrivers,
+            mcs150_date: carrier.mcs150FormDate,
+            mcs150_mileage: carrier.mcs150Mileage,
+            mcs150_mileage_year: carrier.mcs150MileageYear,
+            cargo_types: cargoTypes,
+            authority_status: carrier.authorityStatus,
+            safety_rating: carrier.safetyRating,
+            safety_rating_date: carrier.safetyRatingDate,
+            review_type: carrier.reviewType,
+            review_date: carrier.reviewDate,
+            entity_type: carrier.entityType ?? carrier.censusTypeDesc,
+            carrier_operation: carrier.carrierOperation || null,
+            raw_api_response: carrier as unknown as Record<string, unknown>,
+            fetched_at: new Date().toISOString(),
+          },
+          { onConflict: "client_id" }
+        );
+
+      if (profileErr) {
+        console.error(
+          "carrier_profiles upsert failed:",
+          profileErr.code,
+          profileErr.message,
+          profileErr.details
+        );
+      } else {
+        console.log(
+          `carrier_profiles updated for client ${clientId}: power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}, mc=${carrier.mcNumber ?? "null"}`
+        );
+      }
+    }
 
     // ── 2. Upsert score snapshot for today ───────────────────────────────────
     const today = new Date().toISOString().slice(0, 10);
@@ -48,22 +118,30 @@ export async function POST(request: Request) {
           snapshot_date: today,
           unsafe_driving_measure: basics.unsafeDriving?.measureValue ?? null,
           unsafe_driving_pct: basics.unsafeDriving?.percentile ?? null,
+          unsafe_driving_alert: basics.unsafeDriving?.alert ?? false,
           hos_compliance_measure: basics.hosCompliance?.measureValue ?? null,
           hos_compliance_pct: basics.hosCompliance?.percentile ?? null,
+          hos_compliance_alert: basics.hosCompliance?.alert ?? false,
           driver_fitness_measure: basics.driverFitness?.measureValue ?? null,
           driver_fitness_pct: basics.driverFitness?.percentile ?? null,
+          driver_fitness_alert: basics.driverFitness?.alert ?? false,
           controlled_substance_measure:
             basics.controlledSubstances?.measureValue ?? null,
           controlled_substance_pct:
             basics.controlledSubstances?.percentile ?? null,
+          controlled_substance_alert:
+            basics.controlledSubstances?.alert ?? false,
           vehicle_maint_measure:
             basics.vehicleMaintenance?.measureValue ?? null,
           vehicle_maint_pct: basics.vehicleMaintenance?.percentile ?? null,
+          vehicle_maint_alert: basics.vehicleMaintenance?.alert ?? false,
           hm_compliance_measure: basics.hmCompliance?.measureValue ?? null,
           hm_compliance_pct: basics.hmCompliance?.percentile ?? null,
+          hm_compliance_alert: basics.hmCompliance?.alert ?? false,
           crash_indicator_measure:
             basics.crashIndicator?.measureValue ?? null,
           crash_indicator_pct: basics.crashIndicator?.percentile ?? null,
+          crash_indicator_alert: basics.crashIndicator?.alert ?? false,
           oos_vehicle_rate: oos.vehicleOosRate ?? null,
           oos_driver_rate: oos.driverOosRate ?? null,
           oos_hazmat_rate: oos.hazmatOosRate ?? null,
@@ -555,19 +633,54 @@ export async function POST(request: Request) {
       .in("status", ["onboarding", "prospect"]);
 
     // ── 8. Log activity ──────────────────────────────────────────────────────
+    const censusSummary = carrier
+      ? `census refreshed (${carrier.totalPowerUnits} power units / ${carrier.totalDrivers} drivers, MC ${carrier.mcNumber ?? "n/a"})`
+      : "census not refreshed (FMCSA carrier fetch unavailable)";
+
+    const alertedBasics = [
+      basics.unsafeDriving?.alert && "Unsafe Driving",
+      basics.hosCompliance?.alert && "HOS",
+      basics.driverFitness?.alert && "Driver Fitness",
+      basics.controlledSubstances?.alert && "Controlled Substances",
+      basics.vehicleMaintenance?.alert && "Vehicle Maintenance",
+      basics.hmCompliance?.alert && "HM",
+      basics.crashIndicator?.alert && "Crash Indicator",
+    ].filter(Boolean) as string[];
+
+    const alertSummary = alertedBasics.length
+      ? `BASIC alerts: ${alertedBasics.join(", ")}`
+      : "no BASIC alerts";
+
     await supabase.from("activity_log").insert({
       client_id: clientId,
       action_type: "data_imported",
       entity_type: "client",
-      description: `Full analysis run: ${inspections.length} inspections, ${violationCount} violations (${newViolationCount} new), ${crashes.length} crashes processed. BASIC scores updated.`,
+      description:
+        `Full analysis run: ${censusSummary}; ${inspections.length} inspections, ` +
+        `${violationCount} violations (${newViolationCount} new), ` +
+        `${crashes.length} crashes ingested. BASIC measures + percentiles updated; ${alertSummary}. ` +
+        `OOS rates: veh ${oos.vehicleOosRate ?? "n/a"}%, drv ${oos.driverOosRate ?? "n/a"}%, hm ${oos.hazmatOosRate ?? "n/a"}%.`,
     });
 
     return NextResponse.json({
       success: true,
+      census: carrier
+        ? {
+            powerUnits: carrier.totalPowerUnits,
+            drivers: carrier.totalDrivers,
+            mcNumber: carrier.mcNumber,
+            authorityStatus: carrier.authorityStatus,
+          }
+        : null,
       inspections: inspections.length,
       violations: violationCount,
       newViolations: newViolationCount,
       crashes: crashes.length,
+      oos: {
+        vehicle: oos.vehicleOosRate,
+        driver: oos.driverOosRate,
+        hazmat: oos.hazmatOosRate,
+      },
     });
   } catch (err) {
     console.error("Analysis import error:", err);

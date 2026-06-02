@@ -2,12 +2,14 @@
 // FMCSA data via DOT Data Portal Socrata API
 // Inspection headers: https://data.transportation.gov/resource/fx4q-ay7w.json
 // Violations (SMS):   https://data.transportation.gov/resource/8mt8-2mdr.json
-// Crashes:            https://data.transportation.gov/resource/e6mz-jbpz.json (attempt; may 404)
+// Crashes:            https://data.transportation.gov/resource/aayw-vxb3.json (FMCSA Crash File)
 // No key required; X-App-Token header optional to avoid rate limiting
 
 const INSPECTION_ENDPOINT = "https://data.transportation.gov/resource/fx4q-ay7w.json";
 const VIOLATION_ENDPOINT  = "https://data.transportation.gov/resource/8mt8-2mdr.json";
-const CRASH_ENDPOINT      = "https://data.transportation.gov/resource/e6mz-jbpz.json";
+// Correct FMCSA Crash File resource. The prior id (e6mz-jbpz) is dead (404),
+// which silently returned empty crash arrays for every carrier.
+const CRASH_ENDPOINT      = "https://data.transportation.gov/resource/aayw-vxb3.json";
 
 export interface DatahubInspection {
   reportNumber: string;
@@ -41,8 +43,9 @@ export interface DatahubViolation {
 
 export interface DatahubCrash {
   reportNumber: string;
-  crashDate: string;
+  crashDate: string; // normalized to YYYY-MM-DD
   reportState: string;
+  city: string;
   fatalities: number;
   injuries: number;
   towAway: boolean;
@@ -152,22 +155,37 @@ export async function getViolationsByDot(dot: string): Promise<DatahubViolation[
 
 export async function getCrashesByDot(dot: string): Promise<DatahubCrash[]> {
   try {
-    const url = `${CRASH_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=100&$order=crash_date+DESC`;
+    // FMCSA Crash File (aayw-vxb3) keys crashes on dot_number with a YYYYMMDD
+    // report_date. Order by report_date DESC; pull the full carrier history and
+    // let the caller window to the trailing 24 months if needed.
+    const url = `${CRASH_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=200&$order=report_date+DESC`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = await fetchSocrata<any>(url);
 
-    return rows.map((r) => ({
-      reportNumber: String(r.report_number ?? r.reportNumber ?? ""),
-      crashDate: String(r.crash_date ?? r.crashDate ?? ""),
-      reportState: String(r.report_state ?? r.reportState ?? ""),
-      fatalities: Number(r.fatalities ?? r.fatal ?? 0),
-      injuries: Number(r.injuries ?? 0),
-      towAway: Number(r.towaways ?? r.tow_away ?? 0) > 0,
-      hazmatRelease: r.hazmat_release === "Y" || r.hazmat_released === "Y" || r.hazmat_release === true,
-    }));
+    return rows.map((r) => {
+      const tow = String(r.tow_away ?? "N").toUpperCase();
+      // No explicit hazmat-release field exists in this dataset. The closest
+      // signal is the vehicle hazmat placard flag.
+      const placard = String(r.vehicle_hazmat_placard ?? "N").toUpperCase();
+      return {
+        reportNumber: String(r.report_number ?? ""),
+        crashDate: normalizeYyyymmdd(String(r.report_date ?? "")),
+        reportState: String(r.report_state ?? ""),
+        city: String(r.city ?? ""),
+        fatalities: Number(r.fatalities ?? 0),
+        injuries: Number(r.injuries ?? 0),
+        towAway: tow === "Y" || tow === "1" || tow === "TRUE",
+        hazmatRelease: placard === "Y",
+      };
+    });
   } catch (err) {
-    // Crash endpoint may not exist yet — log and return empty
-    console.warn(`Socrata crash fetch failed for DOT ${dot} (endpoint may not exist):`, err);
+    console.warn(`Socrata crash fetch failed for DOT ${dot}:`, err);
     return [];
   }
+}
+
+/** YYYYMMDD → YYYY-MM-DD; passes through anything that isn't 8 digits. */
+function normalizeYyyymmdd(s: string): string {
+  if (!/^\d{8}$/.test(s)) return s;
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 }
