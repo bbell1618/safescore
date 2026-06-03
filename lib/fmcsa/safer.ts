@@ -398,9 +398,10 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
         // and take only the first meaningful line
         const raw = stripTags(html.slice(closeAngle + 1, tdEnd));
         // The authority text is at the start, e.g. "AUTHORIZED FOR Property For Licensing..."
-        // Keep only the authority portion (before "For Licensing")
-        const authMatch = raw.match(/^(AUTHORIZED FOR [A-Za-z\s,]+?|NOT AUTHORIZED|OUT-OF-SERVICE)/i);
-        operatingAuthority = authMatch ? authMatch[1].trim() : (raw.split(/\s{2,}/)[0].trim() || null);
+        // Keep only the authority portion (before "For Licensing" or "click here")
+        const authMatch = raw.match(/^(AUTHORIZED FOR [A-Za-z\s,HHG]+?)(?:\s+For |\s+click |\s*$)/i)
+          ?? raw.match(/^(NOT AUTHORIZED|OUT-OF-SERVICE)/i);
+        operatingAuthority = authMatch ? authMatch[1].trim() : (raw.slice(0, 40).trim() || null);
       }
     }
   }
