@@ -71,6 +71,21 @@ export async function POST(request: Request) {
       const cargoTypes =
         carrier.hmFlag === "Y" ? ["Hazardous Materials"] : null;
 
+      // Normalize a date string to YYYY-MM-DD for Postgres DATE columns.
+      // QCMobile may return dates as "MM/DD/YYYY" — pass through null if
+      // the value is already null or cannot be parsed.
+      const normalizeDate = (d: string | null | undefined): string | null => {
+        if (!d) return null;
+        // Already ISO format YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+        // MM/DD/YYYY → YYYY-MM-DD
+        const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+        // Other formats: log and skip
+        console.warn("[import] Unrecognized date format, skipping:", d);
+        return null;
+      };
+
       const censusPayload = {
         dot_number: dotNumber,
         mc_number: carrier.mcNumber,
@@ -79,15 +94,15 @@ export async function POST(request: Request) {
         address: address || null,
         power_units: carrier.totalPowerUnits,
         drivers: carrier.totalDrivers,
-        mcs150_date: carrier.mcs150FormDate,
+        mcs150_date: normalizeDate(carrier.mcs150FormDate),
         mcs150_mileage: carrier.mcs150Mileage,
         mcs150_mileage_year: carrier.mcs150MileageYear,
         cargo_types: cargoTypes,
         authority_status: carrier.authorityStatus,
         safety_rating: carrier.safetyRating,
-        safety_rating_date: carrier.safetyRatingDate,
+        safety_rating_date: normalizeDate(carrier.safetyRatingDate),
         review_type: carrier.reviewType,
-        review_date: carrier.reviewDate,
+        review_date: normalizeDate(carrier.reviewDate),
         entity_type: carrier.entityType ?? carrier.censusTypeDesc,
         carrier_operation: carrier.carrierOperation || null,
         raw_api_response: carrier as unknown as Record<string, unknown>,
@@ -100,14 +115,20 @@ export async function POST(request: Request) {
         mcs150_date: censusPayload.mcs150_date,
         authority_status: censusPayload.authority_status,
         mc_number: censusPayload.mc_number,
+        safety_rating_date: censusPayload.safety_rating_date,
+        review_date: censusPayload.review_date,
       });
 
       // Check if a profile already exists for this client
-      const { data: existingProfile } = await supabase
+      const { data: existingProfile, error: selectErr } = await supabase
         .from("carrier_profiles")
         .select("id")
         .eq("client_id", clientId)
         .maybeSingle();
+
+      if (selectErr) {
+        console.error("[import] carrier_profiles SELECT error:", selectErr.code, selectErr.message);
+      }
 
       if (existingProfile) {
         const { error: profileErr } = await supabase
