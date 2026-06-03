@@ -1,11 +1,11 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import {
-  getCarrier,
   getBasics,
   getOosRates,
   getInspections,
   getCrashes,
 } from "@/lib/fmcsa/client";
+import { getSAFERSnapshot } from "@/lib/fmcsa/safer";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,90 +33,62 @@ export async function POST(request: Request) {
   const supabase = getAdmin();
 
   try {
-    // ── 1. Fetch carrier census + BASIC scores + OOS rates ───────────────────
-    // getCarrier may throw if FMCSA_API_KEY is missing; tolerate that so the
-    // rest of the import (inspections/violations/crashes from DataHub, which
-    // needs no key) still runs.
-    const [carrier, basics, oos] = await Promise.all([
-      getCarrier(dotNumber).catch((err) => {
+    // ── 1. Fetch carrier census (SAFER) + BASIC scores + national OOS averages ─
+    // getSAFERSnapshot is the authoritative source for all headline carrier
+    // summary fields: power units, drivers, MCS-150, authority, OOS rates,
+    // crash totals. No API key required — public FMCSA page.
+    // getOosRates is retained solely for the national average values embedded
+    // in its response; carrier-specific rates now come from SAFER.
+    const [saferSnap, basics, oos] = await Promise.all([
+      getSAFERSnapshot(dotNumber).catch((err) => {
         console.error(
-          "[import] Census fetch/upsert FAILED:",
-          err instanceof Error ? err.message : JSON.stringify(err)
+          "[import] SAFER snapshot failed:",
+          err instanceof Error ? err.message : err
         );
         return null;
       }),
       getBasics(dotNumber),
-      getOosRates(dotNumber),
+      getOosRates(dotNumber).catch(() => null),
     ]);
 
-    // ── 1a. Reconcile carrier census into carrier_profiles ───────────────────
-    // Census (power_units/drivers/MCS-150) and safety-review data drift over
-    // time; refresh on every analysis run. raw_api_response keeps the full
-    // payload for audit.
+    // ── 1a. Reconcile carrier census into carrier_profiles (SAFER authoritative) ─
+    // SAFER snapshot replaces QCMobile/DataHub for all headline carrier summary
+    // fields. MC# is not exposed in the SAFER snapshot — kept as null here and
+    // left to any existing QCMobile-sourced value if already present in the DB.
     //
     // Uses explicit SELECT → UPDATE/INSERT instead of .upsert() to avoid
     // silent failures observed with PostgREST onConflict on this table.
-    if (carrier) {
-      const address = [
-        carrier.phyStreet,
-        carrier.phyCity,
-        carrier.phyState,
-        carrier.phyZip,
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      // hmFlag === "Y" indicates a hazmat-authorized carrier; surface it as a
-      // cargo hint until structured cargo-carried data is ingested.
-      const cargoTypes =
-        carrier.hmFlag === "Y" ? ["Hazardous Materials"] : null;
-
-      // Normalize a date string to YYYY-MM-DD for Postgres DATE columns.
-      // QCMobile may return dates as "MM/DD/YYYY" — pass through null if
-      // the value is already null or cannot be parsed.
-      const normalizeDate = (d: string | null | undefined): string | null => {
-        if (!d) return null;
-        // Already ISO format YYYY-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
-        // MM/DD/YYYY → YYYY-MM-DD
-        const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-        if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
-        // Other formats: log and skip
-        console.warn("[import] Unrecognized date format, skipping:", d);
-        return null;
-      };
-
+    if (saferSnap) {
       const censusPayload = {
         dot_number: dotNumber,
-        mc_number: carrier.mcNumber,
-        legal_name: carrier.legalName || null,
-        dba_name: carrier.dbaName,
-        address: address || null,
-        power_units: carrier.totalPowerUnits,
-        drivers: carrier.totalDrivers,
-        mcs150_date: normalizeDate(carrier.mcs150FormDate),
-        mcs150_mileage: carrier.mcs150Mileage,
-        mcs150_mileage_year: carrier.mcs150MileageYear,
-        cargo_types: cargoTypes,
-        authority_status: carrier.authorityStatus,
-        safety_rating: carrier.safetyRating,
-        safety_rating_date: normalizeDate(carrier.safetyRatingDate),
-        review_type: carrier.reviewType,
-        review_date: normalizeDate(carrier.reviewDate),
-        entity_type: carrier.entityType ?? carrier.censusTypeDesc,
-        carrier_operation: carrier.carrierOperation || null,
-        raw_api_response: carrier as unknown as Record<string, unknown>,
+        mc_number: null as string | null, // SAFER snapshot does not expose MC#
+        legal_name: saferSnap.legalName,
+        dba_name: saferSnap.dbaName,
+        power_units: saferSnap.powerUnits,
+        drivers: saferSnap.drivers,
+        mcs150_date: saferSnap.mcs150Date,
+        mcs150_mileage: saferSnap.mcs150Mileage,
+        mcs150_mileage_year: saferSnap.mcs150MileageYear,
+        cargo_types: saferSnap.cargoTypes.length > 0 ? saferSnap.cargoTypes : null,
+        authority_status: saferSnap.operatingAuthority,
+        safety_rating: saferSnap.safetyRating,
+        safety_rating_date: saferSnap.safetyRatingDate,
+        review_type: saferSnap.reviewType,
+        review_date: saferSnap.reviewDate,
+        entity_type: saferSnap.entityType,
+        carrier_operation: saferSnap.operatingStatus,
         fetched_at: new Date().toISOString(),
       };
 
-      console.log("[import] Census payload:", {
+      console.log("[import] SAFER census payload:", {
         power_units: censusPayload.power_units,
         drivers: censusPayload.drivers,
         mcs150_date: censusPayload.mcs150_date,
+        mcs150_mileage: censusPayload.mcs150_mileage,
         authority_status: censusPayload.authority_status,
-        mc_number: censusPayload.mc_number,
         safety_rating_date: censusPayload.safety_rating_date,
         review_date: censusPayload.review_date,
+        cargo_types: censusPayload.cargo_types,
       });
 
       // Check if a profile already exists for this client
@@ -131,6 +103,16 @@ export async function POST(request: Request) {
       }
 
       if (existingProfile) {
+        // Preserve existing mc_number if we can't source it from SAFER
+        const { data: existingMc } = await supabase
+          .from("carrier_profiles")
+          .select("mc_number")
+          .eq("client_id", clientId)
+          .maybeSingle();
+        if (existingMc?.mc_number) {
+          censusPayload.mc_number = existingMc.mc_number;
+        }
+
         const { error: profileErr } = await supabase
           .from("carrier_profiles")
           .update(censusPayload)
@@ -146,9 +128,9 @@ export async function POST(request: Request) {
           );
         } else {
           console.log(
-            `[import] carrier_profiles updated for client ${clientId}: ` +
-            `power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}, ` +
-            `authority=${carrier.authorityStatus ?? "null"}, mc=${carrier.mcNumber ?? "null"}`
+            `[import] carrier_profiles updated for client ${clientId} (SAFER): ` +
+            `power_units=${saferSnap.powerUnits}, drivers=${saferSnap.drivers}, ` +
+            `authority=${saferSnap.operatingAuthority ?? "null"}`
           );
         }
       } else {
@@ -166,8 +148,8 @@ export async function POST(request: Request) {
           );
         } else {
           console.log(
-            `[import] carrier_profiles inserted for client ${clientId}: ` +
-            `power_units=${carrier.totalPowerUnits}, drivers=${carrier.totalDrivers}`
+            `[import] carrier_profiles inserted for client ${clientId} (SAFER): ` +
+            `power_units=${saferSnap.powerUnits}, drivers=${saferSnap.drivers}`
           );
         }
       }
@@ -207,9 +189,10 @@ export async function POST(request: Request) {
             basics.crashIndicator?.measureValue ?? null,
           crash_indicator_pct: basics.crashIndicator?.percentile ?? null,
           crash_indicator_alert: basics.crashIndicator?.alert ?? false,
-          oos_vehicle_rate: oos.vehicleOosRate ?? null,
-          oos_driver_rate: oos.driverOosRate ?? null,
-          oos_hazmat_rate: oos.hazmatOosRate ?? null,
+          // OOS rates from SAFER (authoritative) — fall back to DataHub-derived values
+          oos_vehicle_rate: saferSnap?.vehicleOosRate ?? oos?.vehicleOosRate ?? null,
+          oos_driver_rate: saferSnap?.driverOosRate ?? oos?.driverOosRate ?? null,
+          oos_hazmat_rate: saferSnap?.hazmatOosRate ?? oos?.hazmatOosRate ?? null,
           source: "api",
         },
         { onConflict: "client_id,snapshot_date" }
@@ -698,9 +681,9 @@ export async function POST(request: Request) {
       .in("status", ["onboarding", "prospect"]);
 
     // ── 8. Log activity ──────────────────────────────────────────────────────
-    const censusSummary = carrier
-      ? `census refreshed (${carrier.totalPowerUnits} power units / ${carrier.totalDrivers} drivers, MC ${carrier.mcNumber ?? "n/a"})`
-      : "census not refreshed (FMCSA carrier fetch unavailable)";
+    const censusSummary = saferSnap
+      ? `census refreshed via SAFER (${saferSnap.powerUnits} power units / ${saferSnap.drivers} drivers, authority: ${saferSnap.operatingAuthority ?? "n/a"})`
+      : "census not refreshed (SAFER snapshot unavailable)";
 
     const alertedBasics = [
       basics.unsafeDriving?.alert && "Unsafe Driving",
@@ -724,17 +707,19 @@ export async function POST(request: Request) {
         `Full analysis run: ${censusSummary}; ${inspections.length} inspections, ` +
         `${violationCount} violations (${newViolationCount} new), ` +
         `${crashes.length} crashes ingested. BASIC measures + percentiles updated; ${alertSummary}. ` +
-        `OOS rates: veh ${oos.vehicleOosRate ?? "n/a"}%, drv ${oos.driverOosRate ?? "n/a"}%, hm ${oos.hazmatOosRate ?? "n/a"}%.`,
+        `OOS rates (SAFER): veh ${saferSnap?.vehicleOosRate ?? "n/a"}%, drv ${saferSnap?.driverOosRate ?? "n/a"}%, hm ${saferSnap?.hazmatOosRate ?? "n/a"}%.`,
     });
 
     return NextResponse.json({
       success: true,
-      census: carrier
+      census: saferSnap
         ? {
-            powerUnits: carrier.totalPowerUnits,
-            drivers: carrier.totalDrivers,
-            mcNumber: carrier.mcNumber,
-            authorityStatus: carrier.authorityStatus,
+            powerUnits: saferSnap.powerUnits,
+            drivers: saferSnap.drivers,
+            mcs150Date: saferSnap.mcs150Date,
+            vehicleOosRate: saferSnap.vehicleOosRate,
+            hazmatOosRate: saferSnap.hazmatOosRate,
+            authorityStatus: saferSnap.operatingAuthority,
           }
         : null,
       inspections: inspections.length,
@@ -742,9 +727,9 @@ export async function POST(request: Request) {
       newViolations: newViolationCount,
       crashes: crashes.length,
       oos: {
-        vehicle: oos.vehicleOosRate,
-        driver: oos.driverOosRate,
-        hazmat: oos.hazmatOosRate,
+        vehicle: saferSnap?.vehicleOosRate ?? null,
+        driver: saferSnap?.driverOosRate ?? null,
+        hazmat: saferSnap?.hazmatOosRate ?? null,
       },
     });
   } catch (err) {
