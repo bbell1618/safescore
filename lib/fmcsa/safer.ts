@@ -69,6 +69,7 @@ export interface SAFERSnapshot {
   crashTow: number | null;
   crashTotal: number | null;
 
+  saferAsOf: string | null; // YYYY-MM-DD — "Data current as of MM/DD/YYYY" from page header
   parsedAt: string;  // ISO timestamp
 }
 
@@ -499,6 +500,17 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
 
   const safetyData = parseSafetyRating(html);
 
+  // ── SAFER "as of" date ────────────────────────────────────────────────────
+  // The SAFER page contains text like "Data current as of 06/03/2026"
+  // We extract and normalize it to YYYY-MM-DD.
+  let saferAsOf: string | null = null;
+  const asOfMatch = html.match(/[Dd]ata\s+current\s+as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i)
+    ?? html.match(/as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if (asOfMatch) {
+    saferAsOf = normDate(asOfMatch[1]);
+  }
+  console.log("[safer] saferAsOf:", saferAsOf);
+
   // ── Summary log ───────────────────────────────────────────────────────────
 
   console.log("[safer] Snapshot parsed for DOT", dot, {
@@ -551,6 +563,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     crashInjury: crashData.crashInjury,
     crashTow: crashData.crashTow,
     crashTotal: crashData.crashTotal,
+    saferAsOf,
     parsedAt: new Date().toISOString(),
   };
 }

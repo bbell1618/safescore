@@ -77,6 +77,7 @@ export async function POST(request: Request) {
         review_date: saferSnap.reviewDate,
         entity_type: saferSnap.entityType,
         carrier_operation: saferSnap.operatingStatus,
+        safer_as_of: saferSnap.saferAsOf,
         fetched_at: new Date().toISOString(),
       };
 

@@ -2,25 +2,49 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
-import { ScoreCard } from "@/components/ui/score-card";
 import { Badge } from "@/components/ui/badge";
-import { ClientDetailTabs } from "@/components/console/client-detail-tabs";
-import {
-  Building2,
-  Truck,
-  Users2,
-  Calendar,
-  MapPin,
-  Phone,
-  Mail,
-  ChevronRight,
-} from "lucide-react";
-import { InviteButton } from "@/components/console/invite-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
-import { FmcsaAccessBadge } from "@/components/console/fmcsa-access-badge";
-import { CarrierProfileSection } from "@/components/console/carrier-profile-section";
+import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+// ── Tooltip copy (verbatim per spec) ─────────────────────────────────────────
+
+const TT = {
+  POWER_UNITS:
+    "Trucks and tractors the carrier operates, from its latest MCS-150. No fixed maximum. Used as the exposure denominator in several BASIC calculations — more units generally lowers per-unit violation rates.",
+  DRIVERS:
+    "Driver count from the latest MCS-150. No fixed maximum. This is the figure Total Safety per-driver billing reconciles to.",
+  MCS150:
+    "The carrier's most recent biennial census filing and the annual mileage reported with it. A stale MCS-150 distorts BASIC math; keeping it current is part of the service.",
+  SAFETY_RATING:
+    "FMCSA's compliance-review rating: Satisfactory, Conditional, or Unsatisfactory. 'Unrated / Non-Ratable' means no rated review is on file — common and not negative.",
+  PERCENTILE:
+    "The carrier's rank versus similar carriers, 0–100. Higher is worse. FMCSA flags a category for intervention above a threshold that varies by BASIC (~50–75%). 'Not public' means FMCSA withholds it because the carrier has too few inspections to rank reliably.",
+  ALERT:
+    "Whether this BASIC is over FMCSA's intervention threshold. Over threshold = elevated scrutiny and intervention risk.",
+  OOS_RATE:
+    "Share of this carrier's inspections that resulted in an out-of-service order, 0–100%. Lower is better. The reference line is the national average.",
+  NATIONAL_AVG:
+    "The all-carrier average OOS rate for this inspection type — FMCSA's reference point. Below it is good; above it is a flag.",
+  CRASHES:
+    "State-reported crashes involving this carrier in the last 24 months, regardless of fault. They feed the Crash Indicator BASIC, weighted by severity (tow-away < injury < fatal). Some may be removable via the CPDP program.",
+  VIOLATIONS:
+    "Individual violations cited across all roadside inspections in the window. Each carries a severity weight and a time weight (recent counts more) that drive the BASIC measures.",
+  DATAQS:
+    "Formal challenges (Requests for Data Review) to FMCSA disputing a violation or crash record. Successful challenges remove or correct the record, improving the score.",
+};
+
+function basicMeasureTooltip(categoryName: string): string {
+  return (
+    `${categoryName} BASIC measure. A severity- and time-weighted rate of this category's violations from roadside inspections. ` +
+    `No fixed 0–100 scale; higher is worse. The comparable 0–100 scale is the percentile below — when FMCSA doesn't publish one, ` +
+    `compare this against the carrier's other categories and the alert flag.`
+  );
+}
+
+// ── Status / tier maps ────────────────────────────────────────────────────────
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
@@ -38,6 +62,115 @@ const statusLabel: Record<string, string> = {
   churned: "Churned",
 };
 
+const tierLabel: Record<string, string> = {
+  monitor: "Monitor",
+  remediate: "Remediate",
+  total_safety: "Total Safety",
+};
+
+// ── Rule-based story strip ────────────────────────────────────────────────────
+
+interface StorySnapshot {
+  unsafe_driving_measure: number | null;
+  unsafe_driving_alert: boolean | null;
+  hos_compliance_measure: number | null;
+  hos_compliance_alert: boolean | null;
+  driver_fitness_measure: number | null;
+  driver_fitness_alert: boolean | null;
+  controlled_substance_measure: number | null;
+  controlled_substance_alert: boolean | null;
+  vehicle_maint_measure: number | null;
+  vehicle_maint_alert: boolean | null;
+  hm_compliance_measure: number | null;
+  hm_compliance_alert: boolean | null;
+  crash_indicator_measure: number | null;
+  crash_indicator_alert: boolean | null;
+  oos_vehicle_rate: number | null;
+  oos_hazmat_rate: number | null;
+}
+
+interface CrashRow {
+  tow_away: boolean;
+  fatalities: number;
+  injuries: number;
+}
+
+function buildStoryStrip(
+  snapshot: StorySnapshot,
+  crashes: CrashRow[]
+): string {
+  const basics = [
+    { name: "Unsafe Driving", measure: snapshot.unsafe_driving_measure, alert: snapshot.unsafe_driving_alert },
+    { name: "HOS Compliance", measure: snapshot.hos_compliance_measure, alert: snapshot.hos_compliance_alert },
+    { name: "Driver Fitness", measure: snapshot.driver_fitness_measure, alert: snapshot.driver_fitness_alert },
+    { name: "Controlled Substances", measure: snapshot.controlled_substance_measure, alert: snapshot.controlled_substance_alert },
+    { name: "Vehicle Maintenance", measure: snapshot.vehicle_maint_measure, alert: snapshot.vehicle_maint_alert },
+    { name: "Hazmat Compliance", measure: snapshot.hm_compliance_measure, alert: snapshot.hm_compliance_alert },
+    { name: "Crash Indicator", measure: snapshot.crash_indicator_measure, alert: snapshot.crash_indicator_alert },
+  ]
+    .filter((b) => b.measure != null)
+    .sort((a, b) => (b.measure ?? 0) - (a.measure ?? 0));
+
+  const parts: string[] = [];
+
+  const priority = basics[0];
+  if (priority) {
+    parts.push(
+      `${priority.name} is the priority BASIC with a measure of ${(priority.measure ?? 0).toFixed(2)}.`
+    );
+  }
+
+  if (snapshot.oos_vehicle_rate != null && snapshot.oos_vehicle_rate > 20) {
+    parts.push(
+      `Vehicle OOS rate (${snapshot.oos_vehicle_rate.toFixed(1)}%) is above the national average of 20%.`
+    );
+  }
+  if (snapshot.oos_hazmat_rate != null && snapshot.oos_hazmat_rate > 4.4) {
+    parts.push(
+      `Hazmat OOS rate (${snapshot.oos_hazmat_rate.toFixed(1)}%) is above the national average of 4.4%.`
+    );
+  }
+
+  const recentCrashes = crashes.filter((c) => c != null);
+  const towCrashes = recentCrashes.filter((c) => c.tow_away).length;
+  if (recentCrashes.length > 0) {
+    parts.push(
+      `${recentCrashes.length} crash${recentCrashes.length > 1 ? "es" : ""} in the last 24 months` +
+        (towCrashes > 0
+          ? ` (${towCrashes} tow-away — CPDP review may apply).`
+          : ".")
+    );
+  }
+
+  const alertedBasics = basics
+    .filter((b) => b.alert === true)
+    .map((b) => b.name);
+  if (alertedBasics.length > 0) {
+    parts.push(
+      `${alertedBasics.join(" and ")} ${alertedBasics.length === 1 ? "is" : "are"} over the FMCSA intervention threshold.`
+    );
+  }
+
+  return (
+    parts.join(" ") ||
+    "No significant safety flags identified in current data."
+  );
+}
+
+// ── Data freshness dot ────────────────────────────────────────────────────────
+
+function freshnessColor(saferAsOf: string | null): string {
+  if (!saferAsOf) return "bg-gray-400";
+  const days =
+    (Date.now() - new Date(saferAsOf + "T12:00:00").getTime()) /
+    (1000 * 60 * 60 * 24);
+  if (days <= 45) return "bg-green-500";
+  if (days <= 90) return "bg-amber-500";
+  return "bg-red-500";
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default async function ClientDetailPage({
   params,
 }: {
@@ -54,16 +187,17 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
-  // Fetch latest score snapshot, counts, active cases, credentials, and carrier profile concurrently
   const [
     { data: snapshot },
+    { data: carrierProfile },
+    { data: crashRows },
+    { data: activeCases },
+    { data: challengeableViolations },
+    { data: cpdpCandidates },
+    { data: draftCases },
+    { data: allCases },
     { count: violationCount },
     { count: caseCount },
-    { count: crashCount },
-    { count: alertCount },
-    { data: activeCases },
-    { data: credentials },
-    { data: carrierProfile },
   ] = await Promise.all([
     supabase
       .from("score_snapshots")
@@ -72,26 +206,6 @@ export default async function ClientDetailPage({
       .order("snapshot_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
-    supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
-    supabase.from("crashes").select("*", { count: "exact", head: true }).eq("client_id", id),
-    supabase
-      .from("alerts")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", id)
-      .is("dismissed_at", null),
-    supabase
-      .from("dataq_cases")
-      .select("*, violations(violation_code, violation_description)")
-      .eq("client_id", id)
-      .not("status", "in", '("approved","denied","closed")')
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("client_credentials")
-      .select("fmcsa_pin_encrypted")
-      .eq("client_id", id)
-      .maybeSingle(),
     supabase
       .from("carrier_profiles")
       .select("*")
@@ -99,109 +213,233 @@ export default async function ClientDetailPage({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("crashes")
+      .select("crash_date, fatalities, injuries, tow_away, cpdp_eligible")
+      .eq("client_id", id)
+      .order("crash_date", { ascending: false }),
+    supabase
+      .from("dataq_cases")
+      .select("*, violations(violation_code, violation_description)")
+      .eq("client_id", id)
+      .not("status", "in", '("approved","denied","closed")')
+      .order("created_at", { ascending: false })
+      .limit(5),
+    // Top challengeable violations in the highest-measure BASIC (for opportunities)
+    supabase
+      .from("violations")
+      .select("id, violation_code, violation_description, basic_category, severity_weight, challenge_reason")
+      .eq("client_id", id)
+      .eq("challengeable", true)
+      .order("severity_weight", { ascending: false })
+      .limit(3),
+    // CPDP candidates: tow_away crashes with no cpdp_eligible assessment
+    supabase
+      .from("crashes")
+      .select("id, crash_date, state")
+      .eq("client_id", id)
+      .eq("tow_away", true)
+      .is("cpdp_eligible", null)
+      .limit(5),
+    // Draft DataQ cases
+    supabase
+      .from("dataq_cases")
+      .select("id, created_at, violations(violation_code)")
+      .eq("client_id", id)
+      .eq("status", "draft")
+      .limit(5),
+    // All cases (for section 9)
+    supabase
+      .from("dataq_cases")
+      .select("id, status, created_at, violations(violation_code, violation_description)")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
+    supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
   ]);
 
-  const hasFmcsaAccess = !!(credentials as { fmcsa_pin_encrypted?: unknown } | null)?.fmcsa_pin_encrypted;
+  // Violation counts by BASIC (server-side aggregation via supabase)
+  // We fetch all violations for the client and group in JS since supabase
+  // doesn't support group-by in the client lib without RPC.
+  const { data: allViolations } = await supabase
+    .from("violations")
+    .select("basic_category")
+    .eq("client_id", id);
 
+  const violsByBasic: Record<string, number> = {};
+  for (const v of allViolations ?? []) {
+    const cat = (v.basic_category as string) ?? "unknown";
+    violsByBasic[cat] = (violsByBasic[cat] ?? 0) + 1;
+  }
+  const violsByBasicSorted = Object.entries(violsByBasic).sort(
+    (a, b) => b[1] - a[1]
+  );
+  const maxViolCount = violsByBasicSorted[0]?.[1] ?? 1;
+
+  const basicCategoryLabel: Record<string, string> = {
+    unsafe_driving: "Unsafe Driving",
+    hos_compliance: "HOS Compliance",
+    driver_fitness: "Driver Fitness",
+    controlled_substance: "Controlled Substances",
+    vehicle_maintenance: "Vehicle Maintenance",
+    hazmat_compliance: "Hazmat Compliance",
+    crash_indicator: "Crash Indicator",
+    unknown: "Unknown",
+  };
+
+  // Crash breakdown
+  const crashes24m = crashRows ?? [];
+  const crashFatal = crashes24m.filter((c) => c.fatalities > 0).length;
+  const crashInjury = crashes24m.filter((c) => c.injuries > 0).length;
+  const crashTow = crashes24m.filter((c) => c.tow_away).length;
+
+  // BASIC scores array
   const basicsArray = snapshot
     ? [
-        { key: "unsafeDriving", label: "Unsafe driving", measure: snapshot.unsafe_driving_measure, percentile: snapshot.unsafe_driving_pct },
-        { key: "hosCompliance", label: "HOS compliance", measure: snapshot.hos_compliance_measure, percentile: snapshot.hos_compliance_pct },
-        { key: "driverFitness", label: "Driver fitness", measure: snapshot.driver_fitness_measure, percentile: snapshot.driver_fitness_pct },
-        { key: "controlledSubstance", label: "Controlled substances", measure: snapshot.controlled_substance_measure, percentile: snapshot.controlled_substance_pct },
-        { key: "vehicleMaint", label: "Vehicle maintenance", measure: snapshot.vehicle_maint_measure, percentile: snapshot.vehicle_maint_pct },
-        { key: "hmCompliance", label: "HM compliance", measure: snapshot.hm_compliance_measure, percentile: snapshot.hm_compliance_pct },
-        { key: "crashIndicator", label: "Crash indicator", measure: snapshot.crash_indicator_measure, percentile: snapshot.crash_indicator_pct },
+        {
+          key: "unsafeDriving",
+          label: "Unsafe Driving",
+          measure: snapshot.unsafe_driving_measure as number | null,
+          percentile: snapshot.unsafe_driving_pct as number | null,
+          alert: snapshot.unsafe_driving_alert as boolean,
+        },
+        {
+          key: "hosCompliance",
+          label: "HOS Compliance",
+          measure: snapshot.hos_compliance_measure as number | null,
+          percentile: snapshot.hos_compliance_pct as number | null,
+          alert: snapshot.hos_compliance_alert as boolean,
+        },
+        {
+          key: "driverFitness",
+          label: "Driver Fitness",
+          measure: snapshot.driver_fitness_measure as number | null,
+          percentile: snapshot.driver_fitness_pct as number | null,
+          alert: snapshot.driver_fitness_alert as boolean,
+        },
+        {
+          key: "controlledSubstance",
+          label: "Controlled Substances",
+          measure: snapshot.controlled_substance_measure as number | null,
+          percentile: snapshot.controlled_substance_pct as number | null,
+          alert: snapshot.controlled_substance_alert as boolean,
+        },
+        {
+          key: "vehicleMaint",
+          label: "Vehicle Maintenance",
+          measure: snapshot.vehicle_maint_measure as number | null,
+          percentile: snapshot.vehicle_maint_pct as number | null,
+          alert: snapshot.vehicle_maint_alert as boolean,
+        },
+        {
+          key: "hmCompliance",
+          label: "Hazmat Compliance",
+          measure: snapshot.hm_compliance_measure as number | null,
+          percentile: snapshot.hm_compliance_pct as number | null,
+          alert: snapshot.hm_compliance_alert as boolean,
+        },
+        {
+          key: "crashIndicator",
+          label: "Crash Indicator",
+          measure: snapshot.crash_indicator_measure as number | null,
+          percentile: snapshot.crash_indicator_pct as number | null,
+          alert: snapshot.crash_indicator_alert as boolean,
+        },
       ]
     : [];
 
-  const tierLabel: Record<string, string> = {
-    monitor: "Monitor",
-    remediate: "Remediate",
-    total_safety: "Total Safety",
-  };
+  // Highest-measure BASIC (for priority badge and opportunities)
+  const highestBasicIdx = basicsArray.reduce(
+    (maxIdx, b, idx, arr) =>
+      (b.measure ?? -1) > (arr[maxIdx].measure ?? -1) ? idx : maxIdx,
+    0
+  );
+
+  // Story strip
+  const storyText =
+    snapshot
+      ? buildStoryStrip(
+          snapshot as unknown as StorySnapshot,
+          crashes24m
+        )
+      : null;
+
+  // safer_as_of
+  const saferAsOf = (carrierProfile as Record<string, unknown> | null)?.safer_as_of as string | null ?? null;
+
+  const cp = carrierProfile as Record<string, unknown> | null;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
+        <Link href="/console" className="hover:text-[#C67A1E]">
+          Clients
+        </Link>
         <ChevronRight className="w-3 h-3" />
         <span className="text-[#1E1C1A] font-medium">{client.name}</span>
       </div>
 
-      {/* Header card */}
+      {/* ── Section 1: Header ─────────────────────────────────────────────── */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-bold text-[#1E1C1A]">{client.name}</h1>
+            <div className="flex items-center gap-3 mb-1 flex-wrap">
+              <h1 className="text-xl font-bold text-[#1E1C1A]">
+                {client.name}
+              </h1>
               {client.tier && (
-                <Badge variant={client.tier === "total_safety" ? "gold" : client.tier === "remediate" ? "info" : "default"}>
+                <Badge
+                  variant={
+                    client.tier === "total_safety"
+                      ? "gold"
+                      : client.tier === "remediate"
+                      ? "info"
+                      : "default"
+                  }
+                >
                   {tierLabel[client.tier]}
                 </Badge>
               )}
-              <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
+              <Badge
+                variant={
+                  (statusVariant[client.status] ?? "default") as
+                    | "success"
+                    | "default"
+                    | "warning"
+                    | "danger"
+                }
+              >
                 {statusLabel[client.status] ?? client.status}
               </Badge>
             </div>
-
-            <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-2">
-              <span className="flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5" />
-                DOT {client.dot_number}
-                {client.mc_number ? ` · MC ${client.mc_number}` : ""}
-              </span>
-              <FmcsaAccessBadge hasAccess={hasFmcsaAccess} />
-              {(client.city || client.state) && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {[client.city, client.state].filter(Boolean).join(", ")}
-                </span>
-              )}
-              {client.phone && (
-                <span className="flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5" />
-                  {client.phone}
-                </span>
-              )}
-              {client.email && (
-                <span className="flex items-center gap-1">
-                  <Mail className="w-3.5 h-3.5" />
-                  {client.email}
-                </span>
-              )}
-              {client.fleet_size && (
-                <span className="flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" />
-                  {client.fleet_size} power units
-                </span>
-              )}
-              {client.driver_count && (
-                <span className="flex items-center gap-1">
-                  <Users2 className="w-3.5 h-3.5" />
-                  {client.driver_count} drivers
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                Added {formatDate(client.created_at)}
+            <p className="text-xs text-gray-500 mt-1">
+              USDOT: {client.dot_number}
+              {client.mc_number ? ` | MC-${client.mc_number}` : ""}
+              {cp?.authority_status
+                ? ` | ${cp.authority_status as string}`
+                : ""}
+            </p>
+            {/* Data freshness */}
+            <div className="flex items-center gap-1.5 mt-2">
+              <span
+                className={`w-2 h-2 rounded-full inline-block ${freshnessColor(saferAsOf)}`}
+              />
+              <span className="text-xs text-gray-400">
+                {saferAsOf
+                  ? `Data as of ${formatDate(saferAsOf)}`
+                  : "Data freshness unknown"}
               </span>
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="flex flex-wrap gap-2 shrink-0 items-center">
             <RunAnalysisButton
               clientId={id}
               dotNumber={client.dot_number}
               hasData={(violationCount ?? 0) > 0}
-              hasFmcsaAccess={hasFmcsaAccess}
-            />
-            <InviteButton
-              clientId={id}
-              clientName={client.name}
-              contactEmail={client.email ?? undefined}
+              hasFmcsaAccess={false}
             />
             <Link
               href={`/console/clients/${id}/violations`}
@@ -219,10 +457,92 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* Carrier Profile */}
-      <CarrierProfileSection clientId={id} profile={carrierProfile ?? null} />
+      {/* ── Section 2: Story strip ────────────────────────────────────────── */}
+      {storyText && (
+        <div className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
+          <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-1">
+            Safety summary
+          </p>
+          <p className="text-sm text-[#1E1C1A] leading-relaxed">{storyText}</p>
+        </div>
+      )}
 
-      {/* Score snapshot */}
+      {/* ── Section 3: Carrier snapshot ──────────────────────────────────── */}
+      {cp && (
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
+            Carrier snapshot
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {/* Power Units */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <div className="flex items-center gap-0.5">
+                <p className="text-xs text-gray-500">Power Units</p>
+                <Tooltip content={TT.POWER_UNITS} />
+              </div>
+              <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
+                {cp.power_units != null ? String(cp.power_units) : "—"}
+              </p>
+            </div>
+            {/* Drivers */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <div className="flex items-center gap-0.5">
+                <p className="text-xs text-gray-500">Drivers</p>
+                <Tooltip content={TT.DRIVERS} />
+              </div>
+              <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
+                {cp.drivers != null ? String(cp.drivers) : "—"}
+              </p>
+            </div>
+            {/* MCS-150 */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <div className="flex items-center gap-0.5">
+                <p className="text-xs text-gray-500">MCS-150 Filed</p>
+                <Tooltip content={TT.MCS150} />
+              </div>
+              <p className="text-base font-bold text-[#1E1C1A] mt-1">
+                {cp.mcs150_date ? formatDate(cp.mcs150_date as string) : "—"}
+              </p>
+              {cp.mcs150_mileage != null && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {Number(cp.mcs150_mileage).toLocaleString()} mi
+                  {cp.mcs150_mileage_year ? ` (${cp.mcs150_mileage_year})` : ""}
+                </p>
+              )}
+            </div>
+            {/* Safety Rating */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <div className="flex items-center gap-0.5">
+                <p className="text-xs text-gray-500">Safety Rating</p>
+                <Tooltip content={TT.SAFETY_RATING} />
+              </div>
+              <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
+                {cp.safety_rating
+                  ? String(cp.safety_rating)
+                  : cp.review_type
+                  ? String(cp.review_type)
+                  : "Unrated / Non-Ratable"}
+              </p>
+            </div>
+            {/* Authority Status */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <p className="text-xs text-gray-500">Authority Status</p>
+              <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
+                {cp.authority_status ? String(cp.authority_status) : "—"}
+              </p>
+            </div>
+            {/* Entity Type */}
+            <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+              <p className="text-xs text-gray-500">Entity Type</p>
+              <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
+                {cp.entity_type ? String(cp.entity_type) : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 4: BASIC scores ───────────────────────────────────────── */}
       {basicsArray.length > 0 && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center justify-between mb-4">
@@ -230,101 +550,378 @@ export default async function ClientDetailPage({
               BASIC scores
               {snapshot && (
                 <span className="text-gray-400 font-normal text-xs ml-2">
-                  as of {formatDate(snapshot.snapshot_date)}
+                  as of {formatDate(snapshot.snapshot_date as string)}
                 </span>
               )}
             </h2>
-            <Link
-              href={`/console/assess/${client.dot_number}`}
-              className="text-xs text-gray-400 hover:text-[#C67A1E] transition-colors"
-            >
-              View assessment →
-            </Link>
           </div>
-          <div className="grid grid-cols-4 gap-3">
-            {basicsArray.map((b) => (
-              <ScoreCard
-                key={b.key}
-                label={b.label}
-                measure={b.measure as number | null}
-                percentile={b.percentile as number | null}
-                alert={(b.percentile as number | null) !== null && (b.percentile as number) >= 80}
-              />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {basicsArray.map((b, idx) => {
+              const isPriority = idx === highestBasicIdx && b.measure != null;
+              return (
+                <div
+                  key={b.key}
+                  className={`rounded-lg border p-4 ${
+                    isPriority
+                      ? "border-[#C67A1E]/40 bg-[#FDF4E7]"
+                      : "border-[#F0E8DA] bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-500 font-medium">
+                      {b.label}
+                    </span>
+                    {isPriority && (
+                      <span className="text-[10px] font-semibold text-[#C67A1E] uppercase tracking-wide">
+                        Priority
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <span
+                      className={`text-2xl font-bold ${
+                        isPriority ? "text-[#C67A1E]" : "text-[#1E1C1A]"
+                      }`}
+                    >
+                      {b.measure != null ? b.measure.toFixed(2) : "—"}
+                    </span>
+                    <Tooltip
+                      content={basicMeasureTooltip(b.label)}
+                      position="top"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-xs text-gray-400">
+                      {b.percentile != null
+                        ? `${b.percentile}th percentile`
+                        : "Not public — too few inspections to rank"}
+                    </span>
+                    <Tooltip content={TT.PERCENTILE} position="bottom" />
+                  </div>
+                  {b.alert && (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Badge variant="warning">Over threshold</Badge>
+                      <Tooltip content={TT.ALERT} position="bottom" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 5: OOS rates ─────────────────────────────────────────── */}
+      {snapshot && (
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
+            Out-of-service rates
+          </h2>
+          <div className="grid grid-cols-3 gap-4">
+            {(
+              [
+                {
+                  label: "Vehicle",
+                  rate: snapshot.oos_vehicle_rate as number | null,
+                  national: 20.0,
+                },
+                {
+                  label: "Driver",
+                  rate: snapshot.oos_driver_rate as number | null,
+                  national: 5.5,
+                },
+                {
+                  label: "Hazmat",
+                  rate: snapshot.oos_hazmat_rate as number | null,
+                  national: 4.4,
+                },
+              ] as { label: string; rate: number | null; national: number }[]
+            ).map(({ label, rate, national }) => {
+              const aboveAvg = rate != null && rate > national;
+              return (
+                <div
+                  key={label}
+                  className="bg-white rounded-lg border border-[#F0E8DA] p-4"
+                >
+                  <p className="text-xs text-gray-500 font-medium mb-2">
+                    {label} OOS Rate
+                  </p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-2xl font-bold text-[#1E1C1A]">
+                      {rate != null ? `${rate.toFixed(1)}%` : "—"}
+                    </span>
+                    <Tooltip content={TT.OOS_RATE} />
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-xs text-gray-400">
+                      Nat. avg: {national.toFixed(1)}%
+                    </span>
+                    <Tooltip content={TT.NATIONAL_AVG} position="bottom" />
+                  </div>
+                  {rate != null && (
+                    <div className="mt-2">
+                      <Badge variant={aboveAvg ? "warning" : "success"}>
+                        {aboveAvg ? "Above national average" : "Below national average"}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 6: Violations by BASIC ───────────────────────────────── */}
+      {violsByBasicSorted.length > 0 && (
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+          <div className="flex items-center gap-1 mb-4">
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">
+              Violations by BASIC
+            </h2>
+            <Tooltip content={TT.VIOLATIONS} />
+          </div>
+          <div className="space-y-3">
+            {violsByBasicSorted.map(([cat, count]) => (
+              <div key={cat} className="flex items-center gap-3">
+                <span className="text-xs text-gray-600 w-40 shrink-0">
+                  {basicCategoryLabel[cat] ?? cat}
+                </span>
+                <div className="flex-1 bg-[#F0E8DA] rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-2 rounded-full bg-[#C67A1E]"
+                    style={{ width: `${(count / maxViolCount) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-[#1E1C1A] w-6 text-right shrink-0">
+                  {count}
+                </span>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Quick stats + active cases */}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="grid grid-cols-2 gap-3 content-start">
-          {[
-            { label: "Violations", value: violationCount ?? 0, href: `violations` },
-            { label: "DataQs cases", value: caseCount ?? 0, href: `dataq` },
-            { label: "Crashes", value: crashCount ?? 0, href: `cpdp` },
-            { label: "Active alerts", value: alertCount ?? 0, href: null },
-          ].map((s) => (
-            <div key={s.label} className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
-              <p className="text-2xl font-bold text-[#1E1C1A]">{s.value}</p>
-              {s.href ? (
-                <Link
-                  href={`/console/clients/${id}/${s.href}`}
-                  className="text-xs text-[#C67A1E] hover:underline"
-                >
-                  {s.label}
-                </Link>
-              ) : (
-                <p className="text-xs text-gray-500">{s.label}</p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="col-span-2 bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
-            <h3 className="font-semibold text-[#1E1C1A] text-sm">Active cases</h3>
-            <Link href={`/console/clients/${id}/dataq`} className="text-xs text-[#C67A1E] hover:underline">
-              View all
-            </Link>
+      {/* ── Section 7: Crashes & CPDP ────────────────────────────────────── */}
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-1">
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">
+              Crashes &amp; CPDP
+            </h2>
+            <Tooltip content={TT.CRASHES} />
           </div>
-          {activeCases && activeCases.length > 0 ? (
-            <div className="divide-y divide-[#F0E8DA]">
-              {activeCases.map((c) => (
-                <div key={c.id} className="px-5 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1E1C1A] truncate">
-                      {Array.isArray(c.violations)
-                        ? `${(c.violations as { violation_code: string }[])[0]?.violation_code}`
-                        : (c.violations as { violation_code: string } | null)?.violation_code ?? "—"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {Array.isArray(c.violations)
-                        ? (c.violations as { violation_description: string }[])[0]?.violation_description
-                        : (c.violations as { violation_description: string } | null)?.violation_description ?? ""}
-                    </p>
-                  </div>
-                  <Badge variant={caseStatusVariant(c.status)}>
-                    {caseStatusLabel(c.status)}
-                  </Badge>
+          <Link
+            href={`/console/clients/${id}/cpdp`}
+            className="text-xs text-[#C67A1E] hover:underline"
+          >
+            Review crashes for CPDP →
+          </Link>
+        </div>
+        {crashes24m.length > 0 ? (
+          <>
+            <div className="grid grid-cols-3 gap-4 mb-3">
+              {(
+                [
+                  { label: "Fatal", count: crashFatal },
+                  { label: "Injury", count: crashInjury },
+                  { label: "Tow-away", count: crashTow },
+                ] as { label: string; count: number }[]
+              ).map(({ label, count }) => (
+                <div
+                  key={label}
+                  className="bg-white rounded-lg border border-[#F0E8DA] p-4 text-center"
+                >
+                  <p className="text-2xl font-bold text-[#1E1C1A]">{count}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{label}</p>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm text-gray-400">No active cases</p>
-              <Link
-                href={`/console/clients/${id}/violations`}
-                className="text-xs text-[#C67A1E] hover:underline mt-1 inline-block"
-              >
-                Analyze violations to create cases
-              </Link>
-            </div>
+            {crashTow > 0 && (
+              <p className="text-xs text-gray-500">
+                Tow-away crashes may be eligible for CPDP review to remove them
+                from the Crash Indicator BASIC.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-gray-400">No crashes on record.</p>
+        )}
+      </div>
+
+      {/* ── Section 8: Opportunities work queue ──────────────────────────── */}
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
+          Remediation opportunities (ranked by estimated impact)
+        </h2>
+        <div className="space-y-3">
+          {/* Challengeable violations */}
+          {challengeableViolations && challengeableViolations.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                Challengeable violations
+              </p>
+              {challengeableViolations.map((v) => (
+                <div
+                  key={v.id}
+                  className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1E1C1A]">
+                      {v.violation_code} — {v.violation_description}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      BASIC: {basicCategoryLabel[v.basic_category as string] ?? v.basic_category}
+                      {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/console/clients/${id}/dataq`}
+                    className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                  >
+                    Create case →
+                  </Link>
+                </div>
+              ))}
+            </>
           )}
+
+          {/* CPDP candidates */}
+          {cpdpCandidates && cpdpCandidates.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
+                CPDP-eligible crash candidates
+              </p>
+              {cpdpCandidates.map((c) => (
+                <div
+                  key={c.id}
+                  className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1E1C1A]">
+                      Tow-away crash — {formatDate(c.crash_date as string)}
+                      {c.state ? ` (${c.state})` : ""}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Not yet assessed for CPDP eligibility. Review may remove
+                      this from the Crash Indicator BASIC.
+                    </p>
+                  </div>
+                  <Link
+                    href={`/console/clients/${id}/cpdp`}
+                    className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                  >
+                    Review →
+                  </Link>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Draft DataQ cases */}
+          {draftCases && draftCases.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
+                Draft DataQs cases (not yet filed)
+              </p>
+              {draftCases.map((c) => {
+                const viol = Array.isArray(c.violations)
+                  ? (c.violations as { violation_code: string }[])[0]
+                  : (c.violations as { violation_code: string } | null);
+                return (
+                  <div
+                    key={c.id}
+                    className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1E1C1A]">
+                        Case for {viol?.violation_code ?? "violation"} — created{" "}
+                        {formatDate(c.created_at as string)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Draft — narrative ready to finalize and file.
+                      </p>
+                    </div>
+                    <Link
+                      href={`/console/clients/${id}/dataq`}
+                      className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                    >
+                      File →
+                    </Link>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {(!challengeableViolations || challengeableViolations.length === 0) &&
+            (!cpdpCandidates || cpdpCandidates.length === 0) &&
+            (!draftCases || draftCases.length === 0) && (
+              <p className="text-sm text-gray-400">
+                No remediation opportunities identified. Run a full analysis to
+                assess violations.
+              </p>
+            )}
         </div>
       </div>
 
-      {/* Detail tabs */}
-      <ClientDetailTabs clientId={id} dotNumber={client.dot_number} />
+      {/* ── Section 9: DataQs cases ───────────────────────────────────────── */}
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <h3 className="font-semibold text-[#1E1C1A] text-sm">
+              DataQs cases
+            </h3>
+            <Tooltip content={TT.DATAQS} />
+          </div>
+          <Link
+            href={`/console/clients/${id}/dataq`}
+            className="text-xs text-[#C67A1E] hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+        {allCases && allCases.length > 0 ? (
+          <div className="divide-y divide-[#F0E8DA]">
+            {allCases.map((c) => (
+              <div key={c.id} className="px-5 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#1E1C1A] truncate">
+                    {Array.isArray(c.violations)
+                      ? `${(c.violations as { violation_code: string }[])[0]?.violation_code ?? "—"}`
+                      : (c.violations as { violation_code: string } | null)
+                          ?.violation_code ?? "—"}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {Array.isArray(c.violations)
+                      ? (
+                          c.violations as { violation_description: string }[]
+                        )[0]?.violation_description
+                      : (
+                          c.violations as {
+                            violation_description: string;
+                          } | null
+                        )?.violation_description ?? ""}
+                  </p>
+                </div>
+                <Badge variant={caseStatusVariant(c.status as string)}>
+                  {caseStatusLabel(c.status as string)}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-5 py-8 text-center">
+            <p className="text-sm text-gray-400">No DataQs cases yet.</p>
+            <Link
+              href={`/console/clients/${id}/violations`}
+              className="text-xs text-[#C67A1E] hover:underline mt-1 inline-block"
+            >
+              Analyze violations to create cases
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
