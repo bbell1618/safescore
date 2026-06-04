@@ -95,66 +95,114 @@ interface CrashRow {
   injuries: number;
 }
 
+interface BasicStat {
+  category: string;
+  label: string;
+  count: number;
+  oos: number;
+  severity: number;
+}
+
+interface ViolsByBasicMap {
+  [category: string]: { count: number; oos: number; severity: number };
+}
+
 function buildStoryStrip(
   snapshot: StorySnapshot,
+  violsByBasic: ViolsByBasicMap,
   crashes: CrashRow[]
-): string {
-  const basics = [
-    { name: "Unsafe Driving", measure: snapshot.unsafe_driving_measure, alert: snapshot.unsafe_driving_alert },
-    { name: "HOS Compliance", measure: snapshot.hos_compliance_measure, alert: snapshot.hos_compliance_alert },
-    { name: "Driver Fitness", measure: snapshot.driver_fitness_measure, alert: snapshot.driver_fitness_alert },
-    { name: "Controlled Substances", measure: snapshot.controlled_substance_measure, alert: snapshot.controlled_substance_alert },
-    { name: "Vehicle Maintenance", measure: snapshot.vehicle_maint_measure, alert: snapshot.vehicle_maint_alert },
-    { name: "Hazmat Compliance", measure: snapshot.hm_compliance_measure, alert: snapshot.hm_compliance_alert },
-    { name: "Crash Indicator", measure: snapshot.crash_indicator_measure, alert: snapshot.crash_indicator_alert },
+): string[] {
+  const sentences: string[] = [];
+
+  // 1. Lead with the BASIC carrying the most combined burden (violations + OOS)
+  const basicOrder = [
+    { category: "vehicle_maintenance", label: "Vehicle Maintenance" },
+    { category: "hos_compliance", label: "HOS Compliance" },
+    { category: "unsafe_driving", label: "Unsafe Driving" },
+    { category: "driver_fitness", label: "Driver Fitness" },
+    { category: "controlled_substance", label: "Controlled Substances" },
+    { category: "hm_compliance", label: "Hazmat Compliance" },
+    { category: "crash_indicator", label: "Crash Indicator" },
+  ];
+
+  const statsWithData: BasicStat[] = basicOrder
+    .filter((b) => (violsByBasic[b.category]?.count ?? 0) > 0)
+    .map((b) => ({ ...b, ...violsByBasic[b.category] }))
+    .sort(
+      (a, b) =>
+        b.count + b.oos * 2 + b.severity * 0.1 -
+        (a.count + a.oos * 2 + a.severity * 0.1)
+    );
+
+  const topBasic = statsWithData[0];
+  if (topBasic) {
+    sentences.push(
+      `${topBasic.label} carries the largest violation burden: ${topBasic.count} violation${topBasic.count !== 1 ? "s" : ""} with ${topBasic.oos} OOS across the inspection window.`
+    );
+  }
+
+  // 2. State whether any BASIC exceeds the intervention threshold
+  const anyAlert = [
+    snapshot.unsafe_driving_alert,
+    snapshot.hos_compliance_alert,
+    snapshot.driver_fitness_alert,
+    snapshot.controlled_substance_alert,
+    snapshot.vehicle_maint_alert,
+    snapshot.hm_compliance_alert,
+    snapshot.crash_indicator_alert,
+  ].some(Boolean);
+
+  if (!anyAlert) {
+    sentences.push(
+      "No BASIC currently exceeds an FMCSA intervention threshold — the carrier is not in elevated-scrutiny status."
+    );
+  } else {
+    const alertedNames = [
+      snapshot.unsafe_driving_alert && "Unsafe Driving",
+      snapshot.hos_compliance_alert && "HOS Compliance",
+      snapshot.driver_fitness_alert && "Driver Fitness",
+      snapshot.controlled_substance_alert && "Controlled Substances",
+      snapshot.vehicle_maint_alert && "Vehicle Maintenance",
+      snapshot.hm_compliance_alert && "Hazmat Compliance",
+      snapshot.crash_indicator_alert && "Crash Indicator",
+    ].filter(Boolean) as string[];
+    sentences.push(
+      `${alertedNames.join(" and ")} ${alertedNames.length === 1 ? "is" : "are"} over the FMCSA intervention threshold.`
+    );
+  }
+
+  // 3. Caveat the highest raw measure — do NOT present it as the priority
+  const measures = [
+    { name: "Unsafe Driving", val: snapshot.unsafe_driving_measure },
+    { name: "HOS Compliance", val: snapshot.hos_compliance_measure },
+    { name: "Driver Fitness", val: snapshot.driver_fitness_measure },
+    { name: "Controlled Substances", val: snapshot.controlled_substance_measure },
+    { name: "Vehicle Maintenance", val: snapshot.vehicle_maint_measure },
+    { name: "Hazmat Compliance", val: snapshot.hm_compliance_measure },
+    { name: "Crash Indicator", val: snapshot.crash_indicator_measure },
   ]
-    .filter((b) => b.measure != null)
-    .sort((a, b) => (b.measure ?? 0) - (a.measure ?? 0));
+    .filter((m) => m.val != null)
+    .sort((a, b) => (b.val ?? 0) - (a.val ?? 0));
 
-  const parts: string[] = [];
-
-  const priority = basics[0];
-  if (priority) {
-    parts.push(
-      `${priority.name} is the priority BASIC with a measure of ${(priority.measure ?? 0).toFixed(2)}.`
+  const highestMeasure = measures[0];
+  if (highestMeasure && highestMeasure.val != null) {
+    sentences.push(
+      `${highestMeasure.name} shows the highest raw measure (${highestMeasure.val.toFixed(2)}), but BASIC measures aren't comparable across categories and FMCSA doesn't publish percentiles for this carrier, so relative ranking isn't available.`
     );
   }
 
-  if (snapshot.oos_vehicle_rate != null && snapshot.oos_vehicle_rate > 20) {
-    parts.push(
-      `Vehicle OOS rate (${snapshot.oos_vehicle_rate.toFixed(1)}%) is above the national average of 20%.`
-    );
-  }
-  if (snapshot.oos_hazmat_rate != null && snapshot.oos_hazmat_rate > 4.4) {
-    parts.push(
-      `Hazmat OOS rate (${snapshot.oos_hazmat_rate.toFixed(1)}%) is above the national average of 4.4%.`
-    );
-  }
-
-  const recentCrashes = crashes.filter((c) => c != null);
-  const towCrashes = recentCrashes.filter((c) => c.tow_away).length;
-  if (recentCrashes.length > 0) {
-    parts.push(
-      `${recentCrashes.length} crash${recentCrashes.length > 1 ? "es" : ""} in the last 24 months` +
-        (towCrashes > 0
-          ? ` (${towCrashes} tow-away — CPDP review may apply).`
-          : ".")
+  // 4. Crashes
+  const totalCrashes = crashes.filter((c) => c != null).length;
+  const towCount = crashes.filter((c) => c?.tow_away).length;
+  if (totalCrashes > 0) {
+    sentences.push(
+      `${totalCrashes} crash${totalCrashes !== 1 ? "es" : ""} in the last 24 months${towCount > 0 ? ` (${towCount} tow-away — CPDP review may apply)` : ""}.`
     );
   }
 
-  const alertedBasics = basics
-    .filter((b) => b.alert === true)
-    .map((b) => b.name);
-  if (alertedBasics.length > 0) {
-    parts.push(
-      `${alertedBasics.join(" and ")} ${alertedBasics.length === 1 ? "is" : "are"} over the FMCSA intervention threshold.`
-    );
-  }
-
-  return (
-    parts.join(" ") ||
-    "No significant safety flags identified in current data."
-  );
+  return sentences.length > 0
+    ? sentences
+    : ["No significant safety flags identified in current data."];
 }
 
 // ── Data freshness dot ────────────────────────────────────────────────────────
@@ -259,22 +307,27 @@ export default async function ClientDetailPage({
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
   ]);
 
-  // Violation counts by BASIC (server-side aggregation via supabase)
-  // We fetch all violations for the client and group in JS since supabase
-  // doesn't support group-by in the client lib without RPC.
+  // Violation counts by BASIC — fetch full detail rows so we can compute
+  // per-BASIC count, OOS, and severity without a separate RPC call.
   const { data: allViolations } = await supabase
     .from("violations")
-    .select("basic_category")
+    .select("basic_category, oos_violation, severity_weight")
     .eq("client_id", id);
 
-  const violsByBasic: Record<string, number> = {};
+  // Build per-BASIC violation stats
+  const violsByBasic: ViolsByBasicMap = {};
   for (const v of allViolations ?? []) {
-    const cat = (v.basic_category as string) ?? "unknown";
-    violsByBasic[cat] = (violsByBasic[cat] ?? 0) + 1;
+    const cat = (v as Record<string, unknown>).basic_category as string | null ?? "unknown";
+    if (!violsByBasic[cat]) violsByBasic[cat] = { count: 0, oos: 0, severity: 0 };
+    violsByBasic[cat].count++;
+    if ((v as Record<string, unknown>).oos_violation) violsByBasic[cat].oos++;
+    violsByBasic[cat].severity += ((v as Record<string, unknown>).severity_weight as number) ?? 0;
   }
-  const violsByBasicSorted = Object.entries(violsByBasic).sort(
-    (a, b) => b[1] - a[1]
-  );
+
+  // Sorted by count for the bar chart
+  const violsByBasicSorted = Object.entries(violsByBasic)
+    .map(([cat, stats]) => [cat, stats.count] as [string, number])
+    .sort((a, b) => b[1] - a[1]);
   const maxViolCount = violsByBasicSorted[0]?.[1] ?? 1;
 
   const basicCategoryLabel: Record<string, string> = {
@@ -349,21 +402,36 @@ export default async function ClientDetailPage({
       ]
     : [];
 
-  // Highest-measure BASIC (for priority badge and opportunities)
-  const highestBasicIdx = basicsArray.reduce(
-    (maxIdx, b, idx, arr) =>
-      (b.measure ?? -1) > (arr[maxIdx].measure ?? -1) ? idx : maxIdx,
-    0
-  );
-
-  // Story strip
-  const storyText =
+  // Story strip sentences (array, rendered as list items)
+  const storySentences =
     snapshot
       ? buildStoryStrip(
           snapshot as unknown as StorySnapshot,
+          violsByBasic,
           crashes24m
         )
       : null;
+
+  // Top BASIC by burden (for opportunity queue ordering)
+  const basicBurdenOrder = [
+    { category: "vehicle_maintenance" },
+    { category: "hos_compliance" },
+    { category: "unsafe_driving" },
+    { category: "driver_fitness" },
+    { category: "controlled_substance" },
+    { category: "hm_compliance" },
+    { category: "crash_indicator" },
+  ]
+    .filter((b) => (violsByBasic[b.category]?.count ?? 0) > 0)
+    .sort((a, b) => {
+      const sa = violsByBasic[a.category];
+      const sb = violsByBasic[b.category];
+      return (
+        sb.count + sb.oos * 2 + sb.severity * 0.1 -
+        (sa.count + sa.oos * 2 + sa.severity * 0.1)
+      );
+    });
+  const topBurdenCategory = basicBurdenOrder[0]?.category ?? null;
 
   // safer_as_of
   const saferAsOf = (carrierProfile as Record<string, unknown> | null)?.safer_as_of as string | null ?? null;
@@ -458,12 +526,19 @@ export default async function ClientDetailPage({
       </div>
 
       {/* ── Section 2: Story strip ────────────────────────────────────────── */}
-      {storyText && (
+      {storySentences && storySentences.length > 0 && (
         <div className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-1">
+          <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-2">
             Safety summary
           </p>
-          <p className="text-sm text-[#1E1C1A] leading-relaxed">{storyText}</p>
+          <ul className="space-y-1.5">
+            {storySentences.map((sentence, i) => (
+              <li key={i} className="text-sm text-[#1E1C1A] leading-relaxed flex gap-2">
+                <span className="text-[#C67A1E] shrink-0 mt-0.5">—</span>
+                <span>{sentence}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -556,33 +631,31 @@ export default async function ClientDetailPage({
             </h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {basicsArray.map((b, idx) => {
-              const isPriority = idx === highestBasicIdx && b.measure != null;
+            {basicsArray.map((b) => {
+              // Map basicsArray label back to the category key used in violsByBasic
+              const categoryKeyMap: Record<string, string> = {
+                "Unsafe Driving": "unsafe_driving",
+                "HOS Compliance": "hos_compliance",
+                "Driver Fitness": "driver_fitness",
+                "Controlled Substances": "controlled_substance",
+                "Vehicle Maintenance": "vehicle_maintenance",
+                "Hazmat Compliance": "hm_compliance",
+                "Crash Indicator": "crash_indicator",
+              };
+              const catKey = categoryKeyMap[b.label] ?? "";
+              const basicStats = violsByBasic[catKey];
               return (
                 <div
                   key={b.key}
-                  className={`rounded-lg border p-4 ${
-                    isPriority
-                      ? "border-[#C67A1E]/40 bg-[#FDF4E7]"
-                      : "border-[#F0E8DA] bg-white"
-                  }`}
+                  className="rounded-lg border border-[#F0E8DA] bg-white p-4"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs text-gray-500 font-medium">
                       {b.label}
                     </span>
-                    {isPriority && (
-                      <span className="text-[10px] font-semibold text-[#C67A1E] uppercase tracking-wide">
-                        Priority
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-end gap-1">
-                    <span
-                      className={`text-2xl font-bold ${
-                        isPriority ? "text-[#C67A1E]" : "text-[#1E1C1A]"
-                      }`}
-                    >
+                    <span className="text-2xl font-bold text-[#1E1C1A]">
                       {b.measure != null ? b.measure.toFixed(2) : "—"}
                     </span>
                     <Tooltip
@@ -598,6 +671,19 @@ export default async function ClientDetailPage({
                     </span>
                     <Tooltip content={TT.PERCENTILE} position="bottom" />
                   </div>
+                  {/* Per-BASIC violation and OOS counts */}
+                  {basicStats && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[11px] text-gray-500 bg-[#F0E8DA] rounded px-1.5 py-0.5">
+                        {basicStats.count} violation{basicStats.count !== 1 ? "s" : ""}
+                      </span>
+                      {basicStats.oos > 0 && (
+                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                          {basicStats.oos} OOS
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {b.alert && (
                     <div className="flex items-center gap-1 mt-1.5">
                       <Badge variant="warning">Over threshold</Badge>
@@ -755,70 +841,126 @@ export default async function ClientDetailPage({
           Remediation opportunities (ranked by estimated impact)
         </h2>
         <div className="space-y-3">
-          {/* Challengeable violations */}
-          {challengeableViolations && challengeableViolations.length > 0 && (
+          {/* 1. Top BASIC by violation burden — challengeable violations */}
+          {topBurdenCategory && violsByBasic[topBurdenCategory] && (
             <>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                Challengeable violations
+                {basicCategoryLabel[topBurdenCategory] ?? topBurdenCategory} — largest violation burden
               </p>
-              {challengeableViolations.map((v) => (
-                <div
-                  key={v.id}
-                  className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1E1C1A]">
-                      {v.violation_code} — {v.violation_description}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      BASIC: {basicCategoryLabel[v.basic_category as string] ?? v.basic_category}
-                      {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
-                    </p>
+              <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+                <p className="text-sm font-medium text-[#1E1C1A]">
+                  {violsByBasic[topBurdenCategory].count} violations
+                  {violsByBasic[topBurdenCategory].oos > 0
+                    ? `, ${violsByBasic[topBurdenCategory].oos} OOS`
+                    : ""}{" "}
+                  in {basicCategoryLabel[topBurdenCategory] ?? topBurdenCategory}
+                  {challengeableViolations && challengeableViolations.filter(
+                    (v) => v.basic_category === topBurdenCategory
+                  ).length > 0
+                    ? ` — ${challengeableViolations.filter((v) => v.basic_category === topBurdenCategory).length} challengeable`
+                    : ""}
+                </p>
+                {challengeableViolations && challengeableViolations.filter(
+                  (v) => v.basic_category === topBurdenCategory
+                ).length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {challengeableViolations
+                      .filter((v) => v.basic_category === topBurdenCategory)
+                      .map((v) => (
+                        <div key={v.id} className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-700">
+                              {v.violation_code} — {v.violation_description}
+                              {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
+                            </p>
+                          </div>
+                          <Link
+                            href={`/console/clients/${id}/dataq`}
+                            className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                          >
+                            Create case →
+                          </Link>
+                        </div>
+                      ))}
                   </div>
-                  <Link
-                    href={`/console/clients/${id}/dataq`}
-                    className="text-xs text-[#C67A1E] hover:underline shrink-0"
-                  >
-                    Create case →
-                  </Link>
-                </div>
-              ))}
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    No challengeable violations identified yet. Run a full analysis to assess.
+                  </p>
+                )}
+              </div>
+              {/* Remaining challengeable violations from other BASICs */}
+              {challengeableViolations && challengeableViolations.filter(
+                (v) => v.basic_category !== topBurdenCategory
+              ).length > 0 && (
+                <>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-1">
+                    Other challengeable violations
+                  </p>
+                  {challengeableViolations
+                    .filter((v) => v.basic_category !== topBurdenCategory)
+                    .map((v) => (
+                      <div
+                        key={v.id}
+                        className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#1E1C1A]">
+                            {v.violation_code} — {v.violation_description}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            BASIC: {basicCategoryLabel[v.basic_category as string] ?? v.basic_category}
+                            {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/console/clients/${id}/dataq`}
+                          className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                        >
+                          Create case →
+                        </Link>
+                      </div>
+                    ))}
+                </>
+              )}
             </>
           )}
 
-          {/* CPDP candidates */}
+          {/* 2. CPDP crash review */}
           {cpdpCandidates && cpdpCandidates.length > 0 && (
             <>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
-                CPDP-eligible crash candidates
+                CPDP crash review
               </p>
-              {cpdpCandidates.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1E1C1A]">
-                      Tow-away crash — {formatDate(c.crash_date as string)}
-                      {c.state ? ` (${c.state})` : ""}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Not yet assessed for CPDP eligibility. Review may remove
-                      this from the Crash Indicator BASIC.
-                    </p>
-                  </div>
-                  <Link
-                    href={`/console/clients/${id}/cpdp`}
-                    className="text-xs text-[#C67A1E] hover:underline shrink-0"
-                  >
-                    Review →
-                  </Link>
+              <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
+                <p className="text-sm font-medium text-[#1E1C1A]">
+                  {crashes24m.length} crash{crashes24m.length !== 1 ? "es" : ""}
+                  {crashTow > 0 ? ` (${crashTow} tow-away)` : ""} may qualify for CPDP preventability review
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  A successful CPDP determination removes the crash from the Crash Indicator BASIC.
+                </p>
+                <div className="mt-2 space-y-1">
+                  {cpdpCandidates.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3">
+                      <p className="text-xs text-gray-600 flex-1">
+                        Tow-away — {formatDate(c.crash_date as string)}
+                        {c.state ? ` (${c.state})` : ""}
+                      </p>
+                      <Link
+                        href={`/console/clients/${id}/cpdp`}
+                        className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                      >
+                        Review →
+                      </Link>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </>
           )}
 
-          {/* Draft DataQ cases */}
+          {/* 3. Open DataQs cases */}
           {draftCases && draftCases.length > 0 && (
             <>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
@@ -854,7 +996,7 @@ export default async function ClientDetailPage({
             </>
           )}
 
-          {(!challengeableViolations || challengeableViolations.length === 0) &&
+          {(!topBurdenCategory || !violsByBasic[topBurdenCategory]) &&
             (!cpdpCandidates || cpdpCandidates.length === 0) &&
             (!draftCases || draftCases.length === 0) && (
               <p className="text-sm text-gray-400">
