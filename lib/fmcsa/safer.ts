@@ -63,6 +63,11 @@ export interface SAFERSnapshot {
   hazmatOosCount: number | null;
   hazmatOosRate: number | null;
 
+  // National average OOS rates from SAFER Inspections table "Nat'l Average %" row
+  nationalVehicleOosRate: number | null;
+  nationalDriverOosRate: number | null;
+  nationalHazmatOosRate: number | null;
+
   // Crash totals (24-month trailing, US only)
   crashFatal: number | null;
   crashInjury: number | null;
@@ -233,6 +238,9 @@ function parseUSInspectionTable(html: string): {
   hazmatInspections: number | null;
   hazmatOosCount: number | null;
   hazmatOosRate: number | null;
+  nationalVehicleOosRate: number | null;
+  nationalDriverOosRate: number | null;
+  nationalHazmatOosRate: number | null;
 } {
   // Slice before Canada section to avoid parsing the Canadian table
   const caAnchor = html.indexOf('name="CAInspections"');
@@ -245,16 +253,22 @@ function parseUSInspectionTable(html: string): {
       vehicleInspections: null, vehicleOosCount: null, vehicleOosRate: null,
       driverInspections: null, driverOosCount: null, driverOosRate: null,
       hazmatInspections: null, hazmatOosCount: null, hazmatOosRate: null,
+      nationalVehicleOosRate: null, nationalDriverOosRate: null, nationalHazmatOosRate: null,
     };
   }
 
   const inspRow = extractTableRow(tableHtml, "Inspections");
   const oosRow = extractTableRow(tableHtml, "Out of Service");
   const rateRow = extractTableRow(tableHtml, "Out of Service %");
+  // "Nat'l Average %" row — columns: [0]=Vehicle, [1]=Driver, [2]=Hazmat, [3]=IEP
+  // The TH contains "Nat'l Average %" followed by an "as of DATE *" annotation.
+  // We match on the prefix "Nat'l Average" to avoid fragility on the date portion.
+  const natAvgRow = extractTableRow(tableHtml, "Nat'l Average");
 
   console.log("[safer] Inspection row cells:", inspRow);
   console.log("[safer] OOS count row cells:", oosRow);
   console.log("[safer] OOS rate row cells:", rateRow);
+  console.log("[safer] Nat'l Average row cells:", natAvgRow);
 
   // Columns: [0]=Vehicle, [1]=Driver, [2]=Hazmat, [3]=IEP
   return {
@@ -267,6 +281,9 @@ function parseUSInspectionTable(html: string): {
     vehicleOosRate: parseFloatSafe(rateRow[0]),
     driverOosRate: parseFloatSafe(rateRow[1]),
     hazmatOosRate: parseFloatSafe(rateRow[2]),
+    nationalVehicleOosRate: parseFloatSafe(natAvgRow[0]),
+    nationalDriverOosRate: parseFloatSafe(natAvgRow[1]),
+    nationalHazmatOosRate: parseFloatSafe(natAvgRow[2]),
   };
 }
 
@@ -501,11 +518,14 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
   const safetyData = parseSafetyRating(html);
 
   // ── SAFER "as of" date ────────────────────────────────────────────────────
-  // The SAFER page contains text like "Data current as of 06/03/2026"
-  // We extract and normalize it to YYYY-MM-DD.
+  // The SAFER page contains: "The rating below is current as of: 06/03/2026"
+  // Also try broader fallbacks in case FMCSA changes the phrasing.
+  // We extract and normalize to YYYY-MM-DD.
   let saferAsOf: string | null = null;
-  const asOfMatch = html.match(/[Dd]ata\s+current\s+as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i)
-    ?? html.match(/as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const asOfMatch =
+    html.match(/current\s+as\s+of[:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i) ??
+    html.match(/[Dd]ata\s+current\s+as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i) ??
+    html.match(/as\s+of[:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i);
   if (asOfMatch) {
     saferAsOf = normDate(asOfMatch[1]);
   }
@@ -559,6 +579,9 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     hazmatInspections: inspData.hazmatInspections,
     hazmatOosCount: inspData.hazmatOosCount,
     hazmatOosRate: inspData.hazmatOosRate,
+    nationalVehicleOosRate: inspData.nationalVehicleOosRate,
+    nationalDriverOosRate: inspData.nationalDriverOosRate,
+    nationalHazmatOosRate: inspData.nationalHazmatOosRate,
     crashFatal: crashData.crashFatal,
     crashInjury: crashData.crashInjury,
     crashTow: crashData.crashTow,

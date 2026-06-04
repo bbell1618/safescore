@@ -261,11 +261,18 @@ export default async function ClientDetailPage({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("crashes")
-      .select("crash_date, fatalities, injuries, tow_away, cpdp_eligible")
-      .eq("client_id", id)
-      .order("crash_date", { ascending: false }),
+    (() => {
+      // 24-month trailing window — matches FMCSA's Crash Indicator BASIC window
+      const now24 = new Intl.DateTimeFormat("sv-SE").format(new Date());
+      const cutYear = parseInt(now24.slice(0, 4)) - 2;
+      const cutoff24mo = cutYear.toString() + now24.slice(4);
+      return supabase
+        .from("crashes")
+        .select("crash_date, fatalities, injuries, tow_away, cpdp_eligible")
+        .eq("client_id", id)
+        .gte("crash_date", cutoff24mo)
+        .order("crash_date", { ascending: false });
+    })(),
     supabase
       .from("dataq_cases")
       .select("*, violations(violation_code, violation_description)")
@@ -709,17 +716,19 @@ export default async function ClientDetailPage({
                 {
                   label: "Vehicle",
                   rate: snapshot.oos_vehicle_rate as number | null,
-                  national: 20.0,
+                  // Use SAFER-parsed national average stored on carrier_profiles;
+                  // fall back to FMCSA published figure if column not yet populated.
+                  national: (cp?.national_vehicle_oos_rate as number | null) ?? 22.26,
                 },
                 {
                   label: "Driver",
                   rate: snapshot.oos_driver_rate as number | null,
-                  national: 5.5,
+                  national: (cp?.national_driver_oos_rate as number | null) ?? 6.67,
                 },
                 {
                   label: "Hazmat",
                   rate: snapshot.oos_hazmat_rate as number | null,
-                  national: 4.4,
+                  national: (cp?.national_hazmat_oos_rate as number | null) ?? 4.44,
                 },
               ] as { label: string; rate: number | null; national: number }[]
             ).map(({ label, rate, national }) => {

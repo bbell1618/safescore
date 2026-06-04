@@ -78,6 +78,9 @@ export async function POST(request: Request) {
         entity_type: saferSnap.entityType,
         carrier_operation: saferSnap.operatingStatus,
         safer_as_of: saferSnap.saferAsOf,
+        national_vehicle_oos_rate: saferSnap.nationalVehicleOosRate,
+        national_driver_oos_rate: saferSnap.nationalDriverOosRate,
+        national_hazmat_oos_rate: saferSnap.nationalHazmatOosRate,
         fetched_at: new Date().toISOString(),
       };
 
