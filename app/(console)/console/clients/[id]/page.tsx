@@ -316,21 +316,60 @@ export default async function ClientDetailPage({
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
   ]);
 
-  // Violation counts by BASIC — fetch full detail rows so we can compute
-  // per-BASIC count, OOS, and severity without a separate RPC call.
+  // Violation detail — fetch all fields needed for per-BASIC stats,
+  // the bar chart, AND the points-ranked remediation queue.
+  // time_weight is stored on violations (1=old, 2=mid, 3=recent).
+  // Per-violation score impact = severity_weight × time_weight.
   const { data: allViolations } = await supabase
     .from("violations")
-    .select("basic_category, oos_violation, severity_weight")
+    .select(
+      "id, basic_category, oos_violation, severity_weight, time_weight, " +
+      "violation_code, violation_description, challengeable, " +
+      "inspections(inspection_date)"
+    )
     .eq("client_id", id);
 
-  // Build per-BASIC violation stats
+  // Typed row for computed violation data
+  interface ViolationRow {
+    id: string;
+    basic_category: string | null;
+    oos_violation: boolean | null;
+    severity_weight: number | null;
+    time_weight: number | null;
+    violation_code: string | null;
+    violation_description: string | null;
+    challengeable: boolean | null;
+    inspections: { inspection_date: string } | null;
+    points: number; // severity_weight × time_weight
+  }
+
+  const violRows: ViolationRow[] = (allViolations ?? []).map((v) => {
+    const row = v as unknown as Record<string, unknown>;
+    const sw = (row.severity_weight as number | null) ?? 0;
+    const tw = (row.time_weight as number | null) ?? 1;
+    const insp = row.inspections as { inspection_date: string } | null;
+    return {
+      id: row.id as string,
+      basic_category: row.basic_category as string | null,
+      oos_violation: row.oos_violation as boolean | null,
+      severity_weight: row.severity_weight as number | null,
+      time_weight: row.time_weight as number | null,
+      violation_code: row.violation_code as string | null,
+      violation_description: row.violation_description as string | null,
+      challengeable: row.challengeable as boolean | null,
+      inspections: insp,
+      points: sw * tw,
+    };
+  });
+
+  // Build per-BASIC violation stats (for existing bar chart + story strip)
   const violsByBasic: ViolsByBasicMap = {};
-  for (const v of allViolations ?? []) {
-    const cat = (v as Record<string, unknown>).basic_category as string | null ?? "unknown";
+  for (const v of violRows) {
+    const cat = v.basic_category ?? "unknown";
     if (!violsByBasic[cat]) violsByBasic[cat] = { count: 0, oos: 0, severity: 0 };
     violsByBasic[cat].count++;
-    if ((v as Record<string, unknown>).oos_violation) violsByBasic[cat].oos++;
-    violsByBasic[cat].severity += ((v as Record<string, unknown>).severity_weight as number) ?? 0;
+    if (v.oos_violation) violsByBasic[cat].oos++;
+    violsByBasic[cat].severity += v.severity_weight ?? 0;
   }
 
   // Sorted by count for the bar chart
@@ -338,6 +377,31 @@ export default async function ClientDetailPage({
     .map(([cat, stats]) => [cat, stats.count] as [string, number])
     .sort((a, b) => b[1] - a[1]);
   const maxViolCount = violsByBasicSorted[0]?.[1] ?? 1;
+
+  // Per-BASIC total points and sorted violation list for the opportunity queue.
+  // Violations are sorted within each BASIC by points desc.
+  interface BasicPoints {
+    category: string;
+    totalPoints: number;
+    violations: ViolationRow[];
+  }
+  const basicPointsMap = new Map<string, BasicPoints>();
+  for (const v of violRows) {
+    const cat = v.basic_category ?? "unknown";
+    if (!basicPointsMap.has(cat)) {
+      basicPointsMap.set(cat, { category: cat, totalPoints: 0, violations: [] });
+    }
+    const entry = basicPointsMap.get(cat)!;
+    entry.totalPoints += v.points;
+    entry.violations.push(v);
+  }
+  // Sort BASICs by total points desc; within each BASIC sort violations by points desc
+  const basicsByPoints: BasicPoints[] = Array.from(basicPointsMap.values())
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+    .map((bp) => ({
+      ...bp,
+      violations: [...bp.violations].sort((a, b) => b.points - a.points),
+    }));
 
   const basicCategoryLabel: Record<string, string> = {
     unsafe_driving: "Unsafe Driving",
@@ -848,101 +912,119 @@ export default async function ClientDetailPage({
 
       {/* ── Section 8: Opportunities work queue ──────────────────────────── */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
-          Remediation opportunities (ranked by estimated impact)
-        </h2>
-        <div className="space-y-3">
-          {/* 1. Top BASIC by violation burden — challengeable violations */}
-          {topBurdenCategory && violsByBasic[topBurdenCategory] && (
-            <>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                {basicCategoryLabel[topBurdenCategory] ?? topBurdenCategory} — largest violation burden
-              </p>
-              <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
-                <p className="text-sm font-medium text-[#1E1C1A]">
-                  {violsByBasic[topBurdenCategory].count} violations
-                  {violsByBasic[topBurdenCategory].oos > 0
-                    ? `, ${violsByBasic[topBurdenCategory].oos} OOS`
-                    : ""}{" "}
-                  in {basicCategoryLabel[topBurdenCategory] ?? topBurdenCategory}
-                  {challengeableViolations && challengeableViolations.filter(
-                    (v) => v.basic_category === topBurdenCategory
-                  ).length > 0
-                    ? ` — ${challengeableViolations.filter((v) => v.basic_category === topBurdenCategory).length} challengeable`
-                    : ""}
-                </p>
-                {challengeableViolations && challengeableViolations.filter(
-                  (v) => v.basic_category === topBurdenCategory
-                ).length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {challengeableViolations
-                      .filter((v) => v.basic_category === topBurdenCategory)
-                      .map((v) => (
-                        <div key={v.id} className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700">
-                              {v.violation_code} — {v.violation_description}
-                              {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">
+            Remediation opportunities
+          </h2>
+          <span className="text-[10px] text-gray-400 shrink-0 mt-0.5">
+            Ranked by score impact (severity × time weight)
+          </span>
+        </div>
+        {/* Framing note */}
+        <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
+          Points = estimated score impact if the violation is removed via a successful DataQ challenge
+          (FMCSA&apos;s published severity weight × time weight). Removability is a separate assessment —
+          high-impact does not mean challengeable. The authenticated SMS export would give FMCSA&apos;s exact
+          computed contribution; this uses the published weighting as an approximation.
+        </p>
+        <div className="space-y-4">
+
+          {/* 1. Per-BASIC violation groups, ordered by total points */}
+          {basicsByPoints.length > 0 ? (
+            basicsByPoints.map((bp) => {
+              const catLabel = basicCategoryLabel[bp.category] ?? bp.category;
+              const bStats = violsByBasic[bp.category];
+              // Show top 5 violations by points within this BASIC
+              const topViols = bp.violations.slice(0, 5);
+              return (
+                <div key={bp.category}>
+                  {/* BASIC group header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                      {catLabel}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-gray-400">
+                        {bStats?.count ?? 0} violations
+                        {bStats?.oos ? ` · ${bStats.oos} OOS` : ""}
+                      </span>
+                      <span className="text-[11px] font-semibold text-[#C67A1E] bg-[#FDF4E7] border border-amber-200 rounded px-2 py-0.5">
+                        {bp.totalPoints} pts total
+                      </span>
+                    </div>
+                  </div>
+                  {/* Violation rows */}
+                  <div className="bg-white rounded-lg border border-[#F0E8DA] divide-y divide-[#F0E8DA]">
+                    {topViols.map((v) => (
+                      <div key={v.id} className="px-4 py-3 flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-semibold text-[#1E1C1A]">
+                              {v.violation_code ?? "—"}
+                            </span>
+                            {v.oos_violation && (
+                              <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                                OOS
+                              </span>
+                            )}
+                            {v.challengeable === true && (
+                              <span className="text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
+                                Challengeable
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">
+                            {v.violation_description ?? ""}
+                          </p>
+                          {v.inspections?.inspection_date && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {formatDate(v.inspections.inspection_date)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-[#1E1C1A]">
+                              {v.points} pts
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {v.severity_weight ?? 0}×{v.time_weight ?? 1}
                             </p>
                           </div>
                           <Link
                             href={`/console/clients/${id}/dataq`}
-                            className="text-xs text-[#C67A1E] hover:underline shrink-0"
+                            className="text-xs text-[#C67A1E] hover:underline"
                           >
-                            Create case →
+                            Case →
                           </Link>
                         </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 mt-1">
-                    No challengeable violations identified yet. Run a full analysis to assess.
-                  </p>
-                )}
-              </div>
-              {/* Remaining challengeable violations from other BASICs */}
-              {challengeableViolations && challengeableViolations.filter(
-                (v) => v.basic_category !== topBurdenCategory
-              ).length > 0 && (
-                <>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-1">
-                    Other challengeable violations
-                  </p>
-                  {challengeableViolations
-                    .filter((v) => v.basic_category !== topBurdenCategory)
-                    .map((v) => (
-                      <div
-                        key={v.id}
-                        className="bg-white rounded-lg border border-[#F0E8DA] p-4 flex items-start gap-3"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1E1C1A]">
-                            {v.violation_code} — {v.violation_description}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            BASIC: {basicCategoryLabel[v.basic_category as string] ?? v.basic_category}
-                            {v.challenge_reason ? ` · ${v.challenge_reason}` : ""}
-                          </p>
-                        </div>
-                        <Link
-                          href={`/console/clients/${id}/dataq`}
-                          className="text-xs text-[#C67A1E] hover:underline shrink-0"
-                        >
-                          Create case →
-                        </Link>
                       </div>
                     ))}
-                </>
-              )}
-            </>
+                    {bp.violations.length > 5 && (
+                      <div className="px-4 py-2">
+                        <p className="text-[11px] text-gray-400">
+                          +{bp.violations.length - 5} more violations in this BASIC
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-sm text-gray-400">
+              No violations on record. Run a full analysis to assess violations.
+            </p>
           )}
 
           {/* 2. CPDP crash review */}
           {cpdpCandidates && cpdpCandidates.length > 0 && (
-            <>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
-                CPDP crash review
-              </p>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                  CPDP crash review
+                </p>
+              </div>
               <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
                 <p className="text-sm font-medium text-[#1E1C1A]">
                   {crashes24m.length} crash{crashes24m.length !== 1 ? "es" : ""}
@@ -968,13 +1050,13 @@ export default async function ClientDetailPage({
                   ))}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
-          {/* 3. Open DataQs cases */}
+          {/* 3. Draft DataQs cases */}
           {draftCases && draftCases.length > 0 && (
-            <>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-2">
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
                 Draft DataQs cases (not yet filed)
               </p>
               {draftCases.map((c) => {
@@ -1004,17 +1086,8 @@ export default async function ClientDetailPage({
                   </div>
                 );
               })}
-            </>
+            </div>
           )}
-
-          {(!topBurdenCategory || !violsByBasic[topBurdenCategory]) &&
-            (!cpdpCandidates || cpdpCandidates.length === 0) &&
-            (!draftCases || draftCases.length === 0) && (
-              <p className="text-sm text-gray-400">
-                No remediation opportunities identified. Run a full analysis to
-                assess violations.
-              </p>
-            )}
         </div>
       </div>
 
