@@ -5,15 +5,30 @@
  * No API key required — public FMCSA page.
  * Uses string-slice / regex parsing (no DOM parser available in serverless).
  *
- * HTML structure notes (observed 2026-06-03):
- *   - All label/value pairs use <TH class="querylabelbkg"> / <TD class="queryfield"> patterns
- *   - Inspection table: summary="Inspections", rows: Inspections / Out of Service / Out of Service %
- *     Columns in order: Vehicle, Driver, Hazmat, IEP
- *   - Crash table: summary="Crashes" (US section only — before CaInspections anchor)
- *     Row: Crashes, columns: Fatal, Injury, Tow, Total
- *   - Safety rating: table summary="Review Information" with Rating Date/Review Date/Rating/Type cells
- *   - Cargo table: summary="Cargo Carried" — checked items have <TD class="queryfield">X</TD>
- *     immediately followed by <TD class="queryfield">CARGO TYPE NAME</TD>
+ * HTML structure notes (verified 2026-06-03 against live SAFER page):
+ *
+ *   Fleet row layout (single TR):
+ *     TH[Power Units:]  TD.queryfield[40]  TD[colspan=2 nested table:
+ *       TH[Non-CMV Units:]  TD.queryfield[&nbsp;]
+ *       TH[Drivers:]        TD[<FONT color=...><B>45]   ← NOT queryfield class
+ *     ]
+ *   So: power_units = first queryfield TD after "Power Units:" label
+ *       drivers     = first TD (any class) directly after "Drivers:" label
+ *       (the Non-CMV TD IS queryfield but blank; the Drivers TD uses FONT styling)
+ *
+ *   MCS-150 row (single TR):
+ *     TH[MCS-150 Form Date:]  TD.queryfield[MM/DD/YYYY]
+ *     TH[MCS-150 Mileage (Year):]  TD[<FONT><B>1,417,456 (2025)]  ← NOT queryfield
+ *
+ *   Inspection table: summary="Inspections", columns: Vehicle, Driver, Hazmat, IEP
+ *     Rows: "Inspections" | "Out of Service" | "Out of Service %"
+ *     OOS% cells have leading/trailing whitespace around the percentage string.
+ *
+ *   Crash table: summary="Crashes" (US section only — before CAInspections anchor)
+ *     Row: "Crashes", columns: Fatal, Injury, Tow, Total
+ *
+ *   Safety rating: table summary="Review Information"
+ *   Cargo table: summary="Cargo Carried" — checked items: <TD>X</TD><TD>CARGO NAME</TD>
  */
 
 const SAFER_BASE =
@@ -86,12 +101,34 @@ function stripTags(html: string): string {
 /**
  * Extract text from the first <TD class="queryfield"...> cell that follows the
  * given label anchor string in the HTML.
+ *
+ * Used for standard label/value pairs where the value TD has class="queryfield".
  */
 function extractAfterLabel(html: string, label: string): string | null {
   const idx = html.indexOf(label);
   if (idx === -1) return null;
-  // Find the next <TD ... class="queryfield"
   const tdIdx = html.indexOf('class="queryfield"', idx);
+  if (tdIdx === -1) return null;
+  const closeAngle = html.indexOf(">", tdIdx);
+  if (closeAngle === -1) return null;
+  const tdEnd = html.indexOf("</TD>", closeAngle);
+  if (tdEnd === -1) return null;
+  return stripTags(html.slice(closeAngle + 1, tdEnd));
+}
+
+/**
+ * Extract text from the first <TD> cell (any class) that directly follows the
+ * given label string in the HTML. Used for cells that use <FONT color=...>
+ * styling instead of class="queryfield" (e.g. Drivers, MCS-150 Mileage).
+ */
+function extractAfterLabelAnyTD(html: string, label: string): string | null {
+  const idx = html.indexOf(label);
+  if (idx === -1) return null;
+  // Find the end of the TH that contains the label (</TH>)
+  const thEnd = html.indexOf("</TH>", idx);
+  if (thEnd === -1) return null;
+  // Find the next <TD after the TH closes
+  const tdIdx = html.indexOf("<TD", thEnd);
   if (tdIdx === -1) return null;
   const closeAngle = html.indexOf(">", tdIdx);
   if (closeAngle === -1) return null;
@@ -119,24 +156,25 @@ function parseFloatSafe(s: string | null | undefined): number | null {
  * @param tableHtml - the HTML of the table (already sliced to just that table)
  * @param rowLabel  - the text content of the row's <TH> header cell
  * @returns Array of cell text values (stripped), or empty array if not found
+ *
+ * Implementation note: the regex <TH[^>]*>[\s\S]*?{rowLabel}[\s\S]*?</TH> uses
+ * [\s\S]*? to span across preceding column-header THs in the same row, landing
+ * on the data-row TH that contains rowLabel. afterTh then starts at the data
+ * cells for that row, and nextRowIdx clips at the closing </TR>.
  */
 function extractTableRow(tableHtml: string, rowLabel: string): string[] {
-  // Find the TH that contains rowLabel
   const thPattern = rowLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const thMatch = new RegExp(`<TH[^>]*>[\\s\\S]*?${thPattern}[\\s\\S]*?</TH>`, "i").exec(tableHtml);
   if (!thMatch) return [];
 
   const afterTh = tableHtml.slice(thMatch.index + thMatch[0].length);
 
-  // Collect all <TD class="queryfield"> cells until the next <TR> or </TR> or <TH
-  const cells: string[] = [];
-  const tdRegex = /<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/gi;
-  let m: RegExpExecArray | null;
-
-  // Limit to content before the next row boundary
   const nextRowIdx = afterTh.search(/<\/TR>/i);
   const rowContent = nextRowIdx > -1 ? afterTh.slice(0, nextRowIdx) : afterTh.slice(0, 2000);
 
+  const cells: string[] = [];
+  const tdRegex = /<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/gi;
+  let m: RegExpExecArray | null;
   while ((m = tdRegex.exec(rowContent)) !== null) {
     cells.push(stripTags(m[1]));
   }
@@ -153,7 +191,6 @@ function extractTableBySummary(html: string, summary: string, startFrom = 0): st
   const tableStart = html.indexOf(searchStr, startFrom);
   if (tableStart === -1) return null;
 
-  // Walk forward from the <TABLE tag before summary
   const tagStart = html.lastIndexOf("<TABLE", tableStart);
   if (tagStart === -1) return null;
 
@@ -181,6 +218,9 @@ function extractTableBySummary(html: string, summary: string, startFrom = 0): st
  *
  * The table has columns: Vehicle, Driver, Hazmat, IEP
  * Rows: Inspections | Out of Service | Out of Service %
+ *
+ * Note: OOS% cells contain whitespace-padded values like "\n         20%\n       ".
+ * stripTags + trim handles this correctly.
  */
 function parseUSInspectionTable(html: string): {
   vehicleInspections: number | null;
@@ -193,12 +233,10 @@ function parseUSInspectionTable(html: string): {
   hazmatOosCount: number | null;
   hazmatOosRate: number | null;
 } {
-  // Slice the HTML to before the Canadian inspections section to avoid
-  // accidentally parsing the Canadian table which has the same structure.
+  // Slice before Canada section to avoid parsing the Canadian table
   const caAnchor = html.indexOf('name="CAInspections"');
   const usSection = caAnchor > -1 ? html.slice(0, caAnchor) : html;
 
-  // Find the US inspection table (summary="Inspections")
   const tableHtml = extractTableBySummary(usSection, "Inspections");
   if (!tableHtml) {
     console.warn("[safer] US inspection table not found");
@@ -234,7 +272,7 @@ function parseUSInspectionTable(html: string): {
 /**
  * Parse the US crash table (summary="Crashes") that appears in the US section
  * (before the Canadian inspections anchor).
- * Row: Crashes, columns: Fatal, Injury, Tow, Total
+ * Row: "Crashes", columns: Fatal, Injury, Tow, Total
  */
 function parseUSCrashTable(html: string): {
   crashFatal: number | null;
@@ -297,13 +335,11 @@ function parseSafetyRating(html: string): {
     return { safetyRating: null, safetyRatingDate: null, reviewType: null, reviewDate: null };
   }
 
-  // Rating Date: first queryfield cell after "Rating Date:"
   const ratingDate = extractAfterLabel(tableHtml, "Rating Date:");
   const reviewDate = extractAfterLabel(tableHtml, "Review Date:");
   const rating = extractAfterLabel(tableHtml, 'class="querylabelbkg">Rating:');
   const reviewType = extractAfterLabel(tableHtml, 'class="querylabelbkg">Type:');
 
-  // Normalize "None" to null for rating date (no official rating assigned)
   const normRatingDate = normDate(ratingDate === "None" ? null : ratingDate);
   const normReviewDate = normDate(reviewDate === "None" ? null : reviewDate);
   const normRating = (rating === "None" || !rating) ? null : rating;
@@ -342,14 +378,12 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
 
   // ── Identity fields ────────────────────────────────────────────────────────
 
-  // Legal name appears in <TITLE> as "SAFER Web - Company Snapshot <NAME>"
-  // and also in the body in a querylabel row
   let legalName: string | null = null;
   const titleMatch = html.match(/<TITLE>SAFER Web - Company Snapshot ([^<]+)<\/TITLE>/i);
   if (titleMatch) {
     legalName = titleMatch[1].trim() || null;
   }
-  // Prefer the body label row value (more reliable, no title truncation)
+  // Body label row is more reliable (no title truncation)
   const legalNameBody = extractAfterLabel(html, "Legal Name:");
   if (legalNameBody && legalNameBody !== "&nbsp;") {
     legalName = legalNameBody;
@@ -358,12 +392,10 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
   const dbaNameRaw = extractAfterLabel(html, "DBA Name:");
   const dbaName = (dbaNameRaw && dbaNameRaw !== "&nbsp;" && dbaNameRaw.trim() !== "") ? dbaNameRaw : null;
 
-  // Entity Type
   const entityTypeRaw = extractAfterLabel(html, "Entity Type:");
   const entityType = entityTypeRaw || null;
 
-  // USDOT Status (operating status)
-  // The cell uses <!--ACTIVE-->  ACTIVE — strip comment
+  // USDOT Status — cell may contain HTML comments like <!--ACTIVE-->
   let operatingStatus: string | null = null;
   const usdotStatusIdx = html.indexOf("USDOT Status:");
   if (usdotStatusIdx > -1) {
@@ -372,7 +404,6 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
       const closeAngle = html.indexOf(">", tdIdx);
       const tdEnd = html.indexOf("</TD>", closeAngle);
       if (closeAngle > -1 && tdEnd > -1) {
-        // Strip HTML comments and tags
         const raw = html.slice(closeAngle + 1, tdEnd)
           .replace(/<!--[\s\S]*?-->/g, "")
           .replace(/<[^>]+>/g, " ")
@@ -384,8 +415,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     }
   }
 
-  // Operating Authority Status — look for "Operating Authority Status:" label
-  // The cell contains: "AUTHORIZED FOR Property" or "NOT AUTHORIZED" etc.
+  // Operating Authority Status
   let operatingAuthority: string | null = null;
   const oasIdx = html.indexOf("Operating Authority Status:");
   if (oasIdx > -1) {
@@ -394,11 +424,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
       const closeAngle = html.indexOf(">", tdIdx);
       const tdEnd = html.indexOf("</TD>", closeAngle);
       if (closeAngle > -1 && tdEnd > -1) {
-        // The cell may contain extra HTML (links, <br>, etc.) — strip everything
-        // and take only the first meaningful line
         const raw = stripTags(html.slice(closeAngle + 1, tdEnd));
-        // The authority text is at the start, e.g. "AUTHORIZED FOR Property For Licensing..."
-        // Keep only the authority portion (before "For Licensing" or "click here")
         const authMatch = raw.match(/^(AUTHORIZED FOR [A-Za-z\s,HHG]+?)(?:\s+For |\s+click |\s*$)/i)
           ?? raw.match(/^(NOT AUTHORIZED|OUT-OF-SERVICE)/i);
         operatingAuthority = authMatch ? authMatch[1].trim() : (raw.slice(0, 40).trim() || null);
@@ -408,75 +434,53 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
 
   // ── MCS-150 ────────────────────────────────────────────────────────────────
 
+  // MCS-150 Form Date: uses standard queryfield TD — extractAfterLabel works.
   const mcs150DateRaw = extractAfterLabel(html, "MCS-150 Form Date:");
   const mcs150Date = normDate(mcs150DateRaw);
 
-  // Mileage cell: "1,417,456 (2025)"
+  // MCS-150 Mileage (Year): the value TD uses <FONT color=...> NOT queryfield.
+  // Use extractAfterLabelAnyTD which finds the TD immediately after the </TH>.
   let mcs150Mileage: number | null = null;
   let mcs150MileageYear: number | null = null;
-  const mileageLabelIdx = html.indexOf("MCS-150 Mileage (Year):");
-  if (mileageLabelIdx > -1) {
-    const tdIdx = html.indexOf('class="queryfield"', mileageLabelIdx);
-    // The mileage cell uses a different class pattern with color styling — fallback
-    // to looking for the cell after the label regardless of class
-    const searchFrom = mileageLabelIdx;
-    const tdAnyIdx = html.indexOf("<TD", searchFrom + 20);
-    if (tdAnyIdx > -1) {
-      const tdClose = html.indexOf(">", tdAnyIdx);
-      const tdEnd = html.indexOf("</TD>", tdClose);
-      if (tdClose > -1 && tdEnd > -1) {
-        const raw = stripTags(html.slice(tdClose + 1, tdEnd));
-        // Pattern: "1,417,456 (2025)"
-        const mileageMatch = raw.match(/([\d,]+)\s*\((\d{4})\)/);
-        if (mileageMatch) {
-          mcs150Mileage = parseIntSafe(mileageMatch[1]);
-          mcs150MileageYear = parseInt(mileageMatch[2], 10);
-        } else {
-          // Just a plain number with no year
-          mcs150Mileage = parseIntSafe(raw);
-        }
-      }
-    }
-    // If queryfield variant worked, it takes precedence
-    if (tdIdx > -1 && tdIdx < (tdAnyIdx > -1 ? tdAnyIdx : Infinity)) {
-      const tdClose2 = html.indexOf(">", tdIdx);
-      const tdEnd2 = html.indexOf("</TD>", tdClose2);
-      if (tdClose2 > -1 && tdEnd2 > -1) {
-        const raw2 = stripTags(html.slice(tdClose2 + 1, tdEnd2));
-        const mm = raw2.match(/([\d,]+)\s*\((\d{4})\)/);
-        if (mm) {
-          mcs150Mileage = parseIntSafe(mm[1]);
-          mcs150MileageYear = parseInt(mm[2], 10);
-        }
-      }
+  const mileageRaw = extractAfterLabelAnyTD(html, "MCS-150 Mileage (Year):");
+  if (mileageRaw) {
+    // Pattern: "1,417,456 (2025)" or just a plain number
+    const mileageMatch = mileageRaw.match(/([\d,]+)\s*\((\d{4})\)/);
+    if (mileageMatch) {
+      mcs150Mileage = parseIntSafe(mileageMatch[1]);
+      mcs150MileageYear = parseInt(mileageMatch[2], 10);
+    } else {
+      mcs150Mileage = parseIntSafe(mileageRaw);
     }
   }
 
   console.log("[safer] MCS-150:", { mcs150Date, mcs150Mileage, mcs150MileageYear });
 
   // ── Power Units and Drivers ────────────────────────────────────────────────
+  //
+  // HTML layout (single TR):
+  //   TH[Power Units:]  TD.queryfield[value]  TD[colspan=2 nested table:
+  //     TH[Non-CMV Units:]  TD.queryfield[&nbsp;]
+  //     TH[Drivers:]        TD[<FONT color=...><B>value]  ← no queryfield class
+  //   ]
+  //
+  // power_units: first queryfield TD after "Power Units:" label — extractAfterLabel.
+  // drivers: the TD immediately after the "Drivers:" </TH> uses FONT styling,
+  //          not queryfield class. Use extractAfterLabelAnyTD.
 
-  // Power Units: standard label/value row
   const powerUnitsRaw = extractAfterLabel(html, "Power Units:");
   const powerUnits = parseIntSafe(powerUnitsRaw);
-
-  // Drivers: nested in a sub-table within the Power Units row using a colored font cell
-  // Pattern: >Drivers:</A></TH>\n          <TD ... color=#0000C0><B>45&nbsp;</TD>
-  let drivers: number | null = null;
-  const driversLabelIdx = html.indexOf("Drivers:");
-  if (driversLabelIdx > -1) {
-    // Find the next <TD after the Drivers label
-    const dtdIdx = html.indexOf("<TD", driversLabelIdx);
-    if (dtdIdx > -1) {
-      const dtdClose = html.indexOf(">", dtdIdx);
-      const dtdEnd = html.indexOf("</TD>", dtdClose);
-      if (dtdClose > -1 && dtdEnd > -1) {
-        drivers = parseIntSafe(stripTags(html.slice(dtdClose + 1, dtdEnd)));
-      }
-    }
+  if (powerUnits === null) {
+    throw new Error(`[safer] Failed to extract power_units for DOT ${dot}`);
   }
 
-  console.log("[safer] Fleet:", { powerUnits, drivers });
+  const driversRaw = extractAfterLabelAnyTD(html, "Drivers:");
+  const drivers = parseIntSafe(driversRaw);
+  if (drivers === null) {
+    throw new Error(`[safer] Failed to extract drivers for DOT ${dot}`);
+  }
+
+  console.log(`[safer] power_units=${powerUnits}, drivers=${drivers}, mcs150_date=${mcs150Date}, mcs150_mileage=${mcs150Mileage}, mcs150_mileage_year=${mcs150MileageYear}`);
 
   // ── Inspections ────────────────────────────────────────────────────────────
 
@@ -506,6 +510,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     drivers,
     mcs150Date,
     mcs150Mileage,
+    mcs150MileageYear,
     safetyRating: safetyData.safetyRating,
     reviewType: safetyData.reviewType,
     vehicleOosRate: inspData.vehicleOosRate,
