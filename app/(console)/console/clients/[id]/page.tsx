@@ -235,6 +235,13 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
+  // 24-month trailing window — matches FMCSA's Crash Indicator BASIC window.
+  // Computed once and reused for both crashRows and cpdpCandidates so both
+  // lists are consistent and the Dec 2022 crash is excluded from both.
+  const now24str = new Intl.DateTimeFormat("sv-SE").format(new Date());
+  const cutoff24mo =
+    (parseInt(now24str.slice(0, 4)) - 2).toString() + now24str.slice(4);
+
   const [
     { data: snapshot },
     { data: carrierProfile },
@@ -261,18 +268,12 @@ export default async function ClientDetailPage({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    (() => {
-      // 24-month trailing window — matches FMCSA's Crash Indicator BASIC window
-      const now24 = new Intl.DateTimeFormat("sv-SE").format(new Date());
-      const cutYear = parseInt(now24.slice(0, 4)) - 2;
-      const cutoff24mo = cutYear.toString() + now24.slice(4);
-      return supabase
-        .from("crashes")
-        .select("crash_date, fatalities, injuries, tow_away, cpdp_eligible")
-        .eq("client_id", id)
-        .gte("crash_date", cutoff24mo)
-        .order("crash_date", { ascending: false });
-    })(),
+    supabase
+      .from("crashes")
+      .select("crash_date, fatalities, injuries, tow_away, cpdp_eligible")
+      .eq("client_id", id)
+      .gte("crash_date", cutoff24mo)
+      .order("crash_date", { ascending: false }),
     supabase
       .from("dataq_cases")
       .select("*, violations(violation_code, violation_description)")
@@ -288,13 +289,14 @@ export default async function ClientDetailPage({
       .eq("challengeable", true)
       .order("severity_weight", { ascending: false })
       .limit(3),
-    // CPDP candidates: tow_away crashes with no cpdp_eligible assessment
+    // CPDP candidates: tow_away crashes within the 24-month window with no assessment
     supabase
       .from("crashes")
       .select("id, crash_date, state")
       .eq("client_id", id)
       .eq("tow_away", true)
       .is("cpdp_eligible", null)
+      .gte("crash_date", cutoff24mo)
       .limit(5),
     // Draft DataQ cases
     supabase
