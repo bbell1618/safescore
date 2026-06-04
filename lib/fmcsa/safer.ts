@@ -158,9 +158,11 @@ function parseFloatSafe(s: string | null | undefined): number | null {
 }
 
 /**
- * Extract a row of <TD class="queryfield"> cells from a table section.
+ * Extract a row of TD cells from a table section.
  * @param tableHtml - the HTML of the table (already sliced to just that table)
  * @param rowLabel  - the text content of the row's <TH> header cell
+ * @param requireQueryfield - when true (default), only match <TD class="queryfield"> cells;
+ *   when false, match ANY <TD> cell (needed for rows that use <FONT> styling instead of queryfield)
  * @returns Array of cell text values (stripped), or empty array if not found
  *
  * Implementation note: the regex <TH[^>]*>[\s\S]*?{rowLabel}[\s\S]*?</TH> uses
@@ -168,7 +170,7 @@ function parseFloatSafe(s: string | null | undefined): number | null {
  * on the data-row TH that contains rowLabel. afterTh then starts at the data
  * cells for that row, and nextRowIdx clips at the closing </TR>.
  */
-function extractTableRow(tableHtml: string, rowLabel: string): string[] {
+function extractTableRow(tableHtml: string, rowLabel: string, requireQueryfield = true): string[] {
   const thPattern = rowLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const thMatch = new RegExp(`<TH[^>]*>[\\s\\S]*?${thPattern}[\\s\\S]*?</TH>`, "i").exec(tableHtml);
   if (!thMatch) return [];
@@ -179,7 +181,11 @@ function extractTableRow(tableHtml: string, rowLabel: string): string[] {
   const rowContent = nextRowIdx > -1 ? afterTh.slice(0, nextRowIdx) : afterTh.slice(0, 2000);
 
   const cells: string[] = [];
-  const tdRegex = /<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/gi;
+  // Nat'l Average % row uses <FONT style=...> styling instead of class="queryfield",
+  // so we optionally match any <TD> when requireQueryfield is false.
+  const tdRegex = requireQueryfield
+    ? /<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/gi
+    : /<TD[^>]*>([\s\S]*?)<\/TD>/gi;
   let m: RegExpExecArray | null;
   while ((m = tdRegex.exec(rowContent)) !== null) {
     cells.push(stripTags(m[1]));
@@ -262,8 +268,9 @@ function parseUSInspectionTable(html: string): {
   const rateRow = extractTableRow(tableHtml, "Out of Service %");
   // "Nat'l Average %" row — columns: [0]=Vehicle, [1]=Driver, [2]=Hazmat, [3]=IEP
   // The TH contains "Nat'l Average %" followed by an "as of DATE *" annotation.
-  // We match on the prefix "Nat'l Average" to avoid fragility on the date portion.
-  const natAvgRow = extractTableRow(tableHtml, "Nat'l Average");
+  // The TD cells use <FONT style=font-size:80%> instead of class="queryfield",
+  // so we pass requireQueryfield=false to match any <TD>.
+  const natAvgRow = extractTableRow(tableHtml, "Nat'l Average", false);
 
   console.log("[safer] Inspection row cells:", inspRow);
   console.log("[safer] OOS count row cells:", oosRow);
@@ -518,14 +525,15 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
   const safetyData = parseSafetyRating(html);
 
   // ── SAFER "as of" date ────────────────────────────────────────────────────
-  // The SAFER page contains: "The rating below is current as of: 06/03/2026"
-  // Also try broader fallbacks in case FMCSA changes the phrasing.
-  // We extract and normalize to YYYY-MM-DD.
+  // The SAFER page contains:
+  //   "The rating below is current as of:\n   <FONT color="#0000C0">06/03/2026</FONT>"
+  // The date is inside a FONT tag, not bare text, so we allow any HTML tags
+  // between "current as of:" and the date digits.
+  // Fallback: also match bare "as of" followed optionally by tags then date.
   let saferAsOf: string | null = null;
   const asOfMatch =
-    html.match(/current\s+as\s+of[:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i) ??
-    html.match(/[Dd]ata\s+current\s+as\s+of\s+(\d{1,2}\/\d{1,2}\/\d{4})/i) ??
-    html.match(/as\s+of[:\s]+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    html.match(/current\s+as\s+of[:\s]*(?:<[^>]+>)*\s*(\d{1,2}\/\d{1,2}\/\d{4})/i) ??
+    html.match(/as\s+of[:\s]*(?:<[^>]+>)*\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   if (asOfMatch) {
     saferAsOf = normDate(asOfMatch[1]);
   }
