@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     .insert({
       client_id: clientId,
       crash_id: crashId,
-      status: "pending_review",
+      status: "draft",
       created_at: new Date().toISOString(),
     })
     .select("id")

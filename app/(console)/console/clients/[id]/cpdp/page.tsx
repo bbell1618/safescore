@@ -38,6 +38,27 @@ export default async function CpdpPage({
 
   const displayCrashes = crashes ?? [];
 
+  const cpdpStatusLabel: Record<string, string> = {
+    draft: "Draft",
+    filed: "Filed",
+    pending: "Pending FMCSA",
+    determination_made: "Determination made",
+    closed: "Closed",
+  };
+
+  const cpdpStatusBadgeVariant = (
+    status: string
+  ): "default" | "info" | "warning" | "success" | "gold" => {
+    const map: Record<string, "default" | "info" | "warning" | "success" | "gold"> = {
+      draft: "gold",
+      filed: "info",
+      pending: "warning",
+      determination_made: "success",
+      closed: "default",
+    };
+    return map[status] ?? "default";
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Breadcrumb */}
@@ -102,9 +123,14 @@ export default async function CpdpPage({
                     {!hasCase && crash.cpdp_eligible !== false && (
                       <CpdpCreateButton clientId={id} crashId={crash.id} />
                     )}
-                    {hasCase && (
-                      <Badge variant="info">Submission filed</Badge>
-                    )}
+                    {hasCase && (() => {
+                      const caseStatus = (crash.cpdp_cases as any[])[0]?.status ?? "draft";
+                      return (
+                        <Badge variant={cpdpStatusBadgeVariant(caseStatus)}>
+                          {cpdpStatusLabel[caseStatus] ?? caseStatus}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
