@@ -37,14 +37,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ caseId: existing.id, existing: true });
   }
 
-  // Insert new CPDP case
+  // Insert new CPDP case — let created_at default to now()
   const { data: newCase, error } = await supabase
     .from("cpdp_cases")
     .insert({
       client_id: clientId,
       crash_id: crashId,
       status: "draft",
-      created_at: new Date().toISOString(),
+      // created_at intentionally omitted — column default is now()
     })
     .select("id")
     .single();

@@ -124,11 +124,15 @@ export default async function CpdpPage({
                       <CpdpCreateButton clientId={id} crashId={crash.id} />
                     )}
                     {hasCase && (() => {
-                      const caseStatus = (crash.cpdp_cases as any[])[0]?.status ?? "draft";
+                      const caseObj = (crash.cpdp_cases as any[])[0];
+                      const caseStatus = caseObj?.status ?? "draft";
+                      const caseDetailHref = `/console/clients/${id}/cpdp/${caseObj?.id}`;
                       return (
-                        <Badge variant={cpdpStatusBadgeVariant(caseStatus)}>
-                          {cpdpStatusLabel[caseStatus] ?? caseStatus}
-                        </Badge>
+                        <Link href={caseDetailHref}>
+                          <Badge variant={cpdpStatusBadgeVariant(caseStatus)} className="cursor-pointer hover:opacity-80 transition-opacity">
+                            {cpdpStatusLabel[caseStatus] ?? caseStatus}
+                          </Badge>
+                        </Link>
                       );
                     })()}
                   </div>

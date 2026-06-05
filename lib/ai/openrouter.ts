@@ -264,35 +264,114 @@ export async function draftCpdpNarrative(params: {
   crashDate: string;
   state: string;
   city: string;
-  description: string;
+  reportNumber?: string;
+  fatalities: number;
+  injuries: number;
+  towAway: boolean;
+  hazmatRelease: boolean;
   eligibleTypes: string[];
   carrierName: string;
   dotNumber: string;
+  isProvisional?: boolean;
+  evidenceFiles?: EvidenceFile[];
 }): Promise<string> {
   const client = getClient();
 
-  const prompt = `Draft a CPDP (Crash Preventability Determination Program) submission narrative for FMCSA.
+  const eligibleSummary = params.eligibleTypes.length > 0
+    ? params.eligibleTypes.join("; ")
+    : "Not yet classified — assess from the PAR";
 
+  const crashSummary = [
+    params.towAway && "tow-away",
+    params.fatalities > 0 && `${params.fatalities} fatal`,
+    params.injuries > 0 && `${params.injuries} injured`,
+    params.hazmatRelease && "hazmat release",
+  ].filter(Boolean).join(", ") || "property damage only";
+
+  const prompt = `You are drafting a CPDP (Crash Preventability Determination Program) Request for Determination (RFD) submission to FMCSA on behalf of a motor carrier.
+
+ROLE AND AUTHORITY:
+- You are a technical compliance specialist, not a legal advocate.
+- You may ONLY assert facts that are directly verifiable from the attached Police Accident Report (PAR) or the structured case data below.
+- DO NOT speculate, infer, or fabricate ANY factual claim not supported by the documents.
+- If a fact is not clearly stated in the PAR, mark it: [VERIFY: <what needs human confirmation>]
+- If the PAR does NOT support a non-preventable finding (wrong document, illegible, unrelated crash, or the carrier's driver appears to be at fault), write as the FIRST line: "INSUFFICIENT EVIDENCE: [reason]" — do not write a full narrative.
+
+CASE DATA:
 Carrier: ${params.carrierName} (DOT ${params.dotNumber})
-Crash: ${params.crashDate}, ${params.city}, ${params.state}
-Description: ${params.description}
-Eligible crash types: ${params.eligibleTypes.join(", ")}
+Crash date (use EXACTLY this date): ${params.crashDate}
+Location: ${params.city}, ${params.state}
+Report number: ${params.reportNumber ?? "see attached PAR"}
+Crash severity: ${crashSummary}
+Asserted eligible CPDP type(s): ${eligibleSummary}
 
-Write a 2-3 paragraph narrative that:
-1. Describes the crash circumstances factually
-2. Explains why the crash was not preventable by the carrier
-3. References the applicable CPDP eligible crash type(s)
-4. Requests a "Not Preventable" determination
+GROUNDING INSTRUCTIONS:
+Read the attached PAR carefully before writing. The narrative must:
+1. State the crash date, location, and report number from the PAR
+2. Describe the crash sequence of events ONLY as documented in the PAR — cite specific fields (e.g., "Officer narrative states...", "Diagram shows...")
+3. Identify the applicable CPDP-eligible crash type from 49 CFR Appendix B to Subchapter B
+4. Explain why the carrier's driver could not have reasonably avoided the crash, grounded in PAR facts
+5. Reference any independent contributing factors (other driver behavior, road conditions, signals) as documented in the PAR
+6. Close with a clear request for a "Not Preventable" determination
+7. Professional tone, 2-4 paragraphs, no legal opinions or guarantees
 
-Professional tone, factual, no legal opinions.`;
+EVIDENCE STATUS: ${params.isProvisional
+    ? "PROVISIONAL — no PAR attached yet. Write a placeholder narrative only, prefixed with: PROVISIONAL DRAFT:"
+    : (params.evidenceFiles ?? []).filter(f => f.sizeBytes > 0).length > 0
+      ? "FINAL — PAR and/or supporting documents attached above. Ground every assertion in the documents."
+      : "No files could be loaded. Treat as provisional and mark uncertain claims [VERIFY: ...]"}
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
+Write the RFD narrative now.`;
+
+  // Build content parts — PDF files first, then prompt text
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentParts: any[] = [];
+  for (const ef of params.evidenceFiles ?? []) {
+    if (ef.sizeBytes > 8388608) {
+      console.warn('[draftCpdpNarrative] Skipping oversized file:', ef.label, ef.sizeBytes, 'bytes');
+      continue;
+    }
+    if (ef.mimeType === 'application/pdf') {
+      contentParts.push({
+        type: 'file',
+        file: {
+          filename: ef.label.replace(/[^a-z0-9_.-]/gi, '_') + '.pdf',
+          file_data: `data:application/pdf;base64,${ef.base64Data}`,
+        },
+      });
+    } else if (ef.mimeType.startsWith('image/')) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: `data:${ef.mimeType};base64,${ef.base64Data}` },
+      });
+    }
+  }
+  contentParts.push({ type: 'text', text: prompt });
+
+  const partTypes = contentParts.map((p) => {
+    if (p.type === 'file') return 'file(pdf)';
+    if (p.type === 'image_url') return 'image_url';
+    if (p.type === 'text') return 'text';
+    return p.type;
   });
+  console.log('[draftCpdpNarrative] Content parts:', partTypes, '| model:', NARRATIVE_MODEL);
 
-  return response.choices[0]?.message?.content || "";
+  const messageContent = contentParts.length === 1 ? prompt : contentParts;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: NARRATIVE_MODEL,
+      messages: [{ role: 'user', content: messageContent }],
+      temperature: 0.2,
+    });
+    return response.choices[0]?.message?.content || "";
+  } catch (err) {
+    console.error(
+      "[draftCpdpNarrative] OpenRouter API call failed:",
+      err instanceof Error ? err.message : err
+    );
+    throw err;
+  }
 }
 
 export async function generateAssessmentReport(params: {
