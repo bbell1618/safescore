@@ -1,5 +1,10 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { assessCpdpEligibility } from "@/lib/ai/openrouter";
+import type { EvidenceFile } from "@/lib/ai/openrouter";
+
+// PAR assessment + narrative generation can take up to ~45s with Opus 4.8
+export const maxDuration = 60;
 
 const ALLOWED_MIMES = new Set([
   "application/pdf",
@@ -23,6 +28,9 @@ const ALLOWED_EXTS = new Set([
 ]);
 
 const MAX_SIZE = 104857600; // 100 MB — dashcam footage can be large
+
+// Max file size to pass to the AI for reading (8 MB — OpenRouter limit)
+const AI_READ_LIMIT = 8388608;
 
 function getAdmin() {
   return createSupabaseClient(
@@ -60,10 +68,10 @@ export async function POST(
 
   const supabase = getAdmin();
 
-  // Verify evidence item belongs to this case
+  // Verify evidence item belongs to this case — fetch doc_type for PAR detection
   const { data: ev, error: evErr } = await supabase
     .from("cpdp_evidence")
-    .select("id, case_id")
+    .select("id, case_id, doc_type")
     .eq("id", evidId)
     .eq("case_id", id)
     .single();
@@ -109,6 +117,112 @@ export async function POST(
       { error: `Failed to update evidence record: ${updateErr.message}` },
       { status: 500 }
     );
+  }
+
+  // ── Post-PAR pipeline ───────────────────────────────────────────────────────
+  // When the Police Accident Report is uploaded, run a grounded eligibility
+  // assessment via Opus 4.8 and persist results. Non-blocking — if this step
+  // fails, the upload itself still succeeds.
+  if ((ev as { doc_type: string }).doc_type === "police_report") {
+    try {
+      // Fetch crash context for the assessment prompt
+      const { data: caseCtx } = await supabase
+        .from("cpdp_cases")
+        .select("crashes(crash_date, city, state, fatalities, injuries, tow_away, hazmat_release)")
+        .eq("id", id)
+        .single();
+
+      const crashRaw = caseCtx?.crashes;
+      const crashData = (Array.isArray(crashRaw) ? crashRaw[0] : crashRaw) as {
+        crash_date: string;
+        city: string;
+        state: string;
+        fatalities: number | null;
+        injuries: number | null;
+        tow_away: boolean | null;
+        hazmat_release: boolean | null;
+      } | null;
+
+      if (crashData) {
+        const sizeBytes = fileBuffer.byteLength;
+
+        // Only pass the file to the AI if it's within the read limit
+        const parFiles: EvidenceFile[] = sizeBytes <= AI_READ_LIMIT
+          ? [
+              {
+                label: "Police_Accident_Report",
+                mimeType: file.type || "application/pdf",
+                base64Data: Buffer.from(fileBuffer).toString("base64"),
+                sizeBytes,
+              },
+            ]
+          : [];
+
+        if (sizeBytes > AI_READ_LIMIT) {
+          console.warn(
+            `[upload] PAR file (${sizeBytes} bytes) exceeds AI read limit — running metadata-only assessment`
+          );
+        }
+
+        const eligibilityResult = await assessCpdpEligibility(
+          {
+            crashDate: crashData.crash_date,
+            state: crashData.state,
+            fatalities: crashData.fatalities ?? 0,
+            injuries: crashData.injuries ?? 0,
+            towAway: crashData.tow_away ?? false,
+            hazmatRelease: crashData.hazmat_release ?? false,
+            description: `${crashData.crash_date} crash in ${crashData.city}, ${crashData.state}`,
+          },
+          parFiles
+        );
+
+        const verdict =
+          eligibilityResult.verdict ??
+          (eligibilityResult.eligible ? "ELIGIBLE" : "NOT_ELIGIBLE");
+
+        // ai_suggested_types: what the AI found in the PAR (preserved separately from human selection)
+        // cpdp_eligible_types: pre-fill with AI suggestions so human has a starting point
+        await supabase
+          .from("cpdp_cases")
+          .update({
+            ai_suggested_types: eligibilityResult.eligibleTypes.length > 0
+              ? eligibilityResult.eligibleTypes
+              : null,
+            ai_eligibility_verdict: verdict,
+            ai_eligibility_rationale: eligibilityResult.reasoning,
+            ai_assessed_at: new Date().toISOString(),
+            // Pre-fill human selection with AI suggestions only when nothing is saved yet
+            // (handled client-side — we still save here as a fallback for non-interactive contexts)
+            cpdp_eligible_types: eligibilityResult.eligibleTypes.length > 0
+              ? eligibilityResult.eligibleTypes
+              : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+
+        console.log(
+          `[upload] PAR assessment complete for case ${id}: verdict=${verdict}, types=${eligibilityResult.eligibleTypes.length}`
+        );
+
+        return NextResponse.json({
+          ok: true,
+          assessment: {
+            verdict,
+            eligibleTypes: eligibilityResult.eligibleTypes,
+            reasoning: eligibilityResult.reasoning,
+            confidence: eligibilityResult.confidence,
+          },
+        });
+      }
+    } catch (assessErr) {
+      console.error(
+        "[upload] Post-PAR assessment failed:",
+        assessErr instanceof Error ? assessErr.message : assessErr
+      );
+      // Upload succeeded — return ok without assessment data
+      return NextResponse.json({ ok: true, assessmentError: true });
+    }
   }
 
   return NextResponse.json({ ok: true });

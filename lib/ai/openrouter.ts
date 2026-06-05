@@ -44,6 +44,7 @@ export interface CpdpEligibilityResult {
   eligibleTypes: string[];
   confidence: number;
   reasoning: string;
+  verdict?: 'ELIGIBLE' | 'INDETERMINATE' | 'NOT_ELIGIBLE';
 }
 
 export interface DenialAnalysisResult {
@@ -104,6 +105,43 @@ Common grounds for challenge: incorrect violation code, violation not observed, 
   return JSON.parse(content) as ChallengeabilityResult;
 }
 
+// Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)
+const CPDP_TYPES_EXPANDED = [
+  "Struck in the rear by another vehicle",
+  "Struck while legally stopped or parked",
+  "Wrong-direction or illegal U-turn by another vehicle",
+  "Struck by an impaired driver",
+  "Struck by a distracted driver",
+  "Struck by a vehicle changing lanes",
+  "Failure to stop at traffic control device by another vehicle",
+  "Other driver fell asleep or had a medical emergency",
+  "Animal strike",
+  "Cargo or debris from another vehicle",
+  "Infrastructure failure (road, bridge, or signal defect)",
+  "Other vehicle mechanical failure",
+  "Suicide attempt by another person",
+  "Weather event or natural disaster",
+  "Struck in a work zone (not carrier's negligence)",
+  "Struck by a train or railroad equipment",
+  "Rail crossing signal or gate failure",
+  "Vehicle ahead stopped or turned unexpectedly",
+  "Struck while loading or unloading",
+  "Struck by a vehicle crossing the median",
+  "Other — crash circumstances beyond the carrier's control",
+];
+
+const CPDP_TYPES_LEGACY = [
+  "Struck in the rear",
+  "Parked or legally stopped vehicle struck",
+  "Wrong-direction or illegal turn by other vehicle",
+  "Other vehicle failure to yield",
+  "Lane change by other vehicle",
+  "Other driver fell asleep or was incapacitated",
+  "Animal strike",
+  "Infrastructure failure",
+  "Other — not preventable",
+];
+
 export async function assessCpdpEligibility(
   crash: {
     crashDate: string;
@@ -113,13 +151,22 @@ export async function assessCpdpEligibility(
     towAway: boolean;
     hazmatRelease: boolean;
     description: string;
-  }
+  },
+  evidenceFiles?: EvidenceFile[]
 ): Promise<CpdpEligibilityResult> {
   const client = getClient();
 
-  const prompt = `You are an expert in FMCSA Crash Preventability Determination Program (CPDP). Assess whether this crash is eligible for a CPDP submission.
+  const hasFiles = (evidenceFiles ?? []).filter(f => f.sizeBytes > 0).length > 0;
+  const useExpanded = crash.crashDate >= '2024-12-01';
+  const typeList = useExpanded ? CPDP_TYPES_EXPANDED : CPDP_TYPES_LEGACY;
+  const typeListText = typeList.map((t, i) => `${i + 1}. ${t}`).join('\n');
+  const model = hasFiles ? NARRATIVE_MODEL : MODEL;
 
-Crash details:
+  const prompt = `You are an FMCSA CPDP (Crash Preventability Determination Program) eligibility assessor.${hasFiles ? ' A Police Accident Report (PAR) is attached. Read it carefully before responding.' : ''}
+
+TASK: Assess whether this crash qualifies for a CPDP submission.
+
+CRASH METADATA:
 - Date: ${crash.crashDate}
 - State: ${crash.state}
 - Fatalities: ${crash.fatalities}
@@ -128,27 +175,90 @@ Crash details:
 - Hazmat release: ${crash.hazmatRelease}
 - Description: ${crash.description}
 
-CPDP eligible crash types include: struck in rear, wrong direction/illegal turn by other vehicle, parked/legally stopped vehicle struck, failure to stop at traffic signal by other, lane-change collision caused by other, other driver fell asleep, vehicle running red light, medical emergency in another vehicle, and others specified in 49 CFR.
+ELIGIBLE CRASH TYPES FOR THIS DATE (${useExpanded ? '21-type list, Dec 2024+' : '9-type legacy list'}):
+${typeListText}
 
-Respond in JSON:
+GROUNDING RULES:
+${hasFiles
+  ? `- Read the attached PAR before concluding.
+- Only identify eligible types that the PAR directly supports.
+- If the PAR shows the CMV driver was at fault (cited, made an unsafe maneuver, failed to stop/yield), set verdict to "NOT_ELIGIBLE".
+- If the PAR is ambiguous, illegible, or shows conflicting fault attribution, set verdict to "INDETERMINATE".
+- Never identify a crash type that the PAR does not support.`
+  : `- Assessment is based on crash metadata only — no document attached.
+- Be conservative: return INDETERMINATE if fault is unclear from metadata alone.`}
+
+Respond with valid JSON only (no markdown, no code blocks):
 {
   "eligible": boolean,
-  "eligibleTypes": ["list of applicable eligible crash type categories"],
-  "confidence": number (0-100),
-  "reasoning": "explanation"
+  "eligibleTypes": ["exact strings from the numbered type list above, or empty array"],
+  "confidence": number_0_to_100,
+  "reasoning": "concise grounded explanation, citing PAR fields if available",
+  "verdict": "ELIGIBLE" or "INDETERMINATE" or "NOT_ELIGIBLE"
 }`;
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-  });
+  if (hasFiles) {
+    // Opus 4.8 path — file content blocks + grounded assessment
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contentParts: any[] = [];
+    for (const ef of evidenceFiles ?? []) {
+      if (ef.sizeBytes > 8388608) {
+        console.warn('[assessCpdpEligibility] Skipping oversized file:', ef.label, ef.sizeBytes, 'bytes');
+        continue;
+      }
+      if (ef.mimeType === 'application/pdf') {
+        contentParts.push({
+          type: 'file',
+          file: {
+            filename: ef.label.replace(/[^a-z0-9_.-]/gi, '_') + '.pdf',
+            file_data: `data:application/pdf;base64,${ef.base64Data}`,
+          },
+        });
+      } else if (ef.mimeType.startsWith('image/')) {
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: `data:${ef.mimeType};base64,${ef.base64Data}` },
+        });
+      }
+    }
+    contentParts.push({ type: 'text', text: prompt });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
+    const partTypes = contentParts.map(p =>
+      p.type === 'file' ? 'file(pdf)' : p.type === 'image_url' ? 'image_url' : p.type
+    );
+    console.log('[assessCpdpEligibility] Content parts:', partTypes, '| model:', model);
 
-  return JSON.parse(content) as CpdpEligibilityResult;
+    const messageContent = contentParts.length === 1 ? prompt : contentParts;
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: messageContent }],
+        temperature: 0.1,
+      });
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No response from AI');
+      // Strip markdown code fences if the model wraps the JSON
+      const clean = content.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+      return JSON.parse(clean) as CpdpEligibilityResult;
+    } catch (err) {
+      console.error(
+        '[assessCpdpEligibility] OpenRouter API call failed:',
+        err instanceof Error ? err.message : err
+      );
+      throw err;
+    }
+  } else {
+    // Sonnet text-only path — metadata assessment without a document
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('No response from AI');
+    return JSON.parse(content) as CpdpEligibilityResult;
+  }
 }
 
 export async function draftDataqNarrative(params: {

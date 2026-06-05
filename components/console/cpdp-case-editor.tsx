@@ -16,6 +16,7 @@ import {
   Loader2,
   Edit3,
   Copy,
+  Info,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -133,6 +134,11 @@ export interface CpdpCaseRow {
   filed_without_evidence: boolean;
   override_reason: string | null;
   narrative_evidence_verified: boolean;
+  // AI assessment fields — populated on PAR upload
+  ai_assessed_at: string | null;
+  ai_eligibility_verdict: string | null;   // 'ELIGIBLE' | 'INDETERMINATE' | 'NOT_ELIGIBLE'
+  ai_eligibility_rationale: string | null;
+  ai_suggested_types: string[] | null;     // original AI suggestions (preserved after human edits)
 }
 
 export interface CrashRow {
@@ -195,6 +201,17 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
   );
   const [eligibilitySaving, setEligibilitySaving] = useState(false);
   const [eligibilitySaved, setEligibilitySaved] = useState(false);
+
+  // AI assessment state — from initial case row or populated after PAR upload
+  const [aiVerdict, setAiVerdict] = useState<string | null>(
+    cpdpCase.ai_eligibility_verdict ?? null
+  );
+  const [aiRationale, setAiRationale] = useState<string | null>(
+    cpdpCase.ai_eligibility_rationale ?? null
+  );
+  const [aiSuggestedTypes, setAiSuggestedTypes] = useState<string[]>(
+    cpdpCase.ai_suggested_types ?? []
+  );
 
   // Evidence
   const [evidence, setEvidence] = useState<EvidenceItem[]>(initialEvidence);
@@ -289,6 +306,8 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
   async function handleUpload(evidId: string, file: File) {
     setUploadingId(evidId);
     setUploadErrors((prev) => { const n = { ...prev }; delete n[evidId]; return n; });
+    const evidItem = evidence.find((e) => e.id === evidId);
+    const isPar = evidItem?.doc_type === "police_report";
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -296,16 +315,35 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
         method: "POST",
         body: fd,
       });
+      const data = await res.json();
       if (!res.ok) {
-        const d = await res.json();
-        setUploadErrors((prev) => ({ ...prev, [evidId]: d.error ?? "Upload failed" }));
+        setUploadErrors((prev) => ({ ...prev, [evidId]: data.error ?? "Upload failed" }));
         return;
       }
+      // Mark evidence item received
       setEvidence((prev) =>
         prev.map((e) =>
           e.id === evidId ? { ...e, status: "received", uploaded_by: "geia" } : e
         )
       );
+      // If the PAR was uploaded and the server returned an eligibility assessment,
+      // update §1 state and auto-trigger the narrative draft.
+      if (isPar && data.assessment) {
+        const { verdict, eligibleTypes, reasoning } = data.assessment as {
+          verdict: string;
+          eligibleTypes: string[];
+          reasoning: string;
+        };
+        setAiVerdict(verdict ?? null);
+        setAiRationale(reasoning ?? null);
+        setAiSuggestedTypes(eligibleTypes ?? []);
+        // Pre-select AI-suggested types if the human hasn't made a selection yet
+        setSelectedTypes((prev) =>
+          prev.length === 0 && eligibleTypes.length > 0 ? eligibleTypes : prev
+        );
+        // Auto-draft the narrative from the newly uploaded PAR
+        generateNarrative();
+      }
     } catch {
       setUploadErrors((prev) => ({ ...prev, [evidId]: "Network error" }));
     } finally {
@@ -466,32 +504,103 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
             </span>
           )}
         </div>
+
+        {/* AI assessment banner — shown after PAR is uploaded and assessed */}
+        {aiVerdict && (
+          <div
+            className={`flex items-start gap-2.5 p-3 rounded-lg border ${
+              aiVerdict === "ELIGIBLE"
+                ? "bg-blue-50 border-blue-200"
+                : aiVerdict === "NOT_ELIGIBLE"
+                ? "bg-red-50 border-red-200"
+                : "bg-amber-50 border-amber-200"
+            }`}
+          >
+            {aiVerdict === "ELIGIBLE" ? (
+              <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle
+                className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                  aiVerdict === "NOT_ELIGIBLE" ? "text-red-600" : "text-amber-600"
+                }`}
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <p
+                className={`text-xs font-semibold mb-0.5 ${
+                  aiVerdict === "ELIGIBLE"
+                    ? "text-blue-800"
+                    : aiVerdict === "NOT_ELIGIBLE"
+                    ? "text-red-800"
+                    : "text-amber-800"
+                }`}
+              >
+                AI assessment from PAR
+                {aiVerdict === "ELIGIBLE" && " — Eligible"}
+                {aiVerdict === "NOT_ELIGIBLE" && " — Likely not eligible"}
+                {aiVerdict === "INDETERMINATE" && " — Ambiguous"}
+              </p>
+              {aiRationale && (
+                <p
+                  className={`text-[11px] ${
+                    aiVerdict === "ELIGIBLE"
+                      ? "text-blue-700"
+                      : aiVerdict === "NOT_ELIGIBLE"
+                      ? "text-red-700"
+                      : "text-amber-700"
+                  }`}
+                >
+                  {aiRationale}
+                </p>
+              )}
+              {aiVerdict === "ELIGIBLE" && aiSuggestedTypes.length > 0 && (
+                <p className="text-[10px] text-blue-600 mt-1">
+                  {aiSuggestedTypes.length} type{aiSuggestedTypes.length !== 1 ? "s" : ""} pre-selected below. Review and save to confirm.
+                </p>
+              )}
+              {aiVerdict === "NOT_ELIGIBLE" && (
+                <p className="text-[10px] text-red-600 mt-1">
+                  You may still manually select types and file — this is an AI assessment, not a final ruling.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-gray-500">
           Select all applicable types. This is asserted in the RFD narrative — ground it in the PAR.
         </p>
         <div className="grid grid-cols-1 gap-1.5 max-h-64 overflow-y-auto pr-1">
-          {eligibleTypes.map((t) => (
-            <label
-              key={t}
-              className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer text-xs transition-colors ${
-                selectedTypes.includes(t)
-                  ? "border-[#C67A1E] bg-[#FDF4E7] text-[#1E1C1A]"
-                  : "border-[#F0E8DA] hover:border-[#C67A1E]/50 text-gray-600"
-              }`}
-            >
-              <input
-                type="checkbox"
-                className="mt-0.5 accent-[#C67A1E] flex-shrink-0"
-                checked={selectedTypes.includes(t)}
-                onChange={(e) =>
-                  setSelectedTypes((prev) =>
-                    e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)
-                  )
-                }
-              />
-              {t}
-            </label>
-          ))}
+          {eligibleTypes.map((t) => {
+            const isAiSuggested = aiSuggestedTypes.includes(t);
+            return (
+              <label
+                key={t}
+                className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer text-xs transition-colors ${
+                  selectedTypes.includes(t)
+                    ? "border-[#C67A1E] bg-[#FDF4E7] text-[#1E1C1A]"
+                    : "border-[#F0E8DA] hover:border-[#C67A1E]/50 text-gray-600"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-[#C67A1E] flex-shrink-0"
+                  checked={selectedTypes.includes(t)}
+                  onChange={(e) =>
+                    setSelectedTypes((prev) =>
+                      e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)
+                    )
+                  }
+                />
+                <span className="flex-1">{t}</span>
+                {isAiSuggested && (
+                  <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1 py-0.5 flex-shrink-0 self-start mt-0.5">
+                    AI
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-gray-400">
