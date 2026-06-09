@@ -5,6 +5,24 @@ import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 
 export const maxDuration = 60;
 
+/**
+ * Strip the AI's PAR identity reconciliation preamble from generated narratives.
+ *
+ * When PAR identity is auto-detected, the model emits a preamble like:
+ *   "**PAR Identity Verification:** Confirmed. (1) USDOT ... (3) location ... Proceeding.\n\n---\n\n"
+ * before the actual RFD header. This preamble is the model's internal verification
+ * trace — it should not appear in the filed narrative or the review textarea.
+ *
+ * Strategy: find the first "REQUEST FOR DETERMINATION" header (with optional markdown
+ * bold wrappers) and return everything from that point forward. If no header is found,
+ * the narrative is returned as-is so we never silently drop content.
+ */
+function stripCpdpPreamble(narrative: string): string {
+  const match = narrative.match(/\*{0,2}REQUEST\s+FOR\s+DETERMINATION/i);
+  if (!match || match.index === undefined) return narrative;
+  return narrative.slice(match.index).trim();
+}
+
 function getAdmin() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -208,7 +226,7 @@ export async function POST(
 
     const eligibleTypes = (c.cpdp_eligible_types as string[] | null) ?? [];
 
-    const narrative = await draftCpdpNarrative({
+    const rawNarrative = await draftCpdpNarrative({
       crashDate: crash.crash_date,
       state: crash.state,
       city: crash.city,
@@ -224,6 +242,11 @@ export async function POST(
       parIdentityConfirmed: (c.par_identity_confirmed as boolean | null) ?? false,
       evidenceFiles,
     });
+
+    // Strip the PAR identity reconciliation preamble before persisting or returning.
+    // The preamble ("**PAR Identity Verification:** Confirmed...") is the model's
+    // internal trace — it must not appear in the filed RFD or the review textarea.
+    const narrative = stripCpdpPreamble(rawNarrative);
 
     await supabase
       .from("cpdp_cases")

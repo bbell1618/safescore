@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
+import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
 import {
   Car,
   AlertTriangle,
@@ -851,7 +851,7 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
             </div>
           </div>
         )}
-        {blockReason && narrative.includes("[VERIFY:") && (
+        {blockReason && hasVerifyPlaceholder(narrative) && (
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-lg">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700">

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { mapReasonCode } from "@/lib/analysis/reason-codes";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
-import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
+import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
 
 interface ViolationDetail {
   violation_code: string;
@@ -1008,7 +1008,7 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                           evidenceVerified[c.id] ?? c.narrative_evidence_verified;
                         const blockReason = narrativeBlockReason(narrativeValue || undefined);
                         const hasInsufficientEvidence = narrativeValue.includes("INSUFFICIENT EVIDENCE");
-                        const hasVerifyPlaceholders = narrativeValue.includes("[VERIFY:");
+                        const hasVerifyPlaceholders = hasVerifyPlaceholder(narrativeValue);
                         const isNarrativeBlocked = blockReason !== null;
                         return (
                           <>
