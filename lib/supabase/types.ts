@@ -20,6 +20,9 @@ export type CaseStatus =
   | "denied"
   | "reconsidering"
   | "closed";
+// 'pending' is a deprecated enum value — all DB rows were migrated to 'filed'.
+// The DB enum retains 'pending' to avoid risky enum surgery on live data.
+// In the UI, 'pending' is treated identically to 'filed' ("Filed / Pending FMCSA").
 export type CpdpStatus = "draft" | "filed" | "pending" | "determination_made" | "closed";
 export type CpdpOutcome = "preventable" | "not_preventable" | "undecided" | "dismissed";
 export type ReportType = "assessment" | "monthly" | "quarterly" | "improvement" | "underwriter";

@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 
 const cpdpStatusLabel: Record<string, string> = {
   draft: "Draft",
-  filed: "Filed",
-  pending: "Pending",
+  filed: "Filed / Pending FMCSA",
+  pending: "Filed / Pending FMCSA", // deprecated — maps to 'filed'
   determination_made: "Determination made",
   closed: "Closed",
 };
@@ -24,7 +24,7 @@ const cpdpStatusVariant = (
   > = {
     draft: "outline",
     filed: "info",
-    pending: "warning",
+    pending: "info", // deprecated — maps to 'filed'
     determination_made: "success",
     closed: "default",
   };

@@ -70,18 +70,22 @@ function getEligibleTypes(crashDate: string): string[] {
 
 // ─── Status tracker ──────────────────────────────────────────────────────────
 
+// NOTE: The DB enum retains the 'pending' value (deprecated). All 'pending' rows
+// were migrated to 'filed' via additive UPDATE. The UI maps both defensively.
 const STATUS_STEPS = [
   { key: "draft", label: "Draft" },
-  { key: "filed", label: "Filed" },
-  { key: "pending", label: "Pending FMCSA" },
+  { key: "filed", label: "Filed / Pending FMCSA" },
   { key: "determination_made", label: "Determination" },
   { key: "closed", label: "Closed" },
 ] as const;
 
-type CpdpStatus = (typeof STATUS_STEPS)[number]["key"];
+// 'pending' is deprecated — treat it as 'filed' for display purposes.
+type CpdpStatus = (typeof STATUS_STEPS)[number]["key"]; // 'pending' deprecated, maps to 'filed'
 
 function StatusTracker({ status }: { status: string }) {
-  const currentIdx = STATUS_STEPS.findIndex((s) => s.key === status);
+  // Defensive: treat legacy 'pending' rows as 'filed' in the tracker.
+  const normalizedStatus = status === "pending" ? "filed" : status;
+  const currentIdx = STATUS_STEPS.findIndex((s) => s.key === normalizedStatus);
   return (
     <div className="flex items-center gap-0 w-full overflow-x-auto pb-1">
       {STATUS_STEPS.map((step, i) => {
@@ -264,7 +268,7 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
   const canFile =
     !isResolved &&
     status !== "filed" &&
-    status !== "pending" &&
+    status !== "pending" && // 'pending' is deprecated but guarded defensively
     !blockReason &&
     narrative.trim().length > 50 &&
     (parReceived || overrideChecked);
@@ -888,6 +892,9 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
           <h2 className="font-semibold text-[#1E1C1A] text-sm">4. File with FMCSA</h2>
 
           {status === "filed" || status === "pending" ? (
+            // 'filed' and legacy 'pending' are the same state: submitted to DataQs,
+            // awaiting FMCSA's ruling. "Advance to Pending FMCSA" removed — it was
+            // a no-op step between identical states.
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
                 <Check className="w-4 h-4 flex-shrink-0" />
@@ -896,24 +903,13 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
                   {cpdpCase.case_number ? ` — FMCSA case ${cpdpCase.case_number}` : ""}.
                 </span>
               </div>
-              {status === "filed" && (
-                <button
-                  onClick={() => advanceStatus("pending")}
-                  disabled={saving}
-                  className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
-                >
-                  Advance to Pending FMCSA
-                </button>
-              )}
-              {status === "pending" && (
-                <button
-                  onClick={() => advanceStatus("determination_made")}
-                  disabled={saving}
-                  className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
-                >
-                  Record determination
-                </button>
-              )}
+              <button
+                onClick={() => advanceStatus("determination_made")}
+                disabled={saving}
+                className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
+              >
+                Record determination
+              </button>
             </div>
           ) : (
             <div className="space-y-3">

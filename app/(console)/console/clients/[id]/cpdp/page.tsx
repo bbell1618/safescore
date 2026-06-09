@@ -40,8 +40,8 @@ export default async function CpdpPage({
 
   const cpdpStatusLabel: Record<string, string> = {
     draft: "Draft",
-    filed: "Filed",
-    pending: "Pending FMCSA",
+    filed: "Filed / Pending FMCSA",
+    pending: "Filed / Pending FMCSA", // deprecated — maps to 'filed'
     determination_made: "Determination made",
     closed: "Closed",
   };
@@ -52,7 +52,7 @@ export default async function CpdpPage({
     const map: Record<string, "default" | "info" | "warning" | "success" | "gold"> = {
       draft: "gold",
       filed: "info",
-      pending: "warning",
+      pending: "info", // deprecated — maps to 'filed'
       determination_made: "success",
       closed: "default",
     };
