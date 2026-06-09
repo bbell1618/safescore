@@ -139,6 +139,10 @@ export interface CpdpCaseRow {
   ai_eligibility_verdict: string | null;   // 'ELIGIBLE' | 'INDETERMINATE' | 'NOT_ELIGIBLE'
   ai_eligibility_rationale: string | null;
   ai_suggested_types: string[] | null;     // original AI suggestions (preserved after human edits)
+  // PAR identity confirmation — human confirms the PAR matches this FMCSA crash record
+  par_identity_confirmed: boolean;
+  par_confirmed_at: string | null;
+  par_confirmed_by: string | null;
 }
 
 export interface CrashRow {
@@ -212,6 +216,12 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
   const [aiSuggestedTypes, setAiSuggestedTypes] = useState<string[]>(
     cpdpCase.ai_suggested_types ?? []
   );
+
+  // PAR identity confirmation state
+  const [parConfirmed, setParConfirmed] = useState<boolean>(
+    cpdpCase.par_identity_confirmed ?? false
+  );
+  const [parConfirming, setParConfirming] = useState(false);
 
   // Evidence
   const [evidence, setEvidence] = useState<EvidenceItem[]>(initialEvidence);
@@ -363,6 +373,34 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
       alert(err instanceof Error ? err.message : "Download failed");
     } finally {
       setDownloadingId(null);
+    }
+  }
+
+  // ── Confirm PAR identity ────────────────────────────────────────────────────
+  // Records that a human reviewer has verified the attached PAR corresponds to
+  // this FMCSA crash record. Clears the report-number mismatch block in the
+  // narrative prompt (FMCSA MCMIS numbers and local PAR numbers always differ).
+  async function confirmParIdentity() {
+    setParConfirming(true);
+    try {
+      const res = await fetch(`/api/cases/cpdp/${caseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          par_identity_confirmed: true,
+          par_confirmed_at: new Date().toISOString(),
+          par_confirmed_by: "geia",
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "Confirmation failed");
+      }
+      setParConfirmed(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Confirmation failed");
+    } finally {
+      setParConfirming(false);
     }
   }
 
@@ -650,6 +688,40 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
           </div>
         ) : (
           <div className="space-y-2">
+            {/* PAR identity confirmation — shown when PAR is uploaded */}
+            {parReceived && (
+              <div className={`flex items-start gap-2.5 p-3 rounded-lg border ${
+                parConfirmed
+                  ? "bg-green-50 border-green-200"
+                  : "bg-blue-50 border-blue-200"
+              }`}>
+                {parConfirmed ? (
+                  <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold mb-0.5 ${parConfirmed ? "text-green-800" : "text-blue-800"}`}>
+                    {parConfirmed ? "PAR identity confirmed" : "Confirm this PAR matches this crash"}
+                  </p>
+                  <p className={`text-[11px] ${parConfirmed ? "text-green-700" : "text-blue-700"}`}>
+                    {parConfirmed
+                      ? "A reviewer has confirmed the uploaded PAR corresponds to this FMCSA crash record. The narrative generator will use this PAR without re-checking report numbers."
+                      : "FMCSA crash numbers and local PAR report numbers always differ. After reviewing the uploaded PAR, confirm it is for this crash to allow grounded narrative generation."}
+                  </p>
+                </div>
+                {!parConfirmed && (
+                  <button
+                    onClick={confirmParIdentity}
+                    disabled={parConfirming}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                  >
+                    {parConfirming ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    Confirm
+                  </button>
+                )}
+              </div>
+            )}
             {evidence.map((ev) => (
               <div
                 key={ev.id}

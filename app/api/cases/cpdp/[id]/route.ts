@@ -118,11 +118,11 @@ export async function POST(
   const supabase = getAdmin();
 
   try {
-    // Fetch case with crash + client
+    // Fetch case with crash + client (par_identity_confirmed passed to narrative prompt)
     const { data: c } = await supabase
       .from("cpdp_cases")
       .select(
-        "*, cpdp_eligible_types, crashes(crash_date, city, state, report_number, fatalities, injuries, tow_away, hazmat_release), clients(name, dot_number)"
+        "*, cpdp_eligible_types, par_identity_confirmed, crashes(crash_date, city, state, report_number, fatalities, injuries, tow_away, hazmat_release), clients(name, dot_number)"
       )
       .eq("id", id)
       .single();
@@ -221,6 +221,7 @@ export async function POST(
       carrierName: client.name,
       dotNumber: client.dot_number,
       isProvisional,
+      parIdentityConfirmed: (c.par_identity_confirmed as boolean | null) ?? false,
       evidenceFiles,
     });
 

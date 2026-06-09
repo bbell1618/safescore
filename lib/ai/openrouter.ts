@@ -151,6 +151,10 @@ export async function assessCpdpEligibility(
     towAway: boolean;
     hazmatRelease: boolean;
     description: string;
+    /** Carrier USDOT number — used to verify PAR identity; differs from local report number */
+    dotNumber?: string;
+    /** FMCSA MCMIS crash record number — always differs from the local PAR report number */
+    fmcsaCrashNumber?: string;
   },
   evidenceFiles?: EvidenceFile[]
 ): Promise<CpdpEligibilityResult> {
@@ -161,6 +165,13 @@ export async function assessCpdpEligibility(
   const typeList = useExpanded ? CPDP_TYPES_EXPANDED : CPDP_TYPES_LEGACY;
   const typeListText = typeList.map((t, i) => `${i + 1}. ${t}`).join('\n');
   const model = hasFiles ? NARRATIVE_MODEL : MODEL;
+
+  const identityLine = crash.dotNumber
+    ? `- Carrier USDOT: ${crash.dotNumber} (use this to verify the PAR is for the carrier's vehicle)`
+    : '';
+  const fmcsaLine = crash.fmcsaCrashNumber
+    ? `- FMCSA MCMIS crash number: ${crash.fmcsaCrashNumber} (this is the FMCSA database ID — it is NOT the local law enforcement report number and will never match it)`
+    : '';
 
   const prompt = `You are an FMCSA CPDP (Crash Preventability Determination Program) eligibility assessor.${hasFiles ? ' A Police Accident Report (PAR) is attached. Read it carefully before responding.' : ''}
 
@@ -174,6 +185,8 @@ CRASH METADATA:
 - Tow-away: ${crash.towAway}
 - Hazmat release: ${crash.hazmatRelease}
 - Description: ${crash.description}
+${identityLine}
+${fmcsaLine}
 
 ELIGIBLE CRASH TYPES FOR THIS DATE (${useExpanded ? '21-type list, Dec 2024+' : '9-type legacy list'}):
 ${typeListText}
@@ -184,7 +197,8 @@ ${hasFiles
 - Only identify eligible types that the PAR directly supports.
 - If the PAR shows the CMV driver was at fault (cited, made an unsafe maneuver, failed to stop/yield), set verdict to "NOT_ELIGIBLE".
 - If the PAR is ambiguous, illegible, or shows conflicting fault attribution, set verdict to "INDETERMINATE".
-- Never identify a crash type that the PAR does not support.`
+- Never identify a crash type that the PAR does not support.
+- CRITICAL — REPORT NUMBER RECONCILIATION: The case metadata carries the FMCSA MCMIS crash number (e.g., OH0255151321). The attached PAR carries the investigating agency's LOCAL report number (e.g., OHP No. 12-0837-12 or CHP No. CA2652600387). These two numbers are ALWAYS different — they come from entirely separate numbering systems and will NEVER match each other. DO NOT treat report-number divergence as a mismatch, discrepancy, or sign of a wrong document. Instead, verify the PAR corresponds to this crash using these three identifiers: (1) carrier USDOT/DOT number matches a vehicle in the PAR, (2) crash date matches, (3) state and city/location matches. If all three corroborate, the PAR is confirmed as the correct document for this crash regardless of differing report numbers.`
   : `- Assessment is based on crash metadata only — no document attached.
 - Be conservative: return INDETERMINATE if fault is unclear from metadata alone.`}
 
@@ -374,6 +388,7 @@ export async function draftCpdpNarrative(params: {
   crashDate: string;
   state: string;
   city: string;
+  /** FMCSA MCMIS crash number stored on the crash record — differs from the local PAR report number by design */
   reportNumber?: string;
   fatalities: number;
   injuries: number;
@@ -383,6 +398,12 @@ export async function draftCpdpNarrative(params: {
   carrierName: string;
   dotNumber: string;
   isProvisional?: boolean;
+  /**
+   * True when a human reviewer has confirmed the attached PAR matches this crash.
+   * When set, the model treats document identity as resolved and generates the full
+   * grounded narrative without re-litigating the FMCSA-vs-local report number difference.
+   */
+  parIdentityConfirmed?: boolean;
   evidenceFiles?: EvidenceFile[];
 }): Promise<string> {
   const client = getClient();
@@ -398,6 +419,10 @@ export async function draftCpdpNarrative(params: {
     params.hazmatRelease && "hazmat release",
   ].filter(Boolean).join(", ") || "property damage only";
 
+  const parIdentityNote = params.parIdentityConfirmed
+    ? `PAR IDENTITY: CONFIRMED — A human reviewer has verified this PAR matches this crash. Proceed directly to grounded narrative generation.`
+    : `PAR IDENTITY: AUTO-DETECT — Verify the attached PAR corresponds to this crash using: (1) carrier USDOT ${params.dotNumber} appearing on a vehicle in the PAR, (2) crash date ${params.crashDate}, (3) location ${params.city}, ${params.state}. If all three corroborate, proceed with narrative generation.`;
+
   const prompt = `You are drafting a CPDP (Crash Preventability Determination Program) Request for Determination (RFD) submission to FMCSA on behalf of a motor carrier.
 
 ROLE AND AUTHORITY:
@@ -405,19 +430,23 @@ ROLE AND AUTHORITY:
 - You may ONLY assert facts that are directly verifiable from the attached Police Accident Report (PAR) or the structured case data below.
 - DO NOT speculate, infer, or fabricate ANY factual claim not supported by the documents.
 - If a fact is not clearly stated in the PAR, mark it: [VERIFY: <what needs human confirmation>]
-- If the PAR does NOT support a non-preventable finding (wrong document, illegible, unrelated crash, or the carrier's driver appears to be at fault), write as the FIRST line: "INSUFFICIENT EVIDENCE: [reason]" — do not write a full narrative.
+- If the PAR does NOT support a non-preventable finding — meaning the PAR's DOT/date/location does NOT match this crash, the document is illegible, or the carrier's driver appears to be at fault — write as the FIRST line: "INSUFFICIENT EVIDENCE: [reason]" — do not write a full narrative.
+
+CRITICAL — REPORT NUMBER RECONCILIATION:
+FMCSA MCMIS crash numbers (e.g., OH0255151321, CA2652600387) and local law enforcement PAR report numbers (e.g., OHP No. 12-0837-12, CHP No. F-015-316-26) are ALWAYS different — they come from entirely separate numbering systems and will NEVER match each other. The case record stores the FMCSA MCMIS number. The PAR carries the local agency number. This divergence is expected on every single CPDP case. DO NOT treat it as a document-matching failure, discrepancy, or basis for INSUFFICIENT EVIDENCE. Document identity is established by DOT + date + location, not by report number.
 
 CASE DATA:
 Carrier: ${params.carrierName} (DOT ${params.dotNumber})
 Crash date (use EXACTLY this date): ${params.crashDate}
 Location: ${params.city}, ${params.state}
-Report number: ${params.reportNumber ?? "see attached PAR"}
+FMCSA MCMIS crash number: ${params.reportNumber ?? "not recorded"} (this is the FMCSA database ID — it is NOT the local PAR report number and will differ from it; both are correct)
 Crash severity: ${crashSummary}
 Asserted eligible CPDP type(s): ${eligibleSummary}
+${parIdentityNote}
 
 GROUNDING INSTRUCTIONS:
 Read the attached PAR carefully before writing. The narrative must:
-1. State the crash date, location, and report number from the PAR
+1. State the crash date, location, and the PAR's own local report number (as written in the PAR — it will differ from the FMCSA MCMIS number above; cite the PAR's number, not the FMCSA one)
 2. Describe the crash sequence of events ONLY as documented in the PAR — cite specific fields (e.g., "Officer narrative states...", "Diagram shows...")
 3. Identify the applicable CPDP-eligible crash type from 49 CFR Appendix B to Subchapter B
 4. Explain why the carrier's driver could not have reasonably avoided the crash, grounded in PAR facts

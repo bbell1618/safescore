@@ -44,6 +44,7 @@ export default async function CpdpCaseDetailPage({
        cpdp_eligible_types, filed_without_evidence, override_reason,
        narrative_evidence_verified,
        ai_assessed_at, ai_eligibility_verdict, ai_eligibility_rationale, ai_suggested_types,
+       par_identity_confirmed, par_confirmed_at, par_confirmed_by,
        crashes(
          id, crash_date, city, state, report_number,
          tow_away, fatalities, injuries, hazmat_release, cpdp_eligible
@@ -99,6 +100,9 @@ export default async function CpdpCaseDetailPage({
     ai_eligibility_verdict: cpdpCase.ai_eligibility_verdict as string | null,
     ai_eligibility_rationale: cpdpCase.ai_eligibility_rationale as string | null,
     ai_suggested_types: cpdpCase.ai_suggested_types as string[] | null,
+    par_identity_confirmed: (cpdpCase.par_identity_confirmed as boolean) ?? false,
+    par_confirmed_at: cpdpCase.par_confirmed_at as string | null,
+    par_confirmed_by: cpdpCase.par_confirmed_by as string | null,
   };
 
   return (

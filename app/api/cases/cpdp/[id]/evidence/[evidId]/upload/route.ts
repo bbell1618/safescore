@@ -125,10 +125,14 @@ export async function POST(
   // fails, the upload itself still succeeds.
   if ((ev as { doc_type: string }).doc_type === "police_report") {
     try {
-      // Fetch crash context for the assessment prompt
+      // Fetch crash context + carrier DOT for PAR identity verification.
+      // report_number = FMCSA MCMIS crash number (always differs from local PAR number).
+      // dot_number    = carrier USDOT — used as the primary identity anchor in the PAR.
       const { data: caseCtx } = await supabase
         .from("cpdp_cases")
-        .select("crashes(crash_date, city, state, fatalities, injuries, tow_away, hazmat_release)")
+        .select(
+          "crashes(crash_date, city, state, report_number, fatalities, injuries, tow_away, hazmat_release), clients(dot_number)"
+        )
         .eq("id", id)
         .single();
 
@@ -137,10 +141,16 @@ export async function POST(
         crash_date: string;
         city: string;
         state: string;
+        report_number: string | null;
         fatalities: number | null;
         injuries: number | null;
         tow_away: boolean | null;
         hazmat_release: boolean | null;
+      } | null;
+
+      const clientRaw = (caseCtx as Record<string, unknown>)?.clients;
+      const clientData = (Array.isArray(clientRaw) ? clientRaw[0] : clientRaw) as {
+        dot_number: string | null;
       } | null;
 
       if (crashData) {
@@ -173,6 +183,8 @@ export async function POST(
             towAway: crashData.tow_away ?? false,
             hazmatRelease: crashData.hazmat_release ?? false,
             description: `${crashData.crash_date} crash in ${crashData.city}, ${crashData.state}`,
+            dotNumber: clientData?.dot_number ?? undefined,
+            fmcsaCrashNumber: crashData.report_number ?? undefined,
           },
           parFiles
         );
