@@ -141,13 +141,37 @@ export interface Database {
           state: string | null;
           level: string | null;
           facility_name: string | null;
+          mcmis_inspection_id: string | null;
+          start_time: string | null;
+          end_time: string | null;
+          location_text: string | null;
+          post_accident_indicator: string | null;
           time_weight: number | null;
           total_violations: number;
           oos_violations: number;
           raw_data: Record<string, unknown> | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["inspections"]["Row"], "id" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["inspections"]["Row"],
+          | "id"
+          | "created_at"
+          | "mcmis_inspection_id"
+          | "start_time"
+          | "end_time"
+          | "location_text"
+          | "post_accident_indicator"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["inspections"]["Row"],
+              | "mcmis_inspection_id"
+              | "start_time"
+              | "end_time"
+              | "location_text"
+              | "post_accident_indicator"
+            >
+          >;
         Update: Partial<Database["public"]["Tables"]["inspections"]["Insert"]>;
       };
       violations: {
@@ -161,16 +185,38 @@ export interface Database {
           severity_weight: number | null;
           time_weight: number | null;
           oos_violation: boolean;
-          convicted: boolean;
+          convicted: boolean | null;
           citation_number: string | null;
+          citation_result: string | null;
           challengeable: boolean | null;
           challenge_reason: string | null;
           challenge_priority: ChallengePriority | null;
           ai_assessed_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["violations"]["Row"], "id" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["violations"]["Row"],
+          "id" | "created_at" | "citation_result"
+        > &
+          Partial<Pick<Database["public"]["Tables"]["violations"]["Row"], "citation_result">>;
         Update: Partial<Database["public"]["Tables"]["violations"]["Insert"]>;
+      };
+      inspection_vehicles: {
+        Row: {
+          id: string;
+          inspection_id: string;
+          client_id: string | null;
+          unit_number: number | null;
+          unit_type: string | null;
+          make: string | null;
+          vin: string | null;
+          license_plate: string | null;
+          license_state: string | null;
+          iep_dot: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["inspection_vehicles"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["inspection_vehicles"]["Insert"]>;
       };
       crashes: {
         Row: {
