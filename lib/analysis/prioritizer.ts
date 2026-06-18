@@ -12,12 +12,13 @@ export interface ActionItemRecommendation {
   description: string;
   priority: "high" | "medium" | "low";
   projectedImpactScore: number; // 0-100
+  pointImpact?: number;
   violationId?: string;
   crashId?: string;
 }
 
 export function buildActionItems(
-  challengeableViolations: Array<AssessmentResult & { violationId: string; violationCode: string; description: string; basicCategory: string; severityWeight: number }>,
+  challengeableViolations: Array<AssessmentResult & { violationId: string; violationCode: string; description: string; basicCategory: string; severityWeight: number; points?: number }>,
   crashEligibility: Array<{ crashId: string; result: CpdpEligibilityResult; crashDate: string; state: string }>,
   mcs150Discrepancies: string[]
 ): ActionItemRecommendation[] {
@@ -35,6 +36,7 @@ export function buildActionItems(
       description: `${v.description} — ${v.reason}`,
       priority: v.priority,
       projectedImpactScore: Math.round(impactScore),
+      pointImpact: v.points ?? 0,
       violationId: v.violationId,
     });
   }

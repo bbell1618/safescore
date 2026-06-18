@@ -2,6 +2,8 @@
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { formatDate } from "@/lib/utils";
+import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import {
   Building2,
   MapPin,
@@ -100,6 +102,7 @@ export default async function SafetyProfilePage() {
       .select("id, violation_code, basic_category, severity_weight, time_weight, oos_violation")
       .eq("client_id", clientId),
   ]);
+  const burden = await getClientBurden(clientId);
 
   if (!client) redirect("/portal");
 
@@ -277,6 +280,92 @@ export default async function SafetyProfilePage() {
             <p className="text-xs text-gray-500 mt-1">
               Your first safety assessment is being prepared.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* CSA burden */}
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#F0E8DA]">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-gray-400" />
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">
+              Where your safety-score pressure comes from
+            </h2>
+            <span className="text-xs text-gray-400 ml-auto">As of {formatDate(burden.asOf)}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Percentile is not published by FMCSA for low-volume carriers. SafeScore shows the weighted point burden that drives your BASIC measures.
+          </p>
+        </div>
+
+        {burden.perBasic.length > 0 ? (
+          <>
+            <table className="w-full text-sm">
+              <thead className="bg-[#FEFCF8] border-b border-[#F0E8DA]">
+                <tr>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">BASIC</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Weighted points</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">24-mo violations</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F0E8DA]">
+                {burden.perBasic.map((b) => (
+                  <tr key={b.basicCategory}>
+                    <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">{b.label}</td>
+                    <td className="px-5 py-3 text-right text-xs font-semibold text-[#C67A1E]">{b.weightedPoints}</td>
+                    <td className="px-5 py-3 text-right text-xs text-gray-500">{b.violationCount}</td>
+                  </tr>
+                ))}
+                <tr className="bg-[#FEFCF8]">
+                  <td className="px-5 py-3 text-xs font-semibold text-[#1E1C1A]">Total</td>
+                  <td className="px-5 py-3 text-right text-xs font-bold text-[#1E1C1A]">{burden.totalPoints}</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">
+                    {burden.perBasic.reduce((sum, b) => sum + b.violationCount, 0)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="px-5 py-4 border-t border-[#F0E8DA]">
+              <h3 className="font-semibold text-[#1E1C1A] text-sm mb-3">
+                Top violations by score impact
+              </h3>
+              <div className="bg-white rounded-lg border border-[#F0E8DA] divide-y divide-[#F0E8DA]">
+                {burden.topViolations.map((v) => (
+                  <div key={v.id} className="px-4 py-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-semibold text-[#1E1C1A]">
+                          {v.violationCode || "--"}
+                        </span>
+                        <span className="text-[10px] text-gray-500 bg-[#F0E8DA] rounded px-1.5 py-0.5">
+                          {BASIC_LABELS[v.basicCategory ?? ""] ?? v.basicCategory ?? "Unknown"}
+                        </span>
+                        {v.oosViolation && (
+                          <span className="text-[10px] font-medium text-[#C67A1E] bg-[#FDF4E7] border border-amber-200 rounded px-1.5 py-0.5">
+                            OOS
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 mt-0.5 truncate">
+                        {v.violationDescription ?? ""}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {v.inspectionDate ? formatDate(v.inspectionDate) : "--"} · Severity {v.severityWeight ?? "--"} · Time weight {v.timeWeight}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-[#1E1C1A] shrink-0">
+                      {v.points} pts
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="px-5 py-8 text-center">
+            <p className="text-sm text-gray-400">No scored violations in the 24-month window.</p>
           </div>
         )}
       </div>

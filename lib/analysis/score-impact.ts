@@ -21,12 +21,13 @@ export interface ScoreImpactResult {
 }
 
 /**
- * Calculates time-weighted severity for a violation
- * FMCSA formula: severity_weight * time_weight * oos_multiplier
+ * Calculates time-weighted severity for a violation.
+ * FMCSA methodology: (severity_weight + 2 if OOS) * time_weight - the OOS
+ * penalty is additive to the severity weight, not a multiplier.
  */
 function calcViolationScore(v: ViolationForCalc): number {
-  const oosMultiplier = v.oosViolation ? 2 : 1;
-  return v.severityWeight * v.timeWeight * oosMultiplier;
+  const oosBump = v.oosViolation ? 2 : 0;
+  return (v.severityWeight + oosBump) * v.timeWeight;
 }
 
 /**
