@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { assessViolationsBatch } from "@/lib/analysis/challengeability";
+import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
+import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -29,20 +30,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No violations found" }, { status: 404 });
   }
 
-  const inputs = violations.map((v) => ({
-    id: v.id,
-    violationCode: v.violation_code,
-    description: v.violation_description,
-    basicCategory: v.basic_category ?? "vehicle_maintenance",
-    severityWeight: v.severity_weight ?? 1,
-    oosViolation: v.oos_violation,
-    convicted: v.convicted,
-    inspectionDate: (v.inspections as { inspection_date: string } | null)?.inspection_date ?? "",
-    state: (v.inspections as { state: string } | null)?.state ?? "",
-    inspectionLevel: (v.inspections as { level: string } | null)?.level ?? "",
-  }));
-
-  const results = await assessViolationsBatch(inputs);
+  const asOf = new Date();
+  const results = violations.map((v) => {
+    const insp = v.inspections as { inspection_date: string | null } | null;
+    const tw = timeWeightFor(insp?.inspection_date ?? null, asOf);
+    const sev = v.severity_weight as number | null;
+    const points = sev != null && tw > 0 ? tw * (sev + (v.oos_violation ? 2 : 0)) : 0;
+    const score = scoreChallenge({
+      violationCode: v.violation_code,
+      basicCategory: v.basic_category ?? null,
+      severityWeight: sev,
+      timeWeight: tw,
+      challengeReason: null,
+      oosViolation: !!v.oos_violation,
+      convicted: v.convicted as boolean | null,
+      basicPercentile: null,
+    });
+    const priority =
+      score.label === "strong" ? "high" : score.label === "moderate" ? "medium" : "low";
+    return {
+      violationId: v.id,
+      challengeable: score.challengeable,
+      label: score.label,
+      overall: score.overall,
+      factors: score.factors,
+      summary: score.summary,
+      priority,
+      points,
+    };
+  });
 
   // Write results back to Supabase
   for (const result of results) {
@@ -50,7 +66,7 @@ export async function POST(request: Request) {
       .from("violations")
       .update({
         challengeable: result.challengeable,
-        challenge_reason: result.reason,
+        challenge_reason: result.summary,
         challenge_priority: result.priority,
         ai_assessed_at: new Date().toISOString(),
       })

@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCard } from "@/components/ui/score-card";
 import { simulateScoreImpact, summarizeImpact, type ViolationForCalc } from "@/lib/analysis/score-impact";
+import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
+import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { formatDate, priorityVariant } from "@/lib/utils";
 import { AlertTriangle, CheckCircle, Clock, TrendingDown, Plus } from "lucide-react";
 
@@ -15,7 +17,7 @@ interface ViolationRow {
   severity_weight: number | null;
   time_weight: number | null;
   oos_violation: boolean;
-  convicted: boolean;
+  convicted: boolean | null;
   challengeable: boolean | null;
   challenge_reason: string | null;
   challenge_priority: string | null;
@@ -128,6 +130,14 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
   }
 
   const pendingCount = violations.filter((v) => v.challengeable === null).length;
+  const asOf = useMemo(() => new Date(), []);
+
+  function challengeLabelClass(label: string): string {
+    if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
+    if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (label === "weak") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
+    return "bg-gray-50 text-gray-500 border-gray-200";
+  }
 
   return (
     <div className="space-y-4">
@@ -223,11 +233,24 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                 </td>
               </tr>
             ) : (
-              filtered.map((v) => (
-                <tr
-                  key={v.id}
-                  className={`hover:bg-[#FBF7F0] transition-colors ${selected.has(v.id) ? "bg-[#F5EDDB]" : ""}`}
-                >
+              filtered.map((v) => {
+                const computedTimeWeight = timeWeightFor(v.inspections?.inspection_date ?? null, asOf);
+                const challengeScore = scoreChallenge({
+                  violationCode: v.violation_code,
+                  basicCategory: v.basic_category ?? null,
+                  severityWeight: v.severity_weight,
+                  timeWeight: computedTimeWeight,
+                  challengeReason: v.challenge_reason,
+                  oosViolation: v.oos_violation,
+                  convicted: v.convicted,
+                  basicPercentile: null,
+                });
+
+                return (
+                  <tr
+                    key={v.id}
+                    className={`hover:bg-[#FBF7F0] transition-colors ${selected.has(v.id) ? "bg-[#F5EDDB]" : ""}`}
+                  >
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -245,9 +268,7 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                   </td>
                   <td className="px-4 py-3 text-[#1E1C1A] max-w-xs">
                     <p className="truncate">{v.violation_description}</p>
-                    {v.challenge_reason && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{v.challenge_reason}</p>
-                    )}
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{challengeScore.summary}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-gray-500">
@@ -260,20 +281,31 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                       : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {v.challengeable === null ? (
-                      <Badge variant="default">Pending</Badge>
-                    ) : v.challengeable ? (
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {v.challengeable === null && <Badge variant="default">Pending</Badge>}
+                        {v.challengeable === true && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
                         {v.challenge_priority && (
                           <Badge variant={priorityVariant(v.challenge_priority)}>
                             {v.challenge_priority}
                           </Badge>
                         )}
+                        <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 ${challengeLabelClass(challengeScore.label)}`}>
+                          {challengeScore.label.replace(/_/g, " ")} · {challengeScore.overall}
+                        </span>
                       </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">Not challengeable</span>
-                    )}
+                      <div className="space-y-1 text-[10px] text-gray-500 leading-snug">
+                        <p title={challengeScore.factors.evidenceObtainabilityNote}>
+                          Evidence {challengeScore.factors.evidenceObtainability}: {challengeScore.factors.evidenceObtainabilityNote}
+                        </p>
+                        <p title={challengeScore.factors.scoreImpactNote}>
+                          Impact {challengeScore.factors.scoreImpact}: {challengeScore.factors.scoreImpactNote}
+                        </p>
+                        <p title={challengeScore.factors.proceduralGroundsNote}>
+                          Procedural {challengeScore.factors.proceduralGrounds}: {challengeScore.factors.proceduralGroundsNote}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -299,8 +331,9 @@ export function ViolationAnalyzer({ clientId, violations, snapshot }: Props) {
                       </button>
                     )}
                   </td>
-                </tr>
-              ))
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

@@ -623,6 +623,7 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                 timeWeight: 2,
                 challengeReason: c.violations.challenge_reason,
                 oosViolation: c.violations.oos_violation ?? false,
+                convicted: null,
               })
             : null;
 

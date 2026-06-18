@@ -91,9 +91,7 @@ export function getEvidenceTypeForViolation(
   if (cat === "hazmat_compliance") return "hazmat_placard";
 
   // Controlled substances / driver behavior — largely officer judgment
-  if (cat === "controlled_substances_alcohol" || cat === "driver_behavior") {
-    return "officer_judgment";
-  }
+  if (cat === "controlled_substance") return "officer_judgment";
 
   // Crash indicator — reconstructed, partially officer judgment
   if (cat === "crash_indicator") return "officer_judgment";
@@ -149,6 +147,13 @@ function scoreImpact(
   timeWeight: number | null,
   basicPercentile: number | null | undefined
 ): { score: number; note: string } {
+  if (timeWeight === 0) {
+    return {
+      score: 0,
+      note: "Violation has aged out of the 24-month SMS window - no current score impact.",
+    };
+  }
+
   const sw = clamp(severityWeight ?? 5, 1, 10);
   const tw = clamp(timeWeight ?? 2, 1, 3);
 
@@ -192,71 +197,44 @@ function scoreImpact(
 function scoreProceduralGrounds(
   basicCategory: string | null,
   oosViolation: boolean,
-  convicted: boolean,
+  convicted: boolean | null,
   challengeReason: string | null
 ): { score: number; note: string } {
   const cat = basicCategory?.toLowerCase() ?? "";
 
-  // Not convicted: strongest procedural ground — evidentiary absence
-  if (!convicted) {
+  // Positive evidence the citation was dismissed/reduced/not-guilty - strongest ground.
+  // The FMCSA feed carries no disposition; null is unknown, not "not convicted".
+  if (convicted === false) {
     return {
       score: 90,
-      note:
-        "Violation not convicted — DataQs challenge on evidentiary basis has high procedural standing.",
+      note: "Citation recorded as dismissed/reduced/not-guilty - strong DataQs ground on evidentiary basis.",
     };
   }
 
-  // OOS violations with conviction: procedural grounds are weakest
   if (oosViolation && cat === "vehicle_maintenance") {
     return {
       score: 10,
-      note:
-        "OOS vehicle maintenance violation with conviction — documented record limits procedural angles.",
+      note: "OOS vehicle maintenance violation - documented roadside record limits procedural angles.",
     };
   }
-
-  // HOS: ELD/log timeline discrepancies are a well-documented DataQs vector
   if (cat === "hos_compliance") {
-    return {
-      score: 70,
-      note:
-        "HOS violations frequently overturned on timeline or ELD data discrepancy grounds.",
-    };
+    return { score: 70, note: "HOS violations are frequently overturned on timeline or ELD data discrepancy grounds." };
   }
-
-  // Driver fitness: documentation-based challenge is established
   if (cat === "driver_fitness") {
-    return {
-      score: 65,
-      note:
-        "Driver fitness findings can be challenged by producing the full qualification file.",
-    };
+    return { score: 65, note: "Driver fitness findings can be challenged by producing the full qualification file." };
   }
-
-  // Hazmat: regulatory findings are difficult to procedurally overturn
   if (cat === "hazmat_compliance") {
-    return {
-      score: 15,
-      note:
-        "Hazmat compliance violations carry strong regulatory standing — procedural grounds are narrow.",
-    };
+    return { score: 15, note: "Hazmat compliance violations carry strong regulatory standing - procedural grounds are narrow." };
   }
-
-  // If a challenge reason string is provided (from AI or prior analysis), treat it
-  // as a signal that a specific angle was identified.
+  if (cat === "controlled_substance") {
+    return { score: 20, note: "Test/observation-based finding - documentary rebuttal is difficult." };
+  }
   if (challengeReason && challengeReason.trim().length > 10) {
-    return {
-      score: 55,
-      note:
-        "A specific challenge reason was identified — moderate procedural ground to pursue DataQs.",
-    };
+    return { score: 55, note: "A specific challenge reason was identified - moderate procedural ground to pursue DataQs." };
   }
-
-  // Default
   return {
     score: 40,
-    note:
-      "No specific procedural vector identified; standard DataQs review may surface grounds.",
+    note: "Citation disposition is unknown (not reported in the FMCSA feed); no specific procedural vector identified - standard DataQs review may surface grounds.",
   };
 }
 
@@ -310,9 +288,10 @@ export function scoreChallenge(params: {
   violationCode: string;
   basicCategory: string | null;
   severityWeight: number | null;
-  timeWeight: number | null;          // 1=old, 2=mid, 3=recent
+  timeWeight: number | null;          // 0=aged off, 1=old, 2=mid, 3=recent
   challengeReason: string | null;
   oosViolation: boolean;
+  convicted: boolean | null;          // null = unknown; never infer non-conviction
   basicPercentile?: number | null;    // pass if available; null = use proxy
 }): ChallengeScore {
   const evidenceType = getEvidenceTypeForViolation(
@@ -326,16 +305,10 @@ export function scoreChallenge(params: {
     params.timeWeight,
     params.basicPercentile
   );
-  // convicted is not in the scoreChallenge params — callers pass challengeReason
-  // to signal non-convicted path. Treat absence of challengeReason as neutral (convicted=true)
-  // so the function is conservative by default.
-  const inferredConvicted = params.challengeReason == null ||
-    !params.challengeReason.toLowerCase().includes("not convicted");
-
   const proceduralResult = scoreProceduralGrounds(
     params.basicCategory,
     params.oosViolation,
-    inferredConvicted,
+    params.convicted,
     params.challengeReason
   );
 
