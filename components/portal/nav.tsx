@@ -8,6 +8,7 @@ import { ShieldCheck, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
+  { href: "/portal/plan", label: "Plan" },
   { href: "/portal", label: "Dashboard", exact: true },
   { href: "/portal/safety", label: "Safety profile" },
   { href: "/portal/cases", label: "Cases" },
