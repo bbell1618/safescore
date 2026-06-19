@@ -593,6 +593,12 @@ export default async function ClientDetailPage({
               Violations ({violationCount ?? 0})
             </Link>
             <Link
+              href={`/console/clients/${id}/remediation`}
+              className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
+            >
+              Remediation
+            </Link>
+            <Link
               href={`/console/clients/${id}/dataq`}
               className="px-3 py-1.5 text-xs font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] transition-colors"
             >
