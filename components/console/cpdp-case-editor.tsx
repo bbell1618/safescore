@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
+import { toFilingReadyNarrative } from "@/lib/cpdp/filing-narrative";
 import {
   Car,
   AlertTriangle,
@@ -61,6 +62,26 @@ const ELIGIBLE_TYPES_LEGACY = [
 ];
 
 const EXPANDED_CUTOFF = "2024-12-01";
+
+const FMCSA_CPDP_CATEGORIES = [
+  "Struck in the rear",
+  "Struck on the side at the rear",
+  "Struck on the side (same direction)",
+  "Wrong direction",
+  "U-turns and illegal turns",
+  "Parked or legally stopped",
+  "Failure of the other vehicle to stop",
+  "Under the influence",
+  "Medical issues, falling asleep, or distracted driving",
+  "Cargo/equipment/debris or infrastructure failure",
+  "Animal strike",
+  "Suicide",
+  "Struck by vehicle entering road from lot/private drive",
+  "Another motorist lost control of vehicle",
+  "Non-motorist",
+  "Rare or unusual",
+  "Video submission",
+];
 
 function getEligibleTypes(crashDate: string): string[] {
   return crashDate >= EXPANDED_CUTOFF
@@ -176,6 +197,7 @@ export interface EvidenceItem {
 
 interface Props {
   clientId: string;
+  clientDotNumber: string | null;
   cpdpCase: CpdpCaseRow;
   crash: CrashRow;
   initialEvidence: EvidenceItem[];
@@ -196,9 +218,32 @@ function EvidenceStatusPill({ status }: { status: string }) {
   );
 }
 
+function FilingStep({
+  number,
+  children,
+}: {
+  number: number;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#C67A1E] text-[11px] font-bold text-white">
+        {number}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </li>
+  );
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: Props) {
+export function CpdpCaseEditor({
+  clientId,
+  clientDotNumber,
+  cpdpCase,
+  crash,
+  initialEvidence,
+}: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -245,6 +290,7 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
   const [narrativeSaving, setNarrativeSaving] = useState(false);
   const [narrativeSaved, setNarrativeSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [filingCopied, setFilingCopied] = useState(false);
 
   // Filing
   const [caseNumber, setCaseNumber] = useState(cpdpCase.case_number ?? "");
@@ -272,6 +318,13 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
     !blockReason &&
     narrative.trim().length > 50 &&
     (parReceived || overrideChecked);
+  const filingReady = toFilingReadyNarrative(narrative);
+  const selectedTypeSummary =
+    selectedTypes.length > 0 ? selectedTypes.join("; ") : "No eligible type selected yet";
+  const displayDotNumber = clientDotNumber || "not on file";
+  const displayCrashDate = crash.crash_date ? formatDate(crash.crash_date) : "not on file";
+  const displayCrashState = crash.state || "not on file";
+  const displayFmcsaCrashNumber = crash.report_number || "not on file";
 
   // ── Eligibility save ────────────────────────────────────────────────────────
   async function saveEligibility() {
@@ -912,7 +965,260 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              <ol className="space-y-4">
+                <FilingStep number={1}>
+                  <div className="space-y-1 text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Open DataQs.</p>
+                    <p>
+                      Sign in at{" "}
+                      <a
+                        href="https://dataqs.fmcsa.dot.gov"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-[#C67A1E] underline-offset-2 hover:underline"
+                      >
+                        dataqs.fmcsa.dot.gov
+                      </a>
+                      , then choose Add a Request - Crash record.
+                    </p>
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={2}>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Identify the crash.</p>
+                    <div className="grid grid-cols-1 gap-2 rounded-lg border border-[#F0E8DA] bg-[#FBF7F0] p-3 sm:grid-cols-2">
+                      <div>
+                        <span className="block text-[10px] font-semibold uppercase text-gray-400">State</span>
+                        <span className="font-mono text-[#1E1C1A]">{displayCrashState}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-semibold uppercase text-gray-400">USDOT</span>
+                        <span className="font-mono text-[#1E1C1A]">{displayDotNumber}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-semibold uppercase text-gray-400">Crash date</span>
+                        <span className="font-mono text-[#1E1C1A]">{displayCrashDate}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-semibold uppercase text-gray-400">FMCSA crash/report number</span>
+                        <span className="font-mono text-[#1E1C1A]">{displayFmcsaCrashNumber}</span>
+                      </div>
+                    </div>
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 font-semibold text-amber-800">
+                      The report-number field expects the FMCSA MCMIS crash number, NOT the local PAR number.
+                    </p>
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={3}>
+                  <div className="text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Choose the reason.</p>
+                    <p>Select <span className="font-semibold">Crash could not be prevented</span>.</p>
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={4}>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Select the eligible crash type.</p>
+                    <p>
+                      Based on the case, this looks like:{" "}
+                      <span className="font-semibold text-[#1E1C1A]">{selectedTypeSummary}</span>.
+                    </p>
+                    <p>
+                      Select the FMCSA category in the portal that matches this crash, then record which one you chose in the filing notes in step 8.
+                    </p>
+                    <div className="rounded-lg border border-[#F0E8DA] bg-[#FBF7F0] p-3">
+                      <p className="mb-2 text-[10px] font-semibold uppercase text-gray-400">
+                        FMCSA CPDP eligible categories
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {FMCSA_CPDP_CATEGORIES.map((category) => (
+                          <span
+                            key={category}
+                            className="rounded-full border border-[#F0E8DA] bg-white px-2 py-1 text-[10px] text-[#1E1C1A]"
+                          >
+                            {category}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] text-gray-400">
+                        Source: FMCSA CPDP Eligibility Guide, December 2024.
+                      </p>
+                    </div>
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={5}>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-[#1E1C1A]">Paste the explanation.</p>
+                        <p>Cleaned for filing - internal notes removed. Review before pasting into the Explain the details of the crash box.</p>
+                      </div>
+                      {!filingReady.blocked && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(filingReady.text);
+                            setFilingCopied(true);
+                            setTimeout(() => setFilingCopied(false), 2000);
+                          }}
+                          className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#F0E8DA] px-3 py-1.5 text-xs font-medium transition-colors hover:border-[#C67A1E] hover:text-[#C67A1E]"
+                        >
+                          <Copy className="h-3 w-3" />
+                          {filingCopied ? "Copied" : "Copy filing-ready text"}
+                        </button>
+                      )}
+                    </div>
+                    {filingReady.blocked ? (
+                      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-800">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                        <span>{filingReady.blockReason}</span>
+                      </div>
+                    ) : (
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[#F0E8DA] bg-gray-50 p-3 font-mono text-[11px] leading-relaxed text-[#1E1C1A]">
+                        {filingReady.text}
+                      </pre>
+                    )}
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={6}>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Attach evidence.</p>
+                    {evidence.length === 0 ? (
+                      <p className="rounded-lg border border-[#F0E8DA] bg-[#FBF7F0] p-3">
+                        No evidence checklist is on file yet. Generate and upload the PAR before filing.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {evidence.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-[#F0E8DA] bg-[#FBF7F0] px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-[#1E1C1A]">
+                                {ev.label}
+                                {ev.required ? " (required)" : ""}
+                              </p>
+                              {ev.fmcsa_category && (
+                                <p className="text-[10px] text-gray-400">{ev.fmcsa_category}</p>
+                              )}
+                            </div>
+                            <EvidenceStatusPill status={ev.status} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={7}>
+                  <div className="text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Review and submit.</p>
+                    <p>Review the DataQs request, evidence, and federal attestation before submitting.</p>
+                  </div>
+                </FilingStep>
+
+                <FilingStep number={8}>
+                  <div className="space-y-3 text-xs text-gray-600">
+                    <p className="font-semibold text-[#1E1C1A]">Record the result here.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          FMCSA case ID (after filing)
+                        </label>
+                        <input
+                          type="text"
+                          value={caseNumber}
+                          onChange={(e) => setCaseNumber(e.target.value)}
+                          placeholder="e.g. CPDP-2026-XXXXXX"
+                          className="w-full px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg focus:outline-none focus:border-[#C67A1E]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Filing notes - record the DataQs scenario you selected + reviewing agency
+                        </label>
+                        <input
+                          type="text"
+                          value={filingNotes}
+                          onChange={(e) => setFilingNotes(e.target.value)}
+                          placeholder="e.g. Parked or legally stopped - FMCSA Western Region"
+                          className="w-full px-3 py-1.5 text-xs border border-[#F0E8DA] rounded-lg focus:outline-none focus:border-[#C67A1E]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* PAR gate override */}
+                    {!parReceived && hasEvidence && (
+                      <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 accent-[#C67A1E]"
+                            checked={overrideChecked}
+                            onChange={(e) => setOverrideChecked(e.target.checked)}
+                          />
+                          <span className="text-xs text-amber-800">
+                            File without PAR - I understand FMCSA may not review this submission without a Police Accident Report.
+                          </span>
+                        </label>
+                        {overrideChecked && (
+                          <input
+                            type="text"
+                            value={overrideReason}
+                            onChange={(e) => setOverrideReason(e.target.value)}
+                            placeholder="Reason (e.g. PAR unavailable - proceeding with dashcam)"
+                            className="w-full px-2 py-1 text-xs border border-amber-300 rounded bg-white focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {filingError && (
+                      <p className="text-xs text-red-600">{filingError}</p>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={markFiled}
+                        disabled={saving || !canFile}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] disabled:opacity-40 transition-colors"
+                        title={
+                          !canFile
+                            ? blockReason ??
+                              (!parReceived && !overrideChecked
+                                ? "Upload the PAR or enable the override"
+                                : narrative.trim().length < 50
+                                ? "Add a narrative before filing"
+                                : "")
+                            : undefined
+                        }
+                      >
+                        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        Mark as filed
+                      </button>
+                      {!canFile && (
+                        <span className="text-[11px] text-gray-400">
+                          {blockReason
+                            ? "Resolve narrative issues"
+                            : !parReceived && !overrideChecked
+                            ? "PAR required - upload or override"
+                            : narrative.trim().length < 50
+                            ? "Narrative too short"
+                            : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </FilingStep>
+              </ol>
+              {false && (
+                <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -1001,6 +1307,8 @@ export function CpdpCaseEditor({ clientId, cpdpCase, crash, initialEvidence }: P
                   </span>
                 )}
               </div>
+                </>
+              )}
             </div>
           )}
         </div>

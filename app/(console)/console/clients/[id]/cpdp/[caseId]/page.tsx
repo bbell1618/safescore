@@ -29,7 +29,7 @@ export default async function CpdpCaseDetailPage({
   // Fetch client
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, dot_number")
     .eq("id", id)
     .single();
 
@@ -133,6 +133,7 @@ export default async function CpdpCaseDetailPage({
 
       <CpdpCaseEditor
         clientId={id}
+        clientDotNumber={(client.dot_number as string | number | null)?.toString() ?? null}
         cpdpCase={caseRow}
         crash={crash}
         initialEvidence={evidence}
