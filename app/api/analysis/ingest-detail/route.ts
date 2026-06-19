@@ -9,6 +9,7 @@ import type {
   InspectionDetailInspection,
   InspectionDetailLookup,
 } from "@/lib/fmcsa/inspection-detail-xml-types";
+import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ type InspectionRow = {
   mcmis_inspection_id: string | null;
   report_number: string;
 };
+
+type ServiceSupabaseClient = Awaited<ReturnType<typeof createServiceClient>>;
 
 export async function POST(request: NextRequest) {
   const authError = await requireStaff();
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { clientId, dotNumber } = parsed.data;
-  const serviceSupabase = (await createServiceClient()) as any;
+  const serviceSupabase = await createServiceClient();
 
   const { data: client, error: clientError } = await serviceSupabase
     .from("clients")
@@ -235,6 +238,12 @@ export async function POST(request: NextRequest) {
     0
   );
 
+  try {
+    await captureBurdenSnapshot(clientId, "ingest");
+  } catch (error) {
+    console.error("Failed to capture burden snapshot after detail ingest", error);
+  }
+
   return NextResponse.json({
     inspections: inspections.length,
     violations: violationCount,
@@ -256,7 +265,7 @@ async function requireStaff() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const serviceSupabase = (await createServiceClient()) as any;
+  const serviceSupabase = await createServiceClient();
   const { data: userRecord } = await serviceSupabase
     .from("users")
     .select("role")
@@ -305,7 +314,7 @@ async function readInput(request: NextRequest): Promise<
 }
 
 async function loadReferenceLookup(
-  serviceSupabase: any
+  serviceSupabase: ServiceSupabaseClient
 ): Promise<Record<string, InspectionDetailLookup>> {
   const { data, error } = await serviceSupabase
     .from("fmcsa_violation_reference")
