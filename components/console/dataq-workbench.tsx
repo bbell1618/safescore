@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   caseStatusLabel,
@@ -80,6 +80,9 @@ export interface EvidenceItem {
 
 interface Props {
   clientId: string;
+  filingAuthorized: boolean;
+  filingAuthorizedBy: string | null;
+  filingAuthorizationScope: string | null;
   cases: CaseRow[];
   evidenceMap: Record<string, EvidenceItem[]>;
 }
@@ -157,7 +160,14 @@ function EvidenceStatusPill({ status }: { status: string }) {
   );
 }
 
-export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
+export function DataqWorkbench({
+  clientId,
+  filingAuthorized,
+  filingAuthorizedBy,
+  filingAuthorizationScope,
+  cases,
+  evidenceMap,
+}: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState<string | null>(null);
@@ -195,6 +205,8 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
   const [overrideReason, setOverrideReason] = useState<Record<string, string>>({});
   const [savingOverride, setSavingOverride] = useState<string | null>(null);
   const [overrideSaved, setOverrideSaved] = useState<Record<string, boolean>>({});
+  const [authorizationOverrideChecked, setAuthorizationOverrideChecked] = useState<Record<string, boolean>>({});
+  const [authorizationOverrideReason, setAuthorizationOverrideReason] = useState<Record<string, string>>({});
 
   // Filing error state
   const [filingError, setFilingError] = useState<Record<string, string>>({});
@@ -204,9 +216,6 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
   const [relinkViolations, setRelinkViolations] = useState<RelinkViolation[]>([]);
   const [relinkLoading, setRelinkLoading] = useState(false);
   const [selectedRelink, setSelectedRelink] = useState<Record<string, string>>({});
-
-  // Upload file input refs per evidence item
-  const uploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   async function generateNarrative(caseId: string) {
     setGenerating(caseId);
@@ -275,6 +284,14 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
 
   async function markAsFiled(caseId: string, caseNumber: string) {
     setFilingError((prev) => { const n = { ...prev }; delete n[caseId]; return n; });
+    const authOverrideReason = authorizationOverrideReason[caseId]?.trim() ?? "";
+    const existingNotes = filingNotes[caseId]?.trim() ?? "";
+    const filingNotesWithAuthOverride =
+      !filingAuthorized && authorizationOverrideChecked[caseId] && authOverrideReason
+        ? [existingNotes, `Filing authorization override: ${authOverrideReason}`]
+            .filter(Boolean)
+            .join("\n\n")
+        : existingNotes;
     const res = await fetch(`/api/cases/dataq/${caseId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -282,6 +299,7 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
         status: "filed",
         filed_date: todayAsYYYYMMDD(),
         case_number: caseNumber,
+        ...(filingNotesWithAuthOverride ? { filing_notes: filingNotesWithAuthOverride } : {}),
       }),
     });
     if (!res.ok) {
@@ -577,12 +595,18 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
         const narrativeValueForFiling =
           narratives[c.id] ?? c.final_narrative ?? c.ai_narrative ?? "";
         const narrativeBlockedForFiling = narrativeBlockReason(narrativeValueForFiling || undefined) !== null;
+        const authorizationOverrideActive =
+          (authorizationOverrideChecked[c.id] ?? false) &&
+          (authorizationOverrideReason[c.id] ?? "").trim().length > 0;
+        const authorizationGateSatisfied =
+          filingAuthorized || authorizationOverrideActive;
 
         // Mark as filed is disabled when: no case number OR (evidence gate blocking AND no active override) OR narrative is blocked
         const filedDisabled =
           !currentCaseNumber.trim() ||
           (evidenceGateBlocking && !overrideActive) ||
-          narrativeBlockedForFiling;
+          narrativeBlockedForFiling ||
+          !authorizationGateSatisfied;
 
         // Progress pills
         const pills = [
@@ -943,7 +967,6 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                       uploadingEvidId={uploadingEvidId}
                       uploadError={uploadError}
                       downloadingEvidId={downloadingEvidId}
-                      uploadRefs={uploadRefs}
                       onSendEvidenceRequest={() => sendEvidenceRequest(c.id)}
                       onCopyEvidenceLink={(link) => copyEvidenceLink(c.id, link)}
                       onDownload={(evidId) => downloadEvidence(c.id, evidId)}
@@ -1165,6 +1188,35 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
 
                     {/* F — Mark as filed + evidence gate */}
                     <div className="space-y-3">
+                      <div
+                        className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${
+                          filingAuthorized
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-amber-200 bg-amber-50 text-amber-800"
+                        }`}
+                      >
+                        {filingAuthorized ? (
+                          <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                        ) : (
+                          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                        )}
+                        <div>
+                          <p className="font-semibold">
+                            {filingAuthorized
+                              ? `Client authorized GEIA to file on their behalf${filingAuthorizedBy ? ` (${filingAuthorizedBy})` : ""}.`
+                              : "No filing authorization on record for this client."}
+                          </p>
+                          {!filingAuthorized && (
+                            <p className="mt-0.5">
+                              GEIA files on the carrier&apos;s behalf and attests under 18 USC 1001 - obtain the client&apos;s authorization (onboarding Step 3) before filing.
+                            </p>
+                          )}
+                          {filingAuthorized && filingAuthorizationScope && (
+                            <p className="mt-0.5 text-[11px] text-green-600">{filingAuthorizationScope}</p>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="flex gap-2 flex-wrap items-center">
                         <button
                           onClick={() => markAsFiled(c.id, currentCaseNumber)}
@@ -1172,6 +1224,8 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                           title={
                             narrativeBlockedForFiling
                               ? "Narrative contains an AI refusal sentinel — resolve it before filing."
+                              : !authorizationGateSatisfied
+                              ? "Client filing authorization is required, or use the authorization override below."
                               : evidenceGateBlocking && !overrideActive
                               ? "At least one required evidence document must be received before filing, or use the override below."
                               : !currentCaseNumber.trim()
@@ -1185,6 +1239,11 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                         {narrativeBlockedForFiling && (
                           <p className="text-xs text-[#B83B32]">
                             {narrativeBlockReason(narrativeValueForFiling || undefined)}
+                          </p>
+                        )}
+                        {!narrativeBlockedForFiling && !authorizationGateSatisfied && (
+                          <p className="text-xs text-[#B83B32]">
+                            Client filing authorization is required before marking filed, or use the override below.
                           </p>
                         )}
                         {!narrativeBlockedForFiling && evidenceGateBlocking && !overrideActive && (
@@ -1245,6 +1304,42 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                                 {savingOverride === c.id ? "Saving..." : "Save override"}
                               </button>
                             </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!filingAuthorized && (
+                        <div className="bg-white border border-amber-200 rounded-lg p-3 space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={authorizationOverrideChecked[c.id] ?? false}
+                              onChange={(e) =>
+                                setAuthorizationOverrideChecked((prev) => ({
+                                  ...prev,
+                                  [c.id]: e.target.checked,
+                                }))
+                              }
+                              className="rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
+                            />
+                            <span className="text-xs text-gray-700">
+                              File without recorded authorization - I confirm GEIA has the carrier&apos;s authorization to file on their behalf.
+                            </span>
+                          </label>
+
+                          {authorizationOverrideChecked[c.id] && (
+                            <input
+                              type="text"
+                              value={authorizationOverrideReason[c.id] ?? ""}
+                              onChange={(e) =>
+                                setAuthorizationOverrideReason((prev) => ({
+                                  ...prev,
+                                  [c.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Reason / authorization source (required)"
+                              className="w-full px-3 py-1.5 border border-[#F0E8DA] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
+                            />
                           )}
                         </div>
                       )}
@@ -1327,7 +1422,6 @@ export function DataqWorkbench({ clientId, cases, evidenceMap }: Props) {
                         uploadingEvidId={uploadingEvidId}
                         uploadError={uploadError}
                         downloadingEvidId={downloadingEvidId}
-                        uploadRefs={uploadRefs}
                         onSendEvidenceRequest={() => {}}
                         onCopyEvidenceLink={() => {}}
                         onDownload={(evidId) => downloadEvidence(c.id, evidId)}
@@ -1541,7 +1635,6 @@ interface EvidenceSectionProps {
   uploadingEvidId: string | null;
   uploadError: Record<string, string>;
   downloadingEvidId: string | null;
-  uploadRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   onSendEvidenceRequest: () => void;
   onCopyEvidenceLink: (link: string) => void;
   onDownload: (evidId: string) => void;
@@ -1563,7 +1656,6 @@ function EvidenceSection({
   uploadingEvidId,
   uploadError,
   downloadingEvidId,
-  uploadRefs,
   onSendEvidenceRequest,
   onCopyEvidenceLink,
   onDownload,
@@ -1650,7 +1742,9 @@ function EvidenceSection({
 
               {/* Upload on behalf */}
               <button
-                onClick={() => uploadRefs.current[ev.id]?.click()}
+                onClick={() =>
+                  document.getElementById(`dataq-evidence-upload-${ev.id}`)?.click()
+                }
                 disabled={uploadingEvidId === ev.id}
                 className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors disabled:opacity-50"
               >
@@ -1658,7 +1752,7 @@ function EvidenceSection({
                 {uploadingEvidId === ev.id ? "Uploading..." : "Upload on behalf"}
               </button>
               <input
-                ref={(el) => { uploadRefs.current[ev.id] = el; }}
+                id={`dataq-evidence-upload-${ev.id}`}
                 type="file"
                 accept=".pdf,.doc,.docx,.tif,.tiff,.txt,.xls,.xlsx,.jpg,.jpeg,.gif,.png"
                 className="hidden"

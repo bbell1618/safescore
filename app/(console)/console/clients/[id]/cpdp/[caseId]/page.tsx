@@ -29,7 +29,7 @@ export default async function CpdpCaseDetailPage({
   // Fetch client
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, dot_number")
+    .select("id, name, dot_number, filing_authorized, filing_authorized_by, filing_authorization_scope")
     .eq("id", id)
     .single();
 
@@ -134,6 +134,9 @@ export default async function CpdpCaseDetailPage({
       <CpdpCaseEditor
         clientId={id}
         clientDotNumber={(client.dot_number as string | number | null)?.toString() ?? null}
+        filingAuthorized={(client.filing_authorized as boolean | null) ?? false}
+        filingAuthorizedBy={client.filing_authorized_by as string | null}
+        filingAuthorizationScope={client.filing_authorization_scope as string | null}
         cpdpCase={caseRow}
         crash={crash}
         initialEvidence={evidence}

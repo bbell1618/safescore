@@ -57,6 +57,22 @@ export async function POST(request: Request) {
 
   const clientId = userRecord.client_id;
 
+  const { data: clientRecord, error: clientError } = await admin
+    .from("clients")
+    .select("primary_contact, primary_contact_title")
+    .eq("id", clientId)
+    .single();
+
+  if (clientError) {
+    console.error(
+      "onboarding-profile: client lookup failed:",
+      clientError.code,
+      clientError.message,
+      clientError.details
+    );
+    return NextResponse.json({ error: "Client lookup failed" }, { status: 500 });
+  }
+
   // Build update — only include fields that are present in the request body.
   // Columns added by migration: primary_contact_title, vehicle_types,
   // operating_states, operating_radius, service_agreement_accepted,
@@ -79,6 +95,30 @@ export async function POST(request: Request) {
   if (body.serviceAgreementAccepted === true) {
     update.service_agreement_accepted = true;
     update.service_agreement_date     = new Date().toISOString();
+  }
+
+  if (body.filingAuthorized === true) {
+    const providedSigner =
+      typeof body.filingAuthorizedBy === "string"
+        ? body.filingAuthorizedBy.trim()
+        : "";
+    const primaryContact =
+      typeof clientRecord?.primary_contact === "string"
+        ? clientRecord.primary_contact.trim()
+        : "";
+    const primaryTitle =
+      typeof clientRecord?.primary_contact_title === "string"
+        ? clientRecord.primary_contact_title.trim()
+        : "";
+
+    update.filing_authorized = true;
+    update.filing_authorized_at = new Date().toISOString();
+    update.filing_authorized_by =
+      providedSigner ||
+      [primaryContact, primaryTitle].filter(Boolean).join(", ") ||
+      null;
+    update.filing_authorization_scope =
+      "DataQs Requests for Data Review and Crash Preventability Determination (CPDP) requests filed by GEIA on the carrier behalf";
   }
 
   if (Object.keys(update).length === 0) {

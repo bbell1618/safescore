@@ -223,6 +223,21 @@ export default function OnboardingPage() {
     } catch { /* non-fatal */ }
   }
 
+  async function saveFilingAuthorization() {
+    if (!dataqChecked) return;
+    const signer = `${contactName}${contactTitle ? ", " + contactTitle : ""}`;
+    try {
+      await fetch("/api/portal/onboarding-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filingAuthorized: true,
+          filingAuthorizedBy: signer,
+        }),
+      });
+    } catch { /* non-fatal */ }
+  }
+
   async function savePinIfProvided() {
     if (!pin.trim()) return;
     try {
@@ -589,7 +604,10 @@ export default function OnboardingPage() {
                       className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                     />
                     <span className="text-sm text-[#1E1C1A] leading-snug">
-                      <strong>DataQ filing authorization</strong> — I authorize Golden Era Insurance Agency to submit DataQ challenges and CPDP preventability requests to FMCSA on my carrier&apos;s behalf.
+                      <strong>DataQ filing authorization</strong> - I authorize Golden Era Insurance Agency to access my FMCSA data and to submit Requests for Data Review (DataQs) and Crash Preventability Determination (CPDP) requests to FMCSA on this carrier&apos;s behalf. I understand FMCSA notifies the carrier&apos;s officials of any request filed on its USDOT number.
+                      <span className="block text-xs text-[#8B8178] mt-2">
+                        Authorization wording is subject to GEIA review.
+                      </span>
                     </span>
                   </label>
                 )}
@@ -640,6 +658,7 @@ export default function OnboardingPage() {
                   onClick={async () => {
                     await saveProfile();
                     await saveAgreement();
+                    if (dataqChecked) await saveFilingAuthorization();
                     await savePinIfProvided(); // await so PIN reaches DB before step advances
                     setStep(4);
                   }}

@@ -198,6 +198,9 @@ export interface EvidenceItem {
 interface Props {
   clientId: string;
   clientDotNumber: string | null;
+  filingAuthorized: boolean;
+  filingAuthorizedBy: string | null;
+  filingAuthorizationScope: string | null;
   cpdpCase: CpdpCaseRow;
   crash: CrashRow;
   initialEvidence: EvidenceItem[];
@@ -240,6 +243,9 @@ function FilingStep({
 export function CpdpCaseEditor({
   clientId,
   clientDotNumber,
+  filingAuthorized,
+  filingAuthorizedBy,
+  filingAuthorizationScope,
   cpdpCase,
   crash,
   initialEvidence,
@@ -300,6 +306,8 @@ export function CpdpCaseEditor({
     cpdpCase.filed_without_evidence ?? false
   );
   const [overrideReason, setOverrideReason] = useState(cpdpCase.override_reason ?? "");
+  const [authorizationOverrideChecked, setAuthorizationOverrideChecked] = useState(false);
+  const [authorizationOverrideReason, setAuthorizationOverrideReason] = useState("");
 
   // Status
   const [status, setStatus] = useState<string>(cpdpCase.status);
@@ -311,13 +319,17 @@ export function CpdpCaseEditor({
   );
   const blockReason = narrativeBlockReason(narrative);
   const hasEvidence = evidence.length > 0;
+  const authorizationOverrideActive =
+    authorizationOverrideChecked && authorizationOverrideReason.trim().length > 0;
+  const authorizationGateSatisfied = filingAuthorized || authorizationOverrideActive;
   const canFile =
     !isResolved &&
     status !== "filed" &&
     status !== "pending" && // 'pending' is deprecated but guarded defensively
     !blockReason &&
     narrative.trim().length > 50 &&
-    (parReceived || overrideChecked);
+    (parReceived || overrideChecked) &&
+    authorizationGateSatisfied;
   const filingReady = toFilingReadyNarrative(narrative);
   const selectedTypeSummary =
     selectedTypes.length > 0 ? selectedTypes.join("; ") : "No eligible type selected yet";
@@ -515,7 +527,13 @@ export function CpdpCaseEditor({
         filed_date: new Date().toISOString().split("T")[0],
       };
       if (caseNumber.trim()) payload.case_number = caseNumber.trim();
-      if (filingNotes.trim()) payload.filing_notes = filingNotes.trim();
+      const authOverrideNote = authorizationOverrideActive
+        ? `Filing authorization override: ${authorizationOverrideReason.trim()}`
+        : "";
+      const combinedFilingNotes = [filingNotes.trim(), authOverrideNote]
+        .filter(Boolean)
+        .join("\n\n");
+      if (combinedFilingNotes) payload.filing_notes = combinedFilingNotes;
       if (overrideChecked) {
         payload.filed_without_evidence = true;
         payload.override_reason = overrideReason.trim() || null;
@@ -944,6 +962,35 @@ export function CpdpCaseEditor({
         <div className="bg-white rounded-xl border border-[#F0E8DA] p-5 space-y-4">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">4. File with FMCSA</h2>
 
+          <div
+            className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${
+              filingAuthorized
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {filingAuthorized ? (
+              <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+            )}
+            <div>
+              <p className="font-semibold">
+                {filingAuthorized
+                  ? `Client authorized GEIA to file on their behalf${filingAuthorizedBy ? ` (${filingAuthorizedBy})` : ""}.`
+                  : "No filing authorization on record for this client."}
+              </p>
+              {!filingAuthorized && (
+                <p className="mt-0.5">
+                  GEIA files on the carrier&apos;s behalf and attests under 18 USC 1001 - obtain the client&apos;s authorization (onboarding Step 3) before filing.
+                </p>
+              )}
+              {filingAuthorized && filingAuthorizationScope && (
+                <p className="mt-0.5 text-[11px] text-green-600">{filingAuthorizationScope}</p>
+              )}
+            </div>
+          </div>
+
           {status === "filed" || status === "pending" ? (
             // 'filed' and legacy 'pending' are the same state: submitted to DataQs,
             // awaiting FMCSA's ruling. "Advance to Pending FMCSA" removed — it was
@@ -1179,6 +1226,31 @@ export function CpdpCaseEditor({
                       </div>
                     )}
 
+                    {!filingAuthorized && (
+                      <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 accent-[#C67A1E]"
+                            checked={authorizationOverrideChecked}
+                            onChange={(e) => setAuthorizationOverrideChecked(e.target.checked)}
+                          />
+                          <span className="text-xs text-amber-800">
+                            File without recorded authorization - I confirm GEIA has the carrier&apos;s authorization to file on their behalf.
+                          </span>
+                        </label>
+                        {authorizationOverrideChecked && (
+                          <input
+                            type="text"
+                            value={authorizationOverrideReason}
+                            onChange={(e) => setAuthorizationOverrideReason(e.target.value)}
+                            placeholder="Reason / authorization source (required)"
+                            className="w-full px-2 py-1 text-xs border border-amber-300 rounded bg-white focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    )}
+
                     {filingError && (
                       <p className="text-xs text-red-600">{filingError}</p>
                     )}
@@ -1191,7 +1263,9 @@ export function CpdpCaseEditor({
                         title={
                           !canFile
                             ? blockReason ??
-                              (!parReceived && !overrideChecked
+                              (!authorizationGateSatisfied
+                                ? "Client filing authorization is required, or use the authorization override below."
+                                : !parReceived && !overrideChecked
                                 ? "Upload the PAR or enable the override"
                                 : narrative.trim().length < 50
                                 ? "Add a narrative before filing"
@@ -1206,6 +1280,8 @@ export function CpdpCaseEditor({
                         <span className="text-[11px] text-gray-400">
                           {blockReason
                             ? "Resolve narrative issues"
+                            : !authorizationGateSatisfied
+                            ? "Client authorization required - obtain it or use override"
                             : !parReceived && !overrideChecked
                             ? "PAR required - upload or override"
                             : narrative.trim().length < 50

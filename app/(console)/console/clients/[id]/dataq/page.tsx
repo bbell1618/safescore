@@ -151,7 +151,14 @@ export default async function DataqPage({
         ))}
       </div>
 
-      <DataqWorkbench clientId={id} cases={cases ?? []} evidenceMap={evidenceMap} />
+      <DataqWorkbench
+        clientId={id}
+        filingAuthorized={(client.filing_authorized as boolean | null) ?? false}
+        filingAuthorizedBy={client.filing_authorized_by as string | null}
+        filingAuthorizationScope={client.filing_authorization_scope as string | null}
+        cases={cases ?? []}
+        evidenceMap={evidenceMap}
+      />
     </div>
   );
 }
