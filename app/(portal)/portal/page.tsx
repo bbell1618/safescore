@@ -1,12 +1,10 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
-import { ScoreCard } from "@/components/ui/score-card";
+import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { Badge } from "@/components/ui/badge";
-import { OnboardingBanner } from "@/components/portal/onboarding-banner";
-import { formatDate, priorityVariant, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
+import { formatDate, priorityVariant } from "@/lib/utils";
 import {
-  Building2,
   MapPin,
   Truck,
   Users2,
@@ -14,23 +12,20 @@ import {
   FileSearch,
   ShieldAlert,
   Info,
-  ShieldCheck,
   AlertTriangle,
   Activity,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const tierLabel: Record<string, string> = {
-  monitor: "Monitor",
-  remediate: "Remediate",
-  total_safety: "Total Safety",
-};
 
-const tierVariant = (tier: string | null): "default" | "info" | "gold" => {
-  if (tier === "total_safety") return "gold";
-  if (tier === "remediate") return "info";
-  return "default";
+type ActionItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  priority: string;
+  type: string;
 };
 
 const actionItemTypeLabel: Record<string, string> = {
@@ -83,7 +78,6 @@ export default async function PortalDashboardPage() {
   // Fetch all dashboard data in parallel
   const [
     { data: client },
-    { data: snapshot },
     { data: dataqCases },
     { data: cpdpCases },
     { data: actionItems },
@@ -92,13 +86,6 @@ export default async function PortalDashboardPage() {
     { count: crashCount },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).single(),
-    supabase
-      .from("score_snapshots")
-      .select("*")
-      .eq("client_id", clientId)
-      .order("snapshot_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("dataq_cases")
       .select("id, status")
@@ -133,7 +120,9 @@ export default async function PortalDashboardPage() {
 
   if (!client) redirect("/portal");
 
-  // Fetch FMCSA carrier data (non-blocking — fail gracefully)
+  const burden = await getClientBurden(clientId);
+
+  // Fetch FMCSA carrier data/ (non-blocking — fail gracefully)
   let carrier = null;
   try {
     carrier = await getCarrier(client.dot_number);
@@ -141,52 +130,6 @@ export default async function PortalDashboardPage() {
     // carrier stays null — display fallback
   }
 
-  const basicsArray = snapshot
-    ? [
-        {
-          key: "unsafeDriving",
-          label: "Unsafe driving",
-          measure: snapshot.unsafe_driving_measure,
-          percentile: snapshot.unsafe_driving_pct,
-        },
-        {
-          key: "hosCompliance",
-          label: "HOS compliance",
-          measure: snapshot.hos_compliance_measure,
-          percentile: snapshot.hos_compliance_pct,
-        },
-        {
-          key: "driverFitness",
-          label: "Driver fitness",
-          measure: snapshot.driver_fitness_measure,
-          percentile: snapshot.driver_fitness_pct,
-        },
-        {
-          key: "controlledSubstance",
-          label: "Controlled substances",
-          measure: snapshot.controlled_substance_measure,
-          percentile: snapshot.controlled_substance_pct,
-        },
-        {
-          key: "vehicleMaint",
-          label: "Vehicle maintenance",
-          measure: snapshot.vehicle_maint_measure,
-          percentile: snapshot.vehicle_maint_pct,
-        },
-        {
-          key: "hmCompliance",
-          label: "HM compliance",
-          measure: snapshot.hm_compliance_measure,
-          percentile: snapshot.hm_compliance_pct,
-        },
-        {
-          key: "crashIndicator",
-          label: "Crash indicator",
-          measure: snapshot.crash_indicator_measure,
-          percentile: snapshot.crash_indicator_pct,
-        },
-      ]
-    : [];
 
   const activeDataqCount = dataqCases?.length ?? 0;
   const activeCpdpCount = cpdpCases?.length ?? 0;
@@ -194,8 +137,6 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Onboarding banner (shown when no snapshot) */}
-      {!snapshot && <OnboardingBanner />}
 
       {/* Welcome header */}
       <div>
@@ -321,53 +262,35 @@ export default async function PortalDashboardPage() {
         </div>
       )}
 
-      {/* Your Safety Score section */}
+      {/* Your safety burden section */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <h2
-              className="font-semibold text-[#1E1C1A] text-sm"
-            >
-              Your safety score
-            </h2>
-            {snapshot && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                BASIC measures as of {formatDate(snapshot.snapshot_date)}
-              </p>
-            )}
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">Where you stand</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
+            </p>
           </div>
-          {snapshot && (
-            <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-              <ShieldCheck className="w-4 h-4" />
-              Assessment complete
-            </div>
-          )}
+          <div className="text-right shrink-0">
+            <p className="text-2xl font-bold text-[#1E1C1A]">{burden.totalPoints}</p>
+            <p className="text-xs text-gray-500">weighted points</p>
+          </div>
         </div>
 
-        {basicsArray.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {basicsArray.map((b) => (
-              <ScoreCard
-                key={b.key}
-                label={b.label}
-                measure={b.measure as number | null}
-                percentile={b.percentile as number | null}
-                alert={
-                  (b.percentile as number | null) !== null &&
-                  (b.percentile as number) >= 80
-                }
-              />
+        {burden.perBasic.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {burden.perBasic.slice(0, 3).map((b) => (
+              <div key={b.basicCategory} className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] p-4">
+                <p className="text-xs font-medium text-[#1E1C1A]">{b.label}</p>
+                <p className="text-xl font-bold text-[#C67A1E] mt-1">{b.weightedPoints}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{b.violationCount} violation{b.violationCount === 1 ? "" : "s"}</p>
+              </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-10 text-center">
-            <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#1E1C1A]">
-              Your first safety assessment is being prepared.
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              You&apos;ll receive an email when it&apos;s ready.
-            </p>
+          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-8 text-center">
+            <p className="text-sm font-medium text-[#1E1C1A]">No scored violations in the 24-month window.</p>
+            <p className="text-xs text-gray-500 mt-1">We will keep monitoring as new FMCSA data is refreshed.</p>
           </div>
         )}
       </div>
@@ -442,7 +365,7 @@ export default async function PortalDashboardPage() {
 
           {actionItems && actionItems.length > 0 ? (
             <div className="divide-y divide-[#F0E8DA]">
-              {actionItems.map((item: any) => (
+              {(actionItems as ActionItem[]).map((item) => (
                 <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[#1E1C1A]">{item.title}</p>

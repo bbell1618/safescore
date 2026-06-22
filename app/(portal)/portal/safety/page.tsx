@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { formatDate } from "@/lib/utils";
@@ -9,50 +9,12 @@ import {
   MapPin,
   Truck,
   Users2,
-  AlertTriangle,
   ChevronDown,
   Shield,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const basicLabels: Record<string, string> = {
-  unsafe_driving: "Unsafe driving",
-  hos_compliance: "HOS compliance",
-  driver_fitness: "Driver fitness",
-  controlled_substance: "Controlled substances",
-  vehicle_maintenance: "Vehicle maintenance",
-  hazmat_compliance: "HM compliance",
-  crash_indicator: "Crash indicator",
-};
-
-function PercentileBar({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-xs text-gray-400">—</span>;
-  const color =
-    value >= 80
-      ? "bg-[#C67A1E]"
-      : value >= 65
-      ? "bg-[#DAA520]"
-      : "bg-green-500";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-[#F0E8DA] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
-      </div>
-      <span
-        className={`text-xs font-semibold w-10 text-right ${
-          value >= 80
-            ? "text-[#C67A1E]"
-            : value >= 65
-            ? "text-[#DAA520]"
-            : "text-green-600"
-        }`}
-      >
-        {value}th
-      </span>
-    </div>
-  );
-}
 
 export default async function SafetyProfilePage() {
   const supabase = await createClient();
@@ -74,19 +36,10 @@ export default async function SafetyProfilePage() {
 
   const [
     { data: client },
-    { data: snapshot },
     { data: inspections },
     { data: crashes },
-    { data: violations },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).single(),
-    supabase
-      .from("score_snapshots")
-      .select("*")
-      .eq("client_id", clientId)
-      .order("snapshot_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("inspections")
       .select("*, violations(id, violation_code, violation_description, basic_category, severity_weight, oos_violation)")
@@ -97,10 +50,6 @@ export default async function SafetyProfilePage() {
       .select("*")
       .eq("client_id", clientId)
       .order("crash_date", { ascending: false }),
-    supabase
-      .from("violations")
-      .select("id, violation_code, basic_category, severity_weight, time_weight, oos_violation")
-      .eq("client_id", clientId),
   ]);
   const burden = await getClientBurden(clientId);
 
@@ -113,25 +62,6 @@ export default async function SafetyProfilePage() {
     // fail gracefully
   }
 
-  // Group violations by BASIC category
-  const violationsByBasic: Record<string, typeof violations> = {};
-  for (const v of violations ?? []) {
-    const cat = v.basic_category ?? "other";
-    if (!violationsByBasic[cat]) violationsByBasic[cat] = [];
-    violationsByBasic[cat]!.push(v);
-  }
-
-  const basicsArray = snapshot
-    ? [
-        { key: "unsafe_driving", measure: snapshot.unsafe_driving_measure, percentile: snapshot.unsafe_driving_pct },
-        { key: "hos_compliance", measure: snapshot.hos_compliance_measure, percentile: snapshot.hos_compliance_pct },
-        { key: "driver_fitness", measure: snapshot.driver_fitness_measure, percentile: snapshot.driver_fitness_pct },
-        { key: "controlled_substance", measure: snapshot.controlled_substance_measure, percentile: snapshot.controlled_substance_pct },
-        { key: "vehicle_maintenance", measure: snapshot.vehicle_maint_measure, percentile: snapshot.vehicle_maint_pct },
-        { key: "hazmat_compliance", measure: snapshot.hm_compliance_measure, percentile: snapshot.hm_compliance_pct },
-        { key: "crash_indicator", measure: snapshot.crash_indicator_measure, percentile: snapshot.crash_indicator_pct },
-      ]
-    : [];
 
   return (
     <div className="space-y-6">
@@ -210,80 +140,6 @@ export default async function SafetyProfilePage() {
         </div>
       )}
 
-      {/* BASICs breakdown */}
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-4 h-4 text-gray-400" />
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">BASICs breakdown</h2>
-          {snapshot && (
-            <span className="text-xs text-gray-400 ml-auto">
-              As of {formatDate(snapshot.snapshot_date)}
-            </span>
-          )}
-        </div>
-
-        {basicsArray.length > 0 ? (
-          <div className="divide-y divide-[#F0E8DA]">
-            {basicsArray.map((b) => {
-              const categoryViolations = violationsByBasic[b.key] ?? [];
-              const alerting = (b.percentile ?? 0) >= 80;
-              return (
-                <div key={b.key} className="py-3">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#1E1C1A]">
-                          {basicLabels[b.key]}
-                        </span>
-                        {alerting && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-[#C67A1E] shrink-0" />
-                        )}
-                        <span className="text-xs text-gray-400 ml-auto">
-                          Measure: {b.measure?.toFixed(1) ?? "—"}
-                        </span>
-                      </div>
-                      <div className="mt-1.5">
-                        <PercentileBar value={b.percentile ?? null} />
-                      </div>
-                    </div>
-                  </div>
-                  {categoryViolations.length > 0 && (
-                    <div className="mt-2 pl-2 border-l-2 border-[#F0E8DA] space-y-1">
-                      {categoryViolations.slice(0, 5).map((v) => (
-                        <div key={v.id} className="flex items-center gap-2 text-xs text-gray-500">
-                          <span className="font-mono font-medium text-[#1E1C1A]">
-                            {v.violation_code}
-                          </span>
-                          {v.oos_violation && (
-                            <span className="text-[#C67A1E] font-medium">OOS</span>
-                          )}
-                          <span className="text-gray-400">
-                            Severity: {v.severity_weight ?? "—"} · Time weight: {v.time_weight ?? "—"}
-                          </span>
-                        </div>
-                      ))}
-                      {categoryViolations.length > 5 && (
-                        <p className="text-xs text-gray-400">
-                          +{categoryViolations.length - 5} more violations
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-10 text-center">
-            <Shield className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-[#1E1C1A]">No score data yet</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Your first safety assessment is being prepared.
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* CSA burden */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="px-5 py-4 border-b border-[#F0E8DA]">
@@ -295,7 +151,7 @@ export default async function SafetyProfilePage() {
             <span className="text-xs text-gray-400 ml-auto">As of {formatDate(burden.asOf)}</span>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Percentile is not published by FMCSA for low-volume carriers. SafeScore shows the weighted point burden that drives your BASIC measures.
+            FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
           </p>
         </div>
 

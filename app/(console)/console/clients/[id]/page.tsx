@@ -12,25 +12,25 @@ import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-// ── Tooltip copy (verbatim per spec) ─────────────────────────────────────────
+// â”€â”€ Tooltip copy (verbatim per spec) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TT = {
   POWER_UNITS:
-    "Trucks and tractors the carrier operates, from its latest MCS-150. No fixed maximum. Used as the exposure denominator in several BASIC calculations — more units generally lowers per-unit violation rates.",
+    "Trucks and tractors the carrier operates, from its latest MCS-150. No fixed maximum. Used as the exposure denominator in several BASIC calculations â€” more units generally lowers per-unit violation rates.",
   DRIVERS:
     "Driver count from the latest MCS-150. No fixed maximum. This is the figure Total Safety per-driver billing reconciles to.",
   MCS150:
     "The carrier's most recent biennial census filing and the annual mileage reported with it. A stale MCS-150 distorts BASIC math; keeping it current is part of the service.",
   SAFETY_RATING:
-    "FMCSA's compliance-review rating: Satisfactory, Conditional, or Unsatisfactory. 'Unrated / Non-Ratable' means no rated review is on file — common and not negative.",
+    "FMCSA's compliance-review rating: Satisfactory, Conditional, or Unsatisfactory. 'Unrated / Non-Ratable' means no rated review is on file â€” common and not negative.",
   PERCENTILE:
-    "The carrier's rank versus similar carriers, 0–100. Higher is worse. FMCSA flags a category for intervention above a threshold that varies by BASIC (~50–75%). 'Not public' means FMCSA withholds it because the carrier has too few inspections to rank reliably.",
+    "The carrier's rank versus similar carriers, 0â€“100. Higher is worse. FMCSA flags a category for intervention above a threshold that varies by BASIC (~50â€“75%). 'Not public' means FMCSA withholds it because the carrier has too few inspections to rank reliably.",
   ALERT:
     "Whether this BASIC is over FMCSA's intervention threshold. Over threshold = elevated scrutiny and intervention risk.",
   OOS_RATE:
-    "Share of this carrier's inspections that resulted in an out-of-service order, 0–100%. Lower is better. The reference line is the national average.",
+    "Share of this carrier's inspections that resulted in an out-of-service order, 0â€“100%. Lower is better. The reference line is the national average.",
   NATIONAL_AVG:
-    "The all-carrier average OOS rate for this inspection type — FMCSA's reference point. Below it is good; above it is a flag.",
+    "The all-carrier average OOS rate for this inspection type â€” FMCSA's reference point. Below it is good; above it is a flag.",
   CRASHES:
     "State-reported crashes involving this carrier in the last 24 months, regardless of fault. They feed the Crash Indicator BASIC, weighted by severity (tow-away < injury < fatal). Some may be removable via the CPDP program.",
   VIOLATIONS:
@@ -39,15 +39,7 @@ const TT = {
     "Formal challenges (Requests for Data Review) to FMCSA disputing a violation or crash record. Successful challenges remove or correct the record, improving the score.",
 };
 
-function basicMeasureTooltip(categoryName: string): string {
-  return (
-    `${categoryName} BASIC measure. A severity- and time-weighted rate of this category's violations from roadside inspections. ` +
-    `No fixed 0–100 scale; higher is worse. The comparable 0–100 scale is the percentile below — when FMCSA doesn't publish one, ` +
-    `compare this against the carrier's other categories and the alert flag.`
-  );
-}
-
-// ── Status / tier maps ────────────────────────────────────────────────────────
+// â”€â”€ Status / tier maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
@@ -71,26 +63,7 @@ const tierLabel: Record<string, string> = {
   total_safety: "Total Safety",
 };
 
-// ── Rule-based story strip ────────────────────────────────────────────────────
-
-interface StorySnapshot {
-  unsafe_driving_measure: number | null;
-  unsafe_driving_alert: boolean | null;
-  hos_compliance_measure: number | null;
-  hos_compliance_alert: boolean | null;
-  driver_fitness_measure: number | null;
-  driver_fitness_alert: boolean | null;
-  controlled_substance_measure: number | null;
-  controlled_substance_alert: boolean | null;
-  vehicle_maint_measure: number | null;
-  vehicle_maint_alert: boolean | null;
-  hm_compliance_measure: number | null;
-  hm_compliance_alert: boolean | null;
-  crash_indicator_measure: number | null;
-  crash_indicator_alert: boolean | null;
-  oos_vehicle_rate: number | null;
-  oos_hazmat_rate: number | null;
-}
+// â”€â”€ Rule-based story strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface CrashRow {
   tow_away: boolean;
@@ -98,117 +71,39 @@ interface CrashRow {
   injuries: number;
 }
 
-interface BasicStat {
-  category: string;
-  label: string;
-  count: number;
-  oos: number;
-  severity: number;
-}
-
 interface ViolsByBasicMap {
   [category: string]: { count: number; oos: number; severity: number };
 }
 
 function buildStoryStrip(
-  snapshot: StorySnapshot,
-  violsByBasic: ViolsByBasicMap,
+  burden: { perBasic: Array<{ label: string; violationCount: number; weightedPoints: number }>; totalPoints: number },
   crashes: CrashRow[]
 ): string[] {
   const sentences: string[] = [];
+  const topBasic = burden.perBasic[0];
 
-  // 1. Lead with the BASIC carrying the most combined burden (violations + OOS)
-  const basicOrder = [
-    { category: "vehicle_maintenance", label: "Vehicle Maintenance" },
-    { category: "hos_compliance", label: "HOS Compliance" },
-    { category: "unsafe_driving", label: "Unsafe Driving" },
-    { category: "driver_fitness", label: "Driver Fitness" },
-    { category: "controlled_substance", label: "Controlled Substances" },
-    { category: "hm_compliance", label: "Hazmat Compliance" },
-    { category: "crash_indicator", label: "Crash Indicator" },
-  ];
-
-  const statsWithData: BasicStat[] = basicOrder
-    .filter((b) => (violsByBasic[b.category]?.count ?? 0) > 0)
-    .map((b) => ({ ...b, ...violsByBasic[b.category] }))
-    .sort(
-      (a, b) =>
-        b.count + b.oos * 2 + b.severity * 0.1 -
-        (a.count + a.oos * 2 + a.severity * 0.1)
-    );
-
-  const topBasic = statsWithData[0];
   if (topBasic) {
     sentences.push(
-      `${topBasic.label} carries the largest violation burden: ${topBasic.count} violation${topBasic.count !== 1 ? "s" : ""} with ${topBasic.oos} OOS across the inspection window.`
+      `${topBasic.label} carries the largest weighted burden: ${topBasic.weightedPoints} point${topBasic.weightedPoints !== 1 ? "s" : ""} across ${topBasic.violationCount} violation${topBasic.violationCount !== 1 ? "s" : ""}.`
+    );
+    sentences.push(
+      `Total weighted violation burden is ${burden.totalPoints} points. FMCSA does not publish percentile rankings for low-volume carriers; this is the burden that drives the BASIC measures.`
     );
   }
 
-  // 2. State whether any BASIC exceeds the intervention threshold
-  const anyAlert = [
-    snapshot.unsafe_driving_alert,
-    snapshot.hos_compliance_alert,
-    snapshot.driver_fitness_alert,
-    snapshot.controlled_substance_alert,
-    snapshot.vehicle_maint_alert,
-    snapshot.hm_compliance_alert,
-    snapshot.crash_indicator_alert,
-  ].some(Boolean);
-
-  if (!anyAlert) {
-    sentences.push(
-      "No BASIC currently exceeds an FMCSA intervention threshold — the carrier is not in elevated-scrutiny status."
-    );
-  } else {
-    const alertedNames = [
-      snapshot.unsafe_driving_alert && "Unsafe Driving",
-      snapshot.hos_compliance_alert && "HOS Compliance",
-      snapshot.driver_fitness_alert && "Driver Fitness",
-      snapshot.controlled_substance_alert && "Controlled Substances",
-      snapshot.vehicle_maint_alert && "Vehicle Maintenance",
-      snapshot.hm_compliance_alert && "Hazmat Compliance",
-      snapshot.crash_indicator_alert && "Crash Indicator",
-    ].filter(Boolean) as string[];
-    sentences.push(
-      `${alertedNames.join(" and ")} ${alertedNames.length === 1 ? "is" : "are"} over the FMCSA intervention threshold.`
-    );
-  }
-
-  // 3. Caveat the highest raw measure — do NOT present it as the priority
-  const measures = [
-    { name: "Unsafe Driving", val: snapshot.unsafe_driving_measure },
-    { name: "HOS Compliance", val: snapshot.hos_compliance_measure },
-    { name: "Driver Fitness", val: snapshot.driver_fitness_measure },
-    { name: "Controlled Substances", val: snapshot.controlled_substance_measure },
-    { name: "Vehicle Maintenance", val: snapshot.vehicle_maint_measure },
-    { name: "Hazmat Compliance", val: snapshot.hm_compliance_measure },
-    { name: "Crash Indicator", val: snapshot.crash_indicator_measure },
-  ]
-    .filter((m) => m.val != null)
-    .sort((a, b) => (b.val ?? 0) - (a.val ?? 0));
-
-  const highestMeasure = measures[0];
-  if (highestMeasure && highestMeasure.val != null) {
-    sentences.push(
-      `${highestMeasure.name} shows the highest raw measure (${highestMeasure.val.toFixed(2)}), but BASIC measures aren't comparable across categories and FMCSA doesn't publish percentiles for this carrier, so relative ranking isn't available.`
-    );
-  }
-
-  // 4. Crashes
   const totalCrashes = crashes.filter((c) => c != null).length;
   const towCount = crashes.filter((c) => c?.tow_away).length;
   if (totalCrashes > 0) {
     sentences.push(
-      `${totalCrashes} crash${totalCrashes !== 1 ? "es" : ""} in the last 24 months${towCount > 0 ? ` (${towCount} tow-away — CPDP review may apply)` : ""}.`
+      `${totalCrashes} crash${totalCrashes !== 1 ? "es" : ""} in the last 24 months${towCount > 0 ? ` (${towCount} tow-away - CPDP review may apply)` : ""}.`
     );
   }
 
   return sentences.length > 0
     ? sentences
-    : ["No significant safety flags identified in current data."];
+    : ["No scored violation burden is currently present in the 24-month window."];
 }
-
-// ── Data freshness dot ────────────────────────────────────────────────────────
+// â”€â”€ Data freshness dot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function freshnessColor(saferAsOf: string | null): string {
   if (!saferAsOf) return "bg-gray-400";
@@ -220,7 +115,7 @@ function freshnessColor(saferAsOf: string | null): string {
   return "bg-red-500";
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function signedDelta(value: number) {
   return value > 0 ? `+${value}` : `${value}`;
@@ -247,7 +142,7 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
-  // 24-month trailing window — matches FMCSA's Crash Indicator BASIC window.
+  // 24-month trailing window â€” matches FMCSA's Crash Indicator BASIC window.
   // Computed once and reused for both crashRows and cpdpCandidates so both
   // lists are consistent and the Dec 2022 crash is excluded from both.
   const now24str = new Intl.DateTimeFormat("sv-SE").format(new Date());
@@ -255,24 +150,14 @@ export default async function ClientDetailPage({
     (parseInt(now24str.slice(0, 4)) - 2).toString() + now24str.slice(4);
 
   const [
-    { data: snapshot },
     { data: carrierProfile },
     { data: crashRows },
-    { data: activeCases },
-    { data: challengeableViolations },
     { data: cpdpCandidates },
     { data: draftCases },
     { data: allCases },
     { count: violationCount },
     { count: caseCount },
   ] = await Promise.all([
-    supabase
-      .from("score_snapshots")
-      .select("*")
-      .eq("client_id", id)
-      .order("snapshot_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("carrier_profiles")
       .select("*")
@@ -286,21 +171,6 @@ export default async function ClientDetailPage({
       .eq("client_id", id)
       .gte("crash_date", cutoff24mo)
       .order("crash_date", { ascending: false }),
-    supabase
-      .from("dataq_cases")
-      .select("*, violations(violation_code, violation_description)")
-      .eq("client_id", id)
-      .not("status", "in", '("approved","denied","closed")')
-      .order("created_at", { ascending: false })
-      .limit(5),
-    // Top challengeable violations in the highest-measure BASIC (for opportunities)
-    supabase
-      .from("violations")
-      .select("id, violation_code, violation_description, basic_category, severity_weight, challenge_reason")
-      .eq("client_id", id)
-      .eq("challengeable", true)
-      .order("severity_weight", { ascending: false })
-      .limit(3),
     // CPDP candidates: tow_away crashes within the 24-month window with no assessment
     supabase
       .from("crashes")
@@ -332,15 +202,15 @@ export default async function ClientDetailPage({
     getRecentSnapshots(id, 2),
   ]);
 
-  // Violation detail — fetch all fields needed for per-BASIC stats,
+  // Violation detail â€” fetch all fields needed for per-BASIC stats,
   // the bar chart, AND the points-ranked remediation queue.
   // time_weight is stored on violations (1=old, 2=mid, 3=recent).
-  // Per-violation score impact = severity_weight × time_weight.
+  // Per-violation score impact = severity_weight Ã— time_weight.
   const { data: allViolations } = await supabase
     .from("violations")
     .select(
       "id, basic_category, oos_violation, severity_weight, time_weight, " +
-      "violation_code, violation_description, challengeable, " +
+      "violation_code, violation_description, " +
       "inspections(inspection_date)"
     )
     .eq("client_id", id);
@@ -354,9 +224,8 @@ export default async function ClientDetailPage({
     time_weight: number | null;
     violation_code: string | null;
     violation_description: string | null;
-    challengeable: boolean | null;
     inspections: { inspection_date: string } | null;
-    points: number; // severity_weight × time_weight
+    points: number; // severity_weight Ã— time_weight
   }
 
   const violRows: ViolationRow[] = (allViolations ?? []).map((v) => {
@@ -373,7 +242,6 @@ export default async function ClientDetailPage({
       time_weight: row.time_weight as number | null,
       violation_code: row.violation_code as string | null,
       violation_description: row.violation_description as string | null,
-      challengeable: row.challengeable as boolean | null,
       inspections: insp,
       points: (sw + (oos ? 2 : 0)) * tw,
     };
@@ -437,91 +305,8 @@ export default async function ClientDetailPage({
   const crashInjury = crashes24m.filter((c) => c.injuries > 0).length;
   const crashTow = crashes24m.filter((c) => c.tow_away).length;
 
-  // BASIC scores array
-  const basicsArray = snapshot
-    ? [
-        {
-          key: "unsafeDriving",
-          label: "Unsafe Driving",
-          measure: snapshot.unsafe_driving_measure as number | null,
-          percentile: snapshot.unsafe_driving_pct as number | null,
-          alert: snapshot.unsafe_driving_alert as boolean,
-        },
-        {
-          key: "hosCompliance",
-          label: "HOS Compliance",
-          measure: snapshot.hos_compliance_measure as number | null,
-          percentile: snapshot.hos_compliance_pct as number | null,
-          alert: snapshot.hos_compliance_alert as boolean,
-        },
-        {
-          key: "driverFitness",
-          label: "Driver Fitness",
-          measure: snapshot.driver_fitness_measure as number | null,
-          percentile: snapshot.driver_fitness_pct as number | null,
-          alert: snapshot.driver_fitness_alert as boolean,
-        },
-        {
-          key: "controlledSubstance",
-          label: "Controlled Substances",
-          measure: snapshot.controlled_substance_measure as number | null,
-          percentile: snapshot.controlled_substance_pct as number | null,
-          alert: snapshot.controlled_substance_alert as boolean,
-        },
-        {
-          key: "vehicleMaint",
-          label: "Vehicle Maintenance",
-          measure: snapshot.vehicle_maint_measure as number | null,
-          percentile: snapshot.vehicle_maint_pct as number | null,
-          alert: snapshot.vehicle_maint_alert as boolean,
-        },
-        {
-          key: "hmCompliance",
-          label: "Hazmat Compliance",
-          measure: snapshot.hm_compliance_measure as number | null,
-          percentile: snapshot.hm_compliance_pct as number | null,
-          alert: snapshot.hm_compliance_alert as boolean,
-        },
-        {
-          key: "crashIndicator",
-          label: "Crash Indicator",
-          measure: snapshot.crash_indicator_measure as number | null,
-          percentile: snapshot.crash_indicator_pct as number | null,
-          alert: snapshot.crash_indicator_alert as boolean,
-        },
-      ]
-    : [];
-
   // Story strip sentences (array, rendered as list items)
-  const storySentences =
-    snapshot
-      ? buildStoryStrip(
-          snapshot as unknown as StorySnapshot,
-          violsByBasic,
-          crashes24m
-        )
-      : null;
-
-  // Top BASIC by burden (for opportunity queue ordering)
-  const basicBurdenOrder = [
-    { category: "vehicle_maintenance" },
-    { category: "hos_compliance" },
-    { category: "unsafe_driving" },
-    { category: "driver_fitness" },
-    { category: "controlled_substance" },
-    { category: "hm_compliance" },
-    { category: "crash_indicator" },
-  ]
-    .filter((b) => (violsByBasic[b.category]?.count ?? 0) > 0)
-    .sort((a, b) => {
-      const sa = violsByBasic[a.category];
-      const sb = violsByBasic[b.category];
-      return (
-        sb.count + sb.oos * 2 + sb.severity * 0.1 -
-        (sa.count + sa.oos * 2 + sa.severity * 0.1)
-      );
-    });
-  const topBurdenCategory = basicBurdenOrder[0]?.category ?? null;
+  const storySentences = buildStoryStrip(burden, crashes24m);
 
   // safer_as_of
   const saferAsOf = (carrierProfile as Record<string, unknown> | null)?.safer_as_of as string | null ?? null;
@@ -548,7 +333,7 @@ export default async function ClientDetailPage({
         <span className="text-[#1E1C1A] font-medium">{client.name}</span>
       </div>
 
-      {/* ── Section 1: Header ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Section 1: Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -630,7 +415,7 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* ── Section 2: Story strip ────────────────────────────────────────── */}
+      {/* â”€â”€ Section 2: Story strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {storySentences && storySentences.length > 0 && (
         <div className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
           <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-2">
@@ -639,7 +424,7 @@ export default async function ClientDetailPage({
           <ul className="space-y-1.5">
             {storySentences.map((sentence, i) => (
               <li key={i} className="text-sm text-[#1E1C1A] leading-relaxed flex gap-2">
-                <span className="text-[#C67A1E] shrink-0 mt-0.5">—</span>
+                <span className="text-[#C67A1E] shrink-0 mt-0.5">â€”</span>
                 <span>{sentence}</span>
               </li>
             ))}
@@ -647,7 +432,7 @@ export default async function ClientDetailPage({
         </div>
       )}
 
-      {/* ── Section 3: Carrier snapshot ──────────────────────────────────── */}
+      {/* â”€â”€ Section 3: Carrier snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {cp && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
@@ -661,7 +446,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.POWER_UNITS} />
               </div>
               <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
-                {cp.power_units != null ? String(cp.power_units) : "—"}
+                {cp.power_units != null ? String(cp.power_units) : "â€”"}
               </p>
             </div>
             {/* Drivers */}
@@ -671,7 +456,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.DRIVERS} />
               </div>
               <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
-                {cp.drivers != null ? String(cp.drivers) : "—"}
+                {cp.drivers != null ? String(cp.drivers) : "â€”"}
               </p>
             </div>
             {/* MCS-150 */}
@@ -681,7 +466,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.MCS150} />
               </div>
               <p className="text-base font-bold text-[#1E1C1A] mt-1">
-                {cp.mcs150_date ? formatDate(cp.mcs150_date as string) : "—"}
+                {cp.mcs150_date ? formatDate(cp.mcs150_date as string) : "â€”"}
               </p>
               {cp.mcs150_mileage != null && (
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -708,101 +493,21 @@ export default async function ClientDetailPage({
             <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
               <p className="text-xs text-gray-500">Authority Status</p>
               <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
-                {cp.authority_status ? String(cp.authority_status) : "—"}
+                {cp.authority_status ? String(cp.authority_status) : "â€”"}
               </p>
             </div>
             {/* Entity Type */}
             <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
               <p className="text-xs text-gray-500">Entity Type</p>
               <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
-                {cp.entity_type ? String(cp.entity_type) : "—"}
+                {cp.entity_type ? String(cp.entity_type) : "â€”"}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Section 4: BASIC scores ───────────────────────────────────────── */}
-      {basicsArray.length > 0 && (
-        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-[#1E1C1A] text-sm">
-              BASIC scores
-              {snapshot && (
-                <span className="text-gray-400 font-normal text-xs ml-2">
-                  as of {formatDate(snapshot.snapshot_date as string)}
-                </span>
-              )}
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {basicsArray.map((b) => {
-              // Map basicsArray label back to the category key used in violsByBasic
-              const categoryKeyMap: Record<string, string> = {
-                "Unsafe Driving": "unsafe_driving",
-                "HOS Compliance": "hos_compliance",
-                "Driver Fitness": "driver_fitness",
-                "Controlled Substances": "controlled_substance",
-                "Vehicle Maintenance": "vehicle_maintenance",
-                "Hazmat Compliance": "hm_compliance",
-                "Crash Indicator": "crash_indicator",
-              };
-              const catKey = categoryKeyMap[b.label] ?? "";
-              const basicStats = violsByBasic[catKey];
-              return (
-                <div
-                  key={b.key}
-                  className="rounded-lg border border-[#F0E8DA] bg-white p-4"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-500 font-medium">
-                      {b.label}
-                    </span>
-                  </div>
-                  <div className="flex items-end gap-1">
-                    <span className="text-2xl font-bold text-[#1E1C1A]">
-                      {b.measure != null ? b.measure.toFixed(2) : "—"}
-                    </span>
-                    <Tooltip
-                      content={basicMeasureTooltip(b.label)}
-                      position="top"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-xs text-gray-400">
-                      {b.percentile != null
-                        ? `${b.percentile}th percentile`
-                        : "Not public — too few inspections to rank"}
-                    </span>
-                    <Tooltip content={TT.PERCENTILE} position="bottom" />
-                  </div>
-                  {/* Per-BASIC violation and OOS counts */}
-                  {basicStats && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[11px] text-gray-500 bg-[#F0E8DA] rounded px-1.5 py-0.5">
-                        {basicStats.count} violation{basicStats.count !== 1 ? "s" : ""}
-                      </span>
-                      {basicStats.oos > 0 && (
-                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                          {basicStats.oos} OOS
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {b.alert && (
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <Badge variant="warning">Over threshold</Badge>
-                      <Tooltip content={TT.ALERT} position="bottom" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Section 5: OOS rates ─────────────────────────────────────────── */}
+      {/* Section 5: CSA burden */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center justify-between">
           <div>
@@ -810,7 +515,7 @@ export default async function ClientDetailPage({
               CSA Burden (computed)
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Percentile is not published by FMCSA for low-volume carriers. SafeScore shows the weighted point burden that drives your BASIC measures.
+              FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
             </p>
           </div>
           <span className="text-xs text-gray-400">As of {formatDate(burden.asOf)}</span>
@@ -869,7 +574,7 @@ export default async function ClientDetailPage({
                         {v.violationDescription ?? ""}
                       </p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        {v.inspectionDate ? formatDate(v.inspectionDate) : "--"} · Severity {v.severityWeight ?? "--"} · Time weight {v.timeWeight}
+                        {v.inspectionDate ? formatDate(v.inspectionDate) : "--"} Â· Severity {v.severityWeight ?? "--"} Â· Time weight {v.timeWeight}
                       </p>
                     </div>
                     <span className="text-xs font-bold text-[#1E1C1A] shrink-0">
@@ -947,69 +652,8 @@ export default async function ClientDetailPage({
           </p>
         )}
       </div>
-      {snapshot && (
-        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
-            Out-of-service rates
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            {(
-              [
-                {
-                  label: "Vehicle",
-                  rate: snapshot.oos_vehicle_rate as number | null,
-                  // Use SAFER-parsed national average stored on carrier_profiles;
-                  // fall back to FMCSA published figure if column not yet populated.
-                  national: (cp?.national_vehicle_oos_rate as number | null) ?? 22.26,
-                },
-                {
-                  label: "Driver",
-                  rate: snapshot.oos_driver_rate as number | null,
-                  national: (cp?.national_driver_oos_rate as number | null) ?? 6.67,
-                },
-                {
-                  label: "Hazmat",
-                  rate: snapshot.oos_hazmat_rate as number | null,
-                  national: (cp?.national_hazmat_oos_rate as number | null) ?? 4.44,
-                },
-              ] as { label: string; rate: number | null; national: number }[]
-            ).map(({ label, rate, national }) => {
-              const aboveAvg = rate != null && rate > national;
-              return (
-                <div
-                  key={label}
-                  className="bg-white rounded-lg border border-[#F0E8DA] p-4"
-                >
-                  <p className="text-xs text-gray-500 font-medium mb-2">
-                    {label} OOS Rate
-                  </p>
-                  <div className="flex items-end gap-1">
-                    <span className="text-2xl font-bold text-[#1E1C1A]">
-                      {rate != null ? `${rate.toFixed(1)}%` : "—"}
-                    </span>
-                    <Tooltip content={TT.OOS_RATE} />
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-xs text-gray-400">
-                      Nat. avg: {national.toFixed(1)}%
-                    </span>
-                    <Tooltip content={TT.NATIONAL_AVG} position="bottom" />
-                  </div>
-                  {rate != null && (
-                    <div className="mt-2">
-                      <Badge variant={aboveAvg ? "warning" : "success"}>
-                        {aboveAvg ? "Above national average" : "Below national average"}
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* ── Section 6: Violations by BASIC ───────────────────────────────── */}
+      {/* Section 6: Violations by BASIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {violsByBasicSorted.length > 0 && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center gap-1 mb-4">
@@ -1039,7 +683,7 @@ export default async function ClientDetailPage({
         </div>
       )}
 
-      {/* ── Section 7: Crashes & CPDP ────────────────────────────────────── */}
+      {/* â”€â”€ Section 7: Crashes & CPDP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-1">
@@ -1052,7 +696,7 @@ export default async function ClientDetailPage({
             href={`/console/clients/${id}/cpdp`}
             className="text-xs text-[#C67A1E] hover:underline"
           >
-            Review crashes for CPDP →
+            Review crashes for CPDP â†’
           </Link>
         </div>
         {crashes24m.length > 0 ? (
@@ -1086,20 +730,20 @@ export default async function ClientDetailPage({
         )}
       </div>
 
-      {/* ── Section 8: Opportunities work queue ──────────────────────────── */}
+      {/* â”€â”€ Section 8: Opportunities work queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4 mb-1">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">
             Remediation opportunities
           </h2>
           <span className="text-[10px] text-gray-400 shrink-0 mt-0.5">
-            Ranked by score impact (severity × time weight)
+            Ranked by score impact (severity Ã— time weight)
           </span>
         </div>
         {/* Framing note */}
         <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
           Points = estimated score impact if the violation is removed via a successful DataQ challenge
-          (FMCSA&apos;s published severity weight × time weight). Removability is a separate assessment —
+          (FMCSA&apos;s published severity weight Ã— time weight). Removability is a separate assessment â€”
           high-impact does not mean challengeable. The authenticated SMS export would give FMCSA&apos;s exact
           computed contribution; this uses the published weighting as an approximation.
         </p>
@@ -1122,7 +766,7 @@ export default async function ClientDetailPage({
                     <div className="flex items-center gap-3">
                       <span className="text-[11px] text-gray-400">
                         {bStats?.count ?? 0} violations
-                        {bStats?.oos ? ` · ${bStats.oos} OOS` : ""}
+                        {bStats?.oos ? ` Â· ${bStats.oos} OOS` : ""}
                       </span>
                       <span className="text-[11px] font-semibold text-[#C67A1E] bg-[#FDF4E7] border border-amber-200 rounded px-2 py-0.5">
                         {bp.totalPoints} pts total
@@ -1136,16 +780,11 @@ export default async function ClientDetailPage({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs font-semibold text-[#1E1C1A]">
-                              {v.violation_code ?? "—"}
+                              {v.violation_code ?? "â€”"}
                             </span>
                             {v.oos_violation && (
                               <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
                                 OOS
-                              </span>
-                            )}
-                            {v.challengeable === true && (
-                              <span className="text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
-                                Challengeable
                               </span>
                             )}
                           </div>
@@ -1164,14 +803,14 @@ export default async function ClientDetailPage({
                               {v.points} pts
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              {v.severity_weight ?? 0}×{v.time_weight ?? 1}
+                              {v.severity_weight ?? 0}Ã—{v.time_weight ?? 1}
                             </p>
                           </div>
                           <Link
                             href={`/console/clients/${id}/dataq`}
                             className="text-xs text-[#C67A1E] hover:underline"
                           >
-                            Case →
+                            Case â†’
                           </Link>
                         </div>
                       </div>
@@ -1213,14 +852,14 @@ export default async function ClientDetailPage({
                   {cpdpCandidates.map((c) => (
                     <div key={c.id} className="flex items-center gap-3">
                       <p className="text-xs text-gray-600 flex-1">
-                        Tow-away — {formatDate(c.crash_date as string)}
+                        Tow-away â€” {formatDate(c.crash_date as string)}
                         {c.state ? ` (${c.state})` : ""}
                       </p>
                       <Link
                         href={`/console/clients/${id}/cpdp`}
                         className="text-xs text-[#C67A1E] hover:underline shrink-0"
                       >
-                        Review →
+                        Review â†’
                       </Link>
                     </div>
                   ))}
@@ -1246,18 +885,18 @@ export default async function ClientDetailPage({
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#1E1C1A]">
-                        Case for {viol?.violation_code ?? "violation"} — created{" "}
+                        Case for {viol?.violation_code ?? "violation"} â€” created{" "}
                         {formatDate(c.created_at as string)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Draft — narrative ready to finalize and file.
+                        Draft â€” narrative ready to finalize and file.
                       </p>
                     </div>
                     <Link
                       href={`/console/clients/${id}/dataq`}
                       className="text-xs text-[#C67A1E] hover:underline shrink-0"
                     >
-                      File →
+                      File â†’
                     </Link>
                   </div>
                 );
@@ -1267,7 +906,7 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* ── Section 9: DataQs cases ───────────────────────────────────────── */}
+      {/* â”€â”€ Section 9: DataQs cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -1290,9 +929,9 @@ export default async function ClientDetailPage({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[#1E1C1A] truncate">
                     {Array.isArray(c.violations)
-                      ? `${(c.violations as { violation_code: string }[])[0]?.violation_code ?? "—"}`
+                      ? `${(c.violations as { violation_code: string }[])[0]?.violation_code ?? "â€”"}`
                       : (c.violations as { violation_code: string } | null)
-                          ?.violation_code ?? "—"}
+                          ?.violation_code ?? "â€”"}
                   </p>
                   <p className="text-xs text-gray-400">
                     {Array.isArray(c.violations)

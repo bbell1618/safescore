@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { QuickAssessment } from "@/components/console/quick-assessment";
 import { NewClientButton } from "@/components/console/new-client-button";
@@ -41,7 +41,7 @@ export default async function ConsolePage() {
 
   const { data: clients } = await supabase
     .from("clients")
-    .select("*, score_snapshots(snapshot_date, vehicle_maint_measure, vehicle_maint_pct, crash_indicator_pct, unsafe_driving_pct, hos_compliance_pct)")
+    .select("*")
     .order("created_at", { ascending: false });
 
   const { data: alertCounts } = await supabase
@@ -58,6 +58,13 @@ export default async function ConsolePage() {
   const activeCount = clients?.filter((c) => c.status === "active").length ?? 0;
   const onboardingCount = clients?.filter((c) => c.status === "onboarding").length ?? 0;
   const alertClients = clients?.filter((c) => (alertMap.get(c.id) ?? 0) > 0) ?? [];
+  const clientBurdenEntries = await Promise.all(
+    (clients ?? []).map(async (client) => {
+      const burden = await getClientBurden(client.id);
+      return [client.id, burden] as const;
+    })
+  );
+  const burdenByClient = new Map(clientBurdenEntries);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -109,15 +116,8 @@ export default async function ConsolePage() {
               <div className="divide-y divide-[#F0E8DA]">
                 {clients.map((client) => {
                   const alerts = alertMap.get(client.id) ?? 0;
-                  const latestSnapshot = client.score_snapshots?.[0];
-                  const worstPct = latestSnapshot
-                    ? Math.max(
-                        latestSnapshot.vehicle_maint_pct ?? 0,
-                        latestSnapshot.crash_indicator_pct ?? 0,
-                        latestSnapshot.unsafe_driving_pct ?? 0,
-                        latestSnapshot.hos_compliance_pct ?? 0
-                      )
-                    : null;
+                  const burden = burdenByClient.get(client.id);
+                  const topBasic = burden?.perBasic[0] ?? null;
 
                   const locationParts = [client.city, client.state].filter(Boolean);
 
@@ -138,7 +138,7 @@ export default async function ConsolePage() {
                         </div>
                         <p className="text-xs text-gray-400">
                           DOT {client.dot_number}
-                          {locationParts.length > 0 ? ` · ${locationParts.join(", ")}` : ""}
+                          {locationParts.length > 0 ? ` Â· ${locationParts.join(", ")}` : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -150,17 +150,9 @@ export default async function ConsolePage() {
                         <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
                           {statusLabel[client.status] ?? client.status}
                         </Badge>
-                        {worstPct !== null && (
-                          <span
-                            className={`text-xs font-semibold ${
-                              worstPct >= 80
-                                ? "text-[#C67A1E]"
-                                : worstPct >= 65
-                                ? "text-[#DAA520]"
-                                : "text-green-600"
-                            }`}
-                          >
-                            {worstPct}th
+                        {burden && (
+                          <span className="text-xs font-semibold text-[#C67A1E]">
+                            {burden.totalPoints} pts{topBasic ? ` - ${topBasic.label}` : ""}
                           </span>
                         )}
                       </div>
