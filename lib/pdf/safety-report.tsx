@@ -1,4 +1,4 @@
-﻿import {
+import {
   Document,
   Page,
   Text,
@@ -6,7 +6,7 @@
   StyleSheet,
 } from "@react-pdf/renderer";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 
 export interface SafetyReportProps {
   client: {
@@ -30,22 +30,31 @@ export interface SafetyReportProps {
     percentile: number | null;
     alertIndicator: string | null;
   }>;
+  burden: {
+    perBasic: Array<{
+      category: string;
+      weightedPoints: number;
+      violationCount: number;
+    }>;
+    totalPoints: number;
+  };
+  openCases: Array<{
+    kind: "CPDP" | "DataQ";
+    label: string;
+    status: string;
+  }>;
   violations: Array<{
     date: string;
     description: string;
     severity_weight: number | null;
     oos_violation: boolean;
-    challengeable: boolean | null;
     basic_category: string | null;
   }>;
   reportDate: string;
   generatedBy: string;
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const RED = "#C67A1E";
-// const GOLD = "#DAA520"; // available for future use
 const DARK = "#1E1C1A";
 const GRAY = "#6B6B6B";
 const LIGHT_GRAY = "#9B9B9B";
@@ -64,8 +73,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: DARK,
   },
-
-  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -105,8 +112,6 @@ const styles = StyleSheet.create({
     borderBottomColor: RED,
     marginBottom: 14,
   },
-
-  // ── Section ──────────────────────────────────────────────────────────────────
   section: {
     marginBottom: 16,
   },
@@ -121,8 +126,6 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER_GRAY,
     marginBottom: 8,
   },
-
-  // ── Carrier info grid ────────────────────────────────────────────────────────
   infoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -158,8 +161,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: GRAY,
   },
-
-  // ── Table ─────────────────────────────────────────────────────────────────────
   table: {
     flexDirection: "column",
     borderWidth: 1,
@@ -194,6 +195,12 @@ const styles = StyleSheet.create({
     color: DARK,
     padding: 5,
   },
+  tableCellBold: {
+    fontSize: 8,
+    color: DARK,
+    fontFamily: "Helvetica-Bold",
+    padding: 5,
+  },
   tableCellGray: {
     fontSize: 8,
     color: LIGHT_GRAY,
@@ -211,22 +218,18 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     padding: 5,
   },
-
-  // ── BASIC columns ─────────────────────────────────────────────────────────────
   basicColCategory: { flex: 3 },
   basicColMeasure: { flex: 1.2 },
   basicColPercentile: { flex: 1.2 },
   basicColStatus: { flex: 1 },
-
-  // ── Violation columns ─────────────────────────────────────────────────────────
+  caseColKind: { width: 58 },
+  caseColLabel: { flex: 2 },
+  caseColStatus: { flex: 2 },
   violColDate: { width: 58 },
   violColDesc: { flex: 3 },
   violColBasic: { flex: 1.5 },
   violColSeverity: { width: 48 },
   violColOos: { width: 36 },
-  violColChallenge: { width: 60 },
-
-  // ── Summary bullets ───────────────────────────────────────────────────────────
   bulletRow: {
     flexDirection: "row",
     marginBottom: 4,
@@ -252,16 +255,12 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 1.4,
   },
-
-  // ── Note ──────────────────────────────────────────────────────────────────────
   note: {
     fontSize: 7.5,
     color: GRAY,
     fontFamily: "Helvetica-Oblique",
     marginTop: 4,
   },
-
-  // ── Empty state ───────────────────────────────────────────────────────────────
   emptyState: {
     fontSize: 8,
     color: LIGHT_GRAY,
@@ -269,8 +268,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     textAlign: "center",
   },
-
-  // ── Footer ────────────────────────────────────────────────────────────────────
   footer: {
     position: "absolute",
     bottom: 24,
@@ -293,15 +290,13 @@ const styles = StyleSheet.create({
   },
 });
 
-// ── Helper functions ──────────────────────────────────────────────────────────
-
 function formatNum(val: number | null): string {
   if (val === null || val === undefined) return "N/A";
   return val.toFixed(1);
 }
 
 function formatPct(val: number | null): string {
-  if (val === null || val === undefined) return "N/A";
+  if (val === null || val === undefined) return "Not published";
   return `${Math.round(val)}th`;
 }
 
@@ -314,14 +309,12 @@ function safetyRatingColor(rating: string | null): "infoValue" | "infoValueSatis
 }
 
 function formatBasicCategory(cat: string | null): string {
-  if (!cat) return "—";
-  return cat
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  if (!cat) return "-";
+  return BASIC_LABELS[cat as keyof typeof BASIC_LABELS] ?? cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatDate(dateStr: string): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "-";
   try {
     const d = new Date(dateStr);
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -330,15 +323,14 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// ── Document ──────────────────────────────────────────────────────────────────
-
 export function SafetyReport({
   client,
   carrier,
   basics,
+  burden,
+  openCases,
   violations,
   reportDate,
-  generatedBy,
 }: SafetyReportProps) {
   const displayedViolations = violations.slice(0, 20);
   const hasMoreViolations = violations.length > 20;
@@ -348,18 +340,15 @@ export function SafetyReport({
     .filter((b) => b.alertIndicator === "Y")
     .map((b) => b.category);
 
-  const challengeableCount = violations.filter((v) => v.challengeable === true).length;
-
   const safetyRatingStyle = safetyRatingColor(carrier.safetyRating);
 
   return (
     <Document
-      title={`SafeScore Safety Report — ${client.name}`}
+      title={`SafeScore Safety Report - ${client.name}`}
       author="Golden Era Insurance Agency"
       subject="CSA Safety Performance Report"
     >
       <Page size="LETTER" style={styles.page}>
-        {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
@@ -372,7 +361,6 @@ export function SafetyReport({
         </View>
         <View style={styles.headerRule} />
 
-        {/* ── Carrier Overview ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Carrier Overview</Text>
           <View style={styles.infoGrid}>
@@ -393,9 +381,7 @@ export function SafetyReport({
             <View style={styles.infoCell}>
               <Text style={styles.infoLabel}>Location</Text>
               <Text style={styles.infoValue}>
-                {carrier.phyCity && carrier.phyState
-                  ? `${carrier.phyCity}, ${carrier.phyState}`
-                  : "—"}
+                {carrier.phyCity && carrier.phyState ? `${carrier.phyCity}, ${carrier.phyState}` : "-"}
               </Text>
             </View>
             <View style={styles.infoCell}>
@@ -408,20 +394,50 @@ export function SafetyReport({
             </View>
             <View style={styles.infoCell}>
               <Text style={styles.infoLabel}>Safety Rating</Text>
-              <Text style={styles[safetyRatingStyle]}>
-                {carrier.safetyRating || "Unrated"}
-              </Text>
+              <Text style={styles[safetyRatingStyle]}>{carrier.safetyRating || "Unrated"}</Text>
             </View>
             <View style={styles.infoCell}>
               <Text style={styles.infoLabel}>Operating Status</Text>
               <Text style={carrier.usdotStatus?.toLowerCase() === "active" ? styles.infoValueSatisfactory : styles.infoValueGray}>
-                {carrier.usdotStatus || "—"}
+                {carrier.usdotStatus || "-"}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* ── BASIC Performance Scores ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Weighted Violation Burden</Text>
+          {burden.perBasic.length === 0 ? (
+            <Text style={styles.emptyState}>No scored violations in the current 24-month window.</Text>
+          ) : (
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, styles.basicColCategory]}>BASIC</Text>
+                <Text style={[styles.tableHeaderCell, styles.basicColMeasure]}>Weighted Points</Text>
+                <Text style={[styles.tableHeaderCell, styles.basicColPercentile]}>Violations</Text>
+              </View>
+              {burden.perBasic.map((b, i) => {
+                const rowStyle = i % 2 === 1 ? styles.tableRowAlt : styles.tableRow;
+                return (
+                  <View key={`burden-${b.category}`} style={rowStyle}>
+                    <Text style={[styles.tableCell, styles.basicColCategory]}>{formatBasicCategory(b.category)}</Text>
+                    <Text style={[styles.tableCell, styles.basicColMeasure]}>{b.weightedPoints}</Text>
+                    <Text style={[styles.tableCell, styles.basicColPercentile]}>{b.violationCount}</Text>
+                  </View>
+                );
+              })}
+              <View style={styles.tableRowAlt}>
+                <Text style={[styles.tableCellBold, styles.basicColCategory]}>Total</Text>
+                <Text style={[styles.tableCellBold, styles.basicColMeasure]}>{burden.totalPoints}</Text>
+                <Text style={[styles.tableCellGray, styles.basicColPercentile]} />
+              </View>
+            </View>
+          )}
+          <Text style={styles.note}>
+            FMCSA does not publish percentile rankings for low-volume carriers; SafeScore tracks the weighted violation burden that drives the BASIC measures.
+          </Text>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>BASIC Performance Scores</Text>
           {basics.length === 0 ? (
@@ -435,8 +451,7 @@ export function SafetyReport({
                 <Text style={[styles.tableHeaderCell, styles.basicColStatus]}>Status</Text>
               </View>
               {basics.map((b, i) => {
-                const isAlt = i % 2 === 1;
-                const rowStyle = isAlt ? styles.tableRowAlt : styles.tableRow;
+                const rowStyle = i % 2 === 1 ? styles.tableRowAlt : styles.tableRow;
                 const isAlert = b.alertIndicator === "Y";
                 const hasData = b.alertIndicator !== null;
                 return (
@@ -456,13 +471,36 @@ export function SafetyReport({
               })}
             </View>
           )}
+          <Text style={styles.note}>Percentile not published by FMCSA for low-volume carriers.</Text>
         </View>
 
-        {/* ── Violations ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {`Recent Violations (${violations.length})`}
-          </Text>
+          <Text style={styles.sectionTitle}>Open Cases</Text>
+          {openCases.length === 0 ? (
+            <Text style={styles.emptyState}>No challenge cases open - burden addressed operationally.</Text>
+          ) : (
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, styles.caseColKind]}>Type</Text>
+                <Text style={[styles.tableHeaderCell, styles.caseColLabel]}>Case</Text>
+                <Text style={[styles.tableHeaderCell, styles.caseColStatus]}>Status</Text>
+              </View>
+              {openCases.map((c, i) => {
+                const rowStyle = i % 2 === 1 ? styles.tableRowAlt : styles.tableRow;
+                return (
+                  <View key={`case-${c.kind}-${c.label}`} style={rowStyle}>
+                    <Text style={[styles.tableCell, styles.caseColKind]}>{c.kind}</Text>
+                    <Text style={[styles.tableCell, styles.caseColLabel]}>{c.label}</Text>
+                    <Text style={[styles.tableCellGray, styles.caseColStatus]}>{c.status}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{`Recent Violations (${violations.length})`}</Text>
           {violations.length === 0 ? (
             <Text style={styles.emptyState}>No violations on record.</Text>
           ) : (
@@ -474,93 +512,64 @@ export function SafetyReport({
                   <Text style={[styles.tableHeaderCell, styles.violColBasic]}>BASIC</Text>
                   <Text style={[styles.tableHeaderCell, styles.violColSeverity]}>Severity</Text>
                   <Text style={[styles.tableHeaderCell, styles.violColOos]}>OOS</Text>
-                  <Text style={[styles.tableHeaderCell, styles.violColChallenge]}>Challengeable</Text>
                 </View>
                 {displayedViolations.map((v, i) => {
-                  const isAlt = i % 2 === 1;
-                  const rowStyle = isAlt ? styles.tableRowAlt : styles.tableRow;
+                  const rowStyle = i % 2 === 1 ? styles.tableRowAlt : styles.tableRow;
                   return (
                     <View key={`viol-${i}`} style={rowStyle}>
                       <Text style={[styles.tableCell, styles.violColDate]}>{formatDate(v.date)}</Text>
                       <Text style={[styles.tableCell, styles.violColDesc]}>{v.description}</Text>
-                      <Text style={[styles.tableCellGray, styles.violColBasic]}>
-                        {formatBasicCategory(v.basic_category)}
-                      </Text>
+                      <Text style={[styles.tableCellGray, styles.violColBasic]}>{formatBasicCategory(v.basic_category)}</Text>
                       <Text style={[styles.tableCell, styles.violColSeverity]}>
-                        {v.severity_weight !== null ? String(v.severity_weight) : "—"}
+                        {v.severity_weight !== null ? String(v.severity_weight) : "-"}
                       </Text>
                       {v.oos_violation ? (
                         <Text style={[styles.tableCellRed, styles.violColOos]}>Yes</Text>
                       ) : (
                         <Text style={[styles.tableCellGray, styles.violColOos]}>No</Text>
                       )}
-                      {v.challengeable === null ? (
-                        <Text style={[styles.tableCellGray, styles.violColChallenge]}>—</Text>
-                      ) : v.challengeable ? (
-                        <Text style={[styles.tableCellGreen, styles.violColChallenge]}>Yes</Text>
-                      ) : (
-                        <Text style={[styles.tableCellGray, styles.violColChallenge]}>No</Text>
-                      )}
                     </View>
                   );
                 })}
               </View>
               {hasMoreViolations && (
-                <Text style={styles.note}>
-                  {`Showing 20 of ${violations.length} violations`}
-                </Text>
+                <Text style={styles.note}>{`Showing 20 of ${violations.length} violations`}</Text>
               )}
             </>
           )}
         </View>
 
-        {/* ── Key Findings ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Key Findings</Text>
           <View style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>•</Text>
-            <Text style={styles.bulletText}>
-              {`Total violations on record: ${violations.length}`}
-            </Text>
+            <Text style={styles.bulletDot}>-</Text>
+            <Text style={styles.bulletText}>{`Total violations on record: ${violations.length}`}</Text>
           </View>
           <View style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>•</Text>
-            <Text style={styles.bulletText}>
-              {`Violations flagged as challengeable: ${challengeableCount}`}
-            </Text>
+            <Text style={styles.bulletDot}>-</Text>
+            <Text style={styles.bulletText}>{`Open challenge cases: ${openCases.length}`}</Text>
           </View>
           <View style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>•</Text>
-            <Text style={styles.bulletText}>
-              {`BASIC categories in alert status: ${alertCount}`}
-            </Text>
+            <Text style={styles.bulletDot}>-</Text>
+            <Text style={styles.bulletText}>{`BASIC categories in alert status: ${alertCount}`}</Text>
           </View>
           <View style={styles.bulletRow}>
-            <Text style={styles.bulletDot}>•</Text>
-            <Text style={styles.bulletText}>
-              {`Safety rating: ${carrier.safetyRating || "Unrated"}`}
-            </Text>
+            <Text style={styles.bulletDot}>-</Text>
+            <Text style={styles.bulletText}>{`Safety rating: ${carrier.safetyRating || "Unrated"}`}</Text>
           </View>
           {alertCount > 0 && (
             <View style={styles.bulletRow}>
-              <Text style={styles.bulletDot}>•</Text>
-              <Text style={styles.bulletTextBold}>
-                {`Immediate attention recommended for: ${alertCategories.join(", ")}`}
-              </Text>
+              <Text style={styles.bulletDot}>-</Text>
+              <Text style={styles.bulletTextBold}>{`Immediate attention recommended for: ${alertCategories.join(", ")}`}</Text>
             </View>
           )}
         </View>
 
-        {/* ── Footer (fixed position) ── */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerLeft}>
-            Golden Era Insurance Agency | SafeScore | Confidential
-          </Text>
+          <Text style={styles.footerLeft}>Golden Era Insurance Agency | SafeScore | Confidential</Text>
           <Text
             style={styles.footerRight}
-            render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} of ${totalPages}`
-            }
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
           />
         </View>
       </Page>

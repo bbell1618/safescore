@@ -1,13 +1,69 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getCarrier, getBasics } from "@/lib/fmcsa/client";
 import { SafetyReport } from "@/lib/pdf/safety-report";
+import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
 export const dynamic = "force-dynamic";
 
+type CaseKind = "CPDP" | "DataQ";
+
+type UserRow = {
+  role: string | null;
+  client_id: string | null;
+};
+
+type ClientRow = {
+  id: string;
+  name: string;
+  dot_number: string;
+  mc_number: string | null;
+};
+
+type CarrierSummary = {
+  legalName: string;
+  dotNumber: string;
+  phyCity: string;
+  phyState: string;
+  totalDrivers: number;
+  totalPowerUnits: number;
+  safetyRating: string | null;
+  usdotStatus: string | null;
+};
+
+type ViolationRow = {
+  violation_description: string | null;
+  created_at: string | null;
+  severity_weight: number | null;
+  oos_violation: boolean | null;
+  basic_category: string | null;
+};
+
+type CaseRow = {
+  id: string;
+  case_number: string | null;
+  status: string | null;
+};
+
+type BurdenBasic = {
+  basicCategory: string;
+  weightedPoints: number;
+  violationCount: number;
+};
+
+type BurdenResult = {
+  perBasic: BurdenBasic[];
+  totalPoints: number;
+};
+
+function isOpenCase(kind: CaseKind, status: string | null | undefined) {
+  if (!status) return false;
+  if (kind === "CPDP") return status === "filed" || status === "pending";
+  return status === "filed" || status === "pending_state" || status === "pending_fmcsa" || status === "reconsidering";
+}
+
 export async function POST(request: Request) {
-  // ── 1. Auth — get current user ──────────────────────────────────────────────
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,26 +76,25 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── 2. Determine role and client_id ──────────────────────────────────────────
   const serviceSupabase = await createServiceClient();
 
-  const { data: userRecord } = await serviceSupabase
+  const userResult = await serviceSupabase
     .from("users")
     .select("role, client_id")
     .eq("id", user.id)
-    .single() as any;
+    .single();
+  const userRecord = (userResult as unknown as { data: UserRow | null }).data;
 
   const role: string = userRecord?.role ?? "client_user";
 
   let clientId: string | null = null;
 
   if (role === "geia_admin" || role === "geia_staff") {
-    // Admin passes client_id in the request body
-    let body: any = {};
+    let body: { client_id?: string } = {};
     try {
-      body = await request.json();
+      body = await request.json() as { client_id?: string };
     } catch {
-      // empty body is fine — treat as missing client_id
+      // empty body is fine - treat as missing client_id
     }
     clientId = body?.client_id ?? null;
     if (!clientId) {
@@ -49,7 +104,6 @@ export async function POST(request: Request) {
       });
     }
   } else {
-    // Portal user — derive client_id from their user record
     clientId = userRecord?.client_id ?? null;
     if (!clientId) {
       return new Response(JSON.stringify({ error: "No client associated with this account" }), {
@@ -59,12 +113,12 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── 3. Fetch client record ───────────────────────────────────────────────────
-  const { data: client, error: clientError } = await serviceSupabase
+  const clientResult = await serviceSupabase
     .from("clients")
     .select("id, name, dot_number, mc_number")
     .eq("id", clientId)
-    .single() as any;
+    .single();
+  const { data: client, error: clientError } = clientResult as unknown as { data: ClientRow | null; error: unknown };
 
   if (clientError || !client) {
     return new Response(JSON.stringify({ error: "Client not found" }), {
@@ -73,8 +127,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── 4. Fetch carrier data from FMCSA ────────────────────────────────────────
-  let carrier: any = {
+  let carrier: CarrierSummary = {
     legalName: client.name,
     dotNumber: client.dot_number,
     phyCity: "",
@@ -101,7 +154,6 @@ export async function POST(request: Request) {
     console.warn("Could not fetch FMCSA carrier data:", e);
   }
 
-  // ── 5. Fetch BASIC scores ────────────────────────────────────────────────────
   let basics: Array<{
     category: string;
     measure: number | null;
@@ -132,56 +184,87 @@ export async function POST(request: Request) {
     console.warn("Could not fetch FMCSA BASIC data:", e);
   }
 
-  // ── 6. Fetch violations from Supabase ────────────────────────────────────────
-  const { data: violationRows } = await serviceSupabase
-    .from("violations")
-    .select("violation_description, created_at, severity_weight, oos_violation, challengeable, basic_category")
-    .eq("client_id", clientId)
-    .order("created_at", { ascending: false })
-    .limit(50) as any;
+  const [burdenRaw, violationResult, cpdpResult, dataqResult] = await Promise.all([
+    getClientBurden(clientId),
+    serviceSupabase
+      .from("violations")
+      .select("violation_description, created_at, severity_weight, oos_violation, basic_category")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    serviceSupabase
+      .from("cpdp_cases")
+      .select("id, case_number, status")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false }),
+    serviceSupabase
+      .from("dataq_cases")
+      .select("id, case_number, status")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const burden = burdenRaw as BurdenResult;
+  const violationRows = (violationResult as unknown as { data: ViolationRow[] | null }).data ?? [];
+  const cpdpRows = (cpdpResult as unknown as { data: CaseRow[] | null }).data ?? [];
+  const dataqRows = (dataqResult as unknown as { data: CaseRow[] | null }).data ?? [];
 
   const violations: Array<{
     date: string;
     description: string;
     severity_weight: number | null;
     oos_violation: boolean;
-    challengeable: boolean | null;
     basic_category: string | null;
-  }> = (violationRows ?? []).map((v: any) => ({
+  }> = violationRows.map((v) => ({
     date: v.created_at ?? "",
     description: v.violation_description ?? "",
     severity_weight: v.severity_weight ?? null,
     oos_violation: v.oos_violation ?? false,
-    challengeable: v.challengeable ?? null,
     basic_category: v.basic_category ?? null,
   }));
 
-  // ── 7. Build report date ─────────────────────────────────────────────────────
+  const openCases = [
+    ...cpdpRows
+      .filter((row) => isOpenCase("CPDP", row.status))
+      .map((row) => ({ kind: "CPDP" as const, label: row.case_number || row.id.slice(0, 8), status: row.status || "status pending" })),
+    ...dataqRows
+      .filter((row) => isOpenCase("DataQ", row.status))
+      .map((row) => ({ kind: "DataQ" as const, label: row.case_number || row.id.slice(0, 8), status: row.status || "status pending" })),
+  ];
+
   const today = new Date();
   const reportDate = today.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
-  const dateSlug = today.toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateSlug = today.toISOString().slice(0, 10);
 
-  // ── 8. Render PDF to buffer ──────────────────────────────────────────────────
   let pdfBuffer: Buffer;
   try {
-    pdfBuffer = await renderToBuffer(
-      React.createElement(SafetyReport, {
-        client: {
-          name: client.name,
-          dot_number: client.dot_number,
-          mc_number: client.mc_number ?? null,
-        },
-        carrier,
-        basics,
-        violations,
-        reportDate,
-        generatedBy: user.id,
-      }) as any
-    );
+    const reportDocument = React.createElement(SafetyReport, {
+      client: {
+        name: client.name,
+        dot_number: client.dot_number,
+        mc_number: client.mc_number ?? null,
+      },
+      carrier,
+      basics,
+      burden: {
+        perBasic: burden.perBasic.map((item) => ({
+          category: item.basicCategory,
+          weightedPoints: item.weightedPoints,
+          violationCount: item.violationCount,
+        })),
+        totalPoints: burden.totalPoints,
+      },
+      openCases,
+      violations,
+      reportDate,
+      generatedBy: user.id,
+    }) as Parameters<typeof renderToBuffer>[0];
+
+    pdfBuffer = await renderToBuffer(reportDocument);
   } catch (e) {
     console.error("PDF render error:", e);
     return new Response(JSON.stringify({ error: "Failed to generate PDF" }), {
@@ -190,21 +273,18 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── 9. Insert report record ──────────────────────────────────────────────────
   try {
     await serviceSupabase.from("reports").insert({
       client_id: clientId,
       report_type: "safety_score",
-      title: `Safety Report — ${client.name} — ${dateSlug}`,
+      title: `Safety Report - ${client.name} - ${dateSlug}`,
       status: "completed",
       generated_by: user.id,
-    } as any);
+    });
   } catch (e) {
-    // Non-fatal — PDF was generated, log and continue
     console.warn("Could not insert report record:", e);
   }
 
-  // ── 10. Return PDF ───────────────────────────────────────────────────────────
   return new Response(pdfBuffer as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
