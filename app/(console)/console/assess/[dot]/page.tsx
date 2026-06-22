@@ -1,4 +1,4 @@
-﻿import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
+import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
 import { AddClientForm } from "@/components/console/add-client-form";
 import { AlertTriangle, Truck, Users2 } from "lucide-react";
@@ -35,7 +35,7 @@ export default async function AssessPage({
           <p className="font-semibold text-[#C67A1E]">Could not fetch carrier data</p>
           <p className="text-sm text-gray-500 mt-1">{error}</p>
           <p className="text-xs text-gray-400 mt-3">
-            Make sure FMCSA_API_KEY is set, or use DOT 2533650 for the Nationwide mock.
+            Make sure FMCSA_API_KEY is configured.
           </p>
         </div>
       </div>

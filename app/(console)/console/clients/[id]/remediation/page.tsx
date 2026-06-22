@@ -9,8 +9,6 @@ import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-type BasicCategory = keyof typeof BASIC_LABELS;
-
 type ViolationRow = {
   id: string;
   inspection_id: string;
@@ -162,11 +160,18 @@ export default async function RemediationPage({
               Most carriers&apos; burden is operational and reduces as violations age out of the 24-month window; only genuine data errors and crash-preventability are challengeable.
             </p>
           </div>
-          {queue.excludedCount > 0 && (
-            <Badge variant="outline">
-              {queue.excludedCount} aged out / unscored excluded
-            </Badge>
-          )}
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {queue.excludedCount > 0 && (
+              <Badge variant="outline">
+                {queue.excludedCount} aged out / unscored excluded
+              </Badge>
+            )}
+            {queue.agedOutCrashCount > 0 && (
+              <Badge variant="outline">
+                {queue.agedOutCrashCount} crash{queue.agedOutCrashCount === 1 ? "" : "es"} aged out of the 24-month window
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -286,9 +291,24 @@ function buildQueue(
     }
   }
 
+  const crashCutoff = new Date();
+  crashCutoff.setMonth(crashCutoff.getMonth() - 24);
+
+  let agedOutCrashCount = 0;
   const laneA: LaneAItem[] = [...crashes]
     .sort((a, b) => (b.crash_date ?? "").localeCompare(a.crash_date ?? ""))
-    .map((crash) => ({ lane: "A", crash, caseRow: cpdpByCrash.get(crash.id) ?? null }));
+    .flatMap((crash) => {
+      const caseRow = cpdpByCrash.get(crash.id) ?? null;
+      const crashDate = crash.crash_date ? new Date(crash.crash_date + "T00:00:00") : null;
+      const inWindow = !crashDate || Number.isNaN(crashDate.getTime()) || crashDate >= crashCutoff;
+
+      if (!inWindow && !caseRow) {
+        agedOutCrashCount += 1;
+        return [];
+      }
+
+      return [{ lane: "A" as const, crash, caseRow }];
+    });
 
   const laneB: LaneBItem[] = [];
   const laneC: LaneCItem[] = [];
@@ -353,6 +373,7 @@ function buildQueue(
     laneCPoints,
     totalPoints: laneBPoints + laneCPoints,
     excludedCount,
+    agedOutCrashCount,
     priorityRows: [...laneA, ...laneB],
     operationalGroups,
   };
