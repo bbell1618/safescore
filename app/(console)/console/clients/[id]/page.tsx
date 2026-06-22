@@ -7,6 +7,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { diffSnapshots, getRecentSnapshots } from "@/lib/monitoring/diff";
 import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -221,6 +222,15 @@ function freshnessColor(saferAsOf: string | null): string {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+function signedDelta(value: number) {
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+function deltaClass(value: number) {
+  if (value < 0) return "text-green-700";
+  if (value > 0) return "text-[#B83B32]";
+  return "text-gray-500";
+}
 export default async function ClientDetailPage({
   params,
 }: {
@@ -317,7 +327,10 @@ export default async function ClientDetailPage({
     supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
   ]);
-  const burden = await getClientBurden(id);
+  const [burden, monitoringSnapshots] = await Promise.all([
+    getClientBurden(id),
+    getRecentSnapshots(id, 2),
+  ]);
 
   // Violation detail — fetch all fields needed for per-BASIC stats,
   // the bar chart, AND the points-ranked remediation queue.
@@ -514,6 +527,15 @@ export default async function ClientDetailPage({
   const saferAsOf = (carrierProfile as Record<string, unknown> | null)?.safer_as_of as string | null ?? null;
 
   const cp = carrierProfile as Record<string, unknown> | null;
+  const latestSnapshot = monitoringSnapshots[0] ?? null;
+  const previousSnapshot = monitoringSnapshots[1] ?? null;
+  const monitoringDiff =
+    latestSnapshot && previousSnapshot ? diffSnapshots(latestSnapshot, previousSnapshot) : null;
+  const monitoringPerBasicDeltas = monitoringDiff
+    ? [...monitoringDiff.perBasicDeltas].sort(
+        (a, b) => Math.abs(b.pointsDelta) - Math.abs(a.pointsDelta)
+      )
+    : [];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -865,6 +887,66 @@ export default async function ClientDetailPage({
         )}
       </div>
 
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="font-semibold text-[#1E1C1A] text-sm">Change since last refresh</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Snapshot-based net movement. Reductions are good; increases are factual follow-up items.
+            </p>
+          </div>
+        </div>
+
+        {latestSnapshot && previousSnapshot && monitoringDiff ? (
+          <div className="space-y-4">
+            <p className="text-sm font-medium text-[#1E1C1A]">
+              Change since {formatDate(previousSnapshot.snapshot_date)} -&gt; {formatDate(latestSnapshot.snapshot_date)}
+            </p>
+            <div className="grid gap-3 md:grid-cols-5">
+              {[
+                { label: "Weighted points", value: monitoringDiff.totalPointsDelta },
+                { label: "Violations", value: monitoringDiff.violationCountDelta },
+                { label: "OOS", value: monitoringDiff.oosCountDelta },
+                { label: "Inspections", value: monitoringDiff.inspectionCountDelta },
+                { label: "Crashes", value: monitoringDiff.crashCountDelta },
+              ].map((item) => (
+                <div key={item.label} className="bg-white rounded-lg border border-[#F0E8DA] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">{item.label}</p>
+                  <p className={`text-lg font-bold ${deltaClass(item.value)}`}>{signedDelta(item.value)}</p>
+                </div>
+              ))}
+            </div>
+
+            {monitoringPerBasicDeltas.length > 0 && (
+              <div className="bg-white rounded-lg border border-[#F0E8DA] divide-y divide-[#F0E8DA]">
+                {monitoringPerBasicDeltas.map((delta) => (
+                  <div key={delta.basicCategory} className="px-4 py-3 flex items-center justify-between gap-4">
+                    <span className="text-xs font-medium text-[#1E1C1A]">
+                      {BASIC_LABELS[delta.basicCategory] ?? delta.basicCategory.replaceAll("_", " ")}
+                    </span>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className={deltaClass(delta.pointsDelta)}>
+                        {signedDelta(delta.pointsDelta)} pts
+                      </span>
+                      <span className="text-gray-500">
+                        {signedDelta(delta.countDelta)} violations
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : latestSnapshot ? (
+          <p className="text-sm text-gray-600">
+            Monitoring active - {monitoringSnapshots.length} snapshot on file (as of {formatDate(latestSnapshot.snapshot_date)}). Change tracking begins at the next refresh.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Monitoring active - 0 snapshots on file. Change tracking begins after the first refresh.
+          </p>
+        )}
+      </div>
       {snapshot && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, ClipboardCheck, Shield, Wrench } from "lucide-react";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { diffSnapshots, getRecentSnapshots } from "@/lib/monitoring/diff";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -92,6 +93,13 @@ function burdenLevel(points: number, total: number) {
   if (share >= 0.45) return "major";
   if (share >= 0.18) return "moderate";
   return "minor";
+}
+
+function clientBurdenMovement(delta: number) {
+  const magnitude = Math.abs(delta);
+  if (delta < 0) return `down by ${magnitude}`;
+  if (delta > 0) return `up by ${magnitude}`;
+  return "unchanged";
 }
 
 function findThemes(descriptions: Array<string | null | undefined>, limit = 3) {
@@ -185,7 +193,13 @@ export default async function PortalPlanPage() {
 
   const clientId = userRecord.client_id;
 
-  const [{ data: client }, { data: cpdpCases }, { data: dataqCases }, burden] =
+  const [
+    { data: client },
+    { data: cpdpCases },
+    { data: dataqCases },
+    burden,
+    monitoringSnapshots,
+  ] =
     await Promise.all([
       supabase.from("clients").select("name, dot_number").eq("id", clientId).single(),
       supabase
@@ -199,6 +213,7 @@ export default async function PortalPlanPage() {
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
       getClientBurden(clientId),
+      getRecentSnapshots(clientId, 2),
     ]);
 
   if (!client) redirect("/portal");
@@ -218,6 +233,10 @@ export default async function PortalPlanPage() {
   const cpdpVisible = ((cpdpCases ?? []) as CpdpCaseRow[]).filter(isVisibleCpdpCase);
   const dataqVisible = ((dataqCases ?? []) as DataqCaseRow[]).filter(isVisibleDataqCase);
   const hasCases = cpdpVisible.length + dataqVisible.length > 0;
+  const latestSnapshot = monitoringSnapshots[0] ?? null;
+  const previousSnapshot = monitoringSnapshots[1] ?? null;
+  const monitoringDiff =
+    latestSnapshot && previousSnapshot ? diffSnapshots(latestSnapshot, previousSnapshot) : null;
 
   return (
     <div className="space-y-6">
@@ -278,6 +297,34 @@ export default async function PortalPlanPage() {
         )}
       </section>
 
+      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-3">What&apos;s changed recently</h2>
+        {latestSnapshot && previousSnapshot && monitoringDiff ? (
+          <div className="space-y-3 text-sm leading-6 text-gray-600 max-w-4xl">
+            <p>
+              Since {formatDate(previousSnapshot.snapshot_date)}, your safety burden is{" "}
+              {clientBurdenMovement(monitoringDiff.totalPointsDelta)}, moving from{" "}
+              {previousSnapshot.total_points} to {latestSnapshot.total_points}.
+            </p>
+            <p>
+              Tracked violations moved {previousSnapshot.violation_count} -&gt;{" "}
+              {latestSnapshot.violation_count}. This is the net movement in the record;
+              we&apos;ll keep watching the direction after each FMCSA refresh.
+            </p>
+          </div>
+        ) : latestSnapshot ? (
+          <p className="text-sm leading-6 text-gray-600 max-w-4xl">
+            Monitoring is active - your first month-over-month comparison will appear after
+            your next FMCSA refresh. We&apos;re tracking your record now (as of{" "}
+            {formatDate(latestSnapshot.snapshot_date)}).
+          </p>
+        ) : (
+          <p className="text-sm leading-6 text-gray-600 max-w-4xl">
+            Monitoring is active - your first month-over-month comparison will appear after
+            your next FMCSA refresh.
+          </p>
+        )}
+      </section>
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="px-5 py-4 border-b border-[#F0E8DA] flex items-center gap-2">
           <ClipboardCheck className="w-4 h-4 text-gray-400" />
