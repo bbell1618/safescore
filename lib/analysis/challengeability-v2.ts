@@ -1,60 +1,45 @@
 /**
- * Challengeability scoring v2 - grounds-only label model.
+ * Challengeability scoring v2 - evidence-driven label model.
  *
  * Challengeability answers whether there is a genuine evidentiary/procedural
  * ground to believe FMCSA's record is wrong. Score impact is still computed and
  * returned for transparency, but it is not part of the challengeability label.
  */
 
-// ---------------------------------------------------------------------------
-// Evidence obtainability lookup table
-// Adjust weights here; downstream consumers pick up the change automatically.
-// ---------------------------------------------------------------------------
+export type ChallengeTier =
+  | "strong"
+  | "moderate"
+  | "possibly"
+  | "not_challengeable"
+  | "operational";
 
 export const EVIDENCE_OBTAINABILITY_BY_TYPE: Record<string, number> = {
-  eld_record: 85,       // ELD/AOBRD data — high, client has it
+  eld_record: 85,
   driver_log: 75,
   vehicle_inspection: 65,
   hazmat_placard: 60,
-  officer_judgment: 20, // subjective — low
+  officer_judgment: 20,
   default: 50,
 };
 
-// ---------------------------------------------------------------------------
-// Interfaces
-// ---------------------------------------------------------------------------
-
 export interface ChallengeFactors {
-  /** Can the client realistically provide refuting documents? 0–100 */
   evidenceObtainability: number;
   evidenceObtainabilityNote: string;
-  /** Severity × recency × BASIC-elevated proxy — how much does winning move the score? 0–100 */
   scoreImpact: number;
   scoreImpactNote: string;
-  /** Is there a known procedural challenge vector? 0–100 */
   proceduralGrounds: number;
   proceduralGroundsNote: string;
 }
 
 export interface ChallengeScore {
-  /** Weighted composite 0–100 */
   overall: number;
-  /** overall >= 50 */
   challengeable: boolean;
   factors: ChallengeFactors;
-  label: "strong" | "moderate" | "weak" | "not_challengeable";
-  /** One-sentence human-readable explanation */
+  label: ChallengeTier;
   summary: string;
+  hypothesis: string;
 }
 
-// ---------------------------------------------------------------------------
-// Helper — evidence type inference
-// ---------------------------------------------------------------------------
-
-/**
- * Infers the most likely evidence type key (from EVIDENCE_OBTAINABILITY_BY_TYPE)
- * for a given BASIC category and violation code.
- */
 export function getEvidenceTypeForViolation(
   basicCategory: string | null,
   violationCode: string
@@ -62,46 +47,25 @@ export function getEvidenceTypeForViolation(
   const cat = basicCategory?.toLowerCase() ?? "";
   const code = violationCode?.toLowerCase() ?? "";
 
-  // HOS / ELD
   if (cat === "hos_compliance") {
     if (code.includes("eld") || code.includes("aobrd")) return "eld_record";
     return "driver_log";
   }
-
-  // Driver fitness — paper-based qualification file
   if (cat === "driver_fitness") return "driver_log";
-
-  // Vehicle maintenance — inspection report
   if (cat === "vehicle_maintenance") return "vehicle_inspection";
-
-  // Hazmat — placard / documentation
   if (cat === "hazmat_compliance") return "hazmat_placard";
-
-  // Controlled substances / driver behavior — largely officer judgment
   if (cat === "controlled_substance") return "officer_judgment";
-
-  // Crash indicator — reconstructed, partially officer judgment
   if (cat === "crash_indicator") return "officer_judgment";
-
-  // Unsafe driving — often officer judgment
   if (cat === "unsafe_driving") return "officer_judgment";
 
   return "default";
 }
 
-// ---------------------------------------------------------------------------
-// Internal scoring helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Score evidence obtainability for a violation.
- * Returns { score, note }.
- */
 function scoreEvidenceObtainability(
   evidenceType: string
 ): { score: number; note: string } {
   const score = EVIDENCE_OBTAINABILITY_BY_TYPE[evidenceType]
-    ?? EVIDENCE_OBTAINABILITY_BY_TYPE["default"];
+    ?? EVIDENCE_OBTAINABILITY_BY_TYPE.default;
 
   const notes: Record<string, string> = {
     eld_record:
@@ -111,24 +75,19 @@ function scoreEvidenceObtainability(
     vehicle_inspection:
       "Inspection/repair records should be in the maintenance file; completeness varies.",
     hazmat_placard:
-      "Placard documentation requires cross-referencing hazmat manifests — moderately obtainable.",
+      "Placard documentation requires cross-referencing hazmat manifests - moderately obtainable.",
     officer_judgment:
-      "Finding is based on officer observation; documentary rebuttal is difficult.",
+      "Finding is based on officer observation; documentary rebuttal is difficult unless the record itself is wrong.",
     default:
       "Evidence availability is uncertain for this violation type.",
   };
 
   return {
     score,
-    note: notes[evidenceType] ?? notes["default"],
+    note: notes[evidenceType] ?? notes.default,
   };
 }
 
-/**
- * Score how much impact a successful challenge would have.
- * Inputs: severityWeight (1–10 FMCSA scale), timeWeight (1=old, 2=mid, 3=recent),
- * and an optional BASIC percentile proxy.
- */
 function scoreImpact(
   severityWeight: number | null,
   timeWeight: number | null,
@@ -143,25 +102,18 @@ function scoreImpact(
 
   const sw = clamp(severityWeight ?? 5, 1, 10);
   const tw = clamp(timeWeight ?? 2, 1, 3);
-
-  // Severity normalized to 0–100
   const severityNorm = ((sw - 1) / 9) * 100;
-
-  // Time weight: recent violations carry more weight in SMS (FMCSA time-decay)
-  // tw=3 (recent) → full weight; tw=1 (old) → 33% weight
   const recencyFactor = tw / 3;
 
-  // BASIC percentile proxy: if percentile is known and elevated (>= 65 intervention threshold),
-  // the BASIC is already flagged — removing a violation in that BASIC has higher impact.
   let basicFactor = 1.0;
   let basicNote = "";
   if (basicPercentile != null) {
     if (basicPercentile >= 80) {
       basicFactor = 1.3;
-      basicNote = " The carrier's BASIC is in the alert threshold — impact of removal is amplified.";
+      basicNote = " The carrier's BASIC is in the alert threshold - impact of removal is amplified.";
     } else if (basicPercentile >= 65) {
       basicFactor = 1.15;
-      basicNote = " BASIC is near the intervention threshold — moderately elevated impact.";
+      basicNote = " BASIC is near the intervention threshold - moderately elevated impact.";
     } else {
       basicNote = " BASIC is below intervention threshold.";
     }
@@ -169,101 +121,193 @@ function scoreImpact(
 
   const raw = severityNorm * recencyFactor * basicFactor;
   const score = clamp(Math.round(raw), 0, 100);
-
   const note =
     `Severity weight ${sw}/10, time weight ${tw}/3 (recency).` +
-    (basicNote || " BASIC percentile not provided — standard impact assumed.");
+    (basicNote || " BASIC percentile not provided - standard impact assumed.");
 
   return { score, note };
 }
 
-/**
- * Score procedural grounds — likelihood that a known procedural challenge
- * vector exists for this violation category.
- */
-function scoreProceduralGrounds(
-  basicCategory: string | null,
-  oosViolation: boolean,
-  convicted: boolean | null,
-  challengeReason: string | null
-): { score: number; note: string } {
-  const cat = basicCategory?.toLowerCase() ?? "";
+function normalized(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
 
-  // STRONG, record-specific: positive evidence the citation was dismissed/reduced/not-guilty.
-  // The FMCSA feed carries no disposition; null is UNKNOWN, never "not convicted".
-  if (convicted === false) {
-    return { score: 90, note: "Citation recorded as dismissed/reduced/not-guilty - strong evidentiary ground for a DataQs challenge." };
+function isUnknownDisposition(citationResult: string | null | undefined) {
+  const result = normalized(citationResult);
+  return (
+    !result ||
+    result === "unknown" ||
+    result === "pending" ||
+    result === "not provided" ||
+    result === "n/a"
+  );
+}
+
+function isFavorableDisposition(citationResult: string | null | undefined) {
+  const result = normalized(citationResult);
+  return (
+    result.includes("dismiss") ||
+    result.includes("not guilty") ||
+    result.includes("no conviction") ||
+    result.includes("reduced") ||
+    result.includes("withdrawn")
+  );
+}
+
+function isUpheldDisposition(citationResult: string | null | undefined) {
+  const result = normalized(citationResult);
+  return (
+    result.includes("guilty") ||
+    result.includes("convict") ||
+    result.includes("upheld") ||
+    result.includes("paid") ||
+    result.includes("forfeit")
+  ) && !isFavorableDisposition(citationResult);
+}
+
+function hasRecordDefect(challengeReason: string | null | undefined) {
+  const reason = normalized(challengeReason);
+  return (
+    reason.includes("duplicate") ||
+    reason.includes("mismatch") ||
+    reason.includes("clerical") ||
+    reason.includes("incorrect") ||
+    reason.includes("wrong") ||
+    reason.includes("not carrier") ||
+    reason.includes("not our")
+  );
+}
+
+function isOperationalCategory(basicCategory: string | null | undefined) {
+  return [
+    "vehicle_maintenance",
+    "unsafe_driving",
+    "controlled_substance",
+    "hazmat_compliance",
+  ].includes(normalized(basicCategory));
+}
+
+function tierDecision(params: {
+  basicCategory: string | null;
+  citationNumber?: string | null;
+  citationResult?: string | null;
+  challengeReason: string | null;
+  oosViolation: boolean;
+  convicted: boolean | null;
+}): { label: ChallengeTier; proceduralScore: number; note: string; hypothesis: string } {
+  const cat = normalized(params.basicCategory);
+  const hasCitation = Boolean(params.citationNumber?.trim());
+  const unknownDisposition = isUnknownDisposition(params.citationResult);
+
+  if (isFavorableDisposition(params.citationResult) || params.convicted === false) {
+    return {
+      label: "strong",
+      proceduralScore: 90,
+      note: "Citation disposition indicates dismissal, reduction, not-guilty, or no conviction - confirmed DataQs ground.",
+      hypothesis: "Use the favorable court disposition to remove or correct the violation record.",
+    };
   }
 
-  // MODERATE, record-specific: a concrete defect/reason has been identified for THIS record.
-  if (challengeReason && challengeReason.trim().length > 10) {
-    return { score: 70, note: "A specific, record-level defect was identified - a concrete procedural ground to pursue DataQs." };
+  if (hasRecordDefect(params.challengeReason)) {
+    const duplicate = normalized(params.challengeReason).includes("duplicate");
+    return {
+      label: "moderate",
+      proceduralScore: 70,
+      note: duplicate
+        ? "A duplicate or record-level defect has been identified; evidence should confirm the duplicate before filing."
+        : "A clear record-level defect has been identified; evidence should confirm the mismatch before filing.",
+      hypothesis: duplicate
+        ? "Confirm whether FMCSA has duplicated the inspection or violation."
+        : "Confirm whether the inspection record was incorrectly coded or attributed.",
+    };
   }
 
-  // WEAK, category-level only: these categories are SOMETIMES challengeable, but a category
-  // alone is not a ground - treat as "worth a closer look", not a confirmed challenge.
-  if (cat === "hos_compliance") {
-    return { score: 30, note: "HOS violations are sometimes overturned on timeline/ELD-discrepancy grounds, but no record-specific discrepancy has been identified - review before treating as challengeable." };
-  }
-  if (cat === "driver_fitness") {
-    return { score: 28, note: "Driver-fitness findings can sometimes be cured with the qualification file, but no specific defect has been identified yet." };
+  if (hasCitation && unknownDisposition) {
+    return {
+      label: "possibly",
+      proceduralScore: 45,
+      note: "Citation exists, but the court disposition is unknown; do not call this not-challengeable until the disposition is known.",
+      hypothesis: "Investigate citation disposition before deciding whether a DataQs challenge exists.",
+    };
   }
 
-  // NOT challengeable: operational/observed violations with no record-specific ground.
-  if (oosViolation && cat === "vehicle_maintenance") {
-    return { score: 5, note: "OOS vehicle-maintenance finding - documented roadside condition; operational fix, not a data challenge." };
+  if (cat === "hos_compliance" || cat === "driver_fitness") {
+    return {
+      label: "possibly",
+      proceduralScore: 35,
+      note: "This category can turn on carrier-held records, but the current feed does not prove a defect either way.",
+      hypothesis:
+        cat === "hos_compliance"
+          ? "Review logs/ELD records and the inspection report for a timing or recording error."
+          : "Review the driver qualification file and inspection report for a documentation mismatch.",
+    };
   }
+
+  if (params.oosViolation && cat === "vehicle_maintenance" && !hasCitation) {
+    return {
+      label: "operational",
+      proceduralScore: 5,
+      note: "OOS vehicle-maintenance finding with no citation-disposition or record-defect signal; remedy is repair process and time decay.",
+      hypothesis: "Treat as an operational maintenance action unless later evidence shows the inspection record is wrong.",
+    };
+  }
+
+  if (isUpheldDisposition(params.citationResult) || params.convicted === true) {
+    return {
+      label: "not_challengeable",
+      proceduralScore: 5,
+      note: "Disposition indicates the citation or finding was upheld, and no separate record defect is present.",
+      hypothesis: "No DataQs path is currently supported by the available evidence.",
+    };
+  }
+
+  if (isOperationalCategory(cat)) {
+    return {
+      label: "operational",
+      proceduralScore: 10,
+      note: "No record-specific challenge ground is present; this is a coaching, shop, compliance, or time-decay action.",
+      hypothesis: "Work the operational fix and monitor decay unless new evidence reveals a record error.",
+    };
+  }
+
   return {
-    score: 10,
-    note: "No record-specific ground identified and disposition is unknown - operational, not a DataQs candidate.",
+    label: "possibly",
+    proceduralScore: 30,
+    note: "The feed lacks enough evidence to rule a challenge in or out; investigate before closing the door.",
+    hypothesis: "Review the inspection record and carrier-held documents for a record-specific defect.",
   };
 }
 
-// ---------------------------------------------------------------------------
-// Label mapping
-// ---------------------------------------------------------------------------
-
-function scoreToLabel(
-  overall: number
-): "strong" | "moderate" | "weak" | "not_challengeable" {
-  if (overall >= 75) return "strong";
-  if (overall >= 50) return "moderate";
-  if (overall >= 25) return "weak";
-  return "not_challengeable";
-}
-
 function buildSummary(
-  label: "strong" | "moderate" | "weak" | "not_challengeable",
+  label: ChallengeTier,
   overall: number,
-  factors: ChallengeFactors
+  note: string
 ): string {
-  void factors;
-
   switch (label) {
     case "strong":
-      return `Strong challenge candidate (score ${overall}) - a record-specific evidentiary ground exists (dismissed/reduced citation or an identified defect).`;
+      return `Strong challenge candidate (score ${overall}) - confirmed evidence supports a DataQs ground.`;
     case "moderate":
-      return `Moderate challenge candidate (score ${overall}) - a concrete record-level ground was identified; evidence obtainability sets the confidence.`;
-    case "weak":
-      return `Worth review, not a confirmed challenge (score ${overall}) - this category is sometimes challengeable, but no record-specific ground has been identified; treat as operational unless a specific defect is found.`;
+      return `Moderate challenge candidate (score ${overall}) - a record-level defect is indicated, but evidence still needs to confirm it.`;
+    case "possibly":
+      return `Investigate (score ${overall}) - plausible DataQs path, but evidence is missing; this is not a winnability claim. ${note}`;
     case "not_challengeable":
-      return `Not a challenge candidate (score ${overall}) - no record-specific ground; operational fix and natural 24-month decay.`;
+      return `Not challengeable (score ${overall}) - available evidence affirmatively shows no DataQs path.`;
+    case "operational":
+      return `Operational action (score ${overall}) - fix through coaching, maintenance, compliance controls, or time decay unless new evidence shows a record error.`;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
 
 export function scoreChallenge(params: {
   violationCode: string;
   basicCategory: string | null;
   severityWeight: number | null;
-  timeWeight: number | null;          // 0=aged off, 1=old, 2=mid, 3=recent
+  timeWeight: number | null;
   challengeReason: string | null;
   oosViolation: boolean;
-  convicted: boolean | null;          // null = unknown; never infer non-conviction
-  basicPercentile?: number | null;    // pass if available; null = use proxy
+  convicted: boolean | null;
+  citationNumber?: string | null;
+  citationResult?: string | null;
+  basicPercentile?: number | null;
 }): ChallengeScore {
   const evidenceType = getEvidenceTypeForViolation(
     params.basicCategory,
@@ -276,49 +320,39 @@ export function scoreChallenge(params: {
     params.timeWeight,
     params.basicPercentile
   );
-  const proceduralResult = scoreProceduralGrounds(
-    params.basicCategory,
-    params.oosViolation,
-    params.convicted,
-    params.challengeReason
-  );
+  const decision = tierDecision({
+    basicCategory: params.basicCategory,
+    citationNumber: params.citationNumber,
+    citationResult: params.citationResult,
+    challengeReason: params.challengeReason,
+    oosViolation: params.oosViolation,
+    convicted: params.convicted,
+  });
 
-  // Challengeability label reflects GROUNDS only - never score impact.
-  // Procedural/evidentiary grounds are primary; evidence obtainability can only
-  // modify a real ground DOWNWARD (you may have grounds but struggle to prove them).
-  // scoreImpact is still computed and returned in `factors` for display, but it is
-  // NOT part of the label - score impact is the prioritization axis (points), handled
-  // separately in basic-measure / the remediation queue.
   const overall = clamp(
-    Math.round(proceduralResult.score * (0.6 + 0.4 * (evidenceResult.score / 100))),
+    Math.round(decision.proceduralScore * (0.6 + 0.4 * (evidenceResult.score / 100))),
     0,
     100
   );
-
-  const challengeable = overall >= 50;
-  const label = scoreToLabel(overall);
 
   const factors: ChallengeFactors = {
     evidenceObtainability: evidenceResult.score,
     evidenceObtainabilityNote: evidenceResult.note,
     scoreImpact: impactResult.score,
     scoreImpactNote: impactResult.note,
-    proceduralGrounds: proceduralResult.score,
-    proceduralGroundsNote: proceduralResult.note,
+    proceduralGrounds: decision.proceduralScore,
+    proceduralGroundsNote: decision.note,
   };
 
   return {
     overall,
-    challengeable,
+    challengeable: decision.label === "strong" || decision.label === "moderate",
     factors,
-    label,
-    summary: buildSummary(label, overall, factors),
+    label: decision.label,
+    hypothesis: decision.hypothesis,
+    summary: buildSummary(decision.label, overall, decision.note),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);

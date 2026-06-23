@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 function isOpenCase(kind: "CPDP" | "DataQ", status: string | null | undefined) {
   if (!status) return false;
   if (kind === "CPDP") return status === "filed" || status === "pending";
-  return status === "filed" || status === "pending_state" || status === "pending_fmcsa" || status === "reconsidering";
+  return status === "investigating" || status === "filed" || status === "pending_state" || status === "pending_fmcsa" || status === "reconsidering";
 }
 
 export default async function ViolationsPage({
@@ -47,7 +47,7 @@ export default async function ViolationsPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("dataq_cases")
-      .select("id, case_number, status")
+      .select("id, case_number, status, violation_id")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     getClientBurden(id),
@@ -57,7 +57,7 @@ export default async function ViolationsPage({
     ...((cpdpCases ?? []) as Array<{ id: string; case_number: string | null; status: string | null }>)
       .filter((row) => isOpenCase("CPDP", row.status))
       .map((row) => ({ kind: "CPDP" as const, label: row.case_number || row.id.slice(0, 8), status: row.status || "status pending" })),
-    ...((dataqCases ?? []) as Array<{ id: string; case_number: string | null; status: string | null }>)
+    ...((dataqCases ?? []) as Array<{ id: string; case_number: string | null; status: string | null; violation_id: string | null }>)
       .filter((row) => isOpenCase("DataQ", row.status))
       .map((row) => ({ kind: "DataQ" as const, label: row.case_number || row.id.slice(0, 8), status: row.status || "status pending" })),
   ];
@@ -110,6 +110,7 @@ export default async function ViolationsPage({
       <ViolationAnalyzer
         clientId={id}
         violations={violations ?? []}
+        dataqCases={(dataqCases ?? []) as Array<{ id: string; violation_id: string | null; status: string | null }>}
       />
     </div>
   );

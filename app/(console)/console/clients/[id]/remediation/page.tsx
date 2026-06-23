@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { scoreChallenge, type ChallengeScore } from "@/lib/analysis/challengeability-v2";
+import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
 import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
 import { createClient } from "@/lib/supabase/server";
 import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,9 @@ type ViolationRow = {
   severity_weight: number | null;
   oos_violation: boolean;
   citation_number: string | null;
+  citation_result: string | null;
   convicted: boolean | null;
+  challenge_reason: string | null;
   inspections: { inspection_date: string | null; state: string | null } | null;
 };
 
@@ -39,6 +43,18 @@ type DataqCaseRow = {
   case_number: string | null;
 };
 
+type DataqEvidenceRow = {
+  case_id: string;
+  acquisition_method: string | null;
+};
+
+type EvidenceSummary = {
+  auto: number;
+  client: number;
+  manual: number;
+  total: number;
+};
+
 type CpdpCaseRow = {
   id: string;
   crash_id: string | null;
@@ -53,6 +69,16 @@ type LaneBItem = {
   points: number;
   challenge: ChallengeScore;
   caseRow: DataqCaseRow | null;
+};
+
+type LaneInvestigateItem = {
+  lane: "I";
+  violation: ViolationRow;
+  basicLabel: string;
+  points: number;
+  challenge: ChallengeScore;
+  caseRow: DataqCaseRow | null;
+  evidenceSummary: EvidenceSummary;
 };
 
 type LaneCItem = {
@@ -103,7 +129,7 @@ export default async function RemediationPage({
       supabase
         .from("violations")
         .select(
-          "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, convicted, inspections(inspection_date, state)"
+          "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, inspections(inspection_date, state)"
         )
         .eq("client_id", id),
       supabase
@@ -121,11 +147,20 @@ export default async function RemediationPage({
         .eq("client_id", id),
     ]);
 
+  const dataqCaseIds = (dataqCases ?? []).map((caseRow) => caseRow.id);
+  const { data: dataqEvidence } = dataqCaseIds.length
+    ? await supabase
+        .from("dataq_evidence")
+        .select("case_id, acquisition_method")
+        .in("case_id", dataqCaseIds)
+    : { data: [] };
+
   const queue = buildQueue(
     (violations ?? []) as unknown as ViolationRow[],
     (crashes ?? []) as unknown as CrashRow[],
     (dataqCases ?? []) as unknown as DataqCaseRow[],
-    (cpdpCases ?? []) as unknown as CpdpCaseRow[]
+    (cpdpCases ?? []) as unknown as CpdpCaseRow[],
+    (dataqEvidence ?? []) as unknown as DataqEvidenceRow[]
   );
 
   const laneBPercent = queue.totalPoints > 0 ? Math.round((queue.laneBPoints / queue.totalPoints) * 100) : 0;
@@ -154,12 +189,16 @@ export default async function RemediationPage({
           <div className="flex flex-wrap gap-2 shrink-0">
             {queue.excludedCount > 0 && (
               <Badge variant="outline">
-                {queue.excludedCount} aged out / unscored / uncategorized excluded
+                {queue.excludedCount} violations not counted in the score
+                <Tooltip
+                  content={`Excluded because they're older than 24 months, have no severity score, or have no BASIC category. ${queue.countedCount} counted + ${queue.excludedCount} excluded = ${queue.countedCount + queue.excludedCount} total.`}
+                  position="bottom"
+                />
               </Badge>
             )}
             {queue.agedOutCrashCount > 0 && (
               <Badge variant="outline">
-                {queue.agedOutCrashCount} crash{queue.agedOutCrashCount === 1 ? "" : "es"} aged out of the 24-month window
+                {queue.agedOutCrashCount} crash{queue.agedOutCrashCount === 1 ? "" : "es"} too old to count (over 24 months)
               </Badge>
             )}
           </div>
@@ -168,8 +207,8 @@ export default async function RemediationPage({
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">Priority actions</h2>
-          <p className="text-xs text-gray-500 mt-1">Crashes first, then moderate/strong DataQs candidates by point impact.</p>
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">Action queue</h2>
+          <p className="text-xs text-gray-500 mt-1">Crash preventability, investigation, confirmed challenge work, and operational remediation in one queue.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -210,6 +249,25 @@ export default async function RemediationPage({
                         </Link>
                       </td>
                     </tr>
+                  ) : item.lane === "I" ? (
+                    <tr key={`investigate-${item.violation.id}`} className="bg-[#FBF7F0]">
+                      <td className="px-5 py-4"><Badge variant="warning">I</Badge></td>
+                      <td className="px-5 py-4">
+                        <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
+                        <div className="text-xs text-gray-500 max-w-sm truncate">{item.violation.violation_description}</div>
+                      </td>
+                      <td className="px-5 py-4 text-gray-500">{item.basicLabel}</td>
+                      <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{item.points} pts</td>
+                      <td className="px-5 py-4 text-gray-600">
+                        Investigate evidence - Auto {item.evidenceSummary.auto} / Client {item.evidenceSummary.client} / Manual {item.evidenceSummary.manual}
+                      </td>
+                      <td className="px-5 py-4">{renderDataqStatus(item.caseRow)}</td>
+                      <td className="px-5 py-4">
+                        <Link className="text-[#C67A1E] hover:underline font-medium" href={item.caseRow ? `/console/clients/${id}/dataq?case=${item.caseRow.id}` : `/console/clients/${id}/violations`}>
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
                   ) : (
                     <tr key={`violation-${item.violation.id}`} className="bg-[#FBF7F0]">
                       <td className="px-5 py-4"><Badge variant="info">B</Badge></td>
@@ -222,7 +280,7 @@ export default async function RemediationPage({
                       <td className="px-5 py-4 text-gray-600">File DataQs challenge - {item.challenge.summary}</td>
                       <td className="px-5 py-4">{renderDataqStatus(item.caseRow)}</td>
                       <td className="px-5 py-4">
-                        <Link className="text-[#C67A1E] hover:underline font-medium" href={`/console/clients/${id}/dataq`}>
+                        <Link className="text-[#C67A1E] hover:underline font-medium" href={item.caseRow ? `/console/clients/${id}/dataq?case=${item.caseRow.id}` : `/console/clients/${id}/violations`}>
                           Open
                         </Link>
                       </td>
@@ -266,13 +324,21 @@ function buildQueue(
   violations: ViolationRow[],
   crashes: CrashRow[],
   dataqCases: DataqCaseRow[],
-  cpdpCases: CpdpCaseRow[]
+  cpdpCases: CpdpCaseRow[],
+  dataqEvidence: DataqEvidenceRow[]
 ) {
   const dataqByViolation = new Map<string, DataqCaseRow>();
   for (const c of dataqCases) {
     if (c.violation_id && !dataqByViolation.has(c.violation_id)) {
       dataqByViolation.set(c.violation_id, c);
     }
+  }
+
+  const evidenceByCase = new Map<string, EvidenceSummary>();
+  for (const row of dataqEvidence) {
+    const current = evidenceByCase.get(row.case_id) ?? emptyEvidenceSummary();
+    incrementEvidenceSummary(current, row.acquisition_method);
+    evidenceByCase.set(row.case_id, current);
   }
 
   const cpdpByCrash = new Map<string, CpdpCaseRow>();
@@ -302,8 +368,10 @@ function buildQueue(
     });
 
   const laneB: LaneBItem[] = [];
+  const laneInvestigate: LaneInvestigateItem[] = [];
   const laneC: LaneCItem[] = [];
   let excludedCount = 0;
+  let countedCount = 0;
 
   for (const violation of violations) {
     const timeWeight = timeWeightFor(violation.inspections?.inspection_date ?? null, new Date());
@@ -316,15 +384,18 @@ function buildQueue(
       excludedCount += 1;
       continue;
     }
+    countedCount += 1;
 
     const challenge = scoreChallenge({
       violationCode: violation.violation_code,
       basicCategory: violation.basic_category,
       severityWeight: violation.severity_weight,
       timeWeight,
-      challengeReason: null,
+      challengeReason: violation.challenge_reason,
       oosViolation: violation.oos_violation,
       convicted: violation.convicted,
+      citationNumber: violation.citation_number,
+      citationResult: violation.citation_result,
       basicPercentile: null,
     });
 
@@ -337,6 +408,30 @@ function buildQueue(
         challenge,
         caseRow: dataqByViolation.get(violation.id) ?? null,
       });
+    } else if (challenge.label === "possibly") {
+      const caseRow = dataqByViolation.get(violation.id) ?? null;
+      const generatedSummary = evidenceRequirementsSummary(
+        evidenceRequirementsForViolation(
+          {
+            violationCode: violation.violation_code,
+            violationDescription: violation.violation_description,
+            basicCategory: violation.basic_category,
+            citationNumber: violation.citation_number,
+            citationResult: violation.citation_result,
+            challengeReason: violation.challenge_reason,
+          },
+          challenge
+        )
+      );
+      laneInvestigate.push({
+        lane: "I",
+        violation,
+        basicLabel: BASIC_LABELS[violation.basic_category] ?? violation.basic_category,
+        points,
+        challenge,
+        caseRow,
+        evidenceSummary: caseRow ? evidenceByCase.get(caseRow.id) ?? generatedSummary : generatedSummary,
+      });
     } else {
       laneC.push({
         violation,
@@ -348,26 +443,52 @@ function buildQueue(
   }
 
   laneB.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
+  laneInvestigate.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
 
   const operationalGroups = [...groupOperational(laneC).values()].sort(
     (a, b) => b.points - a.points || b.count - a.count
   );
 
   const laneBPoints = laneB.reduce((sum, item) => sum + item.points, 0);
+  const laneInvestigatePoints = laneInvestigate.reduce((sum, item) => sum + item.points, 0);
   const laneCPoints = laneC.reduce((sum, item) => sum + item.points, 0);
 
   return {
     laneA,
     laneB,
+    laneInvestigate,
     laneC,
     laneBPoints,
+    laneInvestigatePoints,
     laneCPoints,
-    totalPoints: laneBPoints + laneCPoints,
+    totalPoints: laneBPoints + laneInvestigatePoints + laneCPoints,
+    countedCount,
     excludedCount,
     agedOutCrashCount,
-    priorityRows: [...laneA, ...laneB],
+    priorityRows: [...laneA, ...laneInvestigate, ...laneB],
     operationalGroups,
   };
+}
+
+function emptyEvidenceSummary(): EvidenceSummary {
+  return { auto: 0, client: 0, manual: 0, total: 0 };
+}
+
+function incrementEvidenceSummary(summary: EvidenceSummary, method: string | null) {
+  if (method === "auto") summary.auto += 1;
+  else if (method === "client") summary.client += 1;
+  else summary.manual += 1;
+  summary.total += 1;
+}
+
+function evidenceRequirementsSummary(
+  requirements: ReturnType<typeof evidenceRequirementsForViolation>
+): EvidenceSummary {
+  const summary = emptyEvidenceSummary();
+  for (const item of requirements) {
+    incrementEvidenceSummary(summary, item.acquisitionMethod);
+  }
+  return summary;
 }
 
 function groupOperational(items: LaneCItem[]) {

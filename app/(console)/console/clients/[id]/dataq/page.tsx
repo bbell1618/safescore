@@ -1,9 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { DataqWorkbench } from "@/components/console/dataq-workbench";
-import { caseStatusLabel, caseStatusVariant } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +37,8 @@ export default async function DataqPage({
         basic_category,
         severity_weight,
         oos_violation,
+        citation_number,
+        citation_result,
         challenge_reason,
         challenge_priority,
         inspection_id
@@ -60,7 +60,7 @@ export default async function DataqPage({
     ? await supabase
         .from("dataq_evidence")
         .select(
-          "id, case_id, doc_type, label, context_note, fmcsa_category, required, status, storage_path, uploaded_by"
+          "id, case_id, doc_type, label, context_note, fmcsa_category, required, status, storage_path, uploaded_by, acquisition_method, auto_source, needed_reason"
         )
         .in("case_id", caseIds)
     : { data: [] };
@@ -76,6 +76,9 @@ export default async function DataqPage({
     status: string;
     storage_path: string | null;
     uploaded_by: string | null;
+    acquisition_method: string | null;
+    auto_source: string | null;
+    needed_reason: string | null;
   }>> = {};
   for (const row of evidenceRows ?? []) {
     const cid = row.case_id as string;
@@ -90,6 +93,9 @@ export default async function DataqPage({
       status: row.status as string,
       storage_path: row.storage_path as string | null,
       uploaded_by: row.uploaded_by as string | null,
+      acquisition_method: row.acquisition_method as string | null,
+      auto_source: row.auto_source as string | null,
+      needed_reason: row.needed_reason as string | null,
     });
   }
 
@@ -115,9 +121,9 @@ export default async function DataqPage({
             DataQs workbench
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {cases?.length ?? 0} cases ·{" "}
+            {cases?.length ?? 0} cases{"\u00B7"}{" "}
             <span className="text-green-600 font-medium">{counts.approved ?? 0} approved</span>
-            {" · "}
+            {"\u00B7"}{" "}
             <span className="text-[#C67A1E] font-medium">{counts.denied ?? 0} denied</span>
           </p>
         </div>
@@ -132,6 +138,7 @@ export default async function DataqPage({
       {/* Pipeline summary */}
       <div className="flex gap-3 overflow-x-auto pb-1">
         {[
+          { status: "investigating", label: "Investigating" },
           { status: "draft", label: "Draft" },
           { status: "filed", label: "Filed" },
           { status: "pending_state", label: "Pending state" },

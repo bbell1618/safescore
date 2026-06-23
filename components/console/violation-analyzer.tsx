@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
+import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { formatDate } from "@/lib/utils";
-import { CheckCircle, Plus } from "lucide-react";
+import { CheckCircle, ExternalLink, Search } from "lucide-react";
 
 interface ViolationRow {
   id: string;
@@ -16,6 +17,8 @@ interface ViolationRow {
   time_weight: number | null;
   oos_violation: boolean;
   convicted: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
   challenge_reason: string | null;
   challenge_priority: string | null;
   ai_assessed_at: string | null;
@@ -30,13 +33,28 @@ interface ViolationRow {
 interface Props {
   clientId: string;
   violations: ViolationRow[];
+  dataqCases: DataqCaseRow[];
 }
 
-type Filter = "all" | "review" | "weak" | "not_challengeable";
+interface DataqCaseRow {
+  id: string;
+  violation_id: string | null;
+  status: string | null;
+}
 
-export function ViolationAnalyzer({ clientId, violations }: Props) {
+type Filter = "all" | "strong" | "moderate" | "possibly" | "not_challengeable" | "operational";
+
+export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
+  const [creatingCaseId, setCreatingCaseId] = useState<string | null>(null);
+  const [caseByViolation, setCaseByViolation] = useState<Record<string, DataqCaseRow>>(() => {
+    return Object.fromEntries(
+      dataqCases
+        .filter((caseRow) => caseRow.violation_id)
+        .map((caseRow) => [caseRow.violation_id as string, caseRow])
+    );
+  });
   const asOf = useMemo(() => new Date(), []);
 
   const scoredViolations = useMemo(() => {
@@ -50,42 +68,62 @@ export function ViolationAnalyzer({ clientId, violations }: Props) {
         challengeReason: violation.challenge_reason,
         oosViolation: violation.oos_violation,
         convicted: violation.convicted,
+        citationNumber: violation.citation_number,
+        citationResult: violation.citation_result,
         basicPercentile: null,
       });
 
-      return { violation, challengeScore };
+      const evidenceRequirements = evidenceRequirementsForViolation(
+        {
+          violationCode: violation.violation_code,
+          violationDescription: violation.violation_description,
+          basicCategory: violation.basic_category,
+          citationNumber: violation.citation_number,
+          citationResult: violation.citation_result,
+          challengeReason: violation.challenge_reason,
+        },
+        challengeScore
+      );
+
+      return { violation, challengeScore, evidenceRequirements };
     });
   }, [violations, asOf]);
 
   const filtered = useMemo(() => {
-    switch (filter) {
-      case "review":
-        return scoredViolations.filter(({ challengeScore }) => challengeScore.label === "strong" || challengeScore.label === "moderate");
-      case "weak":
-        return scoredViolations.filter(({ challengeScore }) => challengeScore.label === "weak");
-      case "not_challengeable":
-        return scoredViolations.filter(({ challengeScore }) => challengeScore.label === "not_challengeable");
-      default:
-        return scoredViolations;
-    }
+    if (filter === "all") return scoredViolations;
+    return scoredViolations.filter(({ challengeScore }) => challengeScore.label === filter);
   }, [scoredViolations, filter]);
 
   async function createDataqCase(violationId: string) {
-    const res = await fetch(`/api/cases/dataq`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, violationId }),
-    });
-    if (res.ok) {
-      const d = await res.json();
-      router.push(`/console/clients/${clientId}/dataq?case=${d.caseId}`);
+    setCreatingCaseId(violationId);
+    try {
+      const res = await fetch(`/api/violations/${violationId}/investigate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.caseId) {
+        setCaseByViolation((prev) => ({
+          ...prev,
+          [violationId]: {
+            id: data.caseId,
+            violation_id: violationId,
+            status: data.status ?? "investigating",
+          },
+        }));
+        router.refresh();
+      }
+    } finally {
+      setCreatingCaseId(null);
     }
   }
 
-function challengeLabelClass(label: string): string {
+  function challengeLabelClass(label: string): string {
   if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
   if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (label === "weak") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
+  if (label === "possibly") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+  if (label === "operational") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
   return "bg-gray-50 text-gray-500 border-gray-200";
 }
 
@@ -94,15 +132,35 @@ function basicLabel(basicCategory: string | null) {
   return basicCategory.replace(/_/g, " ");
 }
 
+  function tierLabel(label: string) {
+    if (label === "possibly") return "Investigate";
+    if (label === "not_challengeable") return "Not challengeable";
+    return label.replace(/_/g, " ");
+  }
+
+  function acquisitionLabel(method: string) {
+    if (method === "auto") return "Auto";
+    if (method === "client") return "From client";
+    return "Manual";
+  }
+
+  function acquisitionClass(method: string) {
+    if (method === "auto") return "bg-blue-50 text-blue-700 border-blue-100";
+    if (method === "client") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+    return "bg-gray-50 text-gray-600 border-gray-200";
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center justify-between gap-4">
         <div className="flex gap-2 flex-wrap">
           {([
             ["all", "All"],
-            ["review", "Strong/moderate review"],
-            ["weak", "Weak review"],
+            ["strong", "Strong"],
+            ["moderate", "Moderate"],
+            ["possibly", "Investigate"],
             ["not_challengeable", "Not challengeable"],
+            ["operational", "Operational"],
           ] as Array<[Filter, string]>).map(([value, label]) => (
             <button
               key={value}
@@ -118,7 +176,7 @@ function basicLabel(basicCategory: string | null) {
           ))}
         </div>
         <p className="text-xs text-gray-500">
-          Challenge labels are computed live from v2 grounds, not the legacy stored flag.
+          Tiers are computed live. Investigate means evidence is needed, not that the violation is removable.
         </p>
       </div>
 
@@ -143,8 +201,10 @@ function basicLabel(basicCategory: string | null) {
                 </td>
               </tr>
             ) : (
-              filtered.map(({ violation, challengeScore }) => {
-                const canCreateCase = challengeScore.label === "strong" || challengeScore.label === "moderate";
+              filtered.map(({ violation, challengeScore, evidenceRequirements }) => {
+                const canCreateCase = challengeScore.label === "strong" || challengeScore.label === "moderate" || challengeScore.label === "possibly";
+                const existingCase = caseByViolation[violation.id] ?? null;
+                const actionLabel = challengeScore.label === "possibly" ? "Investigate" : "Challenge";
 
                 return (
                   <tr key={violation.id} className="hover:bg-[#FBF7F0] transition-colors">
@@ -173,9 +233,24 @@ function basicLabel(basicCategory: string | null) {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
                           <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 ${challengeLabelClass(challengeScore.label)}`}>
-                            {challengeScore.label.replace(/_/g, " ")}{"\u00B7"} {challengeScore.overall}
+                            {tierLabel(challengeScore.label)}{"\u00B7"} {challengeScore.overall}
                           </span>
                         </div>
+                        {evidenceRequirements.length > 0 && (
+                          <div className="space-y-1.5">
+                            {evidenceRequirements.map((item) => (
+                              <div key={item.docType} className="rounded border border-[#F0E8DA] bg-white/70 p-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-semibold text-[#1E1C1A]">{item.label}</span>
+                                  <span className={`text-[9px] border rounded px-1.5 py-0.5 ${acquisitionClass(item.acquisitionMethod)}`}>
+                                    {acquisitionLabel(item.acquisitionMethod)}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1 leading-snug">{item.neededReason}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <div className="space-y-1 text-[10px] text-gray-500 leading-snug">
                           <p title={challengeScore.factors.evidenceObtainabilityNote}>
                             Evidence {challengeScore.factors.evidenceObtainability}: {challengeScore.factors.evidenceObtainabilityNote}
@@ -203,15 +278,24 @@ function basicLabel(basicCategory: string | null) {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {canCreateCase && (
+                      {existingCase ? (
+                        <a
+                          href={`/console/clients/${clientId}/dataq?case=${existingCase.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {existingCase.status === "investigating" ? "Investigating" : "Open case"}
+                        </a>
+                      ) : canCreateCase ? (
                         <button
                           onClick={() => createDataqCase(violation.id)}
+                          disabled={creatingCaseId === violation.id}
                           className="flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
                         >
-                          <Plus className="w-3 h-3" />
-                          Create case
+                          <Search className="w-3 h-3" />
+                          {creatingCaseId === violation.id ? "Creating..." : actionLabel}
                         </button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 );

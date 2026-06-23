@@ -44,6 +44,8 @@ export async function POST(request: Request) {
       challengeReason: null,
       oosViolation: !!v.oos_violation,
       convicted: v.convicted as boolean | null,
+      citationNumber: v.citation_number as string | null,
+      citationResult: v.citation_result as string | null,
       basicPercentile: null,
     });
     const priority =
@@ -78,7 +80,7 @@ export async function POST(request: Request) {
     client_id: clientId,
     action_type: "violation_assessed",
     entity_type: "violations",
-    description: `AI assessed ${results.length} violations — ${results.filter((r) => r.challengeable).length} flagged as challengeable`,
+    description: `AI assessed ${results.length} violations - ${results.filter((r) => r.challengeable).length} flagged as challengeable`,
   });
 
   return NextResponse.json({ assessed: results.length, results });

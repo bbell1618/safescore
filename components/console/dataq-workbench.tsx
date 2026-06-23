@@ -32,6 +32,8 @@ interface ViolationDetail {
   basic_category: string | null;
   severity_weight: number | null;
   oos_violation: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
   challenge_reason: string | null;
   challenge_priority: string | null;
   inspection_id: string | null;
@@ -76,6 +78,9 @@ export interface EvidenceItem {
   status: string;
   storage_path: string | null;
   uploaded_by: string | null;
+  acquisition_method: string | null;
+  auto_source: string | null;
+  needed_reason: string | null;
 }
 
 interface Props {
@@ -155,9 +160,22 @@ function EvidenceStatusPill({ status }: { status: string }) {
           : "bg-gray-100 text-gray-500"
       }`}
     >
-      {received ? "Received" : "Requested"}
+      {received ? "Received" : "Needed"}
     </span>
   );
+}
+
+function evidenceAcquisitionLabel(method: string | null) {
+  if (method === "auto") return "Auto";
+  if (method === "client") return "From client";
+  if (method === "manual") return "Manual";
+  return null;
+}
+
+function evidenceAcquisitionClass(method: string | null) {
+  if (method === "auto") return "bg-blue-50 text-blue-700 border-blue-100";
+  if (method === "client") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+  return "bg-gray-50 text-gray-600 border-gray-200";
 }
 
 export function DataqWorkbench({
@@ -624,7 +642,7 @@ export function DataqWorkbench({
           { label: "Filed", done: FILED_OR_RESOLVED.includes(c.status) },
         ];
 
-        const isDraft = c.status === "draft";
+        const isDraft = c.status === "draft" || c.status === "investigating";
         const isFiled = FILED_STATES.includes(c.status);
         const isResolved = RESOLVED_STATES.includes(c.status);
 
@@ -648,6 +666,8 @@ export function DataqWorkbench({
                 challengeReason: c.violations.challenge_reason,
                 oosViolation: c.violations.oos_violation ?? false,
                 convicted: null,
+                citationNumber: c.violations.citation_number,
+                citationResult: c.violations.citation_result,
               })
             : null;
 
@@ -1646,7 +1666,6 @@ interface EvidenceSectionProps {
 }
 
 function EvidenceSection({
-  caseId: _caseId,
   evidence,
   mode,
   sendingEvidenceRequest,
@@ -1704,11 +1723,27 @@ function EvidenceSection({
           key={ev.id}
           className="bg-white border border-[#F0E8DA] rounded-lg p-3 space-y-1.5"
         >
+          {(() => {
+            const acquisitionLabel = evidenceAcquisitionLabel(ev.acquisition_method);
+            return (
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#1E1C1A]">{ev.label}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-xs font-semibold text-[#1E1C1A]">{ev.label}</p>
+                {acquisitionLabel && (
+                  <span className={`text-[10px] border rounded px-1.5 py-0.5 ${evidenceAcquisitionClass(ev.acquisition_method)}`}>
+                    {acquisitionLabel}
+                  </span>
+                )}
+              </div>
               {ev.context_note && (
                 <p className="text-[11px] text-gray-500 mt-0.5">{ev.context_note}</p>
+              )}
+              {ev.needed_reason && (
+                <p className="text-[11px] text-gray-500 mt-0.5">{ev.needed_reason}</p>
+              )}
+              {ev.auto_source && (
+                <p className="text-[10px] text-blue-700 mt-0.5">Auto source: {ev.auto_source}</p>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -1725,6 +1760,8 @@ function EvidenceSection({
               <EvidenceStatusPill status={ev.status} />
             </div>
           </div>
+            );
+          })()}
 
           {/* Staff actions */}
           {mode === "draft" && (

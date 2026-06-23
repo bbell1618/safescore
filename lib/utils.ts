@@ -51,6 +51,7 @@ export function priorityVariant(priority: string): "danger" | "warning" | "info"
 
 export function caseStatusLabel(status: string): string {
   const labels: Record<string, string> = {
+    investigating: "Investigating",
     draft: "Draft",
     filed: "Filed",
     pending_state: "Pending state",
@@ -65,6 +66,7 @@ export function caseStatusLabel(status: string): string {
 
 export function caseStatusVariant(status: string): "default" | "info" | "warning" | "success" | "danger" | "outline" {
   const variants: Record<string, "default" | "info" | "warning" | "success" | "danger" | "outline"> = {
+    investigating: "warning",
     draft: "outline",
     filed: "info",
     pending_state: "warning",
