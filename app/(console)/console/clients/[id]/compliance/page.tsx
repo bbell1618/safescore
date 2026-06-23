@@ -1,9 +1,8 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, daysUntil } from "@/lib/utils";
-import { ChevronRight, User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
+import { User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
 import { AddDriverButton, AddVehicleButton } from "@/components/console/compliance-add-forms";
 
 export const dynamic = "force-dynamic";
@@ -50,15 +49,6 @@ export default async function CompliancePage({
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
-        <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
-        <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1E1C1A] font-medium">Compliance manager</span>
-      </div>
-
       <div className="flex items-center justify-between">
         <div>
           <h1
@@ -67,7 +57,7 @@ export default async function CompliancePage({
             Compliance manager
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Tier 3 — driver qualifications, fleet maintenance, and compliance audit framework
+            Tier 3 - driver qualifications, fleet maintenance, and compliance audit framework
           </p>
         </div>
         {client.tier !== "total_safety" && (
@@ -100,7 +90,7 @@ export default async function CompliancePage({
                     <div>
                       <p className="text-sm font-medium text-[#1E1C1A]">{d.full_name}</p>
                       <p className="text-xs text-gray-400">
-                        CDL exp: {formatDate(d.cdl_expiry)} · Med cert: {formatDate(d.medical_cert_expiry)}
+                        CDL exp: {formatDate(d.cdl_expiry)}{"\u00B7"} Med cert: {formatDate(d.medical_cert_expiry)}
                       </p>
                     </div>
                     {hasExpiring ? (
@@ -139,10 +129,10 @@ export default async function CompliancePage({
                 <div key={v.id} className="px-5 py-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-[#1E1C1A]">
-                      Unit {v.unit_number ?? "—"} · {v.year} {v.make} {v.model}
+                      Unit {v.unit_number ?? "\u2014"}{"\u00B7"} {v.year} {v.make} {v.model}
                     </p>
                     <p className="text-xs text-gray-400">
-                      VIN: {v.vin ?? "—"} · {v.license_plate} {v.plate_state}
+                      VIN: {v.vin ?? "\u2014"}{"\u00B7"} {v.license_plate} {v.plate_state}
                     </p>
                   </div>
                   <CheckCircle className="w-4 h-4 text-green-500" />
@@ -162,7 +152,7 @@ export default async function CompliancePage({
         <h2
           className="font-semibold text-[#1E1C1A] text-sm mb-4"
         >
-          Mock compliance review — 6 FMCSA audit areas
+          Mock compliance review - 6 FMCSA audit areas
         </h2>
         <div className="grid grid-cols-2 gap-3">
           {mockAuditAreas.map((area) => (

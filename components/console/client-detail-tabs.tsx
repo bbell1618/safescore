@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { label: "Violations", slug: "violations" },
   { label: "Crashes", slug: "cpdp" },
-  { label: "DataQs cases", slug: "dataq" },
+  { label: "DataQ cases", slug: "dataq" },
   { label: "Compliance", slug: "compliance" },
   { label: "Reports", slug: "reports" },
 ];

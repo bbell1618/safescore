@@ -539,7 +539,7 @@ export function DataqWorkbench({
     return (
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-12 text-center">
         <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-        <p className="text-sm text-gray-500">No DataQs cases yet</p>
+        <p className="text-sm text-gray-500">No DataQ cases yet</p>
         <p className="text-xs text-gray-400 mt-1">
           Go to the Violations tab and click &quot;Create case&quot; on a challengeable violation.
         </p>

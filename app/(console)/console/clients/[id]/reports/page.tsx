@@ -1,11 +1,10 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ReportGenerator } from "@/components/console/report-generator";
 import { DownloadReportButton } from "@/components/console/download-report-button";
 import { formatDate } from "@/lib/utils";
-import { ChevronRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -41,15 +40,6 @@ export default async function ReportsPage({
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
-        <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
-        <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1E1C1A] font-medium">Reports</span>
-      </div>
-
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1

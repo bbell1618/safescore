@@ -82,12 +82,17 @@ export function ViolationAnalyzer({ clientId, violations }: Props) {
     }
   }
 
-  function challengeLabelClass(label: string): string {
-    if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
-    if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
-    if (label === "weak") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
-    return "bg-gray-50 text-gray-500 border-gray-200";
-  }
+function challengeLabelClass(label: string): string {
+  if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
+  if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (label === "weak") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
+  return "bg-gray-50 text-gray-500 border-gray-200";
+}
+
+function basicLabel(basicCategory: string | null) {
+  if (!basicCategory) return "Uncategorized \u2014 excluded from BASIC scoring";
+  return basicCategory.replace(/_/g, " ");
+}
 
   return (
     <div className="space-y-4">
@@ -155,7 +160,7 @@ export function ViolationAnalyzer({ clientId, violations }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs text-gray-500">
-                        {violation.basic_category?.replace(/_/g, " ") ?? "--"}
+                        {basicLabel(violation.basic_category)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
@@ -168,7 +173,7 @@ export function ViolationAnalyzer({ clientId, violations }: Props) {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
                           <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 ${challengeLabelClass(challengeScore.label)}`}>
-                            {challengeScore.label.replace(/_/g, " ")} · {challengeScore.overall}
+                            {challengeScore.label.replace(/_/g, " ")}{"\u00B7"} {challengeScore.overall}
                           </span>
                         </div>
                         <div className="space-y-1 text-[10px] text-gray-500 leading-snug">

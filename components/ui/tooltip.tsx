@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 
 interface TooltipProps {
@@ -8,19 +9,19 @@ interface TooltipProps {
 
 export function Tooltip({ content, position = "top" }: TooltipProps) {
   const [open, setOpen] = useState(false);
+
   return (
     <span className="relative inline-flex items-center">
       <button
         type="button"
-        className="ml-1 text-gray-400 hover:text-[#C67A1E] focus:text-[#C67A1E] focus:outline-none text-[11px] leading-none"
+        className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#E4D7C4] text-[10px] font-semibold leading-none text-gray-400 hover:text-[#C67A1E] focus:text-[#C67A1E] focus:outline-none"
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         aria-label="More information"
-        tabIndex={0}
       >
-        ⓘ
+        i
       </button>
       {open && (
         <span

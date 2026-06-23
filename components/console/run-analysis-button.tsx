@@ -12,11 +12,11 @@ interface RunAnalysisButtonProps {
 }
 
 const PROGRESS_STEPS = [
-  "Pulling carrier profile…",
-  "Checking violations…",
-  "Importing crashes…",
-  "Assessing challengeability…",
-  "Finalizing…",
+  "Pulling carrier profile...",
+  "Checking violations...",
+  "Importing crashes...",
+  "Assessing challengeability...",
+  "Finalizing...",
 ];
 
 export function RunAnalysisButton({
@@ -54,6 +54,13 @@ export function RunAnalysisButton({
   }
 
   async function handleRun() {
+    if (hasData) {
+      const confirmed = window.confirm(
+        "Re-run public analysis for this client? This refreshes the public FMCSA snapshot and imported safety data."
+      );
+      if (!confirmed) return;
+    }
+
     setRunning(true);
     setError(null);
     setDone(false);
@@ -72,7 +79,7 @@ export function RunAnalysisButton({
       if (!res.ok) {
         setError(data.error ?? "Analysis failed");
       } else {
-        setSummary(`${data.violations} violations · ${data.crashes} crashes imported`);
+        setSummary(`${data.violations} violations \u00B7 ${data.crashes} crashes imported`);
         setDone(true);
         setTimeout(() => {
           router.refresh();
@@ -81,7 +88,7 @@ export function RunAnalysisButton({
         }, 2500);
       }
     } catch {
-      setError("Network error — try again");
+      setError("Network error \u2014 try again");
     } finally {
       stopProgressAnimation();
       setRunning(false);
@@ -99,6 +106,7 @@ export function RunAnalysisButton({
   return (
     <div className="flex flex-col gap-1">
       <button
+        type="button"
         onClick={handleRun}
         disabled={running}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1B2D4F] text-white rounded-lg hover:bg-[#2A4270] transition-colors disabled:opacity-50"

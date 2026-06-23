@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { scoreChallenge, type ChallengeScore } from "@/lib/analysis/challengeability-v2";
 import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
@@ -134,24 +133,16 @@ export default async function RemediationPage({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
-        <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
-        <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1E1C1A] font-medium">Remediation</span>
-      </div>
-
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-xl font-bold text-[#1E1C1A]">Remediation queue</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Total weighted violation burden:{" "}
+              In-window weighted violation burden:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.totalPoints} pts</span>.
-              {" "}Challengeable (DataQ):{" "}
+              {" "}Estimated points removable if successfully challenged:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.laneBPoints} pts ({laneBPercent}%)</span>.
-              {" "}Operational (not challengeable):{" "}
+              {" "}Operational burden that needs coaching, maintenance, or time decay:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.laneCPoints} pts ({laneCPercent}%)</span>.
               {" "}Plus <span className="font-semibold text-[#1E1C1A]">{queue.laneA.length}</span>{" "}
               crash{queue.laneA.length === 1 ? "" : "es"} flagged for CPDP review.
@@ -163,7 +154,7 @@ export default async function RemediationPage({
           <div className="flex flex-wrap gap-2 shrink-0">
             {queue.excludedCount > 0 && (
               <Badge variant="outline">
-                {queue.excludedCount} aged out / unscored excluded
+                {queue.excludedCount} aged out / unscored / uncategorized excluded
               </Badge>
             )}
             {queue.agedOutCrashCount > 0 && (
@@ -207,7 +198,7 @@ export default async function RemediationPage({
                       <td className="px-5 py-4"><Badge variant="gold">A</Badge></td>
                       <td className="px-5 py-4 font-medium text-[#1E1C1A]">
                         Crash {formatDate(item.crash.crash_date)}
-                        {item.crash.state ? ` · ${item.crash.state}` : ""}
+                        {item.crash.state ? ` \u00B7 ${item.crash.state}` : ""}
                       </td>
                       <td className="px-5 py-4 text-gray-500">Crash Indicator</td>
                       <td className="px-5 py-4 text-gray-500">crash</td>
@@ -228,7 +219,7 @@ export default async function RemediationPage({
                       </td>
                       <td className="px-5 py-4 text-gray-500">{item.basicLabel}</td>
                       <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{item.points} pts</td>
-                      <td className="px-5 py-4 text-gray-600">File DataQs challenge — {item.challenge.summary}</td>
+                      <td className="px-5 py-4 text-gray-600">File DataQs challenge - {item.challenge.summary}</td>
                       <td className="px-5 py-4">{renderDataqStatus(item.caseRow)}</td>
                       <td className="px-5 py-4">
                         <Link className="text-[#C67A1E] hover:underline font-medium" href={`/console/clients/${id}/dataq`}>
@@ -247,7 +238,7 @@ export default async function RemediationPage({
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">Operational burden (not challengeable)</h2>
-          <p className="text-xs text-gray-500 mt-1">Lane C is not filed against FMCSA — the remedy is operational + time decay, and SafeScore monitors the decay.</p>
+          <p className="text-xs text-gray-500 mt-1">Lane C is not filed against FMCSA - the remedy is operational + time decay, and SafeScore monitors the decay.</p>
         </div>
         <div className="divide-y divide-[#F0E8DA]">
           {queue.operationalGroups.length === 0 ? (
@@ -258,7 +249,7 @@ export default async function RemediationPage({
                 <div>
                   <div className="font-semibold text-[#1E1C1A] text-sm">{group.label}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {group.count} violation{group.count === 1 ? "" : "s"} · {group.points} pts
+                    {group.count} violation{group.count === 1 ? "" : "s"}{"\u00B7"} {group.points} pts
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">{group.recommendation}</p>

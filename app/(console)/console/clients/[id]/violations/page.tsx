@@ -1,11 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ViolationAnalyzer } from "@/components/console/violation-analyzer";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
-import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -66,20 +64,11 @@ export default async function ViolationsPage({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
-        <ChevronRight className="w-3 h-3" />
-        <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
-        <ChevronRight className="w-3 h-3" />
-        <span className="text-[#1E1C1A] font-medium">Violations</span>
-      </div>
-
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[#1E1C1A]">Violation analyzer</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {violations?.length ?? 0} violations · {burden.totalPoints} weighted points · {openCases.length} open case{openCases.length === 1 ? "" : "s"}
+            {violations?.length ?? 0} violations on file{"\u00B7"} {burden.totalPoints} in-window weighted burden{"\u00B7"} {openCases.length} open case{openCases.length === 1 ? "" : "s"}
           </p>
           <p className="text-xs text-gray-500 mt-1">
             FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
@@ -89,11 +78,11 @@ export default async function ViolationsPage({
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
-          <p className="text-xs text-gray-500">Total violations</p>
+          <p className="text-xs text-gray-500">Total violations on file</p>
           <p className="text-2xl font-bold text-[#1E1C1A] mt-1">{violations?.length ?? 0}</p>
         </div>
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
-          <p className="text-xs text-gray-500">Weighted points</p>
+          <p className="text-xs text-gray-500">In-window weighted burden</p>
           <p className="text-2xl font-bold text-[#C67A1E] mt-1">{burden.totalPoints}</p>
         </div>
         {burden.perBasic.slice(0, 2).map((b) => (
@@ -111,7 +100,7 @@ export default async function ViolationsPage({
           <div className="flex flex-wrap gap-2">
             {openCases.map((item) => (
               <Badge key={`${item.kind}-${item.label}`} variant="warning">
-                {item.kind} {item.label} · {item.status}
+                {item.kind} {item.label}{"\u00B7"} {item.status}
               </Badge>
             ))}
           </div>
