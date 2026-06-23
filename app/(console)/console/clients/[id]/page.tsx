@@ -12,25 +12,25 @@ import { ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-// â”€â”€ Tooltip copy (verbatim per spec) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Tooltip copy (verbatim per spec)
 
 const TT = {
   POWER_UNITS:
-    "Trucks and tractors the carrier operates, from its latest MCS-150. No fixed maximum. Used as the exposure denominator in several BASIC calculations â€” more units generally lowers per-unit violation rates.",
+    "Trucks and tractors the carrier operates, from its latest MCS-150. No fixed maximum. Used as the exposure denominator in several BASIC calculations \u2014 more units generally lowers per-unit violation rates.",
   DRIVERS:
     "Driver count from the latest MCS-150. No fixed maximum. This is the figure Total Safety per-driver billing reconciles to.",
   MCS150:
     "The carrier's most recent biennial census filing and the annual mileage reported with it. A stale MCS-150 distorts BASIC math; keeping it current is part of the service.",
   SAFETY_RATING:
-    "FMCSA's compliance-review rating: Satisfactory, Conditional, or Unsatisfactory. 'Unrated / Non-Ratable' means no rated review is on file â€” common and not negative.",
+    "FMCSA's compliance-review rating: Satisfactory, Conditional, or Unsatisfactory. 'Unrated / Non-Ratable' means no rated review is on file \u2014 common and not negative.",
   PERCENTILE:
-    "The carrier's rank versus similar carriers, 0â€“100. Higher is worse. FMCSA flags a category for intervention above a threshold that varies by BASIC (~50â€“75%). 'Not public' means FMCSA withholds it because the carrier has too few inspections to rank reliably.",
+    "The carrier's rank versus similar carriers, 0\u2013100. Higher is worse. FMCSA flags a category for intervention above a threshold that varies by BASIC (~50\u201375%). 'Not public' means FMCSA withholds it because the carrier has too few inspections to rank reliably.",
   ALERT:
     "Whether this BASIC is over FMCSA's intervention threshold. Over threshold = elevated scrutiny and intervention risk.",
   OOS_RATE:
-    "Share of this carrier's inspections that resulted in an out-of-service order, 0â€“100%. Lower is better. The reference line is the national average.",
+    "Share of this carrier's inspections that resulted in an out-of-service order, 0\u2013100%. Lower is better. The reference line is the national average.",
   NATIONAL_AVG:
-    "The all-carrier average OOS rate for this inspection type â€” FMCSA's reference point. Below it is good; above it is a flag.",
+    "The all-carrier average OOS rate for this inspection type \u2014 FMCSA's reference point. Below it is good; above it is a flag.",
   CRASHES:
     "State-reported crashes involving this carrier in the last 24 months, regardless of fault. They feed the Crash Indicator BASIC, weighted by severity (tow-away < injury < fatal). Some may be removable via the CPDP program.",
   VIOLATIONS:
@@ -39,7 +39,7 @@ const TT = {
     "Formal challenges (Requests for Data Review) to FMCSA disputing a violation or crash record. Successful challenges remove or correct the record, improving the score.",
 };
 
-// â”€â”€ Status / tier maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Status / tier maps
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
@@ -63,7 +63,7 @@ const tierLabel: Record<string, string> = {
   total_safety: "Total Safety",
 };
 
-// â”€â”€ Rule-based story strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Rule-based story strip
 
 interface CrashRow {
   tow_away: boolean;
@@ -103,7 +103,7 @@ function buildStoryStrip(
     ? sentences
     : ["No scored violation burden is currently present in the 24-month window."];
 }
-// â”€â”€ Data freshness dot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Data freshness dot
 
 function freshnessColor(saferAsOf: string | null): string {
   if (!saferAsOf) return "bg-gray-400";
@@ -115,7 +115,7 @@ function freshnessColor(saferAsOf: string | null): string {
   return "bg-red-500";
 }
 
-// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Page
 
 function signedDelta(value: number) {
   return value > 0 ? `+${value}` : `${value}`;
@@ -142,7 +142,7 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
-  // 24-month trailing window â€” matches FMCSA's Crash Indicator BASIC window.
+  // 24-month trailing window \u2014 matches FMCSA's Crash Indicator BASIC window.
   // Computed once and reused for both crashRows and cpdpCandidates so both
   // lists are consistent and the Dec 2022 crash is excluded from both.
   const now24str = new Intl.DateTimeFormat("sv-SE").format(new Date());
@@ -202,10 +202,10 @@ export default async function ClientDetailPage({
     getRecentSnapshots(id, 2),
   ]);
 
-  // Violation detail â€” fetch all fields needed for per-BASIC stats,
+  // Violation detail \u2014 fetch all fields needed for per-BASIC stats,
   // the bar chart, AND the points-ranked remediation queue.
   // time_weight is stored on violations (1=old, 2=mid, 3=recent).
-  // Per-violation score impact = severity_weight Ã— time_weight.
+  // Per-violation score impact = severity_weight \u00D7 time_weight.
   const { data: allViolations } = await supabase
     .from("violations")
     .select(
@@ -225,7 +225,7 @@ export default async function ClientDetailPage({
     violation_code: string | null;
     violation_description: string | null;
     inspections: { inspection_date: string } | null;
-    points: number; // severity_weight Ã— time_weight
+    points: number; // severity_weight \u00D7 time_weight
   }
 
   const violRows: ViolationRow[] = (allViolations ?? []).map((v) => {
@@ -333,7 +333,7 @@ export default async function ClientDetailPage({
         <span className="text-[#1E1C1A] font-medium">{client.name}</span>
       </div>
 
-      {/* â”€â”€ Section 1: Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 1: Header */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -415,7 +415,7 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* â”€â”€ Section 2: Story strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 2: Story strip */}
       {storySentences && storySentences.length > 0 && (
         <div className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
           <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-2">
@@ -424,7 +424,7 @@ export default async function ClientDetailPage({
           <ul className="space-y-1.5">
             {storySentences.map((sentence, i) => (
               <li key={i} className="text-sm text-[#1E1C1A] leading-relaxed flex gap-2">
-                <span className="text-[#C67A1E] shrink-0 mt-0.5">â€”</span>
+                <span className="text-[#C67A1E] shrink-0 mt-0.5">{"\u2014"}</span>
                 <span>{sentence}</span>
               </li>
             ))}
@@ -432,7 +432,7 @@ export default async function ClientDetailPage({
         </div>
       )}
 
-      {/* â”€â”€ Section 3: Carrier snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 3: Carrier snapshot */}
       {cp && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
@@ -446,7 +446,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.POWER_UNITS} />
               </div>
               <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
-                {cp.power_units != null ? String(cp.power_units) : "â€”"}
+                {cp.power_units != null ? String(cp.power_units) : "\u2014"}
               </p>
             </div>
             {/* Drivers */}
@@ -456,7 +456,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.DRIVERS} />
               </div>
               <p className="text-2xl font-bold text-[#1E1C1A] mt-1">
-                {cp.drivers != null ? String(cp.drivers) : "â€”"}
+                {cp.drivers != null ? String(cp.drivers) : "\u2014"}
               </p>
             </div>
             {/* MCS-150 */}
@@ -466,7 +466,7 @@ export default async function ClientDetailPage({
                 <Tooltip content={TT.MCS150} />
               </div>
               <p className="text-base font-bold text-[#1E1C1A] mt-1">
-                {cp.mcs150_date ? formatDate(cp.mcs150_date as string) : "â€”"}
+                {cp.mcs150_date ? formatDate(cp.mcs150_date as string) : "\u2014"}
               </p>
               {cp.mcs150_mileage != null && (
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -493,14 +493,14 @@ export default async function ClientDetailPage({
             <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
               <p className="text-xs text-gray-500">Authority Status</p>
               <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
-                {cp.authority_status ? String(cp.authority_status) : "â€”"}
+                {cp.authority_status ? String(cp.authority_status) : "\u2014"}
               </p>
             </div>
             {/* Entity Type */}
             <div className="bg-white rounded-lg border border-[#F0E8DA] p-4">
               <p className="text-xs text-gray-500">Entity Type</p>
               <p className="text-sm font-semibold text-[#1E1C1A] mt-1">
-                {cp.entity_type ? String(cp.entity_type) : "â€”"}
+                {cp.entity_type ? String(cp.entity_type) : "\u2014"}
               </p>
             </div>
           </div>
@@ -574,7 +574,7 @@ export default async function ClientDetailPage({
                         {v.violationDescription ?? ""}
                       </p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        {v.inspectionDate ? formatDate(v.inspectionDate) : "--"} Â· Severity {v.severityWeight ?? "--"} Â· Time weight {v.timeWeight}
+                        {v.inspectionDate ? formatDate(v.inspectionDate) : "--"} {"\u00B7"} Severity {v.severityWeight ?? "--"} {"\u00B7"} Time weight {v.timeWeight}
                       </p>
                     </div>
                     <span className="text-xs font-bold text-[#1E1C1A] shrink-0">
@@ -653,7 +653,7 @@ export default async function ClientDetailPage({
         )}
       </div>
 
-      {/* Section 6: Violations by BASIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 6: Violations by BASIC */}
       {violsByBasicSorted.length > 0 && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
           <div className="flex items-center gap-1 mb-4">
@@ -683,7 +683,7 @@ export default async function ClientDetailPage({
         </div>
       )}
 
-      {/* â”€â”€ Section 7: Crashes & CPDP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 7: Crashes & CPDP */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-1">
@@ -696,7 +696,7 @@ export default async function ClientDetailPage({
             href={`/console/clients/${id}/cpdp`}
             className="text-xs text-[#C67A1E] hover:underline"
           >
-            Review crashes for CPDP â†’
+            Review crashes for CPDP {"\u2192"}
           </Link>
         </div>
         {crashes24m.length > 0 ? (
@@ -730,20 +730,20 @@ export default async function ClientDetailPage({
         )}
       </div>
 
-      {/* â”€â”€ Section 8: Opportunities work queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 8: Opportunities work queue */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div className="flex items-start justify-between gap-4 mb-1">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">
             Remediation opportunities
           </h2>
           <span className="text-[10px] text-gray-400 shrink-0 mt-0.5">
-            Ranked by score impact (severity Ã— time weight)
+            Ranked by score impact (severity {"\u00D7"} time weight)
           </span>
         </div>
         {/* Framing note */}
         <p className="text-[11px] text-gray-400 mb-4 leading-relaxed">
           Points = estimated score impact if the violation is removed via a successful DataQ challenge
-          (FMCSA&apos;s published severity weight Ã— time weight). Removability is a separate assessment â€”
+          (FMCSA&apos;s published severity weight {"\u00D7"} time weight). Removability is a separate assessment {"\u2014"}
           high-impact does not mean challengeable. The authenticated SMS export would give FMCSA&apos;s exact
           computed contribution; this uses the published weighting as an approximation.
         </p>
@@ -766,7 +766,7 @@ export default async function ClientDetailPage({
                     <div className="flex items-center gap-3">
                       <span className="text-[11px] text-gray-400">
                         {bStats?.count ?? 0} violations
-                        {bStats?.oos ? ` Â· ${bStats.oos} OOS` : ""}
+                        {bStats?.oos ? ` \u00B7 ${bStats.oos} OOS` : ""}
                       </span>
                       <span className="text-[11px] font-semibold text-[#C67A1E] bg-[#FDF4E7] border border-amber-200 rounded px-2 py-0.5">
                         {bp.totalPoints} pts total
@@ -780,7 +780,7 @@ export default async function ClientDetailPage({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-xs font-semibold text-[#1E1C1A]">
-                              {v.violation_code ?? "â€”"}
+                              {v.violation_code ?? "\u2014"}
                             </span>
                             {v.oos_violation && (
                               <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
@@ -803,14 +803,14 @@ export default async function ClientDetailPage({
                               {v.points} pts
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              {v.severity_weight ?? 0}Ã—{v.time_weight ?? 1}
+                              {v.severity_weight ?? 0}{"\u00D7"}{v.time_weight ?? 1}
                             </p>
                           </div>
                           <Link
                             href={`/console/clients/${id}/dataq`}
                             className="text-xs text-[#C67A1E] hover:underline"
                           >
-                            Case â†’
+                            Case {"\u2192"}
                           </Link>
                         </div>
                       </div>
@@ -852,14 +852,14 @@ export default async function ClientDetailPage({
                   {cpdpCandidates.map((c) => (
                     <div key={c.id} className="flex items-center gap-3">
                       <p className="text-xs text-gray-600 flex-1">
-                        Tow-away â€” {formatDate(c.crash_date as string)}
+                        Tow-away {"\u2014"} {formatDate(c.crash_date as string)}
                         {c.state ? ` (${c.state})` : ""}
                       </p>
                       <Link
                         href={`/console/clients/${id}/cpdp`}
                         className="text-xs text-[#C67A1E] hover:underline shrink-0"
                       >
-                        Review â†’
+                        Review {"\u2192"}
                       </Link>
                     </div>
                   ))}
@@ -885,18 +885,18 @@ export default async function ClientDetailPage({
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#1E1C1A]">
-                        Case for {viol?.violation_code ?? "violation"} â€” created{" "}
+                        Case for {viol?.violation_code ?? "violation"} {"\u2014"} created{" "}
                         {formatDate(c.created_at as string)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Draft â€” narrative ready to finalize and file.
+                        Draft {"\u2014"} narrative ready to finalize and file.
                       </p>
                     </div>
                     <Link
                       href={`/console/clients/${id}/dataq`}
                       className="text-xs text-[#C67A1E] hover:underline shrink-0"
                     >
-                      File â†’
+                      File {"\u2192"}
                     </Link>
                   </div>
                 );
@@ -906,7 +906,7 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* â”€â”€ Section 9: DataQs cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Section 9: DataQs cases */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="px-5 py-3.5 border-b border-[#F0E8DA] flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -929,9 +929,9 @@ export default async function ClientDetailPage({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[#1E1C1A] truncate">
                     {Array.isArray(c.violations)
-                      ? `${(c.violations as { violation_code: string }[])[0]?.violation_code ?? "â€”"}`
+                      ? `${(c.violations as { violation_code: string }[])[0]?.violation_code ?? "\u2014"}`
                       : (c.violations as { violation_code: string } | null)
-                          ?.violation_code ?? "â€”"}
+                          ?.violation_code ?? "\u2014"}
                   </p>
                   <p className="text-xs text-gray-400">
                     {Array.isArray(c.violations)

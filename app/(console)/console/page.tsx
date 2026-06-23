@@ -138,7 +138,7 @@ export default async function ConsolePage() {
                         </div>
                         <p className="text-xs text-gray-400">
                           DOT {client.dot_number}
-                          {locationParts.length > 0 ? ` Â· ${locationParts.join(", ")}` : ""}
+                          {locationParts.length > 0 ? ` \u00B7 ${locationParts.join(", ")}` : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
