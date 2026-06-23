@@ -33,7 +33,20 @@ function parseFmcsaDate(dateStr: string | null | undefined): string | null {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, dot_number, mc_number, contact_email, contact_name, driver_count, tier } = body;
+    const {
+      name,
+      dot_number,
+      mc_number,
+      contact_email,
+      contact_name,
+      driver_count,
+      tier,
+      geia_client,
+      status,
+      city,
+      state,
+      fleet_size,
+    } = body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
@@ -57,6 +70,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const parsedDriverCount =
+      driver_count !== undefined && driver_count !== null && driver_count !== ""
+        ? Number(driver_count)
+        : null;
+    const parsedFleetSize =
+      fleet_size !== undefined && fleet_size !== null && fleet_size !== ""
+        ? Number(fleet_size)
+        : null;
+    const clientStatus = status === "prospect" ? "prospect" : "onboarding";
+
     const { data: client, error: insertError } = await supabase
       .from("clients")
       .insert({
@@ -65,10 +88,13 @@ export async function POST(request: Request) {
         mc_number: mc_number?.trim() || null,
         email: contact_email?.trim() || null,
         primary_contact: contact_name?.trim() || null,
-        driver_count: driver_count ? Number(driver_count) : null,
+        city: city?.trim() || null,
+        state: state?.trim() || null,
+        fleet_size: parsedFleetSize !== null && Number.isFinite(parsedFleetSize) ? parsedFleetSize : null,
+        driver_count: parsedDriverCount !== null && Number.isFinite(parsedDriverCount) ? parsedDriverCount : null,
         tier: tier ?? "monitor",
-        status: "onboarding",
-        geia_client: true,
+        status: clientStatus,
+        geia_client: Boolean(geia_client),
       })
       .select("id, name, dot_number")
       .single();

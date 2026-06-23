@@ -1,8 +1,12 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  ClientIntakeFields,
+  type ClientIntakeValues,
+} from "@/components/console/client-intake-fields";
 
 interface AddClientFormProps {
   dot: string;
@@ -15,8 +19,16 @@ interface AddClientFormProps {
 }
 
 export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCount }: AddClientFormProps) {
-  const [tier, setTier] = useState<"monitor" | "remediate" | "total_safety">("remediate");
-  const [geiaClient, setGeiaClient] = useState(false);
+  const [values, setValues] = useState<ClientIntakeValues>({
+    name,
+    dotNumber: dot,
+    mcNumber: mc,
+    contactName: "",
+    contactEmail: "",
+    tier: "remediate",
+    driverCount: driverCount ? String(driverCount) : "",
+    geiaClient: false,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -40,70 +52,50 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
       return;
     }
 
-    const { data, error: insertErr } = await supabase
-      .from("clients")
-      .insert({
-        dot_number: dot,
-        mc_number: mc || null,
-        name,
-        city,
-        state,
-        fleet_size: fleetSize,
-        driver_count: driverCount,
-        tier,
-        status: "prospect",
-        geia_client: geiaClient,
-      })
-      .select()
-      .single();
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: values.name,
+          dot_number: values.dotNumber,
+          mc_number: values.mcNumber || undefined,
+          contact_name: values.contactName || undefined,
+          contact_email: values.contactEmail || undefined,
+          driver_count: values.driverCount ? parseInt(values.driverCount, 10) : undefined,
+          tier: values.tier,
+          geia_client: values.geiaClient,
+          status: "prospect",
+          city,
+          state,
+          fleet_size: fleetSize,
+        }),
+      });
 
-    if (insertErr) {
-      setError(insertErr.message);
+      const result = await res.json();
+
+      if (!res.ok) {
+        setError(result.error ?? "Failed to create client");
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/console/clients/${result.client.id}`);
+    } catch {
+      setError("Network error \u2014 please try again");
       setLoading(false);
       return;
     }
-
-    router.push(`/console/clients/${data.id}`);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Carrier name</label>
-          <input
-            type="text"
-            defaultValue={name}
-            disabled
-            className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-gray-50 text-gray-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Service tier</label>
-          <select
-            value={tier}
-            onChange={(e) => setTier(e.target.value as typeof tier)}
-            className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
-          >
-            <option value="monitor">Monitor — $199/mo</option>
-            <option value="remediate">Remediate — $599/mo</option>
-            <option value="total_safety">Total Safety — $999+/mo</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="geia-client"
-          checked={geiaClient}
-          onChange={(e) => setGeiaClient(e.target.checked)}
-          className="rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
-        />
-        <label htmlFor="geia-client" className="text-sm text-gray-700">
-          This carrier is an existing GEIA insurance client (waives assessment fee)
-        </label>
-      </div>
+      <ClientIntakeFields
+        idPrefix="assess-client"
+        values={values}
+        onChange={setValues}
+        lockedFields={{ name: true, dotNumber: true }}
+      />
 
       {error && (
         <p className="text-sm text-[#C67A1E]">{error}</p>
@@ -111,7 +103,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !values.name.trim() || !values.dotNumber.trim()}
         className="px-5 py-2.5 bg-[#C67A1E] text-white rounded-lg text-sm font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-50"
       >
         {loading ? "Adding client..." : "Add as SafeScore client"}

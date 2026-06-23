@@ -5,6 +5,44 @@ import { AlertTriangle, Truck, Users2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+const BASIC_CONTEXT = {
+  unsafeDriving: {
+    caption: "Higher is worse; thresholds use peer percentiles.",
+    tooltip:
+      "FMCSA prioritizes Unsafe Driving at or above the percentile threshold for the carrier segment: 50% passenger, 60% HM, 65% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  hosCompliance: {
+    caption: "Higher is worse; thresholds use peer percentiles.",
+    tooltip:
+      "FMCSA prioritizes HOS Compliance at or above the percentile threshold for the carrier segment: 50% passenger, 60% HM, 65% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  driverFitness: {
+    caption: "Higher is worse; threshold depends on segment.",
+    tooltip:
+      "FMCSA prioritizes Driver Fitness at or above the percentile threshold for the carrier segment: 65% passenger, 75% HM, 80% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  controlledSubstances: {
+    caption: "Higher is worse; threshold depends on segment.",
+    tooltip:
+      "FMCSA prioritizes Controlled Substances/Alcohol at or above the percentile threshold for the carrier segment: 65% passenger, 75% HM, 80% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  vehicleMaintenance: {
+    caption: "Higher is worse; threshold depends on segment.",
+    tooltip:
+      "FMCSA prioritizes Vehicle Maintenance at or above the percentile threshold for the carrier segment: 65% passenger, 75% HM, 80% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  hmCompliance: {
+    caption: "Higher is worse; HM threshold is 80%.",
+    tooltip:
+      "FMCSA prioritizes HM Compliance at or above the percentile threshold: 80% for passenger, HM, and general carrier segments. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+  crashIndicator: {
+    caption: "Higher is worse; thresholds use peer percentiles.",
+    tooltip:
+      "FMCSA prioritizes Crash Indicator at or above the percentile threshold for the carrier segment: 50% passenger, 60% HM, 65% general. Low-volume carriers may show a raw measure without a public percentile.",
+  },
+};
+
 export default async function AssessPage({
   params,
 }: {
@@ -56,24 +94,21 @@ export default async function AssessPage({
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
           <a href="/console" className="hover:text-[#C67A1E]">Clients</a>
-          <span>›</span>
-          <span>Assessment — DOT {dot}</span>
+          <span>{"\u203A"}</span>
+          <span>Assessment {"\u2014"} DOT {dot}</span>
         </div>
         <div className="flex items-start justify-between">
           <div>
-            <h1
-              className="text-xl font-bold text-[#1E1C1A]"
-            >
+            <h1 className="text-xl font-bold text-[#1E1C1A]">
               {carrier.legalName}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               DOT {carrier.dotNumber}
-              {carrier.mcNumber ? ` · MC ${carrier.mcNumber}` : ""}
-              {" · "}
+              {carrier.mcNumber ? ` \u00B7 MC ${carrier.mcNumber}` : ""}
+              {" \u00B7 "}
               {carrier.phyCity}, {carrier.phyState}
             </p>
           </div>
@@ -88,7 +123,6 @@ export default async function AssessPage({
         </div>
       </div>
 
-      {/* Carrier info */}
       <div className="grid grid-cols-2 gap-3">
         {[
           { label: "Power units", value: carrier.totalPowerUnits, icon: Truck },
@@ -109,14 +143,11 @@ export default async function AssessPage({
         ))}
       </div>
 
-      {/* BASICs */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2
-          className="font-semibold text-[#1E1C1A] text-sm mb-4"
-        >
+        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
           BASIC scores
         </h2>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {basicsArray.map((b) => (
             <ScoreCard
               key={b.key}
@@ -124,17 +155,15 @@ export default async function AssessPage({
               measure={b.data?.measureValue ?? null}
               percentile={b.data?.percentile ?? null}
               alert={b.data?.alert}
+              context={BASIC_CONTEXT[b.key as keyof typeof BASIC_CONTEXT]}
             />
           ))}
         </div>
       </div>
 
-      {/* OOS Rates */}
       {oos && (
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h2
-            className="font-semibold text-[#1E1C1A] text-sm mb-4"
-          >
+          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
             Out-of-service rates
           </h2>
           <div className="grid grid-cols-3 gap-4">
@@ -164,7 +193,7 @@ export default async function AssessPage({
                       : "text-green-600"
                   }`}
                 >
-                  {item.value !== null ? `${item.value}%` : "—"}
+                  {item.value !== null ? `${item.value}%` : "\u2014"}
                 </p>
                 {item.national !== null && (
                   <p className="text-xs text-gray-400">National avg: {item.national}%</p>
@@ -175,18 +204,8 @@ export default async function AssessPage({
         </div>
       )}
 
-      {/* Inspection / crash history note */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <p className="text-sm text-gray-500">
-          Detailed inspection and violation history available after running full analysis for enrolled clients.
-        </p>
-      </div>
-
-      {/* Add as client */}
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2
-          className="font-semibold text-[#1E1C1A] text-sm mb-1"
-        >
+        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-1">
           Add as SafeScore client
         </h2>
         <p className="text-xs text-gray-500 mb-4">

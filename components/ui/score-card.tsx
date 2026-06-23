@@ -1,4 +1,5 @@
-﻿import { cn, scoreToColor, scoreToBg } from "@/lib/utils";
+import { cn, scoreToColor, scoreToBg } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle, Minus } from "lucide-react";
 
 interface ScoreCardProps {
@@ -7,9 +8,20 @@ interface ScoreCardProps {
   percentile: number | null;
   alert?: boolean;
   compact?: boolean;
+  context?: {
+    caption: string;
+    tooltip: string;
+  };
 }
 
-export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreCardProps) {
+export function ScoreCard({
+  label,
+  measure,
+  percentile,
+  alert,
+  compact,
+  context,
+}: ScoreCardProps) {
   const hasData = measure !== null;
 
   return (
@@ -21,9 +33,7 @@ export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreC
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p
-          className="text-xs font-medium text-gray-500 leading-tight"
-        >
+        <p className="text-xs font-medium text-gray-500 leading-tight">
           {label}
         </p>
         {hasData && alert && (
@@ -37,14 +47,18 @@ export function ScoreCard({ label, measure, percentile, alert, compact }: ScoreC
 
       {hasData ? (
         <>
-          <p
-            className={cn("text-2xl font-bold leading-none", scoreToColor(percentile))}
-          >
+          <p className={cn("text-2xl font-bold leading-none", scoreToColor(percentile))}>
             {measure?.toFixed(1)}
           </p>
           {percentile !== null && (
             <p className="text-xs text-gray-500">
               {percentile}th percentile
+            </p>
+          )}
+          {context && (
+            <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-black/5">
+              {context.caption}
+              <Tooltip content={context.tooltip} position="bottom" />
             </p>
           )}
         </>
