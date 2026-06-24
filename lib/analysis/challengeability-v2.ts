@@ -143,6 +143,21 @@ function isUnknownDisposition(citationResult: string | null | undefined) {
   );
 }
 
+function hasExplicitCitationNumber(citationNumber: string | null | undefined) {
+  return Boolean(citationNumber?.trim());
+}
+
+export function isCitationBackedViolationCode(violationCode: string | null | undefined) {
+  const code = normalized(violationCode).toUpperCase();
+  return (
+    code === "392.2" ||
+    code.startsWith("392.2-") ||
+    code === "392.2C" ||
+    code === "392.2RG" ||
+    code === "392.2SLSNC"
+  );
+}
+
 function isFavorableDisposition(citationResult: string | null | undefined) {
   const result = normalized(citationResult);
   return (
@@ -188,6 +203,7 @@ function isOperationalCategory(basicCategory: string | null | undefined) {
 }
 
 function tierDecision(params: {
+  violationCode: string;
   basicCategory: string | null;
   citationNumber?: string | null;
   citationResult?: string | null;
@@ -196,7 +212,9 @@ function tierDecision(params: {
   convicted: boolean | null;
 }): { label: ChallengeTier; proceduralScore: number; note: string; hypothesis: string } {
   const cat = normalized(params.basicCategory);
-  const hasCitation = Boolean(params.citationNumber?.trim());
+  const hasCitationNumber = hasExplicitCitationNumber(params.citationNumber);
+  const hasCitationBackedCode = isCitationBackedViolationCode(params.violationCode);
+  const hasCitationBasis = hasCitationNumber || hasCitationBackedCode;
   const unknownDisposition = isUnknownDisposition(params.citationResult);
 
   if (isFavorableDisposition(params.citationResult) || params.convicted === false) {
@@ -222,12 +240,17 @@ function tierDecision(params: {
     };
   }
 
-  if (hasCitation && unknownDisposition) {
+  if (hasCitationBasis && unknownDisposition) {
+    const note = hasCitationNumber
+      ? "Citation number is present, but the court disposition is unknown; do not call this not-challengeable until the disposition is known."
+      : "This is a citation-backed state/local-law violation code, but no court disposition is available; inspect the report and disposition before deciding whether a DataQs path exists.";
     return {
       label: "possibly",
       proceduralScore: 45,
-      note: "Citation exists, but the court disposition is unknown; do not call this not-challengeable until the disposition is known.",
-      hypothesis: "Investigate citation disposition before deciding whether a DataQs challenge exists.",
+      note,
+      hypothesis: hasCitationNumber
+        ? "Investigate citation disposition before deciding whether a DataQs challenge exists."
+        : "Review the inspection report for ticket/disposition details and any recording error before deciding whether a DataQs challenge exists.",
     };
   }
 
@@ -235,7 +258,7 @@ function tierDecision(params: {
     return {
       label: "possibly",
       proceduralScore: 35,
-      note: "This category can turn on carrier-held records, but the current feed does not prove a defect either way.",
+      note: "This category can turn on carrier-held records and inspection-report coding, but the current feed does not prove a defect; if the records match the inspection report, this is not challengeable.",
       hypothesis:
         cat === "hos_compliance"
           ? "Review logs/ELD records and the inspection report for a timing or recording error."
@@ -243,7 +266,7 @@ function tierDecision(params: {
     };
   }
 
-  if (params.oosViolation && cat === "vehicle_maintenance" && !hasCitation) {
+  if (params.oosViolation && cat === "vehicle_maintenance" && !hasCitationBasis) {
     return {
       label: "operational",
       proceduralScore: 5,
@@ -273,8 +296,8 @@ function tierDecision(params: {
   return {
     label: "possibly",
     proceduralScore: 30,
-    note: "The feed lacks enough evidence to rule a challenge in or out; investigate before closing the door.",
-    hypothesis: "Review the inspection record and carrier-held documents for a record-specific defect.",
+    note: "The roadside inspection report can be auto-reviewed for a recording error; if the record is accurate, this is not challengeable.",
+    hypothesis: "Review the inspection report and carrier-held documents for a record-specific defect before closing the door.",
   };
 }
 
@@ -321,6 +344,7 @@ export function scoreChallenge(params: {
     params.basicPercentile
   );
   const decision = tierDecision({
+    violationCode: params.violationCode,
     basicCategory: params.basicCategory,
     citationNumber: params.citationNumber,
     citationResult: params.citationResult,

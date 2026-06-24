@@ -68,7 +68,7 @@ export default async function ViolationsPage({
         <div>
           <h1 className="text-xl font-bold text-[#1E1C1A]">Violation analyzer</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {violations?.length ?? 0} violations on file{"\u00B7"} {burden.totalPoints} in-window weighted burden{"\u00B7"} {openCases.length} open case{openCases.length === 1 ? "" : "s"}
+            {violations?.length ?? 0} violations on file {"\u00B7"} {burden.totalPoints} in-window weighted burden {"\u00B7"} {openCases.length} open case{openCases.length === 1 ? "" : "s"}
           </p>
           <p className="text-xs text-gray-500 mt-1">
             FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
@@ -100,7 +100,7 @@ export default async function ViolationsPage({
           <div className="flex flex-wrap gap-2">
             {openCases.map((item) => (
               <Badge key={`${item.kind}-${item.label}`} variant="warning">
-                {item.kind} {item.label}{"\u00B7"} {item.status}
+                {item.kind} {item.label} {"\u00B7"} {item.status}
               </Badge>
             ))}
           </div>

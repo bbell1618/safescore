@@ -216,7 +216,7 @@ async function ensureEvidenceRows(
       doc_type: item.docType,
       label: item.label,
       required: true,
-      status: "requested",
+      status: "needed",
       acquisition_method: item.acquisitionMethod,
       auto_source: item.autoSource ?? null,
       needed_reason: item.neededReason,

@@ -1,12 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
-import { timeWeightFor } from "@/lib/analysis/basic-measure";
+import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
 import { formatDate } from "@/lib/utils";
-import { CheckCircle, ExternalLink, Search } from "lucide-react";
+import {
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Search,
+} from "lucide-react";
 
 interface ViolationRow {
   id: string;
@@ -30,23 +36,40 @@ interface ViolationRow {
   } | null;
 }
 
-interface Props {
-  clientId: string;
-  violations: ViolationRow[];
-  dataqCases: DataqCaseRow[];
-}
-
 interface DataqCaseRow {
   id: string;
   violation_id: string | null;
   status: string | null;
 }
 
-type Filter = "all" | "strong" | "moderate" | "possibly" | "not_challengeable" | "operational";
+interface Props {
+  clientId: string;
+  violations: ViolationRow[];
+  dataqCases: DataqCaseRow[];
+}
+
+type TierFilter =
+  | "all"
+  | "strong"
+  | "moderate"
+  | "possibly"
+  | "not_challengeable"
+  | "operational";
+type SeverityFilter = "all" | "8plus" | "5plus" | "under5" | "unscored";
+type SortField = "date" | "points" | "severity";
+type SortDirection = "asc" | "desc";
 
 export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("all");
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
+  const [searchText, setSearchText] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [basicFilter, setBasicFilter] = useState("all");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [creatingCaseId, setCreatingCaseId] = useState<string | null>(null);
   const [caseByViolation, setCaseByViolation] = useState<Record<string, DataqCaseRow>>(() => {
     return Object.fromEntries(
@@ -59,7 +82,14 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
 
   const scoredViolations = useMemo(() => {
     return violations.map((violation) => {
-      const computedTimeWeight = timeWeightFor(violation.inspections?.inspection_date ?? null, asOf);
+      const computedTimeWeight = timeWeightFor(
+        violation.inspections?.inspection_date ?? null,
+        asOf
+      );
+      const points =
+        violation.severity_weight != null && computedTimeWeight > 0
+          ? computedTimeWeight * (violation.severity_weight + (violation.oos_violation ? 2 : 0))
+          : 0;
       const challengeScore = scoreChallenge({
         violationCode: violation.violation_code ?? "",
         basicCategory: violation.basic_category ?? null,
@@ -85,14 +115,59 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
         challengeScore
       );
 
-      return { violation, challengeScore, evidenceRequirements };
+      return { violation, challengeScore, evidenceRequirements, points };
     });
   }, [violations, asOf]);
 
+  const basicOptions = useMemo(() => {
+    return Array.from(
+      new Set(violations.map((violation) => violation.basic_category).filter(Boolean) as string[])
+    ).sort();
+  }, [violations]);
+
   const filtered = useMemo(() => {
-    if (filter === "all") return scoredViolations;
-    return scoredViolations.filter(({ challengeScore }) => challengeScore.label === filter);
-  }, [scoredViolations, filter]);
+    const query = searchText.trim().toLowerCase();
+    const rows = scoredViolations.filter(({ violation, challengeScore }) => {
+      if (tierFilter !== "all" && challengeScore.label !== tierFilter) return false;
+      if (basicFilter !== "all" && violation.basic_category !== basicFilter) return false;
+
+      const severity = violation.severity_weight;
+      if (severityFilter === "8plus" && (severity == null || severity < 8)) return false;
+      if (severityFilter === "5plus" && (severity == null || severity < 5)) return false;
+      if (severityFilter === "under5" && (severity == null || severity >= 5)) return false;
+      if (severityFilter === "unscored" && severity != null) return false;
+
+      const inspectionDate = violation.inspections?.inspection_date ?? "";
+      if (dateFrom && (!inspectionDate || inspectionDate < dateFrom)) return false;
+      if (dateTo && (!inspectionDate || inspectionDate > dateTo)) return false;
+
+      if (query) {
+        const haystack = `${violation.violation_code ?? ""} ${violation.violation_description ?? ""}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+
+      return true;
+    });
+
+    return [...rows].sort((a, b) => {
+      const multiplier = sortDirection === "asc" ? 1 : -1;
+      if (sortField === "points") return (a.points - b.points) * multiplier;
+      if (sortField === "severity") {
+        return ((a.violation.severity_weight ?? -1) - (b.violation.severity_weight ?? -1)) * multiplier;
+      }
+      return ((a.violation.inspections?.inspection_date ?? "").localeCompare(b.violation.inspections?.inspection_date ?? "")) * multiplier;
+    });
+  }, [
+    basicFilter,
+    dateFrom,
+    dateTo,
+    scoredViolations,
+    searchText,
+    severityFilter,
+    sortDirection,
+    sortField,
+    tierFilter,
+  ]);
 
   async function createDataqCase(violationId: string) {
     setCreatingCaseId(violationId);
@@ -119,40 +194,22 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
     }
   }
 
-  function challengeLabelClass(label: string): string {
-  if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
-  if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (label === "possibly") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
-  if (label === "operational") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
-  return "bg-gray-50 text-gray-500 border-gray-200";
-}
-
-function basicLabel(basicCategory: string | null) {
-  if (!basicCategory) return "Uncategorized \u2014 excluded from BASIC scoring";
-  return basicCategory.replace(/_/g, " ");
-}
-
-  function tierLabel(label: string) {
-    if (label === "possibly") return "Investigate";
-    if (label === "not_challengeable") return "Not challengeable";
-    return label.replace(/_/g, " ");
+  function toggleExpanded(violationId: string) {
+    setExpandedIds((prev) => ({ ...prev, [violationId]: !prev[violationId] }));
   }
 
-  function acquisitionLabel(method: string) {
-    if (method === "auto") return "Auto";
-    if (method === "client") return "From client";
-    return "Manual";
-  }
-
-  function acquisitionClass(method: string) {
-    if (method === "auto") return "bg-blue-50 text-blue-700 border-blue-100";
-    if (method === "client") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
-    return "bg-gray-50 text-gray-600 border-gray-200";
+  function setSort(field: SortField) {
+    if (sortField === field) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortField(field);
+    setSortDirection(field === "date" ? "desc" : "desc");
   }
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center justify-between gap-4">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 space-y-4">
         <div className="flex gap-2 flex-wrap">
           {([
             ["all", "All"],
@@ -161,12 +218,12 @@ function basicLabel(basicCategory: string | null) {
             ["possibly", "Investigate"],
             ["not_challengeable", "Not challengeable"],
             ["operational", "Operational"],
-          ] as Array<[Filter, string]>).map(([value, label]) => (
+          ] as Array<[TierFilter, string]>).map(([value, label]) => (
             <button
               key={value}
-              onClick={() => setFilter(value)}
+              onClick={() => setTierFilter(value)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                filter === value
+                tierFilter === value
                   ? "bg-[#1B2D4F] text-white"
                   : "bg-[#FEFCF8] text-gray-600 hover:bg-gray-200"
               }`}
@@ -175,6 +232,66 @@ function basicLabel(basicCategory: string | null) {
             </button>
           ))}
         </div>
+
+        <div className="grid gap-3 lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr_0.8fr]">
+          <label className="text-xs text-gray-500">
+            Search
+            <input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Code or description"
+              className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
+            />
+          </label>
+          <label className="text-xs text-gray-500">
+            BASIC
+            <select
+              value={basicFilter}
+              onChange={(event) => setBasicFilter(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
+            >
+              <option value="all">All BASICs</option>
+              {basicOptions.map((basic) => (
+                <option key={basic} value={basic}>
+                  {BASIC_LABELS[basic] ?? basic.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-gray-500">
+            Severity
+            <select
+              value={severityFilter}
+              onChange={(event) => setSeverityFilter(event.target.value as SeverityFilter)}
+              className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
+            >
+              <option value="all">All severities</option>
+              <option value="8plus">8+</option>
+              <option value="5plus">5+</option>
+              <option value="under5">Under 5</option>
+              <option value="unscored">Unscored</option>
+            </select>
+          </label>
+          <label className="text-xs text-gray-500">
+            From
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
+            />
+          </label>
+          <label className="text-xs text-gray-500">
+            To
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
+            />
+          </label>
+        </div>
+
         <p className="text-xs text-gray-500">
           Tiers are computed live. Investigate means evidence is needed, not that the violation is removable.
         </p>
@@ -187,9 +304,21 @@ function basicLabel(basicCategory: string | null) {
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Code</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Description</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">BASIC</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Date</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Challenge</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Severity</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                <SortButton active={sortField === "date"} direction={sortDirection} onClick={() => setSort("date")}>
+                  Date
+                </SortButton>
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                <SortButton active={sortField === "severity"} direction={sortDirection} onClick={() => setSort("severity")}>
+                  Severity
+                </SortButton>
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                <SortButton active={sortField === "points"} direction={sortDirection} onClick={() => setSort("points")}>
+                  Tier / points
+                </SortButton>
+              </th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -201,103 +330,124 @@ function basicLabel(basicCategory: string | null) {
                 </td>
               </tr>
             ) : (
-              filtered.map(({ violation, challengeScore, evidenceRequirements }) => {
-                const canCreateCase = challengeScore.label === "strong" || challengeScore.label === "moderate" || challengeScore.label === "possibly";
+              filtered.map(({ violation, challengeScore, evidenceRequirements, points }) => {
+                const canCreateCase =
+                  challengeScore.label === "strong" ||
+                  challengeScore.label === "moderate" ||
+                  challengeScore.label === "possibly";
                 const existingCase = caseByViolation[violation.id] ?? null;
                 const actionLabel = challengeScore.label === "possibly" ? "Investigate" : "Challenge";
+                const isExpanded = Boolean(expandedIds[violation.id]);
 
                 return (
-                  <tr key={violation.id} className="hover:bg-[#FBF7F0] transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-medium text-[#1E1C1A]">
-                      {violation.violation_code ?? "--"}
-                      {violation.oos_violation && (
-                        <span className="ml-1 text-[10px] font-sans text-[#C67A1E] font-medium">OOS</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[#1E1C1A] max-w-xs">
-                      <p className="truncate">{violation.violation_description}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{challengeScore.summary}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-gray-500">
-                        {basicLabel(violation.basic_category)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {violation.inspections?.inspection_date
-                        ? formatDate(violation.inspections.inspection_date)
-                        : "--"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
-                          <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 ${challengeLabelClass(challengeScore.label)}`}>
-                            {tierLabel(challengeScore.label)}{"\u00B7"} {challengeScore.overall}
-                          </span>
-                        </div>
-                        {evidenceRequirements.length > 0 && (
-                          <div className="space-y-1.5">
-                            {evidenceRequirements.map((item) => (
-                              <div key={item.docType} className="rounded border border-[#F0E8DA] bg-white/70 p-2">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-[10px] font-semibold text-[#1E1C1A]">{item.label}</span>
-                                  <span className={`text-[9px] border rounded px-1.5 py-0.5 ${acquisitionClass(item.acquisitionMethod)}`}>
-                                    {acquisitionLabel(item.acquisitionMethod)}
-                                  </span>
-                                </div>
-                                <p className="text-[10px] text-gray-500 mt-1 leading-snug">{item.neededReason}</p>
-                              </div>
-                            ))}
-                          </div>
+                  <Fragment key={violation.id}>
+                    <tr className="hover:bg-[#FBF7F0] transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-[#1E1C1A] whitespace-nowrap">
+                        {violation.violation_code ?? "--"}
+                        {violation.oos_violation && (
+                          <span className="ml-1 text-[10px] font-sans text-[#C67A1E] font-medium">OOS</span>
                         )}
-                        <div className="space-y-1 text-[10px] text-gray-500 leading-snug">
-                          <p title={challengeScore.factors.evidenceObtainabilityNote}>
-                            Evidence {challengeScore.factors.evidenceObtainability}: {challengeScore.factors.evidenceObtainabilityNote}
-                          </p>
-                          <p title={challengeScore.factors.scoreImpactNote}>
-                            Impact {challengeScore.factors.scoreImpact}: {challengeScore.factors.scoreImpactNote}
-                          </p>
-                          <p title={challengeScore.factors.proceduralGroundsNote}>
-                            Procedural {challengeScore.factors.proceduralGrounds}: {challengeScore.factors.proceduralGroundsNote}
-                          </p>
+                      </td>
+                      <td className="px-4 py-3 text-[#1E1C1A] max-w-[360px]">
+                        <p className="truncate">{violation.violation_description}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {basicLabel(violation.basic_category)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {violation.inspections?.inspection_date ? formatDate(violation.inspections.inspection_date) : "--"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={severityClass(violation.severity_weight)}>
+                          {violation.severity_weight ?? "--"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 min-w-[280px]">
+                          {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />}
+                          <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 whitespace-nowrap ${challengeLabelClass(challengeScore.label)}`}>
+                            {tierLabel(challengeScore.label)} {"\u00B7"} {points} pts
+                          </span>
+                          <p className="text-xs text-gray-500 truncate">{challengeScore.summary}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs font-semibold ${
-                          (violation.severity_weight ?? 0) >= 8
-                            ? "text-[#C67A1E]"
-                            : (violation.severity_weight ?? 0) >= 5
-                            ? "text-[#DAA520]"
-                            : "text-gray-400"
-                        }`}
-                      >
-                        {violation.severity_weight ?? "--"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {existingCase ? (
-                        <a
-                          href={`/console/clients/${clientId}/dataq?case=${existingCase.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          {existingCase.status === "investigating" ? "Investigating" : "Open case"}
-                        </a>
-                      ) : canCreateCase ? (
-                        <button
-                          onClick={() => createDataqCase(violation.id)}
-                          disabled={creatingCaseId === violation.id}
-                          className="flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
-                        >
-                          <Search className="w-3 h-3" />
-                          {creatingCaseId === violation.id ? "Creating..." : actionLabel}
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(violation.id)}
+                            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#C67A1E]"
+                          >
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            Details
+                          </button>
+                          {existingCase ? (
+                            <a
+                              href={`/console/clients/${clientId}/dataq?case=${existingCase.id}`}
+                              className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              {existingCase.status === "investigating" ? "Investigating" : "Open case"}
+                            </a>
+                          ) : canCreateCase ? (
+                            <button
+                              onClick={() => createDataqCase(violation.id)}
+                              disabled={creatingCaseId === violation.id}
+                              className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium disabled:opacity-50"
+                            >
+                              <Search className="w-3 h-3" />
+                              {creatingCaseId === violation.id ? "Creating..." : actionLabel}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-white/70">
+                        <td colSpan={7} className="px-4 py-4">
+                          <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                            <div>
+                              <p className="text-xs font-semibold text-[#1E1C1A] mb-2">Evidence checklist</p>
+                              {evidenceRequirements.length > 0 ? (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {evidenceRequirements.map((item) => (
+                                    <div key={item.docType} className="rounded border border-[#F0E8DA] bg-white p-3">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-semibold text-[#1E1C1A]">{item.label}</span>
+                                        <span className={`text-[10px] border rounded px-1.5 py-0.5 ${acquisitionClass(item.acquisitionMethod)}`}>
+                                          {acquisitionLabel(item.acquisitionMethod)}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-1 leading-snug">{item.neededReason}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-400">No checklist needed for this tier.</p>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-[#1E1C1A] mb-2">Reasoning</p>
+                              <div className="space-y-2 text-xs text-gray-600 leading-snug">
+                                <p>
+                                  <span className="font-semibold text-[#1E1C1A]">Evidence {challengeScore.factors.evidenceObtainability}:</span>{" "}
+                                  {challengeScore.factors.evidenceObtainabilityNote}
+                                </p>
+                                <p>
+                                  <span className="font-semibold text-[#1E1C1A]">Impact {challengeScore.factors.scoreImpact}:</span>{" "}
+                                  {challengeScore.factors.scoreImpactNote}
+                                </p>
+                                <p>
+                                  <span className="font-semibold text-[#1E1C1A]">Procedural {challengeScore.factors.proceduralGrounds}:</span>{" "}
+                                  {challengeScore.factors.proceduralGroundsNote}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })
             )}
@@ -306,4 +456,64 @@ function basicLabel(basicCategory: string | null) {
       </div>
     </div>
   );
+}
+
+function SortButton({
+  active,
+  direction,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 hover:text-[#C67A1E]">
+      {children}
+      <span className="text-[10px]">{active ? (direction === "asc" ? "up" : "down") : ""}</span>
+    </button>
+  );
+}
+
+function challengeLabelClass(label: string): string {
+  if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
+  if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (label === "possibly") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+  if (label === "operational") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
+  return "bg-gray-50 text-gray-500 border-gray-200";
+}
+
+function severityClass(severity: number | null) {
+  const color =
+    (severity ?? 0) >= 8
+      ? "text-[#C67A1E]"
+      : (severity ?? 0) >= 5
+        ? "text-[#DAA520]"
+        : "text-gray-400";
+  return `text-xs font-semibold ${color}`;
+}
+
+function basicLabel(basicCategory: string | null) {
+  if (!basicCategory) return "Uncategorized";
+  return BASIC_LABELS[basicCategory] ?? basicCategory.replace(/_/g, " ");
+}
+
+function tierLabel(label: string) {
+  if (label === "possibly") return "Investigate";
+  if (label === "not_challengeable") return "Not challengeable";
+  return label.replace(/_/g, " ");
+}
+
+function acquisitionLabel(method: string) {
+  if (method === "auto") return "Auto";
+  if (method === "client") return "From client";
+  return "Manual";
+}
+
+function acquisitionClass(method: string) {
+  if (method === "auto") return "bg-blue-50 text-blue-700 border-blue-100";
+  if (method === "client") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+  return "bg-gray-50 text-gray-600 border-gray-200";
 }

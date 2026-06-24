@@ -35,7 +35,7 @@ function normalized(value: string | null | undefined) {
 function hasUnknownCitationDisposition(violation: EvidenceViolationInput) {
   if (!violation.citationNumber?.trim()) return false;
   const result = normalized(violation.citationResult);
-  return !result || result === "unknown" || result === "pending" || result === "not provided";
+  return !result || result === "unknown" || result === "pending" || result === "not provided" || result === "n/a";
 }
 
 function hasDuplicateSignal(violation: EvidenceViolationInput, challenge: ChallengeScore) {

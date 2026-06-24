@@ -82,8 +82,10 @@ type LaneInvestigateItem = {
 };
 
 type LaneCItem = {
+  lane: "C";
   violation: ViolationRow;
   basicCategory: string;
+  basicLabel: string;
   points: number;
   challenge: ChallengeScore;
 };
@@ -208,7 +210,7 @@ export default async function RemediationPage({
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">Action queue</h2>
-          <p className="text-xs text-gray-500 mt-1">Crash preventability, investigation, confirmed challenge work, and operational remediation in one queue.</p>
+          <p className="text-xs text-gray-500 mt-1">All carrier actions in one queue: crash preventability review, evidence investigation, genuine challenge filings, and operational coaching/shop work.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -268,7 +270,7 @@ export default async function RemediationPage({
                         </Link>
                       </td>
                     </tr>
-                  ) : (
+                  ) : item.lane === "B" ? (
                     <tr key={`violation-${item.violation.id}`} className="bg-[#FBF7F0]">
                       <td className="px-5 py-4"><Badge variant="info">B</Badge></td>
                       <td className="px-5 py-4">
@@ -281,6 +283,25 @@ export default async function RemediationPage({
                       <td className="px-5 py-4">{renderDataqStatus(item.caseRow)}</td>
                       <td className="px-5 py-4">
                         <Link className="text-[#C67A1E] hover:underline font-medium" href={item.caseRow ? `/console/clients/${id}/dataq?case=${item.caseRow.id}` : `/console/clients/${id}/violations`}>
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={`operational-${item.violation.id}`} className="bg-[#FBF7F0]">
+                      <td className="px-5 py-4"><Badge variant="outline">C</Badge></td>
+                      <td className="px-5 py-4">
+                        <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
+                        <div className="text-xs text-gray-500 max-w-sm truncate">{item.violation.violation_description}</div>
+                      </td>
+                      <td className="px-5 py-4 text-gray-500">{item.basicLabel}</td>
+                      <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{item.points} pts</td>
+                      <td className="px-5 py-4 text-gray-600">
+                        {OPERATIONAL_RECOMMENDATIONS[item.basicCategory] ?? "Operational correction. Ages out over 24 months."}
+                      </td>
+                      <td className="px-5 py-4"><Badge variant="outline">Operational</Badge></td>
+                      <td className="px-5 py-4">
+                        <Link className="text-[#C67A1E] hover:underline font-medium" href={`/console/clients/${id}/violations`}>
                           Open
                         </Link>
                       </td>
@@ -307,7 +328,7 @@ export default async function RemediationPage({
                 <div>
                   <div className="font-semibold text-[#1E1C1A] text-sm">{group.label}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {group.count} violation{group.count === 1 ? "" : "s"}{"\u00B7"} {group.points} pts
+                    {group.count} violation{group.count === 1 ? "" : "s"} {"\u00B7"} {group.points} pts
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">{group.recommendation}</p>
@@ -434,8 +455,10 @@ function buildQueue(
       });
     } else {
       laneC.push({
+        lane: "C",
         violation,
         basicCategory: violation.basic_category,
+        basicLabel: BASIC_LABELS[violation.basic_category] ?? violation.basic_category,
         points,
         challenge,
       });
@@ -444,6 +467,7 @@ function buildQueue(
 
   laneB.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
   laneInvestigate.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
+  laneC.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
 
   const operationalGroups = [...groupOperational(laneC).values()].sort(
     (a, b) => b.points - a.points || b.count - a.count
@@ -465,7 +489,7 @@ function buildQueue(
     countedCount,
     excludedCount,
     agedOutCrashCount,
-    priorityRows: [...laneA, ...laneInvestigate, ...laneB],
+    priorityRows: [...laneA, ...laneInvestigate, ...laneB, ...laneC],
     operationalGroups,
   };
 }

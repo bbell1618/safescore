@@ -121,9 +121,9 @@ export default async function DataqPage({
             DataQs workbench
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {cases?.length ?? 0} cases{"\u00B7"}{" "}
+            {cases?.length ?? 0} cases {"\u00B7"}{" "}
             <span className="text-green-600 font-medium">{counts.approved ?? 0} approved</span>
-            {"\u00B7"}{" "}
+            {" "}{"\u00B7"}{" "}
             <span className="text-[#C67A1E] font-medium">{counts.denied ?? 0} denied</span>
           </p>
         </div>
