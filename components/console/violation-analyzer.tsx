@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
@@ -9,7 +9,6 @@ import { formatDate } from "@/lib/utils";
 import {
   CheckCircle,
   ChevronDown,
-  ChevronUp,
   ExternalLink,
   Search,
 } from "lucide-react";
@@ -198,6 +197,17 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
     setExpandedIds((prev) => ({ ...prev, [violationId]: !prev[violationId] }));
   }
 
+  function stopRowToggle(event: { stopPropagation: () => void }) {
+    event.stopPropagation();
+  }
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLTableRowElement>, violationId: string) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleExpanded(violationId);
+    }
+  }
+
   function setSort(field: SortField) {
     if (sortField === field) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -297,35 +307,36 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
         </p>
       </div>
 
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-x-auto">
+        <table className="w-full min-w-[1040px] table-fixed text-sm">
           <thead className="border-b border-[#F0E8DA] bg-[#FEFCF8]">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Code</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Description</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">BASIC</th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+              <th className="w-9 px-3 py-3"></th>
+              <th className="w-[112px] text-left px-3 py-3 text-xs font-medium text-gray-500">Code</th>
+              <th className="text-left px-3 py-3 text-xs font-medium text-gray-500">Description</th>
+              <th className="w-[150px] text-left px-3 py-3 text-xs font-medium text-gray-500">BASIC</th>
+              <th className="w-[112px] text-left px-3 py-3 text-xs font-medium text-gray-500">
                 <SortButton active={sortField === "date"} direction={sortDirection} onClick={() => setSort("date")}>
                   Date
                 </SortButton>
               </th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+              <th className="w-[88px] text-left px-3 py-3 text-xs font-medium text-gray-500">
                 <SortButton active={sortField === "severity"} direction={sortDirection} onClick={() => setSort("severity")}>
                   Severity
                 </SortButton>
               </th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+              <th className="w-[210px] text-left px-3 py-3 text-xs font-medium text-gray-500">
                 <SortButton active={sortField === "points"} direction={sortDirection} onClick={() => setSort("points")}>
                   Tier / points
                 </SortButton>
               </th>
-              <th className="px-4 py-3"></th>
+              <th className="w-[150px] px-3 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#F0E8DA]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
+                <td colSpan={8} className="px-3 py-8 text-center text-gray-400 text-sm">
                   No violations found
                 </td>
               </tr>
@@ -341,49 +352,59 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
 
                 return (
                   <Fragment key={violation.id}>
-                    <tr className="hover:bg-[#FBF7F0] transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-[#1E1C1A] whitespace-nowrap">
+                    <tr
+                      className="cursor-pointer hover:bg-[#FBF7F0] focus:bg-[#FBF7F0] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#C67A1E] transition-colors"
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={`violation-details-${violation.id}`}
+                      onClick={() => toggleExpanded(violation.id)}
+                      onKeyDown={(event) => handleRowKeyDown(event, violation.id)}
+                    >
+                      <td className="px-3 py-3 align-middle">
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 transition-transform ${
+                            isExpanded ? "rotate-180 text-[#C67A1E]" : ""
+                          }`}
+                        />
+                      </td>
+                      <td className="px-3 py-3 align-middle font-mono text-xs font-medium text-[#1E1C1A] whitespace-nowrap">
                         {violation.violation_code ?? "--"}
                         {violation.oos_violation && (
                           <span className="ml-1 text-[10px] font-sans text-[#C67A1E] font-medium">OOS</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[#1E1C1A] max-w-[360px]">
-                        <p className="truncate">{violation.violation_description}</p>
+                      <td className="px-3 py-3 align-middle text-[#1E1C1A]">
+                        <p className="line-clamp-2 break-words leading-snug">{violation.violation_description}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-3 align-middle text-xs text-gray-500">
                         {basicLabel(violation.basic_category)}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-3 align-middle text-xs text-gray-500 whitespace-nowrap">
                         {violation.inspections?.inspection_date ? formatDate(violation.inspections.inspection_date) : "--"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 align-middle">
                         <span className={severityClass(violation.severity_weight)}>
                           {violation.severity_weight ?? "--"}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 min-w-[280px]">
-                          {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />}
-                          <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 whitespace-nowrap ${challengeLabelClass(challengeScore.label)}`}>
-                            {tierLabel(challengeScore.label)} {"\u00B7"} {points} pts
-                          </span>
+                      <td className="px-3 py-3 align-middle">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />}
+                            <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 whitespace-nowrap ${challengeLabelClass(challengeScore.label)}`}>
+                              {tierLabel(challengeScore.label)} {"\u00B7"} {points} pts
+                            </span>
+                          </div>
                           <p className="text-xs text-gray-500 truncate">{challengeScore.summary}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 align-middle">
                         <div className="flex items-center justify-end gap-3 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => toggleExpanded(violation.id)}
-                            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#C67A1E]"
-                          >
-                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            Details
-                          </button>
                           {existingCase ? (
                             <a
                               href={`/console/clients/${clientId}/dataq?case=${existingCase.id}`}
+                              onClick={stopRowToggle}
                               className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium"
                             >
                               <ExternalLink className="w-3 h-3" />
@@ -391,7 +412,10 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
                             </a>
                           ) : canCreateCase ? (
                             <button
-                              onClick={() => createDataqCase(violation.id)}
+                              onClick={(event) => {
+                                stopRowToggle(event);
+                                createDataqCase(violation.id);
+                              }}
                               disabled={creatingCaseId === violation.id}
                               className="inline-flex items-center gap-1 text-xs text-[#C67A1E] hover:underline font-medium disabled:opacity-50"
                             >
@@ -403,8 +427,8 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-white/70">
-                        <td colSpan={7} className="px-4 py-4">
+                      <tr id={`violation-details-${violation.id}`} className="bg-white/70">
+                        <td colSpan={8} className="px-3 py-4">
                           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
                             <div>
                               <p className="text-xs font-semibold text-[#1E1C1A] mb-2">Evidence checklist</p>
