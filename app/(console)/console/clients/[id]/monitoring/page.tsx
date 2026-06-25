@@ -37,6 +37,10 @@ export default async function MonitoringPage({
   const latest = snapshots[0] ?? null;
   const previous = snapshots[1] ?? null;
   const diff = latest && previous ? diffSnapshots(latest, previous) : null;
+  const snapshotRows = snapshots.map((snapshot, index) => ({
+    snapshot,
+    diffFromPrior: snapshots[index + 1] ? diffSnapshots(snapshot, snapshots[index + 1]) : null,
+  }));
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -115,24 +119,37 @@ export default async function MonitoringPage({
                 <th className="text-left font-medium px-5 py-3">Violations</th>
                 <th className="text-left font-medium px-5 py-3">Inspections</th>
                 <th className="text-left font-medium px-5 py-3">Crashes</th>
+                <th className="text-left font-medium px-5 py-3">Change vs prior</th>
                 <th className="text-left font-medium px-5 py-3">Source</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F0E8DA]">
               {snapshots.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">
                     No snapshots captured yet.
                   </td>
                 </tr>
               ) : (
-                snapshots.map((snapshot) => (
+                snapshotRows.map(({ snapshot, diffFromPrior }) => (
                   <tr key={snapshot.id}>
                     <td className="px-5 py-4 text-[#1E1C1A]">{formatDate(snapshot.snapshot_date)}</td>
                     <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{snapshot.total_points}</td>
                     <td className="px-5 py-4 text-gray-500">{snapshot.violation_count}</td>
                     <td className="px-5 py-4 text-gray-500">{snapshot.inspection_count}</td>
                     <td className="px-5 py-4 text-gray-500">{snapshot.crash_count}</td>
+                    <td className="px-5 py-4 text-xs text-gray-500">
+                      {diffFromPrior ? (
+                        <div className="space-y-1">
+                          <div className={movementClass(diffFromPrior.totalPointsDelta)}>{signed(diffFromPrior.totalPointsDelta)} pts</div>
+                          <div>
+                            V {signed(diffFromPrior.violationCountDelta)} / I {signed(diffFromPrior.inspectionCountDelta)} / C {signed(diffFromPrior.crashCountDelta)} / OOS {signed(diffFromPrior.oosCountDelta)}
+                          </div>
+                        </div>
+                      ) : (
+                        "Baseline"
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-gray-500">{snapshot.source}</td>
                   </tr>
                 ))

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, CheckCircle } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 
 interface RunAnalysisButtonProps {
   clientId: string;
@@ -18,6 +19,36 @@ const PROGRESS_STEPS = [
   "Assessing challengeability...",
   "Finalizing...",
 ];
+
+type MonitoringSnapshotResult =
+  | {
+      status: "inserted";
+      snapshotDate: string;
+      totalPoints: number;
+      previousSnapshotDate: string | null;
+    }
+  | {
+      status: "unchanged";
+      snapshotDate: string;
+      totalPoints: number;
+      previousSnapshotDate: string;
+    };
+
+function analysisSummary(data: {
+  violations?: number;
+  crashes?: number;
+  monitoringSnapshot?: MonitoringSnapshotResult;
+}) {
+  if (data.monitoringSnapshot?.status === "unchanged") {
+    return `Re-analysis complete \u2014 no change since ${formatDate(data.monitoringSnapshot.previousSnapshotDate)}.`;
+  }
+
+  if (data.monitoringSnapshot?.status === "inserted") {
+    return `Re-analysis complete \u2014 new monitoring snapshot captured for ${formatDate(data.monitoringSnapshot.snapshotDate)}.`;
+  }
+
+  return `${data.violations ?? 0} violations \u00B7 ${data.crashes ?? 0} crashes imported`;
+}
 
 export function RunAnalysisButton({
   clientId,
@@ -79,7 +110,7 @@ export function RunAnalysisButton({
       if (!res.ok) {
         setError(data.error ?? "Analysis failed");
       } else {
-        setSummary(`${data.violations} violations \u00B7 ${data.crashes} crashes imported`);
+        setSummary(analysisSummary(data));
         setDone(true);
         setTimeout(() => {
           router.refresh();

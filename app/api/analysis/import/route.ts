@@ -6,6 +6,7 @@ import {
   getCrashes,
 } from "@/lib/fmcsa/client";
 import { getSAFERSnapshot } from "@/lib/fmcsa/safer";
+import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -684,6 +685,8 @@ export async function POST(request: Request) {
       .eq("id", clientId)
       .in("status", ["onboarding", "prospect"]);
 
+    const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun");
+
     // ── 8. Log activity ──────────────────────────────────────────────────────
     const censusSummary = saferSnap
       ? `census refreshed via SAFER (${saferSnap.powerUnits} power units / ${saferSnap.drivers} drivers, authority: ${saferSnap.operatingAuthority ?? "n/a"})`
@@ -735,6 +738,7 @@ export async function POST(request: Request) {
         driver: saferSnap?.driverOosRate ?? null,
         hazmat: saferSnap?.hazmatOosRate ?? null,
       },
+      monitoringSnapshot,
     });
   } catch (err) {
     console.error("Analysis import error:", err);

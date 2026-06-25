@@ -126,14 +126,27 @@ export default async function RemediationPage({
 
   if (!client) notFound();
 
+  const { data: canonicalInspections } = await supabase
+    .from("inspections")
+    .select("id")
+    .eq("client_id", id)
+    .not("mcmis_inspection_id", "is", null);
+  const canonicalInspectionIds = (canonicalInspections ?? []).map((row) => row.id as string);
+
+  let violationsQuery = supabase
+    .from("violations")
+    .select(
+      "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, inspections(inspection_date, state)"
+    )
+    .eq("client_id", id);
+
+  if (canonicalInspectionIds.length > 0) {
+    violationsQuery = violationsQuery.in("inspection_id", canonicalInspectionIds);
+  }
+
   const [{ data: violations }, { data: crashes }, { data: dataqCases }, { data: cpdpCases }] =
     await Promise.all([
-      supabase
-        .from("violations")
-        .select(
-          "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, inspections(inspection_date, state)"
-        )
-        .eq("client_id", id),
+      violationsQuery,
       supabase
         .from("crashes")
         .select("id, crash_date, state, city, tow_away, injuries, fatalities")
@@ -401,11 +414,9 @@ function buildQueue(
         ? timeWeight * (violation.severity_weight + (violation.oos_violation ? 2 : 0))
         : 0;
 
-    if (points <= 0 || violation.severity_weight == null || !violation.basic_category) {
-      excludedCount += 1;
-      continue;
-    }
-    countedCount += 1;
+    const counted = points > 0 && violation.severity_weight != null && Boolean(violation.basic_category);
+    if (counted) countedCount += 1;
+    else excludedCount += 1;
 
     const challenge = scoreChallenge({
       violationCode: violation.violation_code,
@@ -420,11 +431,15 @@ function buildQueue(
       basicPercentile: null,
     });
 
+    const basicLabel = violation.basic_category
+      ? BASIC_LABELS[violation.basic_category] ?? violation.basic_category
+      : "Uncategorized";
+
     if (challenge.label === "strong" || challenge.label === "moderate") {
       laneB.push({
         lane: "B",
         violation,
-        basicLabel: BASIC_LABELS[violation.basic_category] ?? violation.basic_category,
+        basicLabel,
         points,
         challenge,
         caseRow: dataqByViolation.get(violation.id) ?? null,
@@ -447,7 +462,7 @@ function buildQueue(
       laneInvestigate.push({
         lane: "I",
         violation,
-        basicLabel: BASIC_LABELS[violation.basic_category] ?? violation.basic_category,
+        basicLabel,
         points,
         challenge,
         caseRow,
@@ -457,8 +472,8 @@ function buildQueue(
       laneC.push({
         lane: "C",
         violation,
-        basicCategory: violation.basic_category,
-        basicLabel: BASIC_LABELS[violation.basic_category] ?? violation.basic_category,
+        basicCategory: violation.basic_category ?? "uncategorized",
+        basicLabel,
         points,
         challenge,
       });
@@ -469,13 +484,15 @@ function buildQueue(
   laneInvestigate.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
   laneC.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
 
-  const operationalGroups = [...groupOperational(laneC).values()].sort(
+  const operationalGroups = [...groupOperational(laneC.filter((item) => item.points > 0)).values()].sort(
     (a, b) => b.points - a.points || b.count - a.count
   );
 
   const laneBPoints = laneB.reduce((sum, item) => sum + item.points, 0);
   const laneInvestigatePoints = laneInvestigate.reduce((sum, item) => sum + item.points, 0);
   const laneCPoints = laneC.reduce((sum, item) => sum + item.points, 0);
+
+  const priorityRows = [...laneA, ...laneInvestigate, ...laneB, ...laneC].sort(compareQueueItems);
 
   return {
     laneA,
@@ -489,9 +506,28 @@ function buildQueue(
     countedCount,
     excludedCount,
     agedOutCrashCount,
-    priorityRows: [...laneA, ...laneInvestigate, ...laneB, ...laneC],
+    priorityRows,
     operationalGroups,
   };
+}
+
+type QueueItem = LaneAItem | LaneBItem | LaneInvestigateItem | LaneCItem;
+
+function queueImpact(item: QueueItem) {
+  return "points" in item ? item.points : 0;
+}
+
+function compareQueueItems(a: QueueItem, b: QueueItem) {
+  const impactDelta = queueImpact(b) - queueImpact(a);
+  if (impactDelta !== 0) return impactDelta;
+
+  const laneOrder: Record<QueueItem["lane"], number> = { A: 0, B: 1, I: 2, C: 3 };
+  const laneDelta = laneOrder[a.lane] - laneOrder[b.lane];
+  if (laneDelta !== 0) return laneDelta;
+
+  const aDate = "violation" in a ? a.violation.inspections?.inspection_date : a.crash.crash_date;
+  const bDate = "violation" in b ? b.violation.inspections?.inspection_date : b.crash.crash_date;
+  return (bDate ?? "").localeCompare(aDate ?? "");
 }
 
 function emptyEvidenceSummary(): EvidenceSummary {

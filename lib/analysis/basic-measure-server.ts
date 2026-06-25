@@ -20,12 +20,29 @@ function flattenInspection(
 
 export async function getClientBurden(clientId: string): Promise<BurdenResult> {
   const supabase = await createServiceClient();
-  const { data, error } = await supabase
+  const { data: canonicalInspections, error: canonicalError } = await supabase
+    .from("inspections")
+    .select("id")
+    .eq("client_id", clientId)
+    .not("mcmis_inspection_id", "is", null);
+
+  if (canonicalError) {
+    throw new Error(`Unable to load canonical inspections: ${canonicalError.message}`);
+  }
+
+  const canonicalInspectionIds = (canonicalInspections ?? []).map((row) => row.id as string);
+  let query = supabase
     .from("violations")
     .select(
       "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, inspections(inspection_date, state)"
     )
     .eq("client_id", clientId);
+
+  if (canonicalInspectionIds.length > 0) {
+    query = query.in("inspection_id", canonicalInspectionIds);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Unable to load client BASIC burden: ${error.message}`);
