@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getRecentSnapshots } from "@/lib/monitoring/diff";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,18 @@ export default async function ClientOverviewPage({
 
   const today = new Intl.DateTimeFormat("sv-SE").format(new Date());
   const cutoff24mo = (parseInt(today.slice(0, 4)) - 2).toString() + today.slice(4);
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(id, supabase);
+  const violationCountQuery = supabase
+    .from("violations")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", id);
+  const challengeableCountQuery = supabase
+    .from("violations")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", id)
+    .not("basic_category", "is", null)
+    .not("severity_weight", "is", null);
 
   const [
     { data: carrierProfile },
@@ -95,15 +108,14 @@ export default async function ClientOverviewPage({
       .select("tow_away, fatalities, injuries")
       .eq("client_id", id)
       .gte("crash_date", cutoff24mo),
-    supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
+    canonicalInspectionIds.length > 0
+      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
+      : violationCountQuery.in("inspection_id", []),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("cpdp_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
-    supabase
-      .from("violations")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", id)
-      .not("basic_category", "is", null)
-      .not("severity_weight", "is", null),
+    canonicalInspectionIds.length > 0
+      ? challengeableCountQuery.in("inspection_id", canonicalInspectionIds)
+      : challengeableCountQuery.in("inspection_id", []),
     getClientBurden(id),
     getRecentSnapshots(id, 2),
   ]);

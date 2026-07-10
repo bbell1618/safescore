@@ -3,6 +3,7 @@ import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 const schema = z.object({
   clientId: z.string().uuid(),
@@ -18,13 +19,16 @@ export async function POST(request: Request) {
 
   const { clientId, violationIds } = parsed.data;
   const supabase = await createServiceClient();
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, supabase);
 
   // Fetch violation details + inspection context
   const { data: violations } = await supabase
     .from("violations")
     .select("*, inspections(inspection_date, state, level)")
     .eq("client_id", clientId)
-    .in("id", violationIds);
+    .in("id", violationIds)
+    .in("inspection_id", canonicalInspectionIds);
 
   if (!violations || violations.length === 0) {
     return NextResponse.json({ error: "No violations found" }, { status: 404 });

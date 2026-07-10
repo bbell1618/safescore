@@ -7,6 +7,7 @@ import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
 import { createClient } from "@/lib/supabase/server";
 import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -126,12 +127,8 @@ export default async function RemediationPage({
 
   if (!client) notFound();
 
-  const { data: canonicalInspections } = await supabase
-    .from("inspections")
-    .select("id")
-    .eq("client_id", id)
-    .not("mcmis_inspection_id", "is", null);
-  const canonicalInspectionIds = (canonicalInspections ?? []).map((row) => row.id as string);
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(id, supabase);
 
   let violationsQuery = supabase
     .from("violations")
@@ -140,9 +137,9 @@ export default async function RemediationPage({
     )
     .eq("client_id", id);
 
-  if (canonicalInspectionIds.length > 0) {
-    violationsQuery = violationsQuery.in("inspection_id", canonicalInspectionIds);
-  }
+  violationsQuery = canonicalInspectionIds.length > 0
+    ? violationsQuery.in("inspection_id", canonicalInspectionIds)
+    : violationsQuery.in("inspection_id", []);
 
   const [{ data: violations }, { data: crashes }, { data: dataqCases }, { data: cpdpCases }] =
     await Promise.all([

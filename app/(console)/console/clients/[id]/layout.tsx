@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClientTabs } from "@/components/console/client-tabs";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 const tierLabel: Record<string, string> = {
   monitor: "Monitor",
@@ -51,6 +52,13 @@ export default async function ClientFileLayout({
 
   if (!client) notFound();
 
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(id, supabase);
+  const violationCountQuery = supabase
+    .from("violations")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", id);
+
   const [{ data: carrierProfile }, { count: violationCount }] = await Promise.all([
     supabase
       .from("carrier_profiles")
@@ -59,7 +67,9 @@ export default async function ClientFileLayout({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("violations").select("*", { count: "exact", head: true }).eq("client_id", id),
+    canonicalInspectionIds.length > 0
+      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
+      : violationCountQuery.in("inspection_id", []),
   ]);
 
   const cp = carrierProfile as { authority_status?: string | null; entity_type?: string | null } | null;

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ViolationAnalyzer } from "@/components/console/violation-analyzer";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -29,17 +30,24 @@ export default async function ViolationsPage({
 
   if (!client) notFound();
 
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(id, supabase);
+  const violationsQuery = supabase
+    .from("violations")
+    .select("*, inspections(inspection_date, state, level, facility_name)")
+    .eq("client_id", id)
+    .order("created_at", { ascending: false });
+  const scopedViolationsQuery = canonicalInspectionIds.length > 0
+    ? violationsQuery.in("inspection_id", canonicalInspectionIds)
+    : violationsQuery.in("inspection_id", []);
+
   const [
     { data: violations },
     { data: cpdpCases },
     { data: dataqCases },
     burden,
   ] = await Promise.all([
-    supabase
-      .from("violations")
-      .select("*, inspections(inspection_date, state, level, facility_name)")
-      .eq("client_id", id)
-      .order("created_at", { ascending: false }),
+    scopedViolationsQuery,
     supabase
       .from("cpdp_cases")
       .select("id, case_number, status")

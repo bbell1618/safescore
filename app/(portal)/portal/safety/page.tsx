@@ -4,6 +4,7 @@ import { getCarrier } from "@/lib/fmcsa/client";
 import { formatDate } from "@/lib/utils";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import {
   Building2,
   MapPin,
@@ -33,6 +34,13 @@ export default async function SafetyProfilePage() {
   if (!userRecord?.client_id) redirect("/portal");
 
   const clientId = userRecord.client_id;
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, supabase);
+  const inspectionsQuery = supabase
+    .from("inspections")
+    .select("*, violations(id, violation_code, violation_description, basic_category, severity_weight, oos_violation)")
+    .eq("client_id", clientId)
+    .order("inspection_date", { ascending: false });
 
   const [
     { data: client },
@@ -40,11 +48,9 @@ export default async function SafetyProfilePage() {
     { data: crashes },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", clientId).single(),
-    supabase
-      .from("inspections")
-      .select("*, violations(id, violation_code, violation_description, basic_category, severity_weight, oos_violation)")
-      .eq("client_id", clientId)
-      .order("inspection_date", { ascending: false }),
+    canonicalInspectionIds.length > 0
+      ? inspectionsQuery.in("id", canonicalInspectionIds)
+      : inspectionsQuery.in("id", []),
     supabase
       .from("crashes")
       .select("*")

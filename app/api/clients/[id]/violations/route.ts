@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 function getAdmin() {
   return createSupabaseClient(
@@ -22,6 +23,8 @@ export async function GET(
   const challengeableOnly = url.searchParams.get("challengeable") === "true";
 
   const supabase = getAdmin();
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(id, supabase);
 
   let query = supabase
     .from("violations")
@@ -34,6 +37,10 @@ export async function GET(
   if (challengeableOnly) {
     query = query.eq("challengeable", true);
   }
+
+  query = canonicalInspectionIds.length > 0
+    ? query.in("inspection_id", canonicalInspectionIds)
+    : query.in("inspection_id", []);
 
   const { data, error } = await query;
 

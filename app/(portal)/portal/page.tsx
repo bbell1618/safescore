@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, priorityVariant } from "@/lib/utils";
 import {
@@ -74,6 +75,12 @@ export default async function PortalDashboardPage() {
   }
 
   const clientId = userRecord.client_id;
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, supabase);
+  const violationCountQuery = supabase
+    .from("violations")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", clientId);
 
   // Fetch all dashboard data in parallel
   const [
@@ -108,10 +115,9 @@ export default async function PortalDashboardPage() {
       .select("*", { count: "exact", head: true })
       .eq("client_id", clientId)
       .eq("status", "completed"),
-    supabase
-      .from("violations")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", clientId),
+    canonicalInspectionIds.length > 0
+      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
+      : violationCountQuery.in("inspection_id", []),
     supabase
       .from("crashes")
       .select("*", { count: "exact", head: true })

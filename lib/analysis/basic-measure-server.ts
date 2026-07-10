@@ -1,4 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { computeBurdenFromRows, type BurdenResult, type ViolationRow } from "./basic-measure";
 
 interface ViolationQueryRow {
@@ -18,19 +20,13 @@ function flattenInspection(
   return inspections;
 }
 
-export async function getClientBurden(clientId: string): Promise<BurdenResult> {
-  const supabase = await createServiceClient();
-  const { data: canonicalInspections, error: canonicalError } = await supabase
-    .from("inspections")
-    .select("id")
-    .eq("client_id", clientId)
-    .not("mcmis_inspection_id", "is", null);
-
-  if (canonicalError) {
-    throw new Error(`Unable to load canonical inspections: ${canonicalError.message}`);
-  }
-
-  const canonicalInspectionIds = (canonicalInspections ?? []).map((row) => row.id as string);
+export async function getClientBurden(
+  clientId: string,
+  adminClient?: SupabaseClient
+): Promise<BurdenResult> {
+  const supabase = adminClient ?? (await createServiceClient());
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, supabase);
   let query = supabase
     .from("violations")
     .select(
@@ -38,9 +34,9 @@ export async function getClientBurden(clientId: string): Promise<BurdenResult> {
     )
     .eq("client_id", clientId);
 
-  if (canonicalInspectionIds.length > 0) {
-    query = query.in("inspection_id", canonicalInspectionIds);
-  }
+  query = canonicalInspectionIds.length > 0
+    ? query.in("inspection_id", canonicalInspectionIds)
+    : query.in("inspection_id", []);
 
   const { data, error } = await query;
 

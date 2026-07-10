@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getCarrier, getBasics } from "@/lib/fmcsa/client";
 import { SafetyReport } from "@/lib/pdf/safety-report";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
@@ -184,14 +185,20 @@ export async function POST(request: Request) {
     console.warn("Could not fetch FMCSA BASIC data:", e);
   }
 
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, serviceSupabase);
+  const violationQuery = serviceSupabase
+    .from("violations")
+    .select("violation_description, created_at, severity_weight, oos_violation, basic_category")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
   const [burdenRaw, violationResult, cpdpResult, dataqResult] = await Promise.all([
-    getClientBurden(clientId),
-    serviceSupabase
-      .from("violations")
-      .select("violation_description, created_at, severity_weight, oos_violation, basic_category")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false })
-      .limit(50),
+    getClientBurden(clientId, serviceSupabase),
+    canonicalInspectionIds.length > 0
+      ? violationQuery.in("inspection_id", canonicalInspectionIds)
+      : violationQuery.in("inspection_id", []),
     serviceSupabase
       .from("cpdp_cases")
       .select("id, case_number, status")

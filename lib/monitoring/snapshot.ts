@@ -1,7 +1,7 @@
-import "server-only";
-
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 type SnapshotPerBasic = {
   basic_category: string;
@@ -38,10 +38,11 @@ function todayIsoDate() {
 
 export async function captureBurdenSnapshot(
   clientId: string,
-  source: string = "ingest"
+  source: string = "ingest",
+  adminClient?: SupabaseClient
 ): Promise<BurdenSnapshotResult> {
-  const supabase = await createServiceClient();
-  const burden = await getClientBurden(clientId);
+  const supabase = adminClient ?? (await createServiceClient());
+  const burden = await getClientBurden(clientId, supabase);
   const snapshotDate = todayIsoDate();
 
   const perBasic: SnapshotPerBasic[] = burden.perBasic.map((item) => ({
@@ -50,47 +51,29 @@ export async function captureBurdenSnapshot(
     weighted_points: item.weightedPoints,
   }));
 
-  const { data: canonicalInspections, error: canonicalError } = await supabase
-    .from("inspections")
-    .select("id")
-    .eq("client_id", clientId)
-    .not("mcmis_inspection_id", "is", null);
-
-  if (canonicalError) {
-    throw new Error(`Unable to load canonical inspections: ${canonicalError.message}`);
-  }
-
-  const canonicalInspectionIds = (canonicalInspections ?? []).map((row) => row.id as string);
-  const hasCanonicalInspections = canonicalInspectionIds.length > 0;
+  const { inspectionIds: canonicalInspectionIds } =
+    await getCanonicalInspectionScope(clientId, supabase);
 
   const violationCountQuery = supabase
     .from("violations")
     .select("id", { count: "exact", head: true })
     .eq("client_id", clientId);
-  const scopedViolationCountQuery = hasCanonicalInspections
+  const scopedViolationCountQuery = canonicalInspectionIds.length > 0
     ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
-    : violationCountQuery;
+    : violationCountQuery.in("inspection_id", []);
 
   const oosCountQuery = supabase
     .from("violations")
     .select("id", { count: "exact", head: true })
     .eq("client_id", clientId)
     .eq("oos_violation", true);
-  const scopedOosCountQuery = hasCanonicalInspections
+  const scopedOosCountQuery = canonicalInspectionIds.length > 0
     ? oosCountQuery.in("inspection_id", canonicalInspectionIds)
-    : oosCountQuery;
+    : oosCountQuery.in("inspection_id", []);
 
   const [violationCount, inspectionCount, crashCount, oosCount] = await Promise.all([
     checkedCount(await scopedViolationCountQuery, "violations"),
-    hasCanonicalInspections
-      ? canonicalInspectionIds.length
-      : checkedCount(
-          await supabase
-            .from("inspections")
-            .select("id", { count: "exact", head: true })
-            .eq("client_id", clientId),
-          "inspections"
-        ),
+    canonicalInspectionIds.length,
     checkedCount(
       await supabase
         .from("crashes")

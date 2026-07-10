@@ -7,6 +7,7 @@ import {
 } from "@/lib/fmcsa/client";
 import { getSAFERSnapshot } from "@/lib/fmcsa/safer";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -24,13 +25,33 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  const authClient = await createClient();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const role = user.user_metadata?.role as string | undefined;
+  if (role !== "geia_admin" && role !== "geia_staff") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { clientId, dotNumber } = parsed.data;
+  return runAnalysisImport(parsed.data);
+}
+
+export async function runAnalysisImport({
+  clientId,
+  dotNumber,
+}: z.infer<typeof schema>) {
   const supabase = getAdmin();
 
   try {
@@ -685,7 +706,7 @@ export async function POST(request: Request) {
       .eq("id", clientId)
       .in("status", ["onboarding", "prospect"]);
 
-    const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun");
+    const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun", supabase);
 
     // ── 8. Log activity ──────────────────────────────────────────────────────
     const censusSummary = saferSnap
