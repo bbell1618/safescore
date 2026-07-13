@@ -5,7 +5,7 @@ import { createDeployedStaffSession } from "./lib/deployed-staff-session";
 
 loadEnvConfig(process.cwd());
 
-const clientId = "557e0cd2-d121-4768-bbc9-04f87af838fa";
+const clientId = "879b62c2-f8ea-430d-b8d3-9264150d84bf";
 const baseUrl = process.env.SAFESCORE_BASE_URL ?? "https://safescore.vercel.app";
 const service = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -31,7 +31,9 @@ async function main() {
       "Potential removal impact (points)",
     ];
     const rendered = Object.fromEntries(exactLabels.map((label) => [label, html.includes(label)]));
-    if (response.status !== 200 || Object.values(rendered).includes(false)) {
+    const unknownLabelRendered = html.includes("Unknown / unclassified BASIC") &&
+      html.includes("Not computed") && html.includes("Not assessed");
+    if (response.status !== 200 || Object.values(rendered).includes(false) || !unknownLabelRendered) {
       throw new Error(`Rendered reconciliation failed: ${response.status} ${JSON.stringify(rendered)}`);
     }
     console.log(JSON.stringify({
@@ -43,6 +45,7 @@ async function main() {
         count: reconciliation.unknownBasicCount,
         burdenLabel: "Not computed",
         removalImpactLabel: "Not assessed",
+        rendered: unknownLabelRendered,
       },
       queryTrace: reconciliation.queryTrace,
     }, null, 2));

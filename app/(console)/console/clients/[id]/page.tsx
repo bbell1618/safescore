@@ -203,14 +203,12 @@ export default async function ClientOverviewPage({
                   <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.potentialRemovalImpactByBasic[b.basicCategory] ?? 0}</td>
                 </tr>
               ))}
-              {reconciliation.unknownBasicCount > 0 && (
-                <tr>
-                  <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">Unknown / unclassified BASIC</td>
-                  <td className="px-5 py-3 text-right text-xs text-gray-500">Not computed</td>
-                  <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.unknownBasicCount}</td>
-                  <td className="px-5 py-3 text-right text-xs text-gray-500">Not assessed</td>
-                </tr>
-              )}
+              <tr>
+                <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">Unknown / unclassified BASIC</td>
+                <td className="px-5 py-3 text-right text-xs text-gray-500">Not computed</td>
+                <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.unknownBasicCount}</td>
+                <td className="px-5 py-3 text-right text-xs text-gray-500">Not assessed</td>
+              </tr>
               <tr className="bg-[#FEFCF8]">
                 <td className="px-5 py-3 text-xs font-semibold text-[#1E1C1A]">Total</td>
                 <td className="px-5 py-3 text-right text-xs font-bold text-[#1E1C1A]">{burden.totalPoints}</td>
