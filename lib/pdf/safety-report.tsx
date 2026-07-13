@@ -4,9 +4,20 @@ import {
   Text,
   View,
   StyleSheet,
+  Font,
 } from "@react-pdf/renderer";
 
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import path from "node:path";
+
+Font.register({
+  family: "Roboto",
+  fonts: [
+    { src: path.join(process.cwd(), "public", "fonts", "roboto-400.woff"), fontWeight: 400 },
+    { src: path.join(process.cwd(), "public", "fonts", "roboto-700.woff"), fontWeight: 700 },
+    { src: path.join(process.cwd(), "public", "fonts", "roboto-400-italic.woff"), fontWeight: 400, fontStyle: "italic" },
+  ],
+});
 
 export interface SafetyReportProps {
   client: {
@@ -69,7 +80,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     paddingLeft: 40,
     paddingRight: 40,
-    fontFamily: "Helvetica",
+    fontFamily: "Roboto",
     fontSize: 9,
     color: DARK,
   },
@@ -84,7 +95,8 @@ const styles = StyleSheet.create({
   },
   headerBrand: {
     fontSize: 18,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     color: RED,
     letterSpacing: 0.5,
   },
@@ -105,7 +117,8 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: LIGHT_GRAY,
     marginTop: 2,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Roboto",
+    fontStyle: "italic",
   },
   headerRule: {
     borderBottomWidth: 1.5,
@@ -117,7 +130,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     color: RED,
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -145,17 +159,20 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 9,
     color: DARK,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
   },
   infoValueSatisfactory: {
     fontSize: 9,
     color: GREEN,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
   },
   infoValueAlert: {
     fontSize: 9,
     color: RED,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
   },
   infoValueGray: {
     fontSize: 9,
@@ -176,7 +193,8 @@ const styles = StyleSheet.create({
   },
   tableHeaderCell: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     color: GRAY,
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -198,7 +216,8 @@ const styles = StyleSheet.create({
   tableCellBold: {
     fontSize: 8,
     color: DARK,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     padding: 5,
   },
   tableCellGray: {
@@ -209,7 +228,8 @@ const styles = StyleSheet.create({
   tableCellRed: {
     fontSize: 8,
     color: RED,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     padding: 5,
   },
   tableCellGreen: {
@@ -258,13 +278,15 @@ const styles = StyleSheet.create({
   note: {
     fontSize: 7.5,
     color: GRAY,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Roboto",
+    fontStyle: "italic",
     marginTop: 4,
   },
   emptyState: {
     fontSize: 8,
     color: LIGHT_GRAY,
-    fontFamily: "Helvetica-Oblique",
+    fontFamily: "Roboto",
+    fontStyle: "italic",
     paddingVertical: 10,
     textAlign: "center",
   },
@@ -462,7 +484,7 @@ export function SafetyReport({
                     {isAlert ? (
                       <Text style={[styles.tableCellRed, styles.basicColStatus]}>ALERT</Text>
                     ) : hasData ? (
-                      <Text style={[styles.tableCellGreen, styles.basicColStatus]}>OK</Text>
+                      <Text style={[styles.tableCellGreen, styles.basicColStatus]}>NO ALERT</Text>
                     ) : (
                       <Text style={[styles.tableCellGray, styles.basicColStatus]}>N/A</Text>
                     )}

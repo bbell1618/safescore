@@ -1,5 +1,4 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getCarrier, getBasics } from "@/lib/fmcsa/client";
 import { SafetyReport } from "@/lib/pdf/safety-report";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
@@ -20,6 +19,8 @@ type ClientRow = {
   name: string;
   dot_number: string;
   mc_number: string | null;
+  city: string | null;
+  state: string | null;
 };
 
 type CarrierSummary = {
@@ -39,6 +40,7 @@ type ViolationRow = {
   severity_weight: number | null;
   oos_violation: boolean | null;
   basic_category: string | null;
+  inspections: { inspection_date: string | null } | { inspection_date: string | null }[] | null;
 };
 
 type CaseRow = {
@@ -116,7 +118,7 @@ export async function POST(request: Request) {
 
   const clientResult = await serviceSupabase
     .from("clients")
-    .select("id, name, dot_number, mc_number")
+    .select("id, name, dot_number, mc_number, city, state")
     .eq("id", clientId)
     .single();
   const { data: client, error: clientError } = clientResult as unknown as { data: ClientRow | null; error: unknown };
@@ -139,20 +141,24 @@ export async function POST(request: Request) {
     usdotStatus: null,
   };
 
-  try {
-    const fmcsaCarrier = await getCarrier(client.dot_number);
+  const { data: carrierProfile } = await serviceSupabase
+    .from("carrier_profiles")
+    .select("legal_name, dot_number, drivers, power_units, safety_rating, authority_status")
+    .eq("client_id", clientId)
+    .order("fetched_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (carrierProfile) {
     carrier = {
-      legalName: fmcsaCarrier.legalName,
-      dotNumber: fmcsaCarrier.dotNumber,
-      phyCity: fmcsaCarrier.phyCity,
-      phyState: fmcsaCarrier.phyState,
-      totalDrivers: fmcsaCarrier.totalDrivers,
-      totalPowerUnits: fmcsaCarrier.totalPowerUnits,
-      safetyRating: fmcsaCarrier.safetyRating,
-      usdotStatus: fmcsaCarrier.usdotStatus,
+      legalName: carrierProfile.legal_name ?? client.name,
+      dotNumber: carrierProfile.dot_number ?? client.dot_number,
+      phyCity: client.city ?? "",
+      phyState: client.state ?? "",
+      totalDrivers: carrierProfile.drivers ?? 0,
+      totalPowerUnits: carrierProfile.power_units ?? 0,
+      safetyRating: carrierProfile.safety_rating,
+      usdotStatus: carrierProfile.authority_status,
     };
-  } catch (e) {
-    console.warn("Could not fetch FMCSA carrier data:", e);
   }
 
   let basics: Array<{
@@ -162,37 +168,37 @@ export async function POST(request: Request) {
     alertIndicator: string | null;
   }> = [];
 
-  try {
-    const fmcsaBasics = await getBasics(client.dot_number);
-    const basicEntries = [
-      fmcsaBasics.unsafeDriving,
-      fmcsaBasics.hosCompliance,
-      fmcsaBasics.driverFitness,
-      fmcsaBasics.controlledSubstances,
-      fmcsaBasics.vehicleMaintenance,
-      fmcsaBasics.hmCompliance,
-      fmcsaBasics.crashIndicator,
-    ];
-    basics = basicEntries
-      .filter((b): b is NonNullable<typeof b> => b !== null)
-      .map((b) => ({
-        category: b.category,
-        measure: b.measureValue ?? null,
-        percentile: b.percentile ?? null,
-        alertIndicator: b.alert ? "Y" : "N",
-      }));
-  } catch (e) {
-    console.warn("Could not fetch FMCSA BASIC data:", e);
+  const { data: scoreSnapshot } = await serviceSupabase
+    .from("score_snapshots")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("snapshot_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (scoreSnapshot) {
+    basics = [
+      ["Unsafe Driving", scoreSnapshot.unsafe_driving_measure, scoreSnapshot.unsafe_driving_pct, scoreSnapshot.unsafe_driving_alert],
+      ["Hours-of-Service Compliance", scoreSnapshot.hos_compliance_measure, scoreSnapshot.hos_compliance_pct, scoreSnapshot.hos_compliance_alert],
+      ["Driver Fitness", scoreSnapshot.driver_fitness_measure, scoreSnapshot.driver_fitness_pct, scoreSnapshot.driver_fitness_alert],
+      ["Controlled Substances/Alcohol", scoreSnapshot.controlled_substance_measure, scoreSnapshot.controlled_substance_pct, scoreSnapshot.controlled_substance_alert],
+      ["Vehicle Maintenance", scoreSnapshot.vehicle_maint_measure, scoreSnapshot.vehicle_maint_pct, scoreSnapshot.vehicle_maint_alert],
+      ["Hazardous Materials Compliance", scoreSnapshot.hm_compliance_measure, scoreSnapshot.hm_compliance_pct, scoreSnapshot.hm_compliance_alert],
+      ["Crash Indicator", scoreSnapshot.crash_indicator_measure, scoreSnapshot.crash_indicator_pct, scoreSnapshot.crash_indicator_alert],
+    ].map(([category, measure, percentile, alert]) => ({
+      category: category as string,
+      measure: measure as number | null,
+      percentile: percentile as number | null,
+      alertIndicator: alert ? "Y" : "N",
+    }));
   }
 
   const { inspectionIds: canonicalInspectionIds } =
     await getCanonicalInspectionScope(clientId, serviceSupabase);
   const violationQuery = serviceSupabase
     .from("violations")
-    .select("violation_description, created_at, severity_weight, oos_violation, basic_category")
+    .select("violation_description, created_at, severity_weight, oos_violation, basic_category, inspections(inspection_date)")
     .eq("client_id", clientId)
-    .order("created_at", { ascending: false })
-    .limit(50);
+    .order("created_at", { ascending: false });
 
   const [burdenRaw, violationResult, cpdpResult, dataqResult] = await Promise.all([
     getClientBurden(clientId, serviceSupabase),
@@ -223,7 +229,7 @@ export async function POST(request: Request) {
     oos_violation: boolean;
     basic_category: string | null;
   }> = violationRows.map((v) => ({
-    date: v.created_at ?? "",
+    date: (Array.isArray(v.inspections) ? v.inspections[0]?.inspection_date : v.inspections?.inspection_date) ?? "",
     description: v.violation_description ?? "",
     severity_weight: v.severity_weight ?? null,
     oos_violation: v.oos_violation ?? false,
