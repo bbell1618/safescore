@@ -36,7 +36,7 @@ async function sendEmail({
 
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASSWORD;
+  const pass = process.env.SMTP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD;
   if (!host || !user || !pass) return { success: false, error: "SMTP is not configured" };
 
   try {
