@@ -8,6 +8,7 @@ const TABS = [
   { key: "violations", label: "Violations", href: "/violations" },
   { key: "remediation", label: "Remediation", href: "/remediation" },
   { key: "cases", label: "Cases", href: "/cases" },
+  { key: "requests", label: "Requests", href: "/requests" },
   { key: "monitoring", label: "Monitoring", href: "/monitoring" },
   { key: "compliance", label: "Compliance", href: "/compliance" },
   { key: "reports", label: "Reports", href: "/reports" },
@@ -20,6 +21,7 @@ function activeTab(pathname: string) {
   }
   if (pathname.includes("/violations")) return "violations";
   if (pathname.includes("/remediation")) return "remediation";
+  if (pathname.includes("/requests")) return "requests";
   if (pathname.includes("/monitoring")) return "monitoring";
   if (pathname.includes("/compliance")) return "compliance";
   if (pathname.includes("/reports")) return "reports";

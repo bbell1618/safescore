@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { syncClientEvidenceRequest } from "@/lib/request-queue/sync";
 
 function getAdmin() {
   return createSupabaseClient(
@@ -103,13 +104,15 @@ export async function POST(
   }
 
   if (existing && existing.length > 0) {
+    const { data: existingCase } = await supabase.from("cpdp_cases").select("client_id").eq("id", id).single();
+    if (existingCase?.client_id) await syncClientEvidenceRequest(supabase, existingCase.client_id);
     return NextResponse.json({ evidence: existing, generated: 0, alreadyExisted: true });
   }
 
   // Fetch crash data for context labels
   const { data: c } = await supabase
     .from("cpdp_cases")
-    .select("id, crashes(crash_date, state)")
+    .select("id, client_id, crashes(crash_date, state)")
     .eq("id", id)
     .single();
 
@@ -137,6 +140,8 @@ export async function POST(
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
+
+  if (c?.client_id) await syncClientEvidenceRequest(supabase, c.client_id);
 
   return NextResponse.json({ evidence: inserted ?? [], generated: inserted?.length ?? 0 });
 }

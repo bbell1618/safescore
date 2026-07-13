@@ -4,6 +4,7 @@ import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
+import { syncClientEvidenceRequest } from "@/lib/request-queue/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,8 @@ export async function POST(
   if (!evidenceResult.ok) {
     return NextResponse.json({ error: evidenceResult.error }, { status: 500 });
   }
+
+  await syncClientEvidenceRequest(serviceSupabase, parsedBody.data.clientId);
 
   await serviceSupabase.from("activity_log").insert({
     client_id: parsedBody.data.clientId,

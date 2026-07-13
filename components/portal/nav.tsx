@@ -12,6 +12,7 @@ const navItems = [
   { href: "/portal", label: "Dashboard", exact: true },
   { href: "/portal/safety", label: "Safety profile" },
   { href: "/portal/cases", label: "Cases" },
+  { href: "/portal/requests", label: "Requests" },
   { href: "/portal/documents", label: "Documents" },
   { href: "/portal/reports", label: "Reports" },
   { href: "/portal/profile", label: "Settings" },
