@@ -523,6 +523,28 @@ export function SafetyReport({
           )}
         </View>
 
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerLeft}>Golden Era Insurance Agency | SafeScore | Confidential</Text>
+          <Text
+            style={styles.footerRight}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          />
+        </View>
+      </Page>
+
+      <Page size="LETTER" style={styles.page}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
+            <Text style={styles.headerSubtitle}>Safety Performance Report - Continued</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.headerDate}>Report Date: {reportDate}</Text>
+            <Text style={styles.headerConfidential}>Confidential</Text>
+          </View>
+        </View>
+        <View style={styles.headerRule} />
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{`Recent Violations (${violations.length})`}</Text>
           {violations.length === 0 ? (
