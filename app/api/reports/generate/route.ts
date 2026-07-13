@@ -286,16 +286,19 @@ export async function POST(request: Request) {
     });
   }
 
-  try {
-    await serviceSupabase.from("reports").insert({
-      client_id: clientId,
-      report_type: "safety_score",
-      title: `Safety Report - ${client.name} - ${dateSlug}`,
-      status: "completed",
-      generated_by: user.id,
+  const { error: reportInsertError } = await serviceSupabase.from("reports").insert({
+    client_id: clientId,
+    type: "assessment",
+    title: `Safety Report - ${client.name} - ${dateSlug}`,
+    status: "reviewed",
+    created_by: user.id,
+  });
+  if (reportInsertError) {
+    console.error("Report record insert failed:", reportInsertError.message);
+    return new Response(JSON.stringify({ error: "Failed to persist report record" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
     });
-  } catch (e) {
-    console.warn("Could not insert report record:", e);
   }
 
   return new Response(pdfBuffer as unknown as BodyInit, {
