@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { sendRequestQueueReminder } from "@/lib/email/client";
 
 export async function POST() {
   const auth = await createClient();
@@ -26,6 +27,16 @@ export async function POST() {
     const nextAt = escalated ? null : new Date(now.getTime() + row.reminder_interval_days * 86400000).toISOString();
     const { error: updateError } = await service.from("client_requests").update({ reminder_count: nextCount, last_reminded_at: now.toISOString(), next_reminder_at: nextAt, escalated_at: escalated ? now.toISOString() : null, updated_at: now.toISOString() }).eq("id", row.id).eq("status", "open");
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    const clientRelation = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+    if (recipient?.email) {
+      await sendRequestQueueReminder({
+        to: recipient.email,
+        companyName: clientRelation?.name ?? "Your company",
+        requestTitle: row.title,
+        reminderNumber: nextCount,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/requests`,
+      });
+    }
     const log = { mode: "dry-run", trigger: "request_queue_reminder", recipient: recipient?.email ?? "NO_CLIENT_EMAIL", subject: `SafeScore request reminder: ${row.title}`, template: "request_queue_reminder", requestId: row.id, reminderCount: nextCount, escalated };
     console.log("EMAIL_DRY_RUN", JSON.stringify(log));
     results.push(log);

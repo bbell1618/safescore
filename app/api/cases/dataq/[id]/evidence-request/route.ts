@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
+import { sendRequestQueueReminder } from "@/lib/email/client";
 
 function getAdmin() {
   return createSupabaseClient(
@@ -143,40 +144,14 @@ export async function POST(
     <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">If you have questions, reply to this email or contact your Golden Era representative. Do not share this link with others — it is specific to this case.</p>
   `;
 
-  // ── 5. Fire n8n email webhook ─────────────────────────────────────────────
-  const webhookUrl = process.env.N8N_EMAIL_WEBHOOK_URL;
-  const webhookSecret = process.env.N8N_EMAIL_WEBHOOK_SECRET;
-
-  if (webhookUrl) {
-    try {
-      const emailRes = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(webhookSecret ? { "X-Webhook-Secret": webhookSecret } : {}),
-        },
-        body: JSON.stringify({
-          to: client.email,
-          subject: `Documents needed for your DataQs challenge — ${client.name}`,
-          htmlBody,
-          senderName: "Golden Era SafeScore",
-          replyTo: "info@goldenerainsurance.com",
-        }),
-      });
-
-      if (!emailRes.ok) {
-        console.error(
-          "Evidence request email webhook failed:",
-          emailRes.status,
-          await emailRes.text()
-        );
-      }
-    } catch (err) {
-      console.error("Evidence request email webhook error:", err);
-    }
-  } else {
-    console.warn("N8N_EMAIL_WEBHOOK_URL not configured — evidence request email not sent");
-  }
+  // Route through the shared dry-run-safe notification transport.
+  await sendRequestQueueReminder({
+    to: client.email,
+    companyName: client.name,
+    requestTitle: `Documents needed for DataQ ${violationLabel}`,
+    reminderNumber: 1,
+    portalUrl: uploadUrl,
+  });
 
   // ── 6. Return result ──────────────────────────────────────────────────────
   return NextResponse.json({ ok: true, token, uploadUrl, copyLink: uploadUrl });

@@ -1,8 +1,8 @@
 // ── Transport ──────────────────────────────────────────────────────────────
-// Sends email via n8n webhook → Gmail OAuth (info@goldenerainsurance.com).
-// Requires:
-//   N8N_EMAIL_WEBHOOK_URL    — full webhook endpoint URL
-//   N8N_EMAIL_WEBHOOK_SECRET — Header Auth secret value (X-Webhook-Secret)
+// SMTP transport. EMAIL_DRY_RUN defaults to true unless explicitly set to false.
+// Required for a future live switch: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD.
+
+import nodemailer from "nodemailer";
 
 const DEFAULT_SENDER = "Golden Era SafeScore";
 const DEFAULT_REPLY_TO = "info@goldenerainsurance.com";
@@ -15,6 +15,8 @@ async function sendEmail({
   replyTo,
   cc,
   bcc,
+  trigger,
+  template,
 }: {
   to: string;
   subject: string;
@@ -23,43 +25,40 @@ async function sendEmail({
   replyTo?: string;
   cc?: string;
   bcc?: string;
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const webhookUrl = process.env.N8N_EMAIL_WEBHOOK_URL;
-  const webhookSecret = process.env.N8N_EMAIL_WEBHOOK_SECRET;
-
-  if (!webhookUrl) {
-    console.error("N8N_EMAIL_WEBHOOK_URL is not configured");
-    return { success: false, error: "Email service not configured" };
+  trigger: string;
+  template: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string; dryRun?: boolean }> {
+  const dryRun = process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
+  if (dryRun) {
+    console.log("EMAIL_DRY_RUN", JSON.stringify({ mode: "dry-run", trigger, recipient: to, subject, template }));
+    return { success: true, dryRun: true };
   }
 
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  if (!host || !user || !pass) return { success: false, error: "SMTP is not configured" };
+
   try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(webhookSecret ? { "X-Webhook-Secret": webhookSecret } : {}),
-      },
-      body: JSON.stringify({
-        to,
-        subject,
-        htmlBody,
-        senderName: senderName ?? DEFAULT_SENDER,
-        replyTo: replyTo ?? DEFAULT_REPLY_TO,
-        ...(cc ? { cc } : {}),
-        ...(bcc ? { bcc } : {}),
-      }),
+    const port = Number(process.env.SMTP_PORT ?? "587");
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: process.env.SMTP_SECURE?.trim().toLowerCase() === "true" || port === 465,
+      auth: { user, pass },
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Email webhook failed:", response.status, errorText);
-      return { success: false, error: `Email send failed: ${response.status}` };
-    }
-
-    const result = await response.json();
+    const result = await transporter.sendMail({
+      from: { name: senderName ?? DEFAULT_SENDER, address: process.env.SMTP_FROM ?? user },
+      to,
+      subject,
+      html: htmlBody,
+      replyTo: replyTo ?? process.env.EMAIL_REPLY_TO ?? DEFAULT_REPLY_TO,
+      cc,
+      bcc,
+    });
     return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error("Email webhook error:", error);
+    console.error("SMTP email error:", error instanceof Error ? error.message : "Unknown error");
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -164,6 +163,14 @@ export interface InviteEmailData {
   magicLinkUrl: string;
 }
 
+export interface RequestQueueReminderData {
+  to: string;
+  companyName: string;
+  requestTitle: string;
+  reminderNumber: number;
+  portalUrl: string;
+}
+
 // ── Send functions ─────────────────────────────────────────────────────────
 
 export async function sendNewViolationAlert(
@@ -202,6 +209,8 @@ export async function sendNewViolationAlert(
     to: data.to,
     subject: `New violation added — DOT ${data.dotNumber}`,
     htmlBody: html,
+    trigger: "new_violation_detected",
+    template: "new_violation_alert",
   });
 
   if (!result.success) {
@@ -235,6 +244,8 @@ export async function sendCaseStatusChange(
     to: data.to,
     subject: `${data.caseType} case update — ${data.companyName}`,
     htmlBody: html,
+    trigger: "case_status_change",
+    template: "case_status_change",
   });
 
   if (!result.success) {
@@ -268,6 +279,8 @@ export async function sendReportReady(
     to: data.to,
     subject: `Your SafeScore report is ready — ${data.reportTitle}`,
     htmlBody: html,
+    trigger: "report_ready",
+    template: "report_ready",
   });
 
   if (!result.success) {
@@ -297,6 +310,8 @@ export async function sendWelcomeEmail(
     to: data.to,
     subject: `Welcome to SafeScore — ${data.companyName}`,
     htmlBody: html,
+    trigger: "account_welcome",
+    template: "welcome",
   });
 
   if (!result.success) {
@@ -325,11 +340,35 @@ export async function sendInviteEmail(
     to: data.to,
     subject: `You're invited to SafeScore — ${data.companyName}`,
     htmlBody: html,
+    trigger: "portal_invite",
+    template: "portal_invite",
   });
 
   if (!result.success) {
     console.error("sendInviteEmail failed:", result.error);
   }
 
+  return { success: result.success };
+}
+
+export async function sendRequestQueueReminder(
+  data: RequestQueueReminderData
+): Promise<{ success: boolean }> {
+  const html = emailWrapper(`
+    <h2>Document request reminder</h2>
+    <p>${data.companyName} has an open SafeScore request.</p>
+    <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <div class="detail-row"><div class="label">Request</div><div class="value">${data.requestTitle}</div></div>
+      <div class="detail-row"><div class="label">Reminder</div><div class="value">${data.reminderNumber} of 3</div></div>
+    </div>
+    <a href="${data.portalUrl}" class="cta">Review request</a>
+  `);
+  const result = await sendEmail({
+    to: data.to,
+    subject: `SafeScore request reminder: ${data.requestTitle}`,
+    htmlBody: html,
+    trigger: "request_queue_reminder",
+    template: "request_queue_reminder",
+  });
   return { success: result.success };
 }

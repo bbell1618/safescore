@@ -10,6 +10,7 @@ import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { sendNewViolationAlert } from "@/lib/email/client";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -247,6 +248,7 @@ export async function runAnalysisImport({
     const inspections = await getInspections(dotNumber);
     let violationCount = 0;
     let newViolationCount = 0;
+    const newViolationNotices: Array<{ code: string; description: string; inspectionDate: string; basicCategory: string; severityWeight: number }> = [];
 
     // Pre-load existing violations for this client so we can diff by
     // (inspection_id, violation_code) without N+1 queries.
@@ -375,6 +377,7 @@ export async function runAnalysisImport({
           } else {
             violationCount++;
             newViolationCount++;
+            newViolationNotices.push({ code: viol.violationCode, description: viol.description, inspectionDate: insp.inspectionDate, basicCategory: viol.basicCategory ?? "unknown", severityWeight: viol.severityWeight ?? 0 });
           }
         }
       }
@@ -383,6 +386,22 @@ export async function runAnalysisImport({
     // ── 4. Non-destructive crash import ──────────────────────────────────────
     // Match by report_number. Preserve cpdp_eligible + ai_assessed_at.
     // Never delete crashes — cpdp_cases FK would cascade.
+
+    // The initial baseline is not a "new violation" event. Notify only on later diffs.
+    if ((existingViolations ?? []).length > 0 && newViolationNotices.length > 0) {
+      const { data: recipient } = await supabase.from("users").select("email").eq("client_id", clientId).eq("role", "client_user").limit(1).maybeSingle();
+      if (recipient?.email) for (const notice of newViolationNotices) await sendNewViolationAlert({
+        to: recipient.email,
+        companyName: saferSnap?.legalName ?? `DOT ${dotNumber}`,
+        dotNumber,
+        violationCode: notice.code,
+        description: notice.description,
+        inspectionDate: notice.inspectionDate,
+        basicCategory: notice.basicCategory,
+        severityWeight: notice.severityWeight,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/safety`,
+      });
+    }
 
     const crashes = await getCrashes(dotNumber);
 

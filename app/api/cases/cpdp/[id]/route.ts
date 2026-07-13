@@ -2,6 +2,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { draftCpdpNarrative, EvidenceFile } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
+import { sendCaseStatusChange } from "@/lib/email/client";
 
 export const maxDuration = 60;
 
@@ -39,6 +40,7 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
   const supabase = getAdmin();
+  const { data: beforeCase } = await supabase.from("cpdp_cases").select("status, case_number, client_id, clients(name)").eq("id", id).single();
 
   // Narrative sentinel gate — block final_narrative save if it contains sentinels
   if (body.final_narrative !== undefined && typeof body.final_narrative === "string") {
@@ -121,6 +123,19 @@ export async function PATCH(
       entity_id: id,
       description: `CPDP case status updated to ${body.status}`,
     });
+    if (beforeCase?.client_id && beforeCase.status !== body.status) {
+      const { data: recipient } = await supabase.from("users").select("email").eq("client_id", beforeCase.client_id).eq("role", "client_user").limit(1).maybeSingle();
+      const clientRelation = Array.isArray(beforeCase.clients) ? beforeCase.clients[0] : beforeCase.clients;
+      if (recipient?.email) await sendCaseStatusChange({
+        to: recipient.email,
+        companyName: clientRelation?.name ?? "Your company",
+        caseType: "CPDP",
+        caseNumber: beforeCase.case_number ?? undefined,
+        oldStatus: beforeCase.status,
+        newStatus: body.status,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/cases`,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
