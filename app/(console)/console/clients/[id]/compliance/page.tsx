@@ -202,7 +202,7 @@ export default async function CompliancePage({
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-4">
-          Statuses are derived from the canonical in-window violation layer and the current driver and vehicle rosters. "No violations found" is not a certification of compliance.
+          Statuses are derived from the canonical in-window violation layer and the current driver and vehicle rosters. &quot;No violations found&quot; is not a certification of compliance.
         </p>
       </div>
     </div>

@@ -9,10 +9,10 @@ export function OnboardingBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const dismissed = localStorage.getItem(STORAGE_KEY);
-    if (!dismissed) {
-      setVisible(true);
-    }
+    const frame = requestAnimationFrame(() => {
+      setVisible(!localStorage.getItem(STORAGE_KEY));
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   function dismiss() {

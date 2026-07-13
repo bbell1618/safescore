@@ -16,7 +16,7 @@ function SetupForm() {
   const token = searchParams.get("token");
 
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
-  const [tokenLoading, setTokenLoading] = useState(true);
+  const [tokenLoading, setTokenLoading] = useState(Boolean(token));
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,7 +25,6 @@ function SetupForm() {
 
   useEffect(() => {
     if (!token) {
-      setTokenLoading(false);
       return;
     }
     fetch(`/api/auth/setup?token=${encodeURIComponent(token)}`)

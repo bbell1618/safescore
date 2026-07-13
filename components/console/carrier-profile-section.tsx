@@ -123,7 +123,7 @@ export function CarrierProfileSection({ clientId, profile: initialProfile }: Pro
         <div className="text-center py-6">
           <Building2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <p className="text-sm text-gray-500">No carrier data on file</p>
-          <p className="text-xs text-gray-400 mt-1">Click "Fetch from FMCSA" to pull public carrier data.</p>
+          <p className="text-xs text-gray-400 mt-1">Click &quot;Fetch from FMCSA&quot; to pull public carrier data.</p>
         </div>
       ) : (
         <div className="space-y-4">
