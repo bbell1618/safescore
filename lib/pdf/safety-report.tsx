@@ -76,10 +76,10 @@ const GREEN = "#16a34a";
 const styles = StyleSheet.create({
   pageBackground: {
     position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
+    top: -40,
+    left: -40,
+    width: 612,
+    height: 792,
     backgroundColor: "#ffffff",
   },
   page: {
