@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
-import { AddDriverButton, AddVehicleButton } from "@/components/console/compliance-add-forms";
+import { AddDriverButton, AddVehicleButton, RequestClientDocumentsButton } from "@/components/console/compliance-add-forms";
+import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -38,14 +39,31 @@ export default async function CompliancePage({
     .eq("status", "active")
     .order("unit_number");
 
-  const mockAuditAreas = [
-    { area: "Parts and Accessories", status: "needs_review" },
-    { area: "Driver Qualifications", status: "needs_review" },
-    { area: "Operational Requirements", status: "ok" },
-    { area: "Hours of Service", status: "needs_review" },
-    { area: "Vehicle Inspection, Repair, and Maintenance", status: "needs_review" },
-    { area: "Hazardous Materials", status: "ok" },
-  ];
+  const { inspectionIds } = await getCanonicalInspectionScope(id, supabase);
+  const { data: violationRows } = inspectionIds.length > 0
+    ? await supabase
+        .from("violations")
+        .select("violation_code, basic_category")
+        .eq("client_id", id)
+        .in("inspection_id", inspectionIds)
+    : { data: [] };
+  const violations = violationRows ?? [];
+  const countWhere = (predicate: (violation: (typeof violations)[number]) => boolean) =>
+    violations.filter(predicate).length;
+  const incompleteDrivers = (drivers ?? []).filter(
+    (driver) => !driver.cdl_number || !driver.cdl_expiry || !driver.medical_cert_expiry
+  ).length;
+  const auditAreas = [
+    { area: "Parts and Accessories", count: countWhere((v) => v.basic_category === "vehicle_maintenance" && v.violation_code.startsWith("393")), inputMissing: (vehicles?.length ?? 0) === 0 },
+    { area: "Driver Qualifications", count: countWhere((v) => v.basic_category === "driver_fitness") + incompleteDrivers, inputMissing: (drivers?.length ?? 0) === 0 },
+    { area: "Operational Requirements", count: countWhere((v) => v.basic_category === "unsafe_driving" || v.basic_category === "controlled_substance"), inputMissing: false },
+    { area: "Hours of Service", count: countWhere((v) => v.basic_category === "hos_compliance"), inputMissing: false },
+    { area: "Vehicle Inspection, Repair, and Maintenance", count: countWhere((v) => v.basic_category === "vehicle_maintenance" && !v.violation_code.startsWith("393")), inputMissing: (vehicles?.length ?? 0) === 0 },
+    { area: "Hazardous Materials", count: countWhere((v) => v.basic_category === "hazmat_compliance"), inputMissing: false },
+  ].map((area) => ({
+    ...area,
+    status: area.count > 0 ? "needs_review" : area.inputMissing || inspectionIds.length === 0 ? "insufficient_data" : "no_violations",
+  }));
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
@@ -105,7 +123,8 @@ export default async function CompliancePage({
           ) : (
             <div className="px-5 py-8 text-center">
               <p className="text-sm text-gray-400">No drivers added</p>
-              <p className="text-xs text-gray-400 mt-1">Add drivers to track DQF compliance.</p>
+              <p className="text-xs text-gray-400 mt-1">No driver qualification roster has been provided.</p>
+              <RequestClientDocumentsButton clientId={id} />
             </div>
           )}
         </div>
@@ -147,24 +166,24 @@ export default async function CompliancePage({
         </div>
       </div>
 
-      {/* Mock audit checklist */}
+      {/* Computed audit checklist */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2
           className="font-semibold text-[#1E1C1A] text-sm mb-4"
         >
-          Mock compliance review - 6 FMCSA audit areas
+          Computed compliance review - 6 FMCSA audit areas
         </h2>
         <div className="grid grid-cols-2 gap-3">
-          {mockAuditAreas.map((area) => (
+          {auditAreas.map((area) => (
             <div
               key={area.area}
               className={`flex items-center gap-3 p-3 rounded-lg border ${
-                area.status === "ok"
+                area.status === "no_violations"
                   ? "border-green-200 bg-green-50"
-                  : "border-amber-200 bg-amber-50"
+                  : area.status === "needs_review" ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-gray-50"
               }`}
             >
-              {area.status === "ok" ? (
+              {area.status === "no_violations" ? (
                 <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
               ) : (
                 <AlertTriangle className="w-4 h-4 text-[#DAA520] shrink-0" />
@@ -172,14 +191,18 @@ export default async function CompliancePage({
               <div>
                 <p className="text-sm font-medium text-[#1E1C1A]">{area.area}</p>
                 <p className="text-xs text-gray-500">
-                  {area.status === "ok" ? "Passing" : "Needs review"}
+                  {area.status === "needs_review"
+                    ? `Needs review - ${area.count} live issue${area.count === 1 ? "" : "s"}`
+                    : area.status === "no_violations"
+                      ? "No in-window violations found"
+                      : "Insufficient client data"}
                 </p>
               </div>
             </div>
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-4">
-          Full mock audit requires driver and vehicle data. Add drivers and vehicles above to generate a complete readiness report.
+          Statuses are derived from the canonical in-window violation layer and the current driver and vehicle rosters. "No violations found" is not a certification of compliance.
         </p>
       </div>
     </div>

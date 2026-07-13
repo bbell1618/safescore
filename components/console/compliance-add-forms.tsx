@@ -7,6 +7,48 @@ interface Props {
   clientId: string;
 }
 
+export function RequestClientDocumentsButton({ clientId }: Props) {
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function createRequest() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/clients/${clientId}/requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: "dqf_roster",
+          title: "Driver qualification roster and files",
+          description: "Provide the current driver roster and driver qualification documents.",
+          dedupeKey: "standing:dqf-roster",
+        }),
+      });
+      const body = (await response.json()) as { error?: string };
+      setMessage(response.ok ? "Added to the client Request Queue." : body.error ?? "Request creation failed");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Request creation failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => void createRequest()}
+        className="text-xs font-medium text-[#C67A1E] hover:underline disabled:opacity-60"
+      >
+        {saving ? "Adding request..." : "Request from client"}
+      </button>
+      {message && <p role="status" className="mt-1 text-xs text-gray-500">{message}</p>}
+    </div>
+  );
+}
+
 // ── Add Driver ──────────────────────────────────────────────────────────────
 
 export function AddDriverButton({ clientId }: Props) {
