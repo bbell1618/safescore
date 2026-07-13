@@ -15,6 +15,11 @@ interface ClientData {
   primary_contact?: string;
   phone?: string;
   driver_count?: number | null;
+  fmcsa_authorized?: boolean;
+  eld_provider?: string | null;
+  safety_contact_name?: string | null;
+  safety_contact_email?: string | null;
+  standing_authorization?: boolean;
 }
 
 interface CarrierData {
@@ -126,6 +131,10 @@ export default function OnboardingPage() {
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [operatingStates, setOperatingStates] = useState<string[]>([]);
   const [operatingRadius, setOperatingRadius] = useState<"local" | "regional" | "otr" | "">("");
+  const [driverCount, setDriverCount] = useState(0);
+  const [eldProvider, setEldProvider] = useState("");
+  const [safetyContactName, setSafetyContactName] = useState("");
+  const [safetyContactEmail, setSafetyContactEmail] = useState("");
 
   // Step 3 — Authorization checkboxes
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -159,6 +168,12 @@ export default function OnboardingPage() {
           setContactName(data.client.primary_contact ?? "");
           setContactPhone(data.client.phone ?? "");
           setContactEmail(data.client.email ?? "");
+          setDriverCount(data.client.driver_count ?? 0);
+          setEldProvider(data.client.eld_provider ?? "");
+          setSafetyContactName(data.client.safety_contact_name ?? data.client.primary_contact ?? "");
+          setSafetyContactEmail(data.client.safety_contact_email ?? data.client.email ?? "");
+          setDataAccessChecked(data.client.fmcsa_authorized === true);
+          setDataqChecked(data.client.standing_authorization === true);
         }
       } catch { /* fail silently */ }
       finally { setLoadingClient(false); }
@@ -207,6 +222,10 @@ export default function OnboardingPage() {
           vehicleTypes,
           operatingStates,
           operatingRadius: operatingRadius || undefined,
+          driverCount,
+          eldProvider,
+          safetyContactName,
+          safetyContactEmail,
         }),
       });
     } catch { /* non-fatal */ }
@@ -233,18 +252,18 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           filingAuthorized: true,
           filingAuthorizedBy: signer,
+          standingAuthorization: true,
         }),
       });
     } catch { /* non-fatal */ }
   }
 
-  async function savePinIfProvided() {
-    if (!pin.trim()) return;
+  async function saveFmcsaAccess() {
     try {
       await fetch("/api/portal/fmcsa-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pin.trim(), authorized: true }),
+        body: JSON.stringify({ pin: pin.trim() || undefined, authorized: dataAccessChecked }),
       });
     } catch { /* non-fatal */ }
   }
@@ -532,6 +551,26 @@ export default function OnboardingPage() {
                     ))}
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-2">Billing driver count *</label>
+                    <input type="number" min={0} max={10000} value={driverCount} onChange={(e) => setDriverCount(Math.max(0, Number.parseInt(e.target.value || "0", 10)))} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
+                    <p className="mt-1 text-xs text-[#8B8178]">Your editable count drives billing. FMCSA&apos;s MCS-150 count is reference only.</p>
+                  </div>
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-2">ELD provider</label>
+                    <input type="text" value={eldProvider} onChange={(e) => setEldProvider(e.target.value)} placeholder="Provider name or none" className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
+                  </div>
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-2">Safety contact name</label>
+                    <input type="text" value={safetyContactName} onChange={(e) => setSafetyContactName(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
+                  </div>
+                  <div>
+                    <label className="block mono-label text-[#5C554E] mb-2">Safety contact email</label>
+                    <input type="email" value={safetyContactEmail} onChange={(e) => setSafetyContactEmail(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3">
@@ -659,7 +698,7 @@ export default function OnboardingPage() {
                     await saveProfile();
                     await saveAgreement();
                     if (dataqChecked) await saveFilingAuthorization();
-                    await savePinIfProvided(); // await so PIN reaches DB before step advances
+                    await saveFmcsaAccess();
                     setStep(4);
                   }}
                   disabled={!canProceedStep3 || savingProfile}
@@ -668,6 +707,18 @@ export default function OnboardingPage() {
                   {savingProfile ? "Saving..." : "I agree — continue"}
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  await saveProfile();
+                  if (agreementChecked) await saveAgreement();
+                  setStep(4);
+                }}
+                disabled={!agreementChecked || savingProfile}
+                className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors disabled:opacity-40"
+              >
+                Complete FMCSA access later
+              </button>
             </div>
           )}
 
@@ -683,13 +734,11 @@ export default function OnboardingPage() {
 
               {/* Plan summary */}
               {(() => {
-                // Driver count cost calculation (Bug 5)
-                // Prefer FMCSA-reported drivers, fall back to GEIA-entered driver_count
-                const driverCount = carrier?.totalDrivers ?? client?.driver_count ?? null;
+                const billingDriverCount = driverCount;
                 const isTotalSafety = assignedTier === "total_safety";
                 const estimatedMonthly =
-                  isTotalSafety && driverCount != null
-                    ? 999 + driverCount * 29
+                  isTotalSafety
+                    ? 999 + billingDriverCount * 29
                     : null;
 
                 return (
@@ -728,17 +777,15 @@ export default function OnboardingPage() {
                           <span>$999/mo</span>
                         </div>
                         <div className="flex justify-between text-xs text-[#5C554E]">
-                          <span>{driverCount} driver{driverCount === 1 ? "" : "s"} × $29</span>
-                          <span>${(driverCount! * 29).toLocaleString()}/mo</span>
+                          <span>{billingDriverCount} driver{billingDriverCount === 1 ? "" : "s"} × $29</span>
+                          <span>${(billingDriverCount * 29).toLocaleString()}/mo</span>
                         </div>
                         <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-[#F0E8DA]">
                           <span className="text-[#1E1C1A]">Estimated total</span>
                           <span className="text-[#C67A1E]">${estimatedMonthly.toLocaleString()}/mo</span>
                         </div>
                         <p className="text-[10px] text-[#8B8178]">
-                          Driver count from{" "}
-                          {carrier?.totalDrivers != null ? "FMCSA carrier profile" : "your account record"}.
-                          Final billing reflects actual driver count at subscription start.
+                          Billing uses your editable count. FMCSA reference: {carrier?.totalDrivers ?? "not available"} drivers.
                         </p>
                       </div>
                     )}

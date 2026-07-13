@@ -1,6 +1,7 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PortalNav } from "@/components/portal/nav";
+import Link from "next/link";
 
 export default async function PortalLayout({
   children,
@@ -20,7 +21,7 @@ export default async function PortalLayout({
   // Fetch user record with client info
   const { data: userRecord } = await supabase
     .from("users")
-    .select("*, clients(name)")
+    .select("*, clients(name, fmcsa_authorized)")
     .eq("id", user.id)
     .single();
 
@@ -30,10 +31,17 @@ export default async function PortalLayout({
       : Array.isArray(userRecord?.clients) && userRecord.clients.length > 0
       ? (userRecord.clients as { name: string }[])[0].name
       : undefined;
+  const clientRelation = Array.isArray(userRecord?.clients) ? userRecord.clients[0] : userRecord?.clients;
+  const fmcsaAuthorized = (clientRelation as { fmcsa_authorized?: boolean } | null)?.fmcsa_authorized === true;
 
   return (
     <div className="min-h-screen bg-[#FEFCF8]">
       <PortalNav userEmail={user.email} companyName={clientName} />
+      {!fmcsaAuthorized && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+          FMCSA access is incomplete. <Link className="font-semibold underline" href="/onboarding">Complete FMCSA access</Link>
+        </div>
+      )}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {children}
       </main>

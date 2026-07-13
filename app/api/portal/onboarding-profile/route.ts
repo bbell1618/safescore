@@ -91,6 +91,12 @@ export async function POST(request: Request) {
     update.operating_states = body.operatingStates;
   }
   if (body.operatingRadius) update.operating_radius = body.operatingRadius;
+  if (typeof body.eldProvider === "string") update.eld_provider = body.eldProvider.trim() || null;
+  if (typeof body.safetyContactName === "string") update.safety_contact_name = body.safetyContactName.trim() || null;
+  if (typeof body.safetyContactEmail === "string") update.safety_contact_email = body.safetyContactEmail.trim() || null;
+  if (typeof body.driverCount === "number" && Number.isInteger(body.driverCount) && body.driverCount >= 0 && body.driverCount <= 10000) {
+    update.driver_count = body.driverCount;
+  }
 
   if (body.serviceAgreementAccepted === true) {
     update.service_agreement_accepted = true;
@@ -119,6 +125,10 @@ export async function POST(request: Request) {
       null;
     update.filing_authorization_scope =
       "DataQs Requests for Data Review and Crash Preventability Determination (CPDP) requests filed by GEIA on the carrier behalf";
+  }
+  if (body.standingAuthorization === true) {
+    update.standing_authorization = true;
+    update.standing_authorized_at = new Date().toISOString();
   }
 
   if (Object.keys(update).length === 0) {

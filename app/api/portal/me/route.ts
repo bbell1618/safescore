@@ -26,7 +26,7 @@ export async function GET() {
   // Look up client details
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, dot_number, status, tier, email, primary_contact, phone, driver_count")
+    .select("id, name, dot_number, status, tier, email, primary_contact, phone, driver_count, fmcsa_authorized, eld_provider, safety_contact_name, safety_contact_email, standing_authorization")
     .eq("id", userRecord.client_id)
     .single() as any;
 
