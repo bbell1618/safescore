@@ -243,6 +243,20 @@ export default async function RemediationPage({
             {nextStep.action} &rarr;
           </Link>
         </div>
+        <div className="grid gap-2 mt-4 md:grid-cols-3 text-xs">
+          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+            <p className="font-semibold text-[#1E1C1A]">Lane A - CPDP</p>
+            <p className="text-gray-500 mt-1">Review eligible crashes for documented non-preventability.</p>
+          </div>
+          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+            <p className="font-semibold text-[#1E1C1A]">Lane B - DataQs</p>
+            <p className="text-gray-500 mt-1">File only genuinely erroneous violations supported by actual evidence. Investigate means evidence is needed, not that the violation is removable.</p>
+          </div>
+          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+            <p className="font-semibold text-[#1E1C1A]">Lane C - operational fixes</p>
+            <p className="text-gray-500 mt-1">Correct legitimate safety issues and monitor their 24-month age-out.</p>
+          </div>
+        </div>
       </section>
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
