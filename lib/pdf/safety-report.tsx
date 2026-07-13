@@ -235,7 +235,8 @@ const styles = StyleSheet.create({
   tableCellGreen: {
     fontSize: 8,
     color: GREEN,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     padding: 5,
   },
   basicColCategory: { flex: 3 },
@@ -271,7 +272,8 @@ const styles = StyleSheet.create({
   bulletTextBold: {
     fontSize: 9,
     color: DARK,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto",
+    fontWeight: 700,
     flex: 1,
     lineHeight: 1.4,
   },
