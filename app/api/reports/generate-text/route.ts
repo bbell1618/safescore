@@ -187,26 +187,15 @@ Instructions: ${typeInstructions[type] ?? typeInstructions.assessment}
 
 Write in plain English accessible to a small fleet owner. Use professional but approachable tone. Structure with clear paragraphs - no bullet lists. Do not include legal opinions or guarantees.`;
 
-  let aiText: string;
-
   if (!process.env.OPENROUTER_API_KEY) {
-    aiText = `[DRAFT - AI generation requires OPENROUTER_API_KEY]
+    return NextResponse.json(
+      { error: "Report generation is unavailable because OPENROUTER_API_KEY is not configured." },
+      { status: 503 }
+    );
+  }
 
-${reportLabel} - ${client.name} (DOT ${dotNumber})
-Generated: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-
-This is a placeholder draft. Configure OPENROUTER_API_KEY to enable AI-generated reports.
-
-Carrier overview: ${client.name} operates under DOT ${dotNumber}.
-
-Weighted violation burden:
-${burdenText}
-
-${challengeWorkText}
-
-Recommendations: Address the highest weighted BASIC areas operationally and continue real CPDP/DataQs work already opened for the carrier.`;
-  } else {
-    try {
+  let aiText: string;
+  try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -229,10 +218,9 @@ Recommendations: Address the highest weighted BASIC areas operationally and cont
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
       aiText = data.choices?.[0]?.message?.content ?? "";
       if (!aiText) throw new Error("Empty response from AI");
-    } catch (err) {
+  } catch (err) {
       console.error("OpenRouter call failed:", err);
       return NextResponse.json({ error: "AI generation failed" }, { status: 500 });
-    }
   }
 
   const reportResult = await serviceSupabase

@@ -3,19 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+        getAll: () => request.cookies.getAll(),
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -25,97 +20,99 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
+  const { data: userRecord } = user
+    ? await supabase.from("users").select("role, client_id").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const role = userRecord?.role as string | undefined;
+  const isStaff = role === "geia_admin" || role === "geia_staff";
+  const isClient = role === "client_user";
 
-  // API routes handle their own auth — let them through
   if (path.startsWith("/api/")) {
+    const publicApiPrefixes = [
+      "/api/auth/setup",
+      "/api/billing/webhook",
+      "/api/evidence/",
+      "/api/fmcsa/",
+    ];
+    if (publicApiPrefixes.some((prefix) => path.startsWith(prefix))) return supabaseResponse;
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const staffOnlyPrefixes = [
+      "/api/analysis/",
+      "/api/cases/",
+      "/api/clients",
+      "/api/requests/",
+      "/api/violations/",
+      "/api/reports/generate-text",
+    ];
+    const staffOnlyExact = path === "/api/reports" || /^\/api\/reports\/[^/]+\/send$/.test(path);
+    if ((staffOnlyExact || staffOnlyPrefixes.some((prefix) => path.startsWith(prefix))) && !isStaff) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const clientOnlyPrefixes = [
+      "/api/portal/",
+      "/api/billing/create-checkout-session",
+      "/api/billing/portal",
+      "/api/billing/sync",
+    ];
+    if (clientOnlyPrefixes.some((prefix) => path.startsWith(prefix)) && !isClient) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     return supabaseResponse;
   }
 
-  // Not logged in — redirect to login (unless already on auth pages)
   if (!user && !path.startsWith("/login") && !path.startsWith("/auth") && !path.startsWith("/setup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Logged in on login page — redirect to console (staff) or portal (client)
   if (user && path.startsWith("/login")) {
-    // Determine role from user metadata
-    const role = user.user_metadata?.role as string | undefined;
     const url = request.nextUrl.clone();
-    url.pathname = role === "client_user" ? "/portal" : "/console";
+    url.pathname = isClient ? "/portal" : "/console";
     return NextResponse.redirect(url);
   }
 
-  // Protect /console/* — must be geia_admin or geia_staff
-  if (path.startsWith("/console")) {
-    if (!user) {
+  if (path.startsWith("/console") && !isStaff) {
+    const url = request.nextUrl.clone();
+    url.pathname = isClient ? "/portal" : "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (path.startsWith("/portal")) {
+    if (!isClient) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login";
+      url.pathname = isStaff ? "/console" : "/login";
       return NextResponse.redirect(url);
     }
-    const role = user.user_metadata?.role as string | undefined;
-    if (role === "client_user") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/portal";
-      return NextResponse.redirect(url);
+    const isOnboardingPath = path === "/portal/onboarding" || path.startsWith("/portal/onboarding/");
+    if (!isOnboardingPath && userRecord?.client_id) {
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("id")
+        .eq("client_id", userRecord.client_id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!subscription) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/portal/onboarding";
+        return NextResponse.redirect(url);
+      }
     }
   }
 
-  // Protect /portal/* — must be client_user
-  if (path.startsWith("/portal") && !path.startsWith("/setup")) {
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
-    }
-
-    // Subscription gate — skip for onboarding pages themselves
-    const isOnboardingPath =
-      path === "/portal/onboarding" ||
-      path.startsWith("/portal/onboarding/");
-
-    if (!isOnboardingPath) {
-      const role = user.user_metadata?.role as string | undefined;
-
-      // Only enforce subscription check for client_users
-      if (role === "client_user") {
-        // Look up client_id for this user
-        const { data: userRecord } = await supabase
-          .from("users")
-          .select("client_id")
-          .eq("id", user.id)
-          .single();
-
-        if (userRecord?.client_id) {
-          // Check for an active subscription
-          const { data: subscription } = await supabase
-            .from("subscriptions")
-            .select("id")
-            .eq("client_id", (userRecord as any).client_id)
-            .eq("status", "active")
-            .maybeSingle();
-
-          if (!subscription) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/portal/onboarding";
-            return NextResponse.redirect(url);
-          }
-        }
-      }
-    }
+  if ((path === "/onboarding" || path.startsWith("/onboarding/")) && user && !isClient) {
+    const url = request.nextUrl.clone();
+    url.pathname = isStaff ? "/console" : "/login";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
