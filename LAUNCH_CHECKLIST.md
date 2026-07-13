@@ -6,6 +6,7 @@ Every item below requires a human credential, external-service action, productio
 
 - [ ] Create or select a beta client account with a client-portal login for Daven’s walkthrough. The Phase 11 synthetic client was intentionally deleted after verification.
 - [ ] Perform Brandon’s interactive beta walkthrough of the deployed authenticated analysis/import path and confirm the selected real carrier may be shown.
+- [ ] In that authenticated walkthrough, open Nationwide’s Violations tab, apply a code/description filter, expand one row, and confirm the evidence checklist renders without browser-console errors. Programmatic route/data verification passed; the automated browser session could not accept the deployed staff cookie.
 - [ ] Confirm production `NEXT_PUBLIC_APP_URL` points to the intended public hostname before invitations or Stripe redirects are used.
 - [ ] Keep `EMAIL_DRY_RUN=true` for the walkthrough. Verify the dry-run log contains recipient, subject, template, and trigger only.
 - [ ] Do not submit a real DataQ or CPDP during the walkthrough. Real filings and determination updates require Daven/Brandon’s human workflow and actual evidence.
