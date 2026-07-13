@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ import type {
   InspectionDetailLookup,
 } from "@/lib/fmcsa/inspection-detail-xml-types";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
+import { parseAllBasicsExport } from "@/lib/fmcsa/all-basics-export";
 
 export const dynamic = "force-dynamic";
 
@@ -70,8 +72,112 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "DOT number does not match client" }, { status: 400 });
   }
 
+  const fileHash = createHash("sha256").update(parsedInput.content).digest("hex");
+  const { data: priorIngest, error: priorError } = await serviceSupabase
+    .from("fmcsa_ingest_files")
+    .select("ingest_kind, parsed_summary")
+    .eq("client_id", clientId)
+    .eq("file_hash", fileHash)
+    .maybeSingle();
+
+  if (priorError) {
+    return NextResponse.json({ error: priorError.message }, { status: 500 });
+  }
+  if (priorIngest) {
+    return NextResponse.json({
+      status: "skipped",
+      ingest_kind: priorIngest.ingest_kind,
+      dedupe_key: `${clientId}:${fileHash}`,
+      ...(priorIngest.parsed_summary as Record<string, unknown>),
+    });
+  }
+
+  const ingestKind = detectIngestKind(parsedInput.filename, parsedInput.content);
+  if (ingestKind === "all_basics") {
+    try {
+      const allBasics = parseAllBasicsExport(parsedInput.content);
+      const b = allBasics.basics;
+      const { error: snapshotError } = await serviceSupabase
+        .from("score_snapshots")
+        .upsert(
+          {
+            client_id: clientId,
+            snapshot_date: allBasics.snapshotDate,
+            unsafe_driving_measure: b.unsafe_driving.measure,
+            unsafe_driving_pct: b.unsafe_driving.percentile,
+            unsafe_driving_alert: b.unsafe_driving.alert,
+            hos_compliance_measure: b.hos_compliance.measure,
+            hos_compliance_pct: b.hos_compliance.percentile,
+            hos_compliance_alert: b.hos_compliance.alert,
+            driver_fitness_measure: b.driver_fitness.measure,
+            driver_fitness_pct: b.driver_fitness.percentile,
+            driver_fitness_alert: b.driver_fitness.alert,
+            controlled_substance_measure: b.controlled_substance.measure,
+            controlled_substance_pct: b.controlled_substance.percentile,
+            controlled_substance_alert: b.controlled_substance.alert,
+            vehicle_maint_measure: b.vehicle_maintenance.measure,
+            vehicle_maint_pct: b.vehicle_maintenance.percentile,
+            vehicle_maint_alert: b.vehicle_maintenance.alert,
+            hm_compliance_measure: b.hazmat_compliance.measure,
+            hm_compliance_pct: b.hazmat_compliance.percentile,
+            hm_compliance_alert: b.hazmat_compliance.alert,
+            crash_indicator_measure: b.crash_indicator.measure,
+            crash_indicator_pct: b.crash_indicator.percentile,
+            crash_indicator_alert: b.crash_indicator.alert,
+            official_basics: b,
+            source_file_hash: fileHash,
+            source: "authenticated",
+          },
+          { onConflict: "client_id,snapshot_date" }
+        );
+      if (snapshotError) {
+        return NextResponse.json({ error: snapshotError.message }, { status: 500 });
+      }
+
+      const summary = {
+        parsed: 7,
+        inserted: 1,
+        skipped: 0,
+        flagged: Object.values(b).filter((basic) => basic.alert).length,
+        snapshot_date: allBasics.snapshotDate,
+      };
+      const registryError = await registerIngest(
+        serviceSupabase,
+        clientId,
+        fileHash,
+        ingestKind,
+        parsedInput.filename,
+        summary
+      );
+      if (registryError) return registryError;
+
+      return NextResponse.json({
+        status: "inserted",
+        ingest_kind: ingestKind,
+        dedupe_key: `${clientId}:${fileHash}`,
+        ...summary,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Failed to parse All BASICs export" },
+        { status: 400 }
+      );
+    }
+  }
+
   const lookup = await loadReferenceLookup(serviceSupabase);
-  const inspections = parseInspectionDetailXml(parsedInput.xml, lookup);
+  let inspections: InspectionDetailInspection[];
+  try {
+    inspections = parseInspectionDetailXml(parsedInput.content, lookup);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to parse COMPASS XML" },
+      { status: 400 }
+    );
+  }
+  if (inspections.length === 0) {
+    return NextResponse.json({ error: "COMPASS XML contains no inspections" }, { status: 400 });
+  }
   const incomingMcmisIds = inspections.map((inspection) => inspection.mcmisInspectionId);
 
   const { data: untouchedRows } = await serviceSupabase
@@ -84,6 +190,7 @@ export async function POST(request: NextRequest) {
   const { data: existingRows, error: existingError } = await serviceSupabase
     .from("inspections")
     .select("id, mcmis_inspection_id, report_number")
+    .eq("client_id", clientId)
     .in("mcmis_inspection_id", incomingMcmisIds);
 
   if (existingError) {
@@ -244,7 +351,7 @@ export async function POST(request: NextRequest) {
     console.error("Failed to capture burden snapshot after detail ingest", error);
   }
 
-  return NextResponse.json({
+  const summary = {
     inspections: inspections.length,
     violations: violationCount,
     oos: oosCount,
@@ -252,6 +359,26 @@ export async function POST(request: NextRequest) {
     vehicles: vehicleCount,
     unmatched_codes: unmatchedCodes(inspections),
     untouched_inspections: untouchedRows?.length ?? 0,
+    parsed: inspections.length,
+    inserted: upserted.filter(({ inspection }) => !existingByMcmis.has(inspection.mcmisInspectionId)).length,
+    skipped: 0,
+    flagged: oosCount + unmatchedCodes(inspections).length,
+  };
+  const registryError = await registerIngest(
+    serviceSupabase,
+    clientId,
+    fileHash,
+    ingestKind,
+    parsedInput.filename,
+    summary
+  );
+  if (registryError) return registryError;
+
+  return NextResponse.json({
+    status: "inserted",
+    ingest_kind: ingestKind,
+    dedupe_key: `${clientId}:${fileHash}`,
+    ...summary,
   });
 }
 
@@ -281,7 +408,7 @@ async function requireStaff() {
 }
 
 async function readInput(request: NextRequest): Promise<
-  | { ok: true; clientId: string | null; dotNumber: string | null; xml: string }
+  | { ok: true; clientId: string | null; dotNumber: string | null; content: string; filename: string | null }
   | { ok: false; error: string; status: number }
 > {
   const contentType = request.headers.get("content-type") ?? "";
@@ -289,28 +416,56 @@ async function readInput(request: NextRequest): Promise<
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
     const file = form.get("file");
-    const xmlField = form.get("xml");
-    const xml =
+    const contentField = form.get("xml") ?? form.get("content");
+    const content =
       file instanceof File
         ? await file.text()
-        : typeof xmlField === "string"
-          ? xmlField
+        : typeof contentField === "string"
+          ? contentField
           : "";
     return {
       ok: true,
       clientId: stringOrNull(form.get("clientId")),
       dotNumber: stringOrNull(form.get("dotNumber")),
-      xml,
+      content,
+      filename: file instanceof File ? file.name : stringOrNull(form.get("filename")),
     };
   }
 
-  const xml = await request.text();
+  const content = await request.text();
   return {
     ok: true,
     clientId: request.nextUrl.searchParams.get("clientId"),
     dotNumber: request.nextUrl.searchParams.get("dotNumber"),
-    xml,
+    content,
+    filename: request.nextUrl.searchParams.get("filename"),
   };
+}
+
+function detectIngestKind(filename: string | null, content: string) {
+  if (filename?.toLowerCase().endsWith(".csv")) return "all_basics" as const;
+  if (content.trimStart().startsWith("<")) return "inspection_detail" as const;
+  return "all_basics" as const;
+}
+
+async function registerIngest(
+  serviceSupabase: ServiceSupabaseClient,
+  clientId: string,
+  fileHash: string,
+  ingestKind: "inspection_detail" | "all_basics",
+  filename: string | null,
+  parsedSummary: Record<string, unknown>
+) {
+  const { error } = await serviceSupabase.from("fmcsa_ingest_files").insert({
+    client_id: clientId,
+    file_hash: fileHash,
+    ingest_kind: ingestKind,
+    filename,
+    parsed_summary: parsedSummary,
+  });
+  return error
+    ? NextResponse.json({ error: `Ingest registry failed: ${error.message}` }, { status: 500 })
+    : null;
 }
 
 async function loadReferenceLookup(

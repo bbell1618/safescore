@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Inspections>
+  <Inspection>
+    <InspMain>
+      <inspectionId>990000001</inspectionId>
+      <InspReportID>CA-SYN-0001</InspReportID>
+      <InspStartDate>07/01/2026</InspStartDate>
+      <InspStartTime>08:15</InspStartTime>
+      <InspEndTime>09:05</InspEndTime>
+      <InspectionLevelDesc>Level 1</InspectionLevelDesc>
+      <InspLocation><InspLocationText>Synthetic inspection facility</InspLocationText></InspLocation>
+      <PostAccidentIndicator>NO</PostAccidentIndicator>
+    </InspMain>
+    <Vehicles>
+      <Vehicle>
+        <VehicleUnitNum>1</VehicleUnitNum>
+        <VehicleUnitTypeCode>TRUCK</VehicleUnitTypeCode>
+        <VehicleMakeCode>TEST</VehicleMakeCode>
+        <VehicleCompanyID>1TESTVIN0000000001</VehicleCompanyID>
+        <VehicleLicenseID>SYN0001</VehicleLicenseID>
+        <VehicleLicenseStateCode>CA</VehicleLicenseStateCode>
+        <IEPDotNumber></IEPDotNumber>
+      </Vehicle>
+    </Vehicles>
+    <Violations>
+      <Violation>
+        <FedVioCode>395.8A-ELD</FedVioCode>
+        <SectionDesc>Synthetic ELD record-of-duty-status violation</SectionDesc>
+        <VioOOSFlag>YES</VioOOSFlag>
+        <StateCitationNumber>SYN-CIT-1</StateCitationNumber>
+        <StateCitationResult>Pending</StateCitationResult>
+      </Violation>
+    </Violations>
+  </Inspection>
+</Inspections>

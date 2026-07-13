@@ -17,6 +17,16 @@ function movementClass(value: number) {
   return "text-gray-500";
 }
 
+const OFFICIAL_BASICS = [
+  { label: "Unsafe Driving", measure: "unsafe_driving_measure", percentile: "unsafe_driving_pct", alert: "unsafe_driving_alert" },
+  { label: "HOS Compliance", measure: "hos_compliance_measure", percentile: "hos_compliance_pct", alert: "hos_compliance_alert" },
+  { label: "Driver Fitness", measure: "driver_fitness_measure", percentile: "driver_fitness_pct", alert: "driver_fitness_alert" },
+  { label: "Controlled Substances/Alcohol", measure: "controlled_substance_measure", percentile: "controlled_substance_pct", alert: "controlled_substance_alert" },
+  { label: "Vehicle Maintenance", measure: "vehicle_maint_measure", percentile: "vehicle_maint_pct", alert: "vehicle_maint_alert" },
+  { label: "HM Compliance", measure: "hm_compliance_measure", percentile: "hm_compliance_pct", alert: "hm_compliance_alert" },
+  { label: "Crash Indicator", measure: "crash_indicator_measure", percentile: "crash_indicator_pct", alert: "crash_indicator_alert" },
+] as const;
+
 export default async function MonitoringPage({
   params,
 }: {
@@ -32,6 +42,14 @@ export default async function MonitoringPage({
     .single();
 
   if (!client) notFound();
+
+  const { data: officialSnapshot } = await supabase
+    .from("score_snapshots")
+    .select("*")
+    .eq("client_id", id)
+    .order("snapshot_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const snapshots = await getRecentSnapshots(id, 12);
   const latest = snapshots[0] ?? null;
@@ -59,6 +77,41 @@ export default async function MonitoringPage({
             Monitoring is ready, but no burden snapshots have been captured yet.
           </p>
         )}
+      </div>
+
+      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+        <div>
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">FMCSA official measures</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            {officialSnapshot
+              ? `${officialSnapshot.source === "authenticated" ? "Authenticated FMCSA Portal export" : "Public FMCSA API"} dated ${formatDate(officialSnapshot.snapshot_date)}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.`
+              : "No FMCSA measure snapshot has been imported yet."}
+          </p>
+        </div>
+        {officialSnapshot && (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {OFFICIAL_BASICS.map((basic) => {
+              const measure = officialSnapshot[basic.measure];
+              const percentile = officialSnapshot[basic.percentile];
+              const alert = officialSnapshot[basic.alert];
+              return (
+                <div key={basic.label} className="rounded-lg border border-[#F0E8DA] bg-white/60 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-[#1E1C1A]">{basic.label}</p>
+                    {alert && <span className="rounded-full bg-[#FDECEA] px-2 py-0.5 text-[10px] font-medium text-[#B83B32]">Alert</span>}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-[#1E1C1A]">Measure {measure ?? "Unknown"}</p>
+                  <p className="text-xs text-gray-500">Percentile {percentile == null ? "Unknown" : `${percentile}%`}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div>
+        <h2 className="font-semibold text-[#1E1C1A] text-sm">SafeScore computed burden</h2>
+        <p className="mt-1 text-xs text-gray-500">Calculated from the canonical in-window inspection and violation layer.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">

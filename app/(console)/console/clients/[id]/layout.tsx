@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClientTabs } from "@/components/console/client-tabs";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
+import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 const tierLabel: Record<string, string> = {
@@ -105,7 +106,7 @@ export default async function ClientFileLayout({
               </div>
             </div>
 
-            <div className="shrink-0">
+            <div className="shrink-0 space-y-3">
               <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">Action</p>
               <RunAnalysisButton
                 clientId={id}
@@ -113,6 +114,7 @@ export default async function ClientFileLayout({
                 hasData={(violationCount ?? 0) > 0}
                 hasFmcsaAccess={false}
               />
+              <FmcsaExportUpload clientId={id} dotNumber={client.dot_number} />
             </div>
           </div>
           <ClientTabs clientId={id} />

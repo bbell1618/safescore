@@ -1,0 +1,8 @@
+Snapshot Date,BASIC,Measure,Percentile,Threshold,Alert,Detail
+2026-07-13,Unsafe Driving,4.25,71,65,Yes,Alerted above the intervention threshold
+2026-07-13,Hours-of-Service Compliance,2.40,54,65,No,
+2026-07-13,Driver Fitness,0.18,12,80,No,
+2026-07-13,Controlled Substances/Alcohol,0.00,0,80,No,
+2026-07-13,Vehicle Maintenance,5.75,83,80,Yes,Alerted above the intervention threshold
+2026-07-13,Hazardous Materials Compliance,1.10,42,80,No,HM placarding and shipping-paper detail included
+2026-07-13,Crash Indicator,1.32,68,65,Yes,Crash Indicator is non-public and present in the authenticated export
