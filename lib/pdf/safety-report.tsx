@@ -76,21 +76,23 @@ const GREEN = "#16a34a";
 const styles = StyleSheet.create({
   pageBackground: {
     position: "absolute",
-    top: -40,
-    left: -40,
+    top: 0,
+    left: 0,
     width: 612,
     height: 792,
     backgroundColor: "#ffffff",
   },
   page: {
     backgroundColor: "#ffffff",
+    fontFamily: "Roboto",
+    fontSize: 9,
+    color: DARK,
+  },
+  content: {
     paddingTop: 40,
     paddingBottom: 60,
     paddingLeft: 40,
     paddingRight: 40,
-    fontFamily: "Roboto",
-    fontSize: 9,
-    color: DARK,
   },
   header: {
     flexDirection: "row",
@@ -383,6 +385,7 @@ export function SafetyReport({
     >
       <Page size="LETTER" style={styles.page}>
         <View style={styles.pageBackground} fixed />
+        <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
@@ -532,6 +535,7 @@ export function SafetyReport({
             </View>
           )}
         </View>
+        </View>
 
         <View style={styles.footer} fixed>
           <Text style={styles.footerLeft}>Golden Era Insurance Agency | SafeScore | Confidential</Text>
@@ -544,6 +548,7 @@ export function SafetyReport({
 
       <Page size="LETTER" style={styles.page}>
         <View style={styles.pageBackground} fixed />
+        <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
@@ -620,6 +625,7 @@ export function SafetyReport({
               <Text style={styles.bulletTextBold}>{`Immediate attention recommended for: ${alertCategories.join(", ")}`}</Text>
             </View>
           )}
+        </View>
         </View>
 
         <View style={styles.footer} fixed>
