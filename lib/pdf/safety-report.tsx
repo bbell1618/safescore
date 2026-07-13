@@ -356,8 +356,9 @@ export function SafetyReport({
   violations,
   reportDate,
 }: SafetyReportProps) {
-  const displayedViolations = violations.slice(0, 20);
-  const hasMoreViolations = violations.length > 20;
+  // Keep the summary deterministic at two pages. The full count remains visible.
+  const displayedViolations = violations.slice(0, 15);
+  const hasMoreViolations = violations.length > 15;
 
   const alertCount = basics.filter((b) => b.alertIndicator === "Y").length;
   const alertCategories = basics
@@ -579,7 +580,7 @@ export function SafetyReport({
                 })}
               </View>
               {hasMoreViolations && (
-                <Text style={styles.note}>{`Showing 20 of ${violations.length} violations`}</Text>
+                <Text style={styles.note}>{`Showing 15 of ${violations.length} violations`}</Text>
               )}
             </>
           )}
