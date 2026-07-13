@@ -386,7 +386,7 @@ export function SafetyReport({
       subject="CSA Safety Performance Report"
     >
       <Page size="LETTER" style={styles.page}>
-        <Svg style={styles.pageBackground} fixed viewBox="0 0 612 792"><Rect x="0" y="0" width="612" height="792" fill="#ffffff" /></Svg>
+        <Svg style={styles.pageBackground} viewBox="0 0 612 792"><Rect x="0" y="0" width="612" height="792" fill="#ffffff" /></Svg>
         <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -549,7 +549,7 @@ export function SafetyReport({
       </Page>
 
       <Page size="LETTER" style={styles.page}>
-        <Svg style={styles.pageBackground} fixed viewBox="0 0 612 792"><Rect x="0" y="0" width="612" height="792" fill="#ffffff" /></Svg>
+        <Svg style={styles.pageBackground} viewBox="0 0 612 792"><Rect x="0" y="0" width="612" height="792" fill="#ffffff" /></Svg>
         <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
