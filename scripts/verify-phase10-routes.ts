@@ -18,24 +18,80 @@ type RouteResult = {
   rendered: boolean;
 };
 
+function expectedMarker(route: string) {
+  const exact: Record<string, string> = {
+    "/console": "Client overview",
+    "/console/activity": "Activity log",
+    "/console/assess/2533650": "Assessment",
+    "/portal": "Welcome back",
+    "/portal/cases": "Cases",
+    "/portal/documents": "Document vault",
+    "/portal/onboarding": "SafeScore",
+    "/portal/onboarding/success": "Activating your account",
+    "/portal/plan": "Your Safety Plan",
+    "/portal/profile": "Settings",
+    "/portal/reports": "Reports",
+    "/portal/requests": "Your requests",
+    "/portal/safety": "Safety profile",
+    "/onboarding": "SafeScore",
+    "/onboarding/success": "Activating your account",
+  };
+  if (exact[route]) return exact[route];
+  if (route.endsWith("/account")) return "Account";
+  if (route.endsWith("/cases")) return "Cases";
+  if (route.endsWith("/compliance")) return "Compliance manager";
+  if (/\/cpdp\/[^/]+$/.test(route)) return "CPDP submission";
+  if (route.endsWith("/cpdp")) return "CPDP workbench";
+  if (route.endsWith("/dataq")) return "DataQs workbench";
+  if (route.endsWith("/monitoring")) return "Monitoring";
+  if (route.endsWith("/remediation")) return "Remediation queue";
+  if (route.endsWith("/reports")) return "Report generator";
+  if (route.endsWith("/requests")) return "Client Request Queue";
+  if (route.endsWith("/violations")) return "Violation analyzer";
+  return "Safety summary";
+}
+
 async function fetchRoute(route: string, cookie: string): Promise<RouteResult> {
   const response = await fetch(`${baseUrl}${route}`, { headers: { cookie }, redirect: "follow" });
   const body = await response.text();
-  const badMarkers = ["Internal Server Error", "Application error", "This page could not be found"];
+  const marker = expectedMarker(route);
   return {
     route,
     status: response.status,
     finalPath: new URL(response.url).pathname,
     bytes: Buffer.byteLength(body),
-    rendered: body.length > 500 && !badMarkers.some((marker) => body.includes(marker)),
+    rendered: body.length > 500 && body.includes(marker) && !body.includes("Internal Server Error"),
   };
 }
 
 async function main() {
-  const { data: cpdpCase } = await service.from("cpdp_cases")
+  let { data: cpdpCase } = await service.from("cpdp_cases")
     .select("id,client_id,crashes!inner(id)")
     .limit(1)
     .maybeSingle();
+  let createdCrashId: string | null = null;
+  if (!cpdpCase) {
+    const crash = await service.from("crashes").insert({
+      client_id: "95139fb1-2d8d-4e1e-b90b-45e47fef08ae",
+      dot_number: "0000001",
+      report_number: "TEST-P10-ROUTE-GATE",
+      crash_date: "2026-06-01",
+      state: "CA",
+      city: "Synthetic Route Gate",
+      tow_away: true,
+      fatalities: 0,
+      injuries: 0,
+    }).select("id").single();
+    if (crash.error) throw crash.error;
+    createdCrashId = crash.data.id;
+    const createdCase = await service.from("cpdp_cases").insert({
+      client_id: "95139fb1-2d8d-4e1e-b90b-45e47fef08ae",
+      crash_id: createdCrashId,
+      status: "draft",
+    }).select("id,client_id").single();
+    if (createdCase.error) throw createdCase.error;
+    cpdpCase = { ...createdCase.data, crashes: [{ id: createdCrashId }] };
+  }
 
   const staffRoutes = [
     "/console",
@@ -45,7 +101,6 @@ async function main() {
       .map((suffix) => `/console/clients/${nationwideId}${suffix}`),
     ...(cpdpCase ? [`/console/clients/${cpdpCase.client_id}/cpdp/${cpdpCase.id}`] : []),
   ];
-  if (!cpdpCase) throw new Error("No CPDP case with crash exists for the dynamic route gate");
 
   const portalRoutes = [
     "/portal",
@@ -100,6 +155,11 @@ async function main() {
   } finally {
     await staff.revoke();
     await client.revoke();
+    if (createdCrashId) {
+      await service.from("crashes").delete().eq("id", createdCrashId);
+      const proof = await service.from("crashes").select("id", { count: "exact", head: true }).eq("id", createdCrashId);
+      console.log(JSON.stringify({ syntheticCpdpCleanup: { crashes: proof.count } }));
+    }
   }
 }
 
