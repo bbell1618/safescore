@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { sendInviteEmail } from "@/lib/email/client";
 import { NextResponse } from "next/server";
 
@@ -9,12 +9,32 @@ export async function POST(
   const { id } = await params;
 
   try {
+    const authClient = await createClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const serviceClient = await createServiceClient();
+    const { data: userRecord } = await serviceClient
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (userRecord?.role !== "geia_admin" && userRecord?.role !== "geia_staff") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { email } = await request.json();
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const supabase = await createServiceClient();
+    const supabase = serviceClient;
 
     const { data: client, error: clientError } = await supabase
       .from("clients")

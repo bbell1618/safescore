@@ -26,6 +26,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 404 });
   }
 
+  if (invite.used_at) {
+    return NextResponse.json({ error: "Invite already used" }, { status: 410 });
+  }
+
+  if (new Date(invite.expires_at) < new Date()) {
+    return NextResponse.json({ error: "Invite expired" }, { status: 410 });
+  }
+
   const { data: clientRecord } = await supabase
     .from("clients")
     .select("name, primary_contact")
