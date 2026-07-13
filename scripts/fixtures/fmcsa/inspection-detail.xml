@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Fixture revision 2 verifies live reference-code enrichment. -->
+<!-- Fixture revision 3 verifies paginated live reference-code enrichment. -->
 <Inspections>
   <Inspection>
     <InspMain>

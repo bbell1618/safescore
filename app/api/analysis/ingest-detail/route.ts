@@ -473,16 +473,24 @@ async function registerIngest(
 async function loadReferenceLookup(
   serviceSupabase: ServiceSupabaseClient
 ): Promise<Record<string, InspectionDetailLookup>> {
-  const { data, error } = await serviceSupabase
-    .from("fmcsa_violation_reference")
-    .select("violation_code, basic_category, severity_weight, is_scored")
-    .order("is_scored", { ascending: false })
-    .order("severity_weight", { ascending: false, nullsFirst: false });
+  const rows: ReferenceRow[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await serviceSupabase
+      .from("fmcsa_violation_reference")
+      .select("violation_code, basic_category, severity_weight, is_scored")
+      .order("is_scored", { ascending: false })
+      .order("severity_weight", { ascending: false, nullsFirst: false })
+      .order("violation_code", { ascending: true })
+      .range(from, from + pageSize - 1);
 
-  if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as ReferenceRow[]));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
 
   const lookup: Record<string, InspectionDetailLookup> = {};
-  for (const row of (data ?? []) as ReferenceRow[]) {
+  for (const row of rows) {
     const value = {
       basicCategory: row.basic_category ?? null,
       severityWeight: row.severity_weight ?? null,
