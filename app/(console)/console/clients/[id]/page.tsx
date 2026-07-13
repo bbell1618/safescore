@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
-import { getClientBurden } from "@/lib/analysis/basic-measure-server";
+import { getClientBasicReconciliation } from "@/lib/analysis/basic-reconciliation-server";
 import { getRecentSnapshots } from "@/lib/monitoring/diff";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
@@ -93,7 +93,7 @@ export default async function ClientOverviewPage({
     { count: dataqCount },
     { count: cpdpCount },
     { count: challengeableCount },
-    burden,
+    reconciliation,
     monitoringSnapshots,
   ] = await Promise.all([
     supabase
@@ -116,12 +116,13 @@ export default async function ClientOverviewPage({
     canonicalInspectionIds.length > 0
       ? challengeableCountQuery.in("inspection_id", canonicalInspectionIds)
       : challengeableCountQuery.in("inspection_id", []),
-    getClientBurden(id),
+    getClientBasicReconciliation(id),
     getRecentSnapshots(id, 2),
   ]);
 
   const cp = carrierProfile as Record<string, unknown> | null;
   const crashes = (crashRows ?? []) as CrashRow[];
+  const burden = reconciliation.burden;
   const storySentences = buildStoryStrip(burden, crashes);
   const latestSnapshot = monitoringSnapshots[0] ?? null;
   const previousSnapshot = monitoringSnapshots[1] ?? null;
@@ -188,8 +189,9 @@ export default async function ClientOverviewPage({
             <thead className="bg-[#FEFCF8] border-b border-[#F0E8DA]">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">BASIC</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">In-window weighted burden</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Scored violations</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">In-window weighted burden (points)</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Scored violations (count)</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Potential removal impact (points)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F0E8DA]">
@@ -198,13 +200,25 @@ export default async function ClientOverviewPage({
                   <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">{b.label}</td>
                   <td className="px-5 py-3 text-right text-xs font-semibold text-[#C67A1E]">{b.weightedPoints}</td>
                   <td className="px-5 py-3 text-right text-xs text-gray-500">{b.violationCount}</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.potentialRemovalImpactByBasic[b.basicCategory] ?? 0}</td>
                 </tr>
               ))}
+              {reconciliation.unknownBasicCount > 0 && (
+                <tr>
+                  <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">Unknown / unclassified BASIC</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">Not computed</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.unknownBasicCount}</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">Not assessed</td>
+                </tr>
+              )}
               <tr className="bg-[#FEFCF8]">
                 <td className="px-5 py-3 text-xs font-semibold text-[#1E1C1A]">Total</td>
                 <td className="px-5 py-3 text-right text-xs font-bold text-[#1E1C1A]">{burden.totalPoints}</td>
                 <td className="px-5 py-3 text-right text-xs text-gray-500">
                   {burden.perBasic.reduce((sum, b) => sum + b.violationCount, 0)}
+                </td>
+                <td className="px-5 py-3 text-right text-xs font-bold text-[#1E1C1A]">
+                  {Object.values(reconciliation.potentialRemovalImpactByBasic).reduce((sum, points) => sum + points, 0)}
                 </td>
               </tr>
             </tbody>
@@ -215,6 +229,10 @@ export default async function ClientOverviewPage({
           </div>
         )}
       </section>
+
+      <p className="text-xs text-gray-500 -mt-3">
+        Potential removal impact includes only strong/moderate evidence-based challenge candidates and assumes a successful correction. Investigate items are excluded. Unknown BASIC rows are counted but cannot receive burden or removal-impact points until classified.
+      </p>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <SummaryLink
