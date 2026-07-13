@@ -204,6 +204,7 @@ interface Props {
   cpdpCase: CpdpCaseRow;
   crash: CrashRow;
   initialEvidence: EvidenceItem[];
+  parRetrievalStatus: "ready" | "not_configured";
 }
 
 // ─── Evidence status pill ─────────────────────────────────────────────────────
@@ -249,6 +250,7 @@ export function CpdpCaseEditor({
   cpdpCase,
   crash,
   initialEvidence,
+  parRetrievalStatus,
 }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -744,6 +746,13 @@ export function CpdpCaseEditor({
             </span>
           )}
         </div>
+
+        {parRetrievalStatus === "not_configured" && !parReceived && (
+          <div className="rounded-lg border border-[#F0E8DA] bg-white p-3">
+            <p className="text-xs font-semibold text-[#1E1C1A]">PAR retrieval pending account activation</p>
+            <p className="mt-1 text-[11px] text-gray-500">LexisNexis retrieval is not configured. Use the manual-upload path below; no report data is fabricated.</p>
+          </div>
+        )}
 
         {!hasEvidence ? (
           <div className="text-center py-6">

@@ -8,6 +8,7 @@ import {
   type CrashRow,
   type EvidenceItem,
 } from "@/components/console/cpdp-case-editor";
+import { getPARRetrievalProvider } from "@/lib/par";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,7 @@ export default async function CpdpCaseDetailPage({
     storage_path: e.storage_path as string | null,
     uploaded_by: e.uploaded_by as string | null,
   }));
+  const parRetrievalStatus = getPARRetrievalProvider().status();
 
   const caseRow: CpdpCaseRow = {
     id: cpdpCase.id as string,
@@ -140,6 +142,7 @@ export default async function CpdpCaseDetailPage({
         cpdpCase={caseRow}
         crash={crash}
         initialEvidence={evidence}
+        parRetrievalStatus={parRetrievalStatus.state}
       />
     </div>
   );
