@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { createChunks, stringToBase64URL } from "@supabase/ssr";
+import { loadEnvConfig } from "@next/env";
 import { createDeployedStaffSession } from "./lib/deployed-staff-session";
+
+loadEnvConfig(process.cwd());
 
 const baseUrl = process.env.SAFESCORE_BASE_URL ?? "https://safescore.vercel.app";
 const clientId = "95139fb1-2d8d-4e1e-b90b-45e47fef08ae";
@@ -39,7 +42,7 @@ async function main() {
   if (existingEvidence.error) throw existingEvidence.error;
   let evidenceId = existingEvidence.data?.id;
   if (!evidenceId) {
-    const inserted = await service.from("dataq_evidence").insert({ case_id: caseId, doc_type: "phase5_test_document", label: "Synthetic driver statement", context_note: "Phase 5 request-queue lifecycle fixture", required: true, status: "needed", acquisition_method: "client_upload", needed_reason: "Synthetic gate proof" }).select("id").single();
+    const inserted = await service.from("dataq_evidence").insert({ case_id: caseId, doc_type: "phase5_test_document", label: "Synthetic driver statement", context_note: "Phase 5 request-queue lifecycle fixture", required: true, status: "needed", acquisition_method: "client", needed_reason: "Synthetic gate proof" }).select("id").single();
     if (inserted.error) throw inserted.error;
     evidenceId = inserted.data.id;
   }

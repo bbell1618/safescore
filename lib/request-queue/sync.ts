@@ -38,8 +38,8 @@ export async function syncClientEvidenceRequest(service: SupabaseLike, clientId:
       .neq("status", "received");
     if (error) throw new Error(error.message);
     for (const row of data ?? []) {
-      // Only client_upload belongs in the portal. GEIA-pull sources such as PAR vendors do not.
-      if (row.acquisition_method !== "client_upload") continue;
+      // Only client-supplied items belong in the portal. GEIA-pull/automatic sources do not.
+      if (row.acquisition_method !== "client") continue;
       items.push({
         caseType: "dataq",
         caseId: row.case_id,
