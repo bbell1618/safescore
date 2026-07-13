@@ -74,6 +74,14 @@ const ALT_ROW = "#f9f9f9";
 const GREEN = "#16a34a";
 
 const styles = StyleSheet.create({
+  pageBackground: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#ffffff",
+  },
   page: {
     backgroundColor: "#ffffff",
     paddingTop: 40,
@@ -374,6 +382,7 @@ export function SafetyReport({
       subject="CSA Safety Performance Report"
     >
       <Page size="LETTER" style={styles.page}>
+        <View style={styles.pageBackground} fixed />
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
@@ -534,6 +543,7 @@ export function SafetyReport({
       </Page>
 
       <Page size="LETTER" style={styles.page}>
+        <View style={styles.pageBackground} fixed />
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerBrand}>GOLDEN ERA SAFESCORE</Text>
