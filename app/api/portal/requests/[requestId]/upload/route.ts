@@ -44,8 +44,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
     if (storageError) return NextResponse.json({ error: storageError.message }, { status: 500 });
     const { error: updateError } = await service.from(table).update({ status: "received", storage_path: storagePath, uploaded_at: new Date().toISOString(), uploaded_by: "client" }).eq("id", evidenceId);
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
-    const sync = await syncClientEvidenceRequest(service, userRow.client_id);
-    return NextResponse.json({ ok: true, evidenceId, requestStatus: sync.status, remaining: sync.itemCount });
+    let remaining = 0;
+    for (const requested of items) {
+      const requestedTable = requested.caseType === "dataq" ? "dataq_evidence" : "cpdp_evidence";
+      const { data: statusRow } = await service.from(requestedTable).select("status").eq("id", requested.evidenceId).maybeSingle();
+      if (statusRow?.status !== "received") remaining += 1;
+    }
+    const requestStatus = remaining === 0 ? "fulfilled" : "open";
+    if (remaining === 0) {
+      const now = new Date().toISOString();
+      const { error: closeError } = await service.from("client_requests").update({ status: "fulfilled", closed_at: now, next_reminder_at: null, updated_at: now }).eq("id", requestId).eq("status", "open");
+      if (closeError) return NextResponse.json({ error: closeError.message }, { status: 500 });
+    }
+    await syncClientEvidenceRequest(service, userRow.client_id);
+    return NextResponse.json({ ok: true, evidenceId, requestStatus, remaining });
   }
 
   const storagePath = `${userRow.client_id}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;

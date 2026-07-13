@@ -30,6 +30,15 @@ async function clientCookie() {
 }
 
 async function main() {
+  const subscription = await service.from("subscriptions").select("id").eq("client_id", clientId).maybeSingle();
+  if (subscription.error) throw subscription.error;
+  if (subscription.data) {
+    const updated = await service.from("subscriptions").update({ status: "active", tier: "monitor" }).eq("id", subscription.data.id);
+    if (updated.error) throw updated.error;
+  } else {
+    const inserted = await service.from("subscriptions").insert({ client_id: clientId, status: "active", tier: "monitor", mrr: 0 });
+    if (inserted.error) throw inserted.error;
+  }
   const existingCase = await service.from("dataq_cases").select("id").eq("client_id", clientId).eq("case_number", "TEST-P5-REQUEST-QUEUE").maybeSingle();
   if (existingCase.error) throw existingCase.error;
   let caseId = existingCase.data?.id;
@@ -46,7 +55,7 @@ async function main() {
     if (inserted.error) throw inserted.error;
     evidenceId = inserted.data.id;
   }
-  const requestRow = await service.from("client_requests").upsert({ client_id: clientId, dedupe_key: `${clientId}:case:phase5-gate`, category: "case_evidence", title: "Phase 5 synthetic evidence request", description: "Synthetic lifecycle gate", source: "case", responsibility: "client", requested_items: [{ caseType: "dataq", caseId, evidenceId, label: "Synthetic driver statement", contextNote: "Phase 5 request-queue lifecycle fixture" }], status: "open", reminder_count: 0, reminder_limit: 3, reminder_interval_days: 7, next_reminder_at: new Date(Date.now() - 60000).toISOString(), closed_at: null, escalated_at: null }).select("id").single();
+  const requestRow = await service.from("client_requests").upsert({ client_id: clientId, dedupe_key: `${clientId}:case:phase5-gate`, category: "case_evidence", title: "Phase 5 synthetic evidence request", description: "Synthetic lifecycle gate", source: "case", responsibility: "client", requested_items: [{ caseType: "dataq", caseId, evidenceId, label: "Synthetic driver statement", contextNote: "Phase 5 request-queue lifecycle fixture" }], status: "open", reminder_count: 0, reminder_limit: 3, reminder_interval_days: 7, next_reminder_at: new Date(Date.now() - 60000).toISOString(), closed_at: null, escalated_at: null }, { onConflict: "dedupe_key" }).select("id").single();
   if (requestRow.error) throw requestRow.error;
   const requestId = requestRow.data.id;
 
