@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { getRemediationNextStep } from "@/lib/analysis/remediation-next-step";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,14 @@ export default async function RemediationPage({
 
   const laneBPercent = queue.totalPoints > 0 ? Math.round((queue.laneBPoints / queue.totalPoints) * 100) : 0;
   const laneCPercent = queue.totalPoints > 0 ? Math.round((queue.laneCPoints / queue.totalPoints) * 100) : 0;
+  const openCaseCount = [...(dataqCases ?? []), ...(cpdpCases ?? [])].filter(
+    (caseRow) => !["won", "lost", "closed", "withdrawn"].includes(caseRow.status)
+  ).length;
+  const nextStep = getRemediationNextStep({
+    safetyRecordCount: (violations ?? []).length + (crashes ?? []).length,
+    actionCount: queue.priorityRows.length,
+    openCaseCount,
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -216,6 +225,25 @@ export default async function RemediationPage({
           </div>
         </div>
       </div>
+
+      <section className="bg-white rounded-xl border border-[#E1D5C4] p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-[#1E1C1A] text-sm">What next</h2>
+              <Badge variant="outline">{nextStep.label}</Badge>
+            </div>
+            <p className="text-sm font-medium text-[#1E1C1A] mt-2">{nextStep.title}</p>
+            <p className="text-xs text-gray-500 mt-1 max-w-3xl">{nextStep.detail}</p>
+          </div>
+          <Link
+            href={`/console/clients/${id}${nextStep.hrefSuffix}`}
+            className="text-xs font-medium text-[#8B5E2B] hover:underline shrink-0"
+          >
+            {nextStep.action} &rarr;
+          </Link>
+        </div>
+      </section>
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">

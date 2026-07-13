@@ -3,6 +3,7 @@ import { draftDataqNarrative } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
+import { mapReasonCode } from "@/lib/analysis/reason-codes";
 
 export const maxDuration = 60;
 
@@ -140,7 +141,7 @@ export async function POST(
     const { data: c } = await supabase
       .from("dataq_cases")
       .select(
-        "*, canonical_inspection_date, violations(violation_code, violation_description, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
+        "*, canonical_inspection_date, violations(violation_code, violation_description, basic_category, challenge_reason, challenge_priority), clients(name, dot_number), inspections(inspection_date, state, level, facility_name)"
       )
       .eq("id", id)
       .single();
@@ -157,6 +158,7 @@ export async function POST(
       violation_description: string;
       challenge_reason: string | null;
       challenge_priority: string | null;
+      basic_category: string | null;
     } | null;
     const client = c.clients as { name: string; dot_number: string } | null;
     const inspection = c.inspections as {
@@ -199,6 +201,11 @@ export async function POST(
       };
     });
     const isProvisional = !evidenceItems.some((e) => e.status === "received");
+    const reasonCode = mapReasonCode({
+      challengeReason: violation.challenge_reason,
+      violationCode: violation.violation_code,
+      basicCategory: violation.basic_category,
+    });
 
     // Download received evidence files for document grounding
     const evidenceFiles: Array<{
@@ -268,16 +275,19 @@ export async function POST(
       evidenceFiles.map(f => ({ label: f.label, mimeType: f.mimeType, sizeBytes: f.sizeBytes }))
     );
 
-    const narrative = await draftDataqNarrative({
+    const canonicalInspectionDate =
+      (c.canonical_inspection_date as string | null) ?? inspection.inspection_date;
+    const narrative = evidenceFiles.length === 0
+      ? "INSUFFICIENT EVIDENCE: No received evidence file could be loaded. Collect and verify supporting documentation before drafting or filing this challenge."
+      : await draftDataqNarrative({
       violationCode: violation.violation_code,
       violationDescription: violation.violation_description,
-      inspectionDate: (c.canonical_inspection_date as string | null) ?? inspection.inspection_date,
+      inspectionDate: canonicalInspectionDate,
       state: inspection.state,
       inspectionLevel: inspection.level,
       facilityName: inspection.facility_name,
-      challengeReason:
-        violation.challenge_reason ?? "Violation was incorrectly recorded",
-      suggestedApproach: `Challenge based on ${violation.challenge_priority ?? "medium"} priority assessment`,
+      challengeReason: violation.challenge_reason ?? "No challenge basis has been documented",
+      suggestedApproach: `${reasonCode.label}: ${reasonCode.description}`,
       carrierName: client.name,
       dotNumber: client.dot_number,
       evidenceItems,
@@ -290,7 +300,11 @@ export async function POST(
     // Save AI narrative to the case record
     await supabase
       .from("dataq_cases")
-      .update({ ai_narrative: narrative })
+      .update({
+        ai_narrative: narrative,
+        canonical_inspection_date: canonicalInspectionDate,
+        dataqs_reason_code: reasonCode.code,
+      })
       .eq("id", id);
 
     return NextResponse.json({ narrative });
