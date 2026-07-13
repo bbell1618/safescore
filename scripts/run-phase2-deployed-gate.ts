@@ -7,6 +7,7 @@ import { createDeployedStaffSession } from "./lib/deployed-staff-session";
 loadEnvConfig(process.cwd());
 
 const baseUrl = (process.argv[2] ?? "https://safescore.vercel.app").replace(/\/$/, "");
+const syntheticId = "95139fb1-2d8d-4e1e-b90b-45e47fef08ae";
 const syntheticName = "TEST\u2014Acme Freight Lines";
 const syntheticDot = "0000001";
 
@@ -29,7 +30,7 @@ async function main() {
   if (!client) {
     const { data, error } = await service
       .from("clients")
-      .insert({ name: syntheticName, dot_number: syntheticDot, status: "onboarding" })
+      .insert({ id: syntheticId, name: syntheticName, dot_number: syntheticDot, status: "onboarding" })
       .select("id, name")
       .single();
     if (error || !data) throw error ?? new Error("Synthetic client creation returned no row");
