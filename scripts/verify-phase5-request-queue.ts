@@ -65,14 +65,19 @@ async function main() {
   if (portal.status !== 200 || !portalHtml.includes("Phase 5 synthetic evidence request")) throw new Error(`Portal proof failed: ${portal.status}`);
 
   const staff = await createDeployedStaffSession(baseUrl);
-  let reminderBody: any;
+  const reminderLogs: any[] = [];
   try {
-    const reminder = await fetch(`${baseUrl}/api/requests/reminders`, { method: "POST", headers: { cookie: staff.cookie } });
-    reminderBody = await reminder.json();
-    if (!reminder.ok) throw new Error(JSON.stringify(reminderBody));
+    for (let sequence = 1; sequence <= 3; sequence += 1) {
+      await service.from("client_requests").update({ next_reminder_at: new Date(Date.now() - 60000).toISOString() }).eq("id", requestId);
+      const reminder = await fetch(`${baseUrl}/api/requests/reminders`, { method: "POST", headers: { cookie: staff.cookie } });
+      const reminderBody = await reminder.json();
+      if (!reminder.ok) throw new Error(JSON.stringify(reminderBody));
+      const log = reminderBody.results.find((row: any) => row.requestId === requestId);
+      if (!log || log.mode !== "dry-run" || log.reminderCount !== sequence) throw new Error(`Reminder ${sequence} dry-run proof missing`);
+      reminderLogs.push(log);
+    }
   } finally { await staff.revoke(); }
-  const log = reminderBody.results.find((row: any) => row.requestId === requestId);
-  if (!log || log.mode !== "dry-run" || log.reminderCount !== 1) throw new Error("Reminder dry-run proof missing");
+  if (!reminderLogs[2]?.escalated) throw new Error("Third reminder did not escalate");
 
   const form = new FormData();
   form.set("evidenceId", evidenceId);
@@ -85,7 +90,7 @@ async function main() {
     service.from("client_requests").select("id,status,reminder_count,next_reminder_at,closed_at").eq("id", requestId).single(),
     service.from("dataq_evidence").select("id,case_id,status,storage_path,uploaded_by").eq("id", evidenceId).single(),
   ]);
-  console.log(JSON.stringify({ clientId, caseId, evidenceId, requestId, portal: { status: portal.status, renderedTitle: true }, reminder: log, upload: uploadBody, queue, evidence }, null, 2));
+  console.log(JSON.stringify({ clientId, caseId, evidenceId, requestId, portal: { status: portal.status, renderedTitle: true }, reminders: reminderLogs, upload: uploadBody, queue, evidence }, null, 2));
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
