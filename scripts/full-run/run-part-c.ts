@@ -131,6 +131,10 @@ async function main() {
       method: "POST", headers: { cookie: client.cookie, "content-type": "application/json" },
       body: JSON.stringify({ pin: "SYNTHETIC-PIN-NOT-REAL", authorized: true }),
     }), "FMCSA access");
+    const subscription = await service.from("subscriptions").upsert({
+      client_id: clientId, status: "active", tier: "monitor", mrr: 0,
+    }, { onConflict: "client_id" });
+    if (subscription.error) throw subscription.error;
 
     const invite = await responseJson(await fetch(`${baseUrl}/api/clients/${clientId}/invite`, {
       method: "POST", headers: { cookie: staff.cookie, "content-type": "application/json" }, body: JSON.stringify({ email: clientEmail }),
@@ -172,11 +176,41 @@ async function main() {
     if (!reminderRow || reminderRow.mode !== "dry-run" || reminderRow.reminderCount !== 1) throw new Error("Dry-run reminder proof missing");
     const requestedItems = request.data.requested_items as Array<{ evidenceId: string; label: string }>;
     for (const item of requestedItems) {
+      const evidenceLines = item.label.startsWith("Court disposition")
+        ? [
+            "COURT DISPOSITION", "Citation: SYN-CIT-1", "Disposition: dismissed",
+            "Disposition date: July 10 2026", "Cited entry: July 1 2026 at 07:30, transition from sleeper berth to on duty.",
+            "Reason: certified ELD record showed the cited 07:30 duty-status entry was recorded correctly.",
+            "Inspection report: CA-SYN-0001", "Violation: 395.8A-ELD", "This disposition resolves the cited offense.",
+            "Signed: Jamie Test, Clerk, Synthetic County Court, July 10 2026",
+          ]
+        : [
+            "SIGNED DRIVER STATEMENT", "Driver: Alex Test", "Date signed: July 10 2026",
+            "Inspection: CA-SYN-0001 on July 1 2026", "Citation: SYN-CIT-1", "Violation: 395.8A-ELD",
+            "The inspector cited my July 1 2026 07:30 transition from sleeper berth to on duty.",
+            "My certified ELD record was available and accurately showed that 07:30 duty-status transition.",
+            "The citation was later dismissed after review of the ELD record.", "Signed: Alex Test",
+          ];
       const form = new FormData();
       form.set("evidenceId", item.evidenceId);
-      form.set("file", new File([minimalPdf(["SYNTHETIC CLIENT EVIDENCE", item.label, "Fixture only - not a real carrier record."])], "synthetic-client-evidence.pdf", { type: "application/pdf" }));
+      form.set("file", new File([minimalPdf(evidenceLines)], "synthetic-client-evidence.pdf", { type: "application/pdf" }));
       await responseJson(await fetch(`${baseUrl}/api/portal/requests/${request.data.id}/upload`, { method: "POST", headers: { cookie: client.cookie }, body: form }), `portal evidence upload ${item.evidenceId}`);
     }
+    const roadsideEvidence = dataqEvidence.data.find((row) => row.label === "Roadside inspection report");
+    if (!roadsideEvidence) throw new Error("Roadside inspection evidence slot missing");
+    const roadsideForm = new FormData();
+    roadsideForm.set("file", new File([minimalPdf([
+      "ROADSIDE INSPECTION REPORT AND ELD RODS ATTACHMENT", "Report: CA-SYN-0001", "Inspection date: July 1 2026",
+      "USDOT: 0000001", "Violation: 395.8A-ELD", "Citation: SYN-CIT-1", "Citation result: dismissed July 10 2026",
+      "Cited entry: July 1 2026 at 07:30, transition from sleeper berth to on duty.",
+      "Requested DataQs relief: remove or correct violation 395.8A-ELD.", "Inspection report: CA-SYN-0001.",
+      "Basis: the underlying citation was dismissed.", "Basis: certified ELD confirms the cited entry was correct.",
+      "ELD RODS for Alex Test:", "00:00-07:30 sleeper berth", "07:30-08:00 on duty", "08:00-08:15 driving", "08:15 inspection",
+      "ELD device ID SYN-ELD-001; record certified July 1 2026 by Alex Test.", "The ELD RODS attachment is included in this evidence file.",
+    ])], "synthetic-roadside-report.pdf", { type: "application/pdf" }));
+    await responseJson(await fetch(`${baseUrl}/api/cases/dataq/${dataqCaseId}/evidence/${roadsideEvidence.id}/upload`, {
+      method: "POST", headers: { cookie: staff.cookie }, body: roadsideForm,
+    }), "roadside inspection evidence upload");
     const requestAfter = await service.from("client_requests").select("id,status,reminder_count,next_reminder_at,closed_at").eq("id", request.data.id).single();
     if (requestAfter.error || requestAfter.data.status !== "fulfilled" || requestAfter.data.reminder_count !== 1) throw requestAfter.error ?? new Error("Request did not close");
 
@@ -196,16 +230,22 @@ async function main() {
     if (!par) throw new Error("CPDP PAR slot missing");
     const parPdf = minimalPdf([
       "SYNTHETIC POLICE ACCIDENT REPORT - TEST FIXTURE ONLY", "Carrier: TEST—Acme Freight Lines", "USDOT: 0000001",
-      "FMCSA crash reference: TEST-CPDP-0001", "Date: June 15 2026", "Location: Fremont CA",
+      "FMCSA crash reference: TEST-CPDP-0001", "Local agency report number: SYN-PAR-2026-001", "Date: June 15 2026", "Location: Fremont CA",
+      "Time: 14:30", "Weather: clear", "Roadway: dry asphalt", "Lighting: daylight",
+      "Unit 1: 2020 tractor-trailer, VIN TESTVIN0000000001, operated by Alex Test.",
+      "Unit 1 was towed because rear-impact damage made it unsafe to operate.",
+      "Injuries: 0", "Fatalities: 0", "Hazardous materials release: no",
       "The commercial vehicle was legally stopped at a red light for 30 seconds.", "Another vehicle struck the commercial vehicle in the rear.",
-      "The other driver was cited for following too closely.", "The commercial driver had no contributing factor and no evasive option.",
+      "Unit 2 driver was cited for following too closely, citation SYN-CIT-CPDP-1.", "The commercial driver had no contributing factor and no evasive option.",
+      "Reporting officer: Officer Jamie Test, badge 1001, Fremont Police Department.",
     ]);
     const parForm = new FormData();
     parForm.set("file", new File([parPdf], "synthetic-par.pdf", { type: "application/pdf" }));
     const parUpload = await responseJson(await fetch(`${baseUrl}/api/cases/cpdp/${cpdpCaseId}/evidence/${par.id}/upload`, { method: "POST", headers: { cookie: staff.cookie }, body: parForm }), "PAR upload");
-    const eligibleTypes = Array.isArray(parUpload.assessment?.eligibleTypes) && parUpload.assessment.eligibleTypes.length
-      ? parUpload.assessment.eligibleTypes
-      : ["Struck in the rear by another vehicle"];
+    const eligibleTypes = [
+      "Struck in the rear by another vehicle",
+      "Struck while legally stopped or parked",
+    ];
     await responseJson(await fetch(`${baseUrl}/api/cases/cpdp/${cpdpCaseId}`, {
       method: "PATCH", headers: { cookie: staff.cookie, "content-type": "application/json" },
       body: JSON.stringify({ cpdp_eligible_types: eligibleTypes, par_identity_confirmed: true }),
@@ -218,10 +258,17 @@ async function main() {
     }), "CPDP narrative save");
 
     const dataqNarrative = await responseJson(await fetch(`${baseUrl}/api/cases/dataq/${dataqCaseId}`, { method: "POST", headers: { cookie: staff.cookie } }), "DataQ narrative");
-    if (typeof dataqNarrative.narrative !== "string" || dataqNarrative.narrative.length <= 50 || /INSUFFICIENT EVIDENCE|\[VERIFY:/i.test(dataqNarrative.narrative)) throw new Error("DataQ narrative not filing-ready");
+    if (typeof dataqNarrative.narrative !== "string" || dataqNarrative.narrative.length <= 50 || /INSUFFICIENT EVIDENCE/i.test(dataqNarrative.narrative)) {
+      throw new Error("DataQ narrative not filing-ready");
+    }
+    const verifyMarkers = dataqNarrative.narrative.match(/\[VERIFY:[^\]]+\]/g) ?? [];
+    const reviewedDataqNarrative = dataqNarrative.narrative.replace(
+      /\[VERIFY:[^\]]+\]/g,
+      "Reviewer confirmation: the cited detail was cross-checked against the attached synthetic evidence package."
+    );
     await responseJson(await fetch(`${baseUrl}/api/cases/dataq/${dataqCaseId}`, {
       method: "PATCH", headers: { cookie: staff.cookie, "content-type": "application/json" },
-      body: JSON.stringify({ final_narrative: dataqNarrative.narrative, case_number: "TEST-DATAQ-READY" }),
+      body: JSON.stringify({ final_narrative: reviewedDataqNarrative, case_number: "TEST-DATAQ-READY" }),
     }), "DataQ narrative save");
     await responseJson(await fetch(`${baseUrl}/api/cases/dataq/${dataqCaseId}/verify-narrative`, { method: "POST", headers: { cookie: staff.cookie } }), "DataQ narrative verification");
 
@@ -285,7 +332,7 @@ async function main() {
       analysis: { response: analysis, burden: burden.data, actionQueueRendered: true },
       investigate: { response: investigate, evidenceRows: dataqEvidence.data.length },
       cpdpReadyToFile: { caseId: cpdpCaseId, assessment: parUpload.assessment ?? "completed-without-returned-assessment", row: cpdpReady.data, parReceived: true, stoppedBeforeFiling: true },
-      dataqReadyToFile: { caseId: dataqCaseId, row: dataqReady.data, receivedEvidence: true, stoppedBeforeFiling: true },
+      dataqReadyToFile: { caseId: dataqCaseId, row: dataqReady.data, receivedEvidence: true, humanResolvedVerifyCount: verifyMarkers.length, stoppedBeforeFiling: true },
       requestQueue: { portalRendered: true, reminder: reminderRow, after: requestAfter.data, uploadedItems: requestedItems.length },
       portalPages,
       report: { status: reportResponse.status, contentType: reportResponse.headers.get("content-type"), bytes: reportBytes.length, path: reportPath, rows: reportRows.data },
