@@ -85,10 +85,12 @@ export async function POST(request: NextRequest) {
   }
   if (priorIngest) {
     return NextResponse.json({
+      ...(priorIngest.parsed_summary as Record<string, unknown>),
       status: "skipped",
       ingest_kind: priorIngest.ingest_kind,
       dedupe_key: `${clientId}:${fileHash}`,
-      ...(priorIngest.parsed_summary as Record<string, unknown>),
+      inserted: 0,
+      skipped: 1,
     });
   }
 
