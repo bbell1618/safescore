@@ -237,6 +237,9 @@ export default async function ClientOverviewPage({
       <p className="text-xs text-gray-500 -mt-3">
         Potential removal impact includes only strong/moderate evidence-based challenge candidates and assumes a successful correction. Investigate items are excluded. Unknown BASIC rows are counted but cannot receive burden or removal-impact points until classified.
       </p>
+      <p className="text-xs text-gray-500 -mt-3">
+        Pending evidence: {Object.values(reconciliation.pendingInvestigationByBasic).reduce((sum, item) => sum + item.count, 0)} violations, {Object.values(reconciliation.pendingInvestigationByBasic).reduce((sum, item) => sum + item.points, 0)} points at stake - not yet removable.
+      </p>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <SummaryLink

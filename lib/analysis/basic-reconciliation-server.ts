@@ -18,6 +18,7 @@ type QueryRow = {
   convicted: boolean | null;
   citation_number: string | null;
   citation_result: string | null;
+  challenge_tier: "strong" | "moderate" | "investigate" | "not_challengeable" | "operational" | null;
   challenge_reason: string | null;
   challengeable: boolean | null;
   challenge_priority: "high" | "medium" | "low" | null;
@@ -31,6 +32,7 @@ type QueryRow = {
 export type BasicReconciliation = {
   burden: BurdenResult;
   potentialRemovalImpactByBasic: Record<string, number>;
+  pendingInvestigationByBasic: Record<string, { count: number; points: number }>;
   challengeabilityByBasic: Record<string, { assessed: number; unassessed: number }>;
   allScoredViolationsAssessed: boolean;
   unknownBasicCount: number;
@@ -58,7 +60,7 @@ export async function getClientBasicReconciliation(
   let query = supabase
     .from("violations")
     .select(
-      "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_reason, challengeable, challenge_priority, ai_assessed_at, inspections(inspection_date, state)"
+      "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_tier, challenge_reason, challengeable, challenge_priority, ai_assessed_at, inspections(inspection_date, state)"
     )
     .eq("client_id", clientId);
   query = inspectionIds.length > 0
@@ -83,6 +85,7 @@ export async function getClientBasicReconciliation(
   });
   const burden = computeBurdenFromRows(burdenRows, asOf);
   const potentialRemovalImpactByBasic: Record<string, number> = {};
+  const pendingInvestigationByBasic: Record<string, { count: number; points: number }> = {};
   const challengeabilityByBasic: Record<string, { assessed: number; unassessed: number }> = {};
   let inWindowViolationCount = 0;
   let unknownBasicCount = 0;
@@ -98,23 +101,29 @@ export async function getClientBasicReconciliation(
     }
     if (row.severity_weight == null) continue;
     const coverage = challengeabilityByBasic[row.basic_category] ?? { assessed: 0, unassessed: 0 };
-    if (row.ai_assessed_at) coverage.assessed += 1;
+    if (row.ai_assessed_at && row.challenge_tier) coverage.assessed += 1;
     else coverage.unassessed += 1;
     challengeabilityByBasic[row.basic_category] = coverage;
     const points = timeWeight * (row.severity_weight + (row.oos_violation ? 2 : 0));
     if (
       row.ai_assessed_at &&
-      row.challengeable === true &&
-      (row.challenge_priority === "high" || row.challenge_priority === "medium")
+      (row.challenge_tier === "strong" || row.challenge_tier === "moderate")
     ) {
       potentialRemovalImpactByBasic[row.basic_category] =
         (potentialRemovalImpactByBasic[row.basic_category] ?? 0) + points;
+    }
+    if (row.ai_assessed_at && row.challenge_tier === "investigate") {
+      const pending = pendingInvestigationByBasic[row.basic_category] ?? { count: 0, points: 0 };
+      pending.count += 1;
+      pending.points += points;
+      pendingInvestigationByBasic[row.basic_category] = pending;
     }
   }
 
   return {
     burden,
     potentialRemovalImpactByBasic,
+    pendingInvestigationByBasic,
     challengeabilityByBasic,
     allScoredViolationsAssessed: Object.values(challengeabilityByBasic).every((row) => row.unassessed === 0),
     unknownBasicCount,

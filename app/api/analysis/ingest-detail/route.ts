@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
         citation_number: violation.citationNumber,
         citation_result: violation.citationResult,
         challengeable: null,
+        challenge_tier: null,
         challenge_reason: null,
         challenge_priority: null,
         ai_assessed_at: null,

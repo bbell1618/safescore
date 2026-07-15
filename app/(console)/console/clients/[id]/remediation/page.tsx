@@ -24,6 +24,7 @@ type ViolationRow = {
   citation_result: string | null;
   convicted: boolean | null;
   challenge_reason: string | null;
+  challenge_tier: "strong" | "moderate" | "investigate" | "not_challengeable" | "operational" | null;
   inspections: { inspection_date: string | null; state: string | null } | null;
 };
 
@@ -134,7 +135,7 @@ export default async function RemediationPage({
   let violationsQuery = supabase
     .from("violations")
     .select(
-      "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, inspections(inspection_date, state)"
+      "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, challenge_tier, inspections(inspection_date, state)"
     )
     .eq("client_id", id);
 
@@ -467,6 +468,7 @@ function buildQueue(
       convicted: violation.convicted,
       citationNumber: violation.citation_number,
       citationResult: violation.citation_result,
+      challengeTier: violation.challenge_tier,
       basicPercentile: null,
     });
 
@@ -483,7 +485,7 @@ function buildQueue(
         challenge,
         caseRow: dataqByViolation.get(violation.id) ?? null,
       });
-    } else if (challenge.label === "possibly") {
+    } else if (challenge.label === "investigate") {
       const caseRow = dataqByViolation.get(violation.id) ?? null;
       const generatedSummary = evidenceRequirementsSummary(
         evidenceRequirementsForViolation(

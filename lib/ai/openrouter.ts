@@ -5,6 +5,13 @@
 
 import OpenAI from "openai";
 import { z } from "zod";
+import {
+  CHALLENGE_TIERS,
+  buildChallengeabilitySystemPrompt,
+  validateChallengeabilityAssessment,
+  type ChallengeabilityAssessment,
+  type ChallengeabilityRecord,
+} from "@/lib/analysis/challengeability-rubric";
 
 const MODEL = "anthropic/claude-sonnet-4-6";
 const NARRATIVE_MODEL = "anthropic/claude-opus-4.8";
@@ -32,17 +39,14 @@ export interface EvidenceFile {
   sizeBytes: number;
 }
 
-export interface ChallengeabilityResult {
-  challengeable: boolean;
-  reason: string;
-  priority: "high" | "medium" | "low";
-  confidence: number; // 0-100
-  suggestedApproach: string | null;
-}
+export type ChallengeabilityResult = ChallengeabilityAssessment;
 
 const challengeabilityResultSchema = z.object({
-  challengeable: z.boolean(),
+  tier: z.enum(CHALLENGE_TIERS),
   reason: z.string().min(1),
+  specificDefect: z.string().min(1).nullable(),
+  evidence: z.string().min(1).nullable(),
+  evidenceSource: z.string().min(1).nullable(),
   priority: z.enum(["high", "medium", "low"]),
   confidence: z.number().min(0).max(100),
   suggestedApproach: z.string().min(1).nullable(),
@@ -63,47 +67,45 @@ export interface DenialAnalysisResult {
 }
 
 export async function assessViolationChallengeability(
-  violation: {
-    violationCode: string;
-    description: string;
-    basicCategory: string;
-    severityWeight: number;
-    oosViolation: boolean;
-    convicted: boolean;
-    inspectionDate: string;
-    state: string;
-    inspectionLevel: string;
-  }
+  violation: ChallengeabilityRecord,
+  today: string = new Date().toISOString().slice(0, 10)
 ): Promise<ChallengeabilityResult> {
   const client = getClient();
 
-  const prompt = `You are an expert in FMCSA DataQs violation challenges. Assess whether this violation is challengeable.
+  const prompt = `Assess this violation record. Treat JSON null and empty strings as unknown.
 
-Violation details:
-- Code: ${violation.violationCode}
-- Description: ${violation.description}
-- BASIC Category: ${violation.basicCategory}
-- Severity Weight: ${violation.severityWeight}
-- OOS Violation: ${violation.oosViolation}
-- Conviction recorded: ${violation.convicted}
-- Inspection Date: ${violation.inspectionDate}
-- State: ${violation.state}
-- Inspection Level: ${violation.inspectionLevel}
+${JSON.stringify({
+    code: violation.violationCode,
+    description: violation.description,
+    basic_category: violation.basicCategory,
+    severity_weight: violation.severityWeight,
+    oos_violation: violation.oosViolation,
+    convicted: violation.convicted,
+    citation_number: violation.citationNumber,
+    citation_result: violation.citationResult,
+    inspection_date: violation.inspectionDate,
+    inspection_level: violation.inspectionLevel,
+    state: violation.state,
+  }, null, 2)}
 
-Respond in JSON with this exact structure:
+Return this exact JSON structure:
 {
-  "challengeable": boolean,
-  "reason": "concise reason why it is or isn't challengeable",
+  "tier": "strong" | "moderate" | "investigate" | "not_challengeable" | "operational",
+  "reason": "record-specific explanation without speculation",
+  "specificDefect": "proven defect or investigate hypothesis" | null,
+  "evidence": "evidence that proves it, or exact evidence needed to test it" | null,
+  "evidenceSource": "who or what supplies that evidence" | null,
   "priority": "high" | "medium" | "low",
-  "confidence": number (0-100),
-  "suggestedApproach": "brief description of challenge approach" | null
-}
-
-Common grounds for challenge: incorrect violation code, violation not observed, equipment was repaired before OOS designation, missing procedural requirements, officer lacked authority, incorrect carrier assignment. High priority = high severity weight + likely challengeable. Not challengeable = clear cut violation with no procedural errors.`;
+  "confidence": number,
+  "suggestedApproach": "DataQ filing or evidence collection step" | null
+}`;
 
   const response = await client.chat.completions.create({
     model: MODEL,
-    messages: [{ role: "user", content: prompt }],
+    messages: [
+      { role: "system", content: buildChallengeabilitySystemPrompt(today) },
+      { role: "user", content: prompt },
+    ],
     response_format: { type: "json_object" },
     temperature: 0.1,
   });
@@ -114,7 +116,9 @@ Common grounds for challenge: incorrect violation code, violation not observed, 
   // Some routed models still wrap JSON despite response_format. Remove only a
   // complete outer JSON fence; malformed or schema-invalid content still fails loudly.
   const clean = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  return challengeabilityResultSchema.parse(JSON.parse(clean));
+  const assessment = challengeabilityResultSchema.parse(JSON.parse(clean));
+  validateChallengeabilityAssessment(assessment, violation, today);
+  return assessment;
 }
 
 // Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)

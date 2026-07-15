@@ -197,6 +197,7 @@ export interface Database {
           convicted: boolean | null;
           citation_number: string | null;
           citation_result: string | null;
+          challenge_tier: "strong" | "moderate" | "investigate" | "not_challengeable" | "operational" | null;
           challengeable: boolean | null;
           challenge_reason: string | null;
           challenge_priority: ChallengePriority | null;

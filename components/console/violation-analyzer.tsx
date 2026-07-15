@@ -24,6 +24,7 @@ interface ViolationRow {
   convicted: boolean | null;
   citation_number: string | null;
   citation_result: string | null;
+  challenge_tier: "strong" | "moderate" | "investigate" | "not_challengeable" | "operational" | null;
   challenge_reason: string | null;
   challenge_priority: string | null;
   ai_assessed_at: string | null;
@@ -51,7 +52,7 @@ type TierFilter =
   | "all"
   | "strong"
   | "moderate"
-  | "possibly"
+  | "investigate"
   | "not_challengeable"
   | "operational";
 type SeverityFilter = "all" | "8plus" | "5plus" | "under5" | "unscored";
@@ -99,6 +100,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
         convicted: violation.convicted,
         citationNumber: violation.citation_number,
         citationResult: violation.citation_result,
+        challengeTier: violation.challenge_tier,
         basicPercentile: null,
       });
 
@@ -225,7 +227,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
             ["all", "All"],
             ["strong", "Strong"],
             ["moderate", "Moderate"],
-            ["possibly", "Investigate"],
+            ["investigate", "Investigate"],
             ["not_challengeable", "Not challengeable"],
             ["operational", "Operational"],
           ] as Array<[TierFilter, string]>).map(([value, label]) => (
@@ -345,9 +347,9 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
                 const canCreateCase =
                   challengeScore.label === "strong" ||
                   challengeScore.label === "moderate" ||
-                  challengeScore.label === "possibly";
+                  challengeScore.label === "investigate";
                 const existingCase = caseByViolation[violation.id] ?? null;
-                const actionLabel = challengeScore.label === "possibly" ? "Investigate" : "Challenge";
+                const actionLabel = challengeScore.label === "investigate" ? "Investigate" : "Challenge";
                 const isExpanded = Boolean(expandedIds[violation.id]);
 
                 return (
@@ -504,7 +506,7 @@ function SortButton({
 function challengeLabelClass(label: string): string {
   if (label === "strong") return "bg-green-50 text-green-700 border-green-200";
   if (label === "moderate") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (label === "possibly") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
+  if (label === "investigate") return "bg-[#FDF4E7] text-[#C67A1E] border-[#C67A1E]/20";
   if (label === "operational") return "bg-[#F0E8DA] text-gray-700 border-[#E4D7C4]";
   return "bg-gray-50 text-gray-500 border-gray-200";
 }
@@ -525,7 +527,7 @@ function basicLabel(basicCategory: string | null) {
 }
 
 function tierLabel(label: string) {
-  if (label === "possibly") return "Investigate";
+  if (label === "investigate") return "Investigate";
   if (label === "not_challengeable") return "Not challengeable";
   return label.replace(/_/g, " ");
 }

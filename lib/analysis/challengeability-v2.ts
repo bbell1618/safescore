@@ -9,7 +9,7 @@
 export type ChallengeTier =
   | "strong"
   | "moderate"
-  | "possibly"
+  | "investigate"
   | "not_challengeable"
   | "operational";
 
@@ -245,7 +245,7 @@ function tierDecision(params: {
       ? "Citation number is present, but the court disposition is unknown; do not call this not-challengeable until the disposition is known."
       : "This is a citation-backed state/local-law violation code, but no court disposition is available; inspect the report and disposition before deciding whether a DataQs path exists.";
     return {
-      label: "possibly",
+      label: "investigate",
       proceduralScore: 45,
       note,
       hypothesis: hasCitationNumber
@@ -256,7 +256,7 @@ function tierDecision(params: {
 
   if (cat === "hos_compliance" || cat === "driver_fitness") {
     return {
-      label: "possibly",
+      label: "investigate",
       proceduralScore: 35,
       note: "This category can turn on carrier-held records and inspection-report coding, but the current feed does not prove a defect; if the records match the inspection report, this is not challengeable.",
       hypothesis:
@@ -294,7 +294,7 @@ function tierDecision(params: {
   }
 
   return {
-    label: "possibly",
+    label: "investigate",
     proceduralScore: 30,
     note: "The roadside inspection report can be auto-reviewed for a recording error; if the record is accurate, this is not challengeable.",
     hypothesis: "Review the inspection report and carrier-held documents for a record-specific defect before closing the door.",
@@ -311,7 +311,7 @@ function buildSummary(
       return `Strong challenge candidate (score ${overall}) - confirmed evidence supports a DataQs ground.`;
     case "moderate":
       return `Moderate challenge candidate (score ${overall}) - a record-level defect is indicated, but evidence still needs to confirm it.`;
-    case "possibly":
+    case "investigate":
       return `Investigate (score ${overall}) - plausible DataQs path, but evidence is missing; this is not a winnability claim. ${note}`;
     case "not_challengeable":
       return `Not challengeable (score ${overall}) - available evidence affirmatively shows no DataQs path.`;
@@ -330,6 +330,7 @@ export function scoreChallenge(params: {
   convicted: boolean | null;
   citationNumber?: string | null;
   citationResult?: string | null;
+  challengeTier?: ChallengeTier | null;
   basicPercentile?: number | null;
 }): ChallengeScore {
   const evidenceType = getEvidenceTypeForViolation(
@@ -343,7 +344,7 @@ export function scoreChallenge(params: {
     params.timeWeight,
     params.basicPercentile
   );
-  const decision = tierDecision({
+  const computedDecision = tierDecision({
     violationCode: params.violationCode,
     basicCategory: params.basicCategory,
     citationNumber: params.citationNumber,
@@ -352,6 +353,20 @@ export function scoreChallenge(params: {
     oosViolation: params.oosViolation,
     convicted: params.convicted,
   });
+  const decision = params.challengeTier
+    ? {
+        ...computedDecision,
+        label: params.challengeTier,
+        proceduralScore: {
+          strong: 90,
+          moderate: 70,
+          investigate: 35,
+          not_challengeable: 5,
+          operational: 10,
+        }[params.challengeTier],
+        note: params.challengeReason || computedDecision.note,
+      }
+    : computedDecision;
 
   const overall = clamp(
     Math.round(decision.proceduralScore * (0.6 + 0.4 * (evidenceResult.score / 100))),

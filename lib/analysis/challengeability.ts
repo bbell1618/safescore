@@ -6,6 +6,7 @@
  */
 
 import { assessViolationChallengeability } from "@/lib/ai/openrouter";
+import { challengeableForTier, type ChallengeTier } from "./challengeability-rubric";
 
 export interface ViolationInput {
   id: string;
@@ -14,7 +15,9 @@ export interface ViolationInput {
   basicCategory: string;
   severityWeight: number;
   oosViolation: boolean;
-  convicted: boolean;
+  convicted: boolean | null;
+  citationNumber: string | null;
+  citationResult: string | null;
   inspectionDate: string;
   state: string;
   inspectionLevel: string;
@@ -22,6 +25,7 @@ export interface ViolationInput {
 
 export interface AssessmentResult {
   violationId: string;
+  tier: ChallengeTier;
   challengeable: boolean;
   reason: string;
   priority: "high" | "medium" | "low";
@@ -54,11 +58,17 @@ export async function assessViolationsBatch(
         severityWeight: violation.severityWeight,
         oosViolation: violation.oosViolation,
         convicted: violation.convicted,
+        citationNumber: violation.citationNumber,
+        citationResult: violation.citationResult,
         inspectionDate: violation.inspectionDate,
         state: violation.state,
         inspectionLevel: violation.inspectionLevel,
       });
-      return { violationId: violation.id, ...result };
+      return {
+        violationId: violation.id,
+        ...result,
+        challengeable: challengeableForTier(result.tier),
+      };
     }));
 
     settled.forEach((result, index) => {

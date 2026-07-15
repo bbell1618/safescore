@@ -13,6 +13,8 @@ type ViolationRow = {
   severity_weight: number | null;
   oos_violation: boolean | null;
   convicted: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
   inspections: InspectionContext | InspectionContext[] | null;
 };
 
@@ -41,7 +43,7 @@ export async function runChallengeabilityAssessment(
 
   let query = supabase
     .from("violations")
-    .select("id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, inspections(inspection_date, state, level)")
+    .select("id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, inspections(inspection_date, state, level)")
     .eq("client_id", clientId)
     .in("inspection_id", inspectionIds)
     .order("id")
@@ -67,7 +69,9 @@ export async function runChallengeabilityAssessment(
       basicCategory: row.basic_category ?? "unclassified",
       severityWeight: row.severity_weight ?? 0,
       oosViolation: Boolean(row.oos_violation),
-      convicted: Boolean(row.convicted),
+      convicted: row.convicted,
+      citationNumber: row.citation_number,
+      citationResult: row.citation_result,
       inspectionDate: inspection?.inspection_date ?? "Unknown",
       state: inspection?.state ?? "Unknown",
       inspectionLevel: String(inspection?.level ?? "Unknown"),
@@ -80,7 +84,7 @@ export async function runChallengeabilityAssessment(
     const { data: updated, error: updateError } = await supabase
       .from("violations")
       .update({
-        challengeable: result.challengeable,
+        challenge_tier: result.tier,
         challenge_reason: result.reason,
         challenge_priority: result.priority,
         ai_assessed_at: assessedAt,

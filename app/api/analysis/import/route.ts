@@ -255,7 +255,7 @@ export async function runAnalysisImport({
     // (inspection_id, violation_code) without N+1 queries.
     const { data: existingViolations } = await supabase
       .from("violations")
-      .select("id, inspection_id, violation_code, challengeable, challenge_reason, challenge_priority, ai_assessed_at")
+      .select("id, inspection_id, violation_code, challengeable, challenge_tier, challenge_reason, challenge_priority, ai_assessed_at")
       .eq("client_id", clientId);
 
     // Map key: "<inspection_uuid>:<violation_code>"
@@ -264,6 +264,7 @@ export async function runAnalysisImport({
       inspection_id: string;
       violation_code: string;
       challengeable: boolean | null;
+      challenge_tier: "strong" | "moderate" | "investigate" | "not_challengeable" | "operational" | null;
       challenge_reason: string | null;
       challenge_priority: string | null;
       ai_assessed_at: string | null;
@@ -371,6 +372,7 @@ export async function runAnalysisImport({
             convicted: viol.convicted,
             citation_number: viol.citationNumber ?? null,
             challengeable: null, // pending AI assessment
+            challenge_tier: null,
           });
 
           if (violErr) {
