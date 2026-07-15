@@ -1,6 +1,8 @@
 /**
- * Batch violation challengeability assessment
- * Calls OpenRouter AI for each violation (10 at a time) and persists results
+ * Batch OpenRouter challengeability assessment.
+ *
+ * There is deliberately no rule fallback: a model failure leaves the row
+ * unassessed instead of stamping ai_assessed_at with a different engine's result.
  */
 
 import { assessViolationChallengeability } from "@/lib/ai/openrouter";
@@ -27,139 +29,65 @@ export interface AssessmentResult {
   suggestedApproach: string | null;
 }
 
-function ruleBasedAssessment(v: ViolationInput): AssessmentResult {
-  if (!v.convicted) {
-    return {
-      violationId: v.id,
-      challengeable: true,
-      reason: "Violation not convicted — strong grounds for DataQs challenge on evidentiary basis",
-      priority: v.severityWeight >= 7 ? "high" : "medium",
-      confidence: 75,
-      suggestedApproach: "File DataQs requesting removal based on lack of conviction record",
-    };
-  }
-  if (v.oosViolation && v.basicCategory === "vehicle_maintenance") {
-    return {
-      violationId: v.id,
-      challengeable: false,
-      reason: "OOS vehicle maintenance violation with conviction — clear documented record, limited challenge grounds",
-      priority: "low",
-      confidence: 72,
-      suggestedApproach: null,
-    };
-  }
-  if (v.basicCategory === "hos_compliance") {
-    return {
-      violationId: v.id,
-      challengeable: true,
-      reason: "HOS recordkeeping violations are frequently challengeable on procedural or timeline grounds",
-      priority: "medium",
-      confidence: 65,
-      suggestedApproach: "Review driver logs and officer timeline for discrepancies in hours calculation",
-    };
-  }
-  if (v.basicCategory === "driver_fitness") {
-    return {
-      violationId: v.id,
-      challengeable: true,
-      reason: "Driver fitness violations often challengeable if supporting documentation can be produced",
-      priority: "high",
-      confidence: 68,
-      suggestedApproach: "Provide employment application, previous employer inquiry records, and qualification file",
-    };
-  }
-  if (v.basicCategory === "hazmat_compliance") {
-    return {
-      violationId: v.id,
-      challengeable: false,
-      reason: "Hazmat compliance violations with conviction carry significant regulatory weight — difficult to challenge",
-      priority: "low",
-      confidence: 70,
-      suggestedApproach: null,
-    };
-  }
-  return {
-    violationId: v.id,
-    challengeable: v.severityWeight < 6,
-    reason:
-      v.severityWeight < 6
-        ? "Lower severity violation — may be challengeable on procedural or minor evidentiary grounds"
-        : "High severity convicted violation — limited challenge prospects without clear procedural error",
-    priority: "low",
-    confidence: 55,
-    suggestedApproach:
-      v.severityWeight < 6 ? "Review inspection report for procedural irregularities or equipment repair documentation" : null,
-  };
+export interface AssessmentFailure {
+  violationId: string;
+  error: string;
 }
 
 export async function assessViolationsBatch(
   violations: ViolationInput[],
   onProgress?: (completed: number, total: number) => void
-): Promise<AssessmentResult[]> {
-  // Use rule-based assessment if OpenRouter is not configured
-  if (!process.env.OPENROUTER_API_KEY) {
-    return violations.map(ruleBasedAssessment);
-  }
+): Promise<{ results: AssessmentResult[]; failures: AssessmentFailure[] }> {
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not configured");
 
   const results: AssessmentResult[] = [];
-  const BATCH_SIZE = 10;
+  const failures: AssessmentFailure[] = [];
+  const batchSize = 10;
 
-  for (let i = 0; i < violations.length; i += BATCH_SIZE) {
-    const batch = violations.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < violations.length; i += batchSize) {
+    const batch = violations.slice(i, i + batchSize);
+    const settled = await Promise.allSettled(batch.map(async (violation) => {
+      const result = await assessViolationChallengeability({
+        violationCode: violation.violationCode,
+        description: violation.description,
+        basicCategory: violation.basicCategory,
+        severityWeight: violation.severityWeight,
+        oosViolation: violation.oosViolation,
+        convicted: violation.convicted,
+        inspectionDate: violation.inspectionDate,
+        state: violation.state,
+        inspectionLevel: violation.inspectionLevel,
+      });
+      return { violationId: violation.id, ...result };
+    }));
 
-    // Process batch concurrently — fall back to rule-based if OpenRouter fails for any individual violation
-    const batchResults = await Promise.all(
-      batch.map(async (v) => {
-        try {
-          const result = await assessViolationChallengeability({
-            violationCode: v.violationCode,
-            description: v.description,
-            basicCategory: v.basicCategory,
-            severityWeight: v.severityWeight,
-            oosViolation: v.oosViolation,
-            convicted: v.convicted,
-            inspectionDate: v.inspectionDate,
-            state: v.state,
-            inspectionLevel: v.inspectionLevel,
-          });
-          return { violationId: v.id, ...result };
-        } catch (err) {
-          console.warn("OpenRouter assessment failed, using rule-based fallback:", err);
-          return ruleBasedAssessment(v);
-        }
-      })
-    );
+    settled.forEach((result, index) => {
+      if (result.status === "fulfilled") results.push(result.value);
+      else failures.push({
+        violationId: batch[index].id,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+    });
 
-    results.push(...batchResults);
-
-    onProgress?.(Math.min(i + BATCH_SIZE, violations.length), violations.length);
-
-    // Small delay between batches to avoid rate limiting
-    if (i + BATCH_SIZE < violations.length) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
+    onProgress?.(Math.min(i + batchSize, violations.length), violations.length);
+    if (i + batchSize < violations.length) await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  return results;
+  return { results, failures };
 }
 
-/**
- * Sort and prioritize challengeable violations by impact
- */
 export function prioritizeViolations(
   results: AssessmentResult[],
   violations: ViolationInput[]
 ): Array<AssessmentResult & { severityWeight: number }> {
-  const violationMap = new Map(violations.map((v) => [v.id, v]));
-
+  const violationMap = new Map(violations.map((violation) => [violation.id, violation]));
   return results
-    .filter((r) => r.challengeable)
-    .map((r) => ({
-      ...r,
-      severityWeight: violationMap.get(r.violationId)?.severityWeight ?? 0,
+    .filter((result) => result.challengeable)
+    .map((result) => ({
+      ...result,
+      severityWeight: violationMap.get(result.violationId)?.severityWeight ?? 0,
     }))
     .sort((a, b) => {
-      // Sort by: priority, then confidence, then severity weight
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       if (a.priority !== b.priority) return priorityOrder[a.priority] - priorityOrder[b.priority];
       if (a.confidence !== b.confidence) return b.confidence - a.confidence;

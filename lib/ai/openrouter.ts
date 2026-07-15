@@ -4,6 +4,7 @@
  */
 
 import OpenAI from "openai";
+import { z } from "zod";
 
 const MODEL = "anthropic/claude-sonnet-4-6";
 const NARRATIVE_MODEL = "anthropic/claude-opus-4.8";
@@ -38,6 +39,14 @@ export interface ChallengeabilityResult {
   confidence: number; // 0-100
   suggestedApproach: string | null;
 }
+
+const challengeabilityResultSchema = z.object({
+  challengeable: z.boolean(),
+  reason: z.string().min(1),
+  priority: z.enum(["high", "medium", "low"]),
+  confidence: z.number().min(0).max(100),
+  suggestedApproach: z.string().min(1).nullable(),
+});
 
 export interface CpdpEligibilityResult {
   eligible: boolean;
@@ -102,7 +111,7 @@ Common grounds for challenge: incorrect violation code, violation not observed, 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI");
 
-  return JSON.parse(content) as ChallengeabilityResult;
+  return challengeabilityResultSchema.parse(JSON.parse(content));
 }
 
 // Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)

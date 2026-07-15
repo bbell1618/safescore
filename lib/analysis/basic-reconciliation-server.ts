@@ -7,7 +7,6 @@ import {
   type BurdenResult,
   type ViolationRow,
 } from "./basic-measure";
-import { scoreChallenge } from "./challengeability-v2";
 
 type QueryRow = {
   id: string;
@@ -20,6 +19,9 @@ type QueryRow = {
   citation_number: string | null;
   citation_result: string | null;
   challenge_reason: string | null;
+  challengeable: boolean | null;
+  challenge_priority: "high" | "medium" | "low" | null;
+  ai_assessed_at: string | null;
   inspections:
     | { inspection_date: string | null; state: string | null }
     | Array<{ inspection_date: string | null; state: string | null }>
@@ -29,6 +31,8 @@ type QueryRow = {
 export type BasicReconciliation = {
   burden: BurdenResult;
   potentialRemovalImpactByBasic: Record<string, number>;
+  challengeabilityByBasic: Record<string, { assessed: number; unassessed: number }>;
+  allScoredViolationsAssessed: boolean;
   unknownBasicCount: number;
   queryTrace: {
     source: string;
@@ -54,7 +58,7 @@ export async function getClientBasicReconciliation(
   let query = supabase
     .from("violations")
     .select(
-      "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_reason, inspections(inspection_date, state)"
+      "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_reason, challengeable, challenge_priority, ai_assessed_at, inspections(inspection_date, state)"
     )
     .eq("client_id", clientId);
   query = inspectionIds.length > 0
@@ -79,6 +83,7 @@ export async function getClientBasicReconciliation(
   });
   const burden = computeBurdenFromRows(burdenRows, asOf);
   const potentialRemovalImpactByBasic: Record<string, number> = {};
+  const challengeabilityByBasic: Record<string, { assessed: number; unassessed: number }> = {};
   let inWindowViolationCount = 0;
   let unknownBasicCount = 0;
 
@@ -92,20 +97,16 @@ export async function getClientBasicReconciliation(
       continue;
     }
     if (row.severity_weight == null) continue;
+    const coverage = challengeabilityByBasic[row.basic_category] ?? { assessed: 0, unassessed: 0 };
+    if (row.ai_assessed_at) coverage.assessed += 1;
+    else coverage.unassessed += 1;
+    challengeabilityByBasic[row.basic_category] = coverage;
     const points = timeWeight * (row.severity_weight + (row.oos_violation ? 2 : 0));
-    const challenge = scoreChallenge({
-      violationCode: row.violation_code ?? "",
-      basicCategory: row.basic_category,
-      severityWeight: row.severity_weight,
-      timeWeight,
-      challengeReason: row.challenge_reason,
-      oosViolation: row.oos_violation ?? false,
-      convicted: row.convicted,
-      citationNumber: row.citation_number,
-      citationResult: row.citation_result,
-      basicPercentile: null,
-    });
-    if (challenge.label === "strong" || challenge.label === "moderate") {
+    if (
+      row.ai_assessed_at &&
+      row.challengeable === true &&
+      (row.challenge_priority === "high" || row.challenge_priority === "medium")
+    ) {
       potentialRemovalImpactByBasic[row.basic_category] =
         (potentialRemovalImpactByBasic[row.basic_category] ?? 0) + points;
     }
@@ -114,6 +115,8 @@ export async function getClientBasicReconciliation(
   return {
     burden,
     potentialRemovalImpactByBasic,
+    challengeabilityByBasic,
+    allScoredViolationsAssessed: Object.values(challengeabilityByBasic).every((row) => row.unassessed === 0),
     unknownBasicCount,
     queryTrace: {
       source: "canonical inspections -> violations",

@@ -33,10 +33,10 @@ export async function proxy(request: NextRequest) {
     const publicApiPrefixes = [
       "/api/auth/setup",
       "/api/billing/webhook",
-      "/api/evidence/",
       "/api/fmcsa/",
     ];
-    if (publicApiPrefixes.some((prefix) => path.startsWith(prefix))) return supabaseResponse;
+    const isPublicEvidenceUpload = /^\/api\/evidence\/[^/]+\/upload$/.test(path);
+    if (isPublicEvidenceUpload || publicApiPrefixes.some((prefix) => path.startsWith(prefix))) return supabaseResponse;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const staffOnlyPrefixes = [

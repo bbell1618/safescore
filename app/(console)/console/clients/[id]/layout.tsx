@@ -6,6 +6,7 @@ import { ClientTabs } from "@/components/console/client-tabs";
 import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
 
 const tierLabel: Record<string, string> = {
   monitor: "Monitor",
@@ -59,8 +60,13 @@ export default async function ClientFileLayout({
     .from("violations")
     .select("*", { count: "exact", head: true })
     .eq("client_id", id);
+  const unassessedCountQuery = supabase
+    .from("violations")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", id)
+    .is("ai_assessed_at", null);
 
-  const [{ data: carrierProfile }, { count: violationCount }] = await Promise.all([
+  const [{ data: carrierProfile }, { count: violationCount }, { count: unassessedCount }] = await Promise.all([
     supabase
       .from("carrier_profiles")
       .select("authority_status, entity_type")
@@ -71,6 +77,9 @@ export default async function ClientFileLayout({
     canonicalInspectionIds.length > 0
       ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
       : violationCountQuery.in("inspection_id", []),
+    canonicalInspectionIds.length > 0
+      ? unassessedCountQuery.in("inspection_id", canonicalInspectionIds)
+      : unassessedCountQuery.in("inspection_id", []),
   ]);
 
   const cp = carrierProfile as { authority_status?: string | null; entity_type?: string | null } | null;
@@ -113,6 +122,11 @@ export default async function ClientFileLayout({
                 dotNumber={client.dot_number}
                 hasData={(violationCount ?? 0) > 0}
                 hasFmcsaAccess={false}
+              />
+              <ChallengeabilityAnalysisButton
+                clientId={id}
+                totalCount={violationCount ?? 0}
+                unassessedCount={unassessedCount ?? 0}
               />
               <FmcsaExportUpload clientId={id} dotNumber={client.dot_number} />
             </div>

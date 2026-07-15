@@ -131,7 +131,8 @@ export async function POST(
       uploaded_at: new Date().toISOString(),
       uploaded_by: "client",
     })
-    .eq("id", evidenceId);
+    .eq("id", evidenceId)
+    .eq("case_id", req.case_id);
 
   if (updateErr) {
     return NextResponse.json(

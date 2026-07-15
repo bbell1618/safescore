@@ -200,7 +200,11 @@ export default async function ClientOverviewPage({
                   <td className="px-5 py-3 text-xs font-medium text-[#1E1C1A]">{b.label}</td>
                   <td className="px-5 py-3 text-right text-xs font-semibold text-[#C67A1E]">{b.weightedPoints}</td>
                   <td className="px-5 py-3 text-right text-xs text-gray-500">{b.violationCount}</td>
-                  <td className="px-5 py-3 text-right text-xs text-gray-500">{reconciliation.potentialRemovalImpactByBasic[b.basicCategory] ?? 0}</td>
+                  <td className="px-5 py-3 text-right text-xs text-gray-500">
+                    {(reconciliation.challengeabilityByBasic[b.basicCategory]?.unassessed ?? 0) > 0
+                      ? "Not assessed"
+                      : reconciliation.potentialRemovalImpactByBasic[b.basicCategory] ?? 0}
+                  </td>
                 </tr>
               ))}
               <tr>
@@ -216,7 +220,9 @@ export default async function ClientOverviewPage({
                   {burden.perBasic.reduce((sum, b) => sum + b.violationCount, 0)}
                 </td>
                 <td className="px-5 py-3 text-right text-xs font-bold text-[#1E1C1A]">
-                  {Object.values(reconciliation.potentialRemovalImpactByBasic).reduce((sum, points) => sum + points, 0)}
+                  {reconciliation.allScoredViolationsAssessed
+                    ? Object.values(reconciliation.potentialRemovalImpactByBasic).reduce((sum, points) => sum + points, 0)
+                    : "Not assessed"}
                 </td>
               </tr>
             </tbody>

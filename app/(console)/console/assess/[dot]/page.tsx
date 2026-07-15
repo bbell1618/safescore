@@ -2,6 +2,8 @@ import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
 import { ScoreCard } from "@/components/ui/score-card";
 import { AddClientForm } from "@/components/console/add-client-form";
 import { AlertTriangle, Truck, Users2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,13 @@ export default async function AssessPage({
   ];
 
   const alerts = basicsArray.filter((b) => b.data?.alert).length;
+  const supabase = await createClient();
+  const { data: existingClient, error: existingClientError } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("dot_number", carrier.dotNumber)
+    .maybeSingle();
+  if (existingClientError) throw new Error(`Unable to check existing SafeScore clients: ${existingClientError.message}`);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -181,16 +190,18 @@ export default async function AssessPage({
               {
                 label: "Hazmat OOS rate",
                 value: oos.hazmatOosRate,
-                national: null,
+                national: oos.nationalHazmatOosRate,
               },
             ].map((item) => (
               <div key={item.label} className="border border-[#F0E8DA] rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">{item.label}</p>
                 <p
                   className={`text-2xl font-bold ${
-                    item.value !== null && item.national !== null && item.value > item.national
-                      ? "text-[#C67A1E]"
-                      : "text-green-600"
+                    item.value === null || item.national === null
+                      ? "text-gray-500"
+                      : item.value > item.national
+                        ? "text-[#C67A1E]"
+                        : "text-green-600"
                   }`}
                 >
                   {item.value !== null ? `${item.value}%` : "\u2014"}
@@ -198,29 +209,42 @@ export default async function AssessPage({
                 {item.national !== null && (
                   <p className="text-xs text-gray-400">National avg: {item.national}%</p>
                 )}
+                {item.national === null && (
+                  <p className="text-xs text-gray-400">No national benchmark published</p>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2 className="font-semibold text-[#1E1C1A] text-sm mb-1">
-          Add as SafeScore client
-        </h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Save this carrier to begin full analysis, DataQs workbench, and client portal setup.
-        </p>
-        <AddClientForm
-          dot={carrier.dotNumber}
-          mc={carrier.mcNumber ?? ""}
-          name={carrier.legalName}
-          city={carrier.phyCity}
-          state={carrier.phyState}
-          fleetSize={carrier.totalPowerUnits}
-          driverCount={carrier.totalDrivers}
-        />
-      </div>
+      {existingClient ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+          <h2 className="text-sm font-semibold text-green-800">Already a SafeScore client</h2>
+          <p className="mt-1 text-xs text-green-700">
+            {existingClient.name} is already enrolled. This assessment will not create or change its service tier.
+          </p>
+          <Link href={`/console/clients/${existingClient.id}`} className="mt-4 inline-flex rounded-lg bg-[#1B2D4F] px-3 py-2 text-xs font-medium text-white hover:bg-[#2A4270]">
+            View client file
+          </Link>
+        </div>
+      ) : (
+        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-1">Add as SafeScore client</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Save this carrier to begin full analysis, DataQs workbench, and client portal setup.
+          </p>
+          <AddClientForm
+            dot={carrier.dotNumber}
+            mc={carrier.mcNumber ?? ""}
+            name={carrier.legalName}
+            city={carrier.phyCity}
+            state={carrier.phyState}
+            fleetSize={carrier.totalPowerUnits}
+            driverCount={carrier.totalDrivers}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -56,6 +56,9 @@ export function FmcsaExportUpload({ clientId, dotNumber }: FmcsaExportUploadProp
   return (
     <div className="space-y-1.5">
       <input
+        id="fmcsa-export-file"
+        name="fmcsa_export_file"
+        aria-label="FMCSA export file"
         ref={inputRef}
         type="file"
         accept=".xml,.csv,text/xml,application/xml,text/csv"

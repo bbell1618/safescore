@@ -53,7 +53,7 @@ export function ClientIntakeFields({
             value={values.name}
             disabled={lockedFields.name}
             onChange={(e) => setValue("name", e.target.value)}
-            placeholder="Nationwide Carrier Inc"
+            placeholder="Example Motor Carrier LLC"
             className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E] disabled:bg-gray-50 disabled:text-gray-500"
           />
         </div>
@@ -69,7 +69,7 @@ export function ClientIntakeFields({
             value={values.dotNumber}
             disabled={lockedFields.dotNumber}
             onChange={(e) => setValue("dotNumber", normalizeDigits(e.target.value))}
-            placeholder="2533650"
+            placeholder="1234567"
             className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E] disabled:bg-gray-50 disabled:text-gray-500"
           />
         </div>
@@ -83,7 +83,7 @@ export function ClientIntakeFields({
             type="text"
             value={values.mcNumber}
             onChange={(e) => setValue("mcNumber", normalizeDigits(e.target.value))}
-            placeholder="880750"
+            placeholder="123456"
             className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
           />
         </div>
@@ -114,7 +114,7 @@ export function ClientIntakeFields({
             type="text"
             value={values.contactName}
             onChange={(e) => setValue("contactName", e.target.value)}
-            placeholder="Mike Johnson"
+            placeholder="Alex Smith"
             className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
           />
         </div>

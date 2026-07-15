@@ -449,10 +449,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
       const closeAngle = html.indexOf(">", tdIdx);
       const tdEnd = html.indexOf("</TD>", closeAngle);
       if (closeAngle > -1 && tdEnd > -1) {
-        const raw = stripTags(html.slice(closeAngle + 1, tdEnd));
-        const authMatch = raw.match(/^(AUTHORIZED FOR [A-Za-z\s,HHG]+?)(?:\s+For |\s+click |\s*$)/i)
-          ?? raw.match(/^(NOT AUTHORIZED|OUT-OF-SERVICE)/i);
-        operatingAuthority = authMatch ? authMatch[1].trim() : (raw.slice(0, 40).trim() || null);
+        operatingAuthority = parseOperatingAuthorityText(stripTags(html.slice(closeAngle + 1, tdEnd)));
       }
     }
   }
@@ -597,4 +594,16 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     saferAsOf,
     parsedAt: new Date().toISOString(),
   };
+}
+
+export function parseOperatingAuthorityText(value: string): string | null {
+  const raw = value.replace(/\s+/g, " ").trim();
+  if (!raw) return null;
+  const authorized = raw.match(
+    /^(AUTHORIZED FOR:\s*.+?)(?=\s+For\s+(?:Licensing|more\s+information)|\s+click\s+here|$)/i
+  );
+  if (authorized) return authorized[1].trim();
+  const status = raw.match(/^(NOT AUTHORIZED|OUT-OF-SERVICE)\b/i);
+  if (status) return status[1].trim();
+  return raw;
 }

@@ -48,7 +48,7 @@ export function QuickAssessment() {
             type="text"
             value={dot}
             onChange={(e) => setDot(e.target.value)}
-            placeholder="DOT number (e.g. 2533650)"
+            placeholder="DOT number (e.g. 1234567)"
             className="flex-1 px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent"
           />
           <button

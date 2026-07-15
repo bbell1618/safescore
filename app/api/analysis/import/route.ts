@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendNewViolationAlert } from "@/lib/email/client";
+import { runChallengeabilityAssessment, type ChallengeabilityRunResult } from "@/lib/analysis/challengeability-assessment-server";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -727,6 +728,20 @@ export async function runAnalysisImport({
 
     const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun", supabase);
 
+    // Challengeability is a required analysis stage, not cosmetic progress text.
+    // Assess only rows that remain unstamped so refreshes preserve completed work.
+    let challengeability: ChallengeabilityRunResult | null = null;
+    let challengeabilityError: string | null = null;
+    try {
+      challengeability = await runChallengeabilityAssessment(supabase, clientId);
+      if (challengeability.failures.length > 0) {
+        challengeabilityError =
+          `${challengeability.failures.length} violation(s) remain unassessed after OpenRouter errors.`;
+      }
+    } catch (error) {
+      challengeabilityError = error instanceof Error ? error.message : "Challengeability analysis failed";
+    }
+
     // ── 8. Log activity ──────────────────────────────────────────────────────
     const censusSummary = saferSnap
       ? `census refreshed via SAFER (${saferSnap.powerUnits} power units / ${saferSnap.drivers} drivers, authority: ${saferSnap.operatingAuthority ?? "n/a"})`
@@ -757,7 +772,7 @@ export async function runAnalysisImport({
         `OOS rates (SAFER): veh ${saferSnap?.vehicleOosRate ?? "n/a"}%, drv ${saferSnap?.driverOosRate ?? "n/a"}%, hm ${saferSnap?.hazmatOosRate ?? "n/a"}%.`,
     });
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       census: saferSnap
         ? {
@@ -779,7 +794,19 @@ export async function runAnalysisImport({
         hazmat: saferSnap?.hazmatOosRate ?? null,
       },
       monitoringSnapshot,
-    });
+      challengeability,
+    };
+
+    if (challengeabilityError) {
+      return NextResponse.json({
+        ...responseBody,
+        success: false,
+        importCompleted: true,
+        error: `FMCSA import completed, but challengeability analysis did not: ${challengeabilityError}`,
+      }, { status: 502 });
+    }
+
+    return NextResponse.json(responseBody);
   } catch (err) {
     console.error("Analysis import error:", err);
     return NextResponse.json(
