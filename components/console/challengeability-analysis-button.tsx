@@ -26,20 +26,32 @@ export function ChallengeabilityAnalysisButton({
     setMessage(null);
     setError(null);
     try {
-      const response = await fetch("/api/analysis/assess-violations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, force }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const partial = data.assessed ? ` ${data.assessed} were saved successfully.` : "";
-        throw new Error(`${data.error ?? "Challengeability analysis failed"}${partial}`);
+      let cursor: string | undefined;
+      let assessed = 0;
+      let challengeable = 0;
+      let requested = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await fetch("/api/analysis/assess-violations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, force, cursor }),
+        });
+        const data = await response.json();
+        assessed += data.assessed ?? 0;
+        challengeable += data.challengeable ?? 0;
+        requested += data.requested ?? 0;
+        if (!response.ok) {
+          const partial = assessed ? ` ${assessed} were saved successfully.` : "";
+          throw new Error(`${data.error ?? "Challengeability analysis failed"}${partial}`);
+        }
+        hasMore = Boolean(data.hasMore);
+        cursor = force ? data.nextCursor ?? undefined : undefined;
       }
       setMessage(
-        data.requested === 0
+        requested === 0
           ? "Every violation is already assessed."
-          : `Assessed ${data.assessed} violation${data.assessed === 1 ? "" : "s"}; ${data.challengeable} flagged for review.`
+          : `Assessed ${assessed} violation${assessed === 1 ? "" : "s"}; ${challengeable} flagged for review.`
       );
       router.refresh();
     } catch (caught) {

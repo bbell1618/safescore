@@ -9,6 +9,7 @@ const schema = z.object({
   clientId: z.string().uuid(),
   violationIds: z.array(z.string().uuid()).optional(),
   force: z.boolean().optional(),
+  cursor: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {

@@ -25,29 +25,38 @@ export type ChallengeabilityRunResult = {
   assessed: number;
   challengeable: number;
   failures: AssessmentFailure[];
+  hasMore: boolean;
+  nextCursor: string | null;
 };
 
 export async function runChallengeabilityAssessment(
   supabase: SupabaseClient,
   clientId: string,
-  options: { violationIds?: string[]; force?: boolean } = {}
+  options: { violationIds?: string[]; force?: boolean; cursor?: string } = {}
 ): Promise<ChallengeabilityRunResult> {
   const { inspectionIds } = await getCanonicalInspectionScope(clientId, supabase);
-  if (inspectionIds.length === 0) return { requested: 0, assessed: 0, challengeable: 0, failures: [] };
+  if (inspectionIds.length === 0) {
+    return { requested: 0, assessed: 0, challengeable: 0, failures: [], hasMore: false, nextCursor: null };
+  }
 
   let query = supabase
     .from("violations")
     .select("id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, inspections(inspection_date, state, level)")
     .eq("client_id", clientId)
-    .in("inspection_id", inspectionIds);
+    .in("inspection_id", inspectionIds)
+    .order("id")
+    .limit(20);
   if (options.violationIds?.length) query = query.in("id", options.violationIds);
   if (!options.force) query = query.is("ai_assessed_at", null);
+  if (options.force && options.cursor) query = query.gt("id", options.cursor);
 
   const { data, error } = await query;
   if (error) throw new Error(`Unable to load violations for challengeability analysis: ${error.message}`);
 
   const rows = (data ?? []) as unknown as ViolationRow[];
-  if (rows.length === 0) return { requested: 0, assessed: 0, challengeable: 0, failures: [] };
+  if (rows.length === 0) {
+    return { requested: 0, assessed: 0, challengeable: 0, failures: [], hasMore: false, nextCursor: null };
+  }
 
   const { results, failures } = await assessViolationsBatch(rows.map((row) => {
     const inspection = inspectionFor(row);
@@ -103,5 +112,7 @@ export async function runChallengeabilityAssessment(
     assessed: persisted.length,
     challengeable: persisted.filter((result) => result.challengeable).length,
     failures: [...failures, ...writeFailures],
+    hasMore: rows.length === 20,
+    nextCursor: rows.at(-1)?.id ?? null,
   };
 }

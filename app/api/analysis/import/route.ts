@@ -737,6 +737,9 @@ export async function runAnalysisImport({
       if (challengeability.failures.length > 0) {
         challengeabilityError =
           `${challengeability.failures.length} violation(s) remain unassessed after OpenRouter errors.`;
+      } else if (challengeability.hasMore) {
+        challengeabilityError =
+          "Challengeability analysis saved its first bounded batch; run the standalone action to complete the remaining violations.";
       }
     } catch (error) {
       challengeabilityError = error instanceof Error ? error.message : "Challengeability analysis failed";
