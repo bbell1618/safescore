@@ -57,7 +57,7 @@ Ground rules:
 3. Speculation is not a ground. Phrases such as "frequently challengeable", "may be viable if", "dispute the officer's subjective assessment", and generic lists of things that could be wrong are forbidden.
 4. Every strong or moderate result must name the specific defect in this record, the evidence that proves it, and the evidence source. No proof named means it is not strong or moderate.
 5. Every investigate result must name one specific hypothesis, the exact evidence needed to confirm or kill it, and who supplies it. No evidence and source named means operational.
-6. citation_result is load-bearing. A favorable result is the strongest DataQ ground. If a genuinely citation-based violation has a citation number but no result, investigate the court disposition; do not call it a data error. A legacy convicted=true value without a citation number does not prove that a citation exists.
+6. citation_result is load-bearing. A favorable result is the strongest DataQ ground. If convicted=true and the record is citation-based because it has a citation number OR its code/description explicitly identifies a state/local-law violation, a blank citation_result is investigate: obtain the court disposition from the issuing court or jurisdiction. It is not a data error. For other records, a legacy convicted=true value without a citation number does not prove that a citation exists.
 7. A blank or absent field is unknown, not evidence of an error.
 8. Severity and weighted-point impact affect priority only. They never make a violation challengeable.
 9. suggestedApproach must be null for not_challengeable and operational. Do not put coaching or maintenance advice in that field.
@@ -94,6 +94,18 @@ export function validateChallengeabilityAssessment(
     if (!assessment.specificDefect || !assessment.evidence || !assessment.evidenceSource) {
       throw new Error("investigate requires one hypothesis, exact evidence needed, and its source");
     }
+  }
+
+  const citationBased = Boolean(record.citationNumber?.trim()) ||
+    record.violationCode.toLowerCase().includes("sll") ||
+    record.description.toLowerCase().includes("state/local");
+  if (
+    record.convicted === true &&
+    citationBased &&
+    !record.citationResult?.trim() &&
+    assessment.tier !== "investigate"
+  ) {
+    throw new Error("citation-based conviction with no disposition must be investigate");
   }
 
   if (assessment.tier === "strong") {

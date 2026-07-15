@@ -30,11 +30,27 @@ const laneRecord: ChallengeabilityRecord = {
   inspectionLevel: "1",
 };
 
-validateChallengeabilityAssessment(baseAssessment, laneRecord, today);
+assert.throws(() => validateChallengeabilityAssessment(baseAssessment, laneRecord, today), /must be investigate/);
+validateChallengeabilityAssessment({
+  ...baseAssessment,
+  tier: "investigate",
+  reason: "The state/local-law record is marked convicted but has no citation disposition.",
+  specificDefect: "The court disposition is unknown.",
+  evidence: "Obtain the final court disposition for this state/local-law matter.",
+  evidenceSource: "The issuing court or jurisdiction.",
+  suggestedApproach: "Collect the final court disposition before deciding whether a DataQ ground exists.",
+}, laneRecord, today);
 assert.match(buildChallengeabilitySystemPrompt(today), /TODAY IS 2026-07-15/);
 
 assert.throws(() => validateChallengeabilityAssessment(
-  { ...baseAssessment, reason: "The inspection date of 2026-03-20 is a future date." },
+  {
+    ...baseAssessment,
+    tier: "investigate",
+    reason: "The inspection date of 2026-03-20 is a future date.",
+    specificDefect: "The date appears impossible.",
+    evidence: "Confirm the inspection date.",
+    evidenceSource: "The inspection report.",
+  },
   laneRecord,
   today
 ), /cannot be described as a future date/);
