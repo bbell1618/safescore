@@ -111,7 +111,10 @@ Common grounds for challenge: incorrect violation code, violation not observed, 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI");
 
-  return challengeabilityResultSchema.parse(JSON.parse(content));
+  // Some routed models still wrap JSON despite response_format. Remove only a
+  // complete outer JSON fence; malformed or schema-invalid content still fails loudly.
+  const clean = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  return challengeabilityResultSchema.parse(JSON.parse(clean));
 }
 
 // Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)
