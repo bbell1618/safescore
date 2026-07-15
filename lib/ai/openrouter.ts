@@ -100,25 +100,36 @@ Return this exact JSON structure:
   "suggestedApproach": "DataQ filing or evidence collection step" | null
 }`;
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: "system", content: buildChallengeabilitySystemPrompt(today) },
-      { role: "user", content: prompt },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-  });
+  let rejection: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const correction = rejection
+      ? `\n\nYour prior response was rejected by the evidentiary validator: ${rejection.message}. Correct that exact defect; do not weaken or evade the rubric.`
+      : "";
+    try {
+      const response = await client.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: "system", content: buildChallengeabilitySystemPrompt(today) },
+          { role: "user", content: prompt + correction },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from AI");
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error("No response from AI");
 
-  // Some routed models still wrap JSON despite response_format. Remove only a
-  // complete outer JSON fence; malformed or schema-invalid content still fails loudly.
-  const clean = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  const assessment = challengeabilityResultSchema.parse(JSON.parse(clean));
-  validateChallengeabilityAssessment(assessment, violation, today);
-  return assessment;
+      // Some routed models still wrap JSON despite response_format. Remove only a
+      // complete outer JSON fence; malformed or schema-invalid content still fails loudly.
+      const clean = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      const assessment = challengeabilityResultSchema.parse(JSON.parse(clean));
+      validateChallengeabilityAssessment(assessment, violation, today);
+      return assessment;
+    } catch (error) {
+      rejection = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw rejection ?? new Error("Challengeability assessment failed");
 }
 
 // Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)
