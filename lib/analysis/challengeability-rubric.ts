@@ -48,7 +48,7 @@ The five tiers are:
 - strong: a proven data error with conclusive evidence already present in the supplied record, especially a dismissed, not-guilty, withdrawn, or reduced citation. DataQ-ready.
 - moderate: a specific factual or administrative defect is proven by the supplied record, such as an internal code/description mismatch, impossible date relative to TODAY, duplicate, wrong carrier/driver/unit, or jurisdiction mismatch. DataQ-ready only with the named evidence.
 - investigate: one specific, checkable hypothesis exists, but proof is absent. Name exactly what evidence would confirm or disprove it and who supplies that evidence. Not removable and not filable.
-- not_challengeable: supplied facts affirmatively defeat a DataQ path, such as an upheld or guilty disposition with no separate record defect. Lane C.
+- not_challengeable: the supplied citation_result affirmatively defeats a DataQ path by showing an upheld, guilty, paid, or forfeited disposition with no separate record defect. Lane C.
 - operational: no record-specific defect is proven. Treat the violation as legitimate and address it operationally while it ages out. Lane C.
 
 Ground rules:
@@ -113,6 +113,13 @@ export function validateChallengeabilityAssessment(
     const favorable = ["dismiss", "not guilty", "no conviction", "reduced", "withdrawn"]
       .some((value) => disposition.includes(value));
     if (!favorable) throw new Error("strong requires a favorable citation disposition in the supplied record");
+  }
+
+  if (assessment.tier === "not_challengeable") {
+    const disposition = record.citationResult?.trim().toLowerCase() ?? "";
+    const adverse = ["guilty", "convict", "upheld", "paid", "forfeit"]
+      .some((value) => disposition.includes(value));
+    if (!adverse) throw new Error("not_challengeable requires an adverse citation disposition in the supplied record");
   }
 
   if (

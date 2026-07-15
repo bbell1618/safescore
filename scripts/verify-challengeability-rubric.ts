@@ -73,4 +73,10 @@ assert.throws(() => validateChallengeabilityAssessment(
   today
 ), /requires a specific defect/);
 
+assert.throws(() => validateChallengeabilityAssessment(
+  { ...baseAssessment, tier: "not_challengeable" },
+  { ...laneRecord, violationCode: "39375A3TAOL", description: "Equipment condition" },
+  today
+), /requires an adverse citation disposition/);
+
 console.log("challengeability rubric regression checks passed");
