@@ -4,8 +4,11 @@ import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
 import { mapReasonCode } from "@/lib/analysis/reason-codes";
+import { emitCaseResolutionAlert } from "@/lib/monitoring/alerts";
 
 export const maxDuration = 60;
+
+const DATAQ_RESOLUTION_STATUSES = new Set(["approved", "denied", "closed"]);
 
 function getAdmin() {
   return createSupabaseClient(
@@ -21,7 +24,18 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json();
   const supabase = getAdmin();
-  const { data: beforeCase } = await supabase.from("dataq_cases").select("status, case_number, client_id, clients(name)").eq("id", id).single();
+  const { data: beforeCase, error: beforeError } = await supabase
+    .from("dataq_cases")
+    .select("status, outcome, case_number, client_id, clients(name)")
+    .eq("id", id)
+    .single();
+
+  if (beforeError || !beforeCase) {
+    return NextResponse.json(
+      { error: beforeError?.message ?? "DataQ case not found" },
+      { status: beforeError?.code === "PGRST116" ? 404 : 500 }
+    );
+  }
 
   // Narrative sentinel gate — block approval if narrative contains any sentinel tokens
   if (body.final_narrative !== undefined && typeof body.final_narrative === "string") {
@@ -87,43 +101,73 @@ export async function PATCH(
     }
   }
 
-  const { error } = await supabase
+  const { data: afterCase, error } = await supabase
     .from("dataq_cases")
     .update({ ...body, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .select("status, outcome, case_number, client_id, clients(name)")
+    .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !afterCase) {
+    return NextResponse.json(
+      { error: error?.message ?? "DataQ case update returned no row" },
+      { status: 500 }
+    );
   }
 
   // Log status change
   if (body.status) {
-    const { data: c } = await supabase
-      .from("dataq_cases")
-      .select("client_id")
-      .eq("id", id)
-      .single();
-
     await supabase.from("activity_log").insert({
-      client_id: c?.client_id,
+      client_id: afterCase.client_id,
       action_type: `case_${body.status}`,
       entity_type: "dataq_cases",
       entity_id: id,
       description: `DataQs case status updated to ${body.status}`,
     });
+  }
 
-    if (beforeCase?.client_id && beforeCase.status !== body.status) {
-      const { data: recipient } = await supabase.from("users").select("email").eq("client_id", beforeCase.client_id).eq("role", "client_user").limit(1).maybeSingle();
-      const clientRelation = Array.isArray(beforeCase.clients) ? beforeCase.clients[0] : beforeCase.clients;
-      if (recipient?.email) await sendCaseStatusChange({
+  const statusChanged = beforeCase.status !== afterCase.status;
+  if (statusChanged) {
+    const { data: recipient } = await supabase
+      .from("users")
+      .select("email")
+      .eq("client_id", beforeCase.client_id)
+      .eq("role", "client_user")
+      .limit(1)
+      .maybeSingle();
+    const clientRelation = Array.isArray(beforeCase.clients)
+      ? beforeCase.clients[0]
+      : beforeCase.clients;
+    if (recipient?.email) {
+      await sendCaseStatusChange({
         to: recipient.email,
         companyName: clientRelation?.name ?? "Your company",
         caseType: "DataQ",
         caseNumber: beforeCase.case_number ?? undefined,
         oldStatus: beforeCase.status,
-        newStatus: body.status,
+        newStatus: afterCase.status,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/cases`,
       });
+    }
+
+    if (DATAQ_RESOLUTION_STATUSES.has(afterCase.status)) {
+      try {
+        await emitCaseResolutionAlert(supabase, {
+          clientId: afterCase.client_id,
+          caseType: "DataQ",
+          caseId: id,
+          caseNumber: afterCase.case_number,
+          status: afterCase.status,
+          outcome: afterCase.outcome,
+        });
+      } catch (alertError) {
+        const message =
+          alertError instanceof Error
+            ? alertError.message
+            : "Unable to emit DataQ resolution alert";
+        console.error("DataQ resolution alert failed:", message);
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
     }
   }
 

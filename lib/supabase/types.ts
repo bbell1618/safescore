@@ -337,11 +337,16 @@ export interface Database {
           severity: AlertSeverity;
           title: string;
           message: string;
+          entity_type: string | null;
+          entity_id: string | null;
           read_at: string | null;
           dismissed_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["alerts"]["Row"], "id" | "created_at">;
+        Insert: Omit<Database["public"]["Tables"]["alerts"]["Row"], "id" | "created_at" | "entity_type" | "entity_id"> & {
+          entity_type?: string | null;
+          entity_id?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["alerts"]["Insert"]>;
       };
       activity_log: {

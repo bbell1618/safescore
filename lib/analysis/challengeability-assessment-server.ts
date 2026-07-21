@@ -36,8 +36,11 @@ export async function runChallengeabilityAssessment(
   clientId: string,
   options: { violationIds?: string[]; force?: boolean; cursor?: string } = {}
 ): Promise<ChallengeabilityRunResult> {
-  const { inspectionIds } = await getCanonicalInspectionScope(clientId, supabase);
-  if (inspectionIds.length === 0) {
+  const explicitViolationIds = options.violationIds?.filter(Boolean) ?? [];
+  const { inspectionIds } = explicitViolationIds.length > 0
+    ? { inspectionIds: [] as string[] }
+    : await getCanonicalInspectionScope(clientId, supabase);
+  if (explicitViolationIds.length === 0 && inspectionIds.length === 0) {
     return { requested: 0, assessed: 0, challengeable: 0, failures: [], hasMore: false, nextCursor: null };
   }
 
@@ -45,10 +48,11 @@ export async function runChallengeabilityAssessment(
     .from("violations")
     .select("id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, inspections(inspection_date, state, level)")
     .eq("client_id", clientId)
-    .in("inspection_id", inspectionIds)
     .order("id")
     .limit(20);
-  if (options.violationIds?.length) query = query.in("id", options.violationIds);
+  query = explicitViolationIds.length > 0
+    ? query.in("id", explicitViolationIds)
+    : query.in("inspection_id", inspectionIds);
   if (!options.force) query = query.is("ai_assessed_at", null);
   if (options.force && options.cursor) query = query.gt("id", options.cursor);
 

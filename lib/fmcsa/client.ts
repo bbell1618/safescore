@@ -180,8 +180,12 @@ function deriveAuthorityStatus(r: any): string | null {
   return null;
 }
 
-export async function getBasics(dot: string): Promise<FMCSABasics> {
+export async function getBasics(
+  dot: string,
+  options: { throwOnError?: boolean } = {}
+): Promise<FMCSABasics> {
   if (!process.env.FMCSA_API_KEY) {
+    if (options.throwOnError) throw new Error("FMCSA_API_KEY not configured");
     console.warn("FMCSA_API_KEY not set"); return emptyBasics();
   }
   try {
@@ -248,6 +252,7 @@ export async function getBasics(dot: string): Promise<FMCSABasics> {
     }
     return basics;
   } catch (err) {
+    if (options.throwOnError) throw err;
     console.error(`FMCSA basics API failed for DOT ${dot}:`, err);
     return emptyBasics();
   }
@@ -363,7 +368,7 @@ async function computeOosFromDatahub(dot: string): Promise<FMCSAOosRates | null>
       hmOosInsp = 0;
 
     for (const r of rows) {
-      const ymd = Number(r.inspectionDate || "0");
+      const ymd = Number((r.inspectionDate || "0").replaceAll("-", ""));
       if (ymd && ymd < cutYmd) continue;
       total++;
 
@@ -443,17 +448,6 @@ function emptyOosRates(): FMCSAOosRates {
   };
 }
 
-function normalizeBASICCategory(basic: string): string {
-  const b = (basic ?? "").toLowerCase();
-  if (b.includes("unsafe")) return "unsafe_driving";
-  if (b.includes("hours") || b.includes("hos")) return "hos_compliance";
-  if (b.includes("driver") && b.includes("fit")) return "driver_fitness";
-  if (b.includes("controlled") || b.includes("substance") || b.includes("alcohol")) return "controlled_substance";
-  if (b.includes("hazmat") || b.includes("hazardous")) return "hazmat_compliance";
-  if (b.includes("crash")) return "crash_indicator";
-  return "vehicle_maintenance";
-}
-
 export interface FMCSAInspection {
   reportNumber: string;
   inspectionDate: string;
@@ -485,39 +479,43 @@ export interface FMCSACrashRecord {
   hazmatRelease: boolean;
 }
 
-export async function getInspections(dot: string): Promise<FMCSAInspection[]> {
+export async function getInspections(
+  dot: string,
+  options: { throwOnError?: boolean } = {}
+): Promise<FMCSAInspection[]> {
   const { getInspectionsByDot, getViolationsByDot } = await import("./datahub-client");
 
   // Fetch inspections and violations concurrently
   const [rows, violations] = await Promise.all([
-    getInspectionsByDot(dot),
-    getViolationsByDot(dot),
+    getInspectionsByDot(dot, options),
+    getViolationsByDot(dot, options),
   ]);
 
-  // Group violations by normalized inspection date (YYYY-MM-DD)
-  // Violations join to inspections via dot_number + date (no direct FK between datasets)
-  const violsByDate = new Map<string, typeof violations>();
+  // Both monthly SMS input datasets expose the same inspection unique_id.
+  // Joining on it prevents violations from being copied to every inspection
+  // when a carrier has multiple inspections on the same date.
+  const violationsByInspectionId = new Map<string, typeof violations>();
   for (const v of violations) {
-    const key = v.inspectionDate;
-    if (!violsByDate.has(key)) violsByDate.set(key, []);
-    violsByDate.get(key)!.push(v);
+    if (!violationsByInspectionId.has(v.uniqueId)) {
+      violationsByInspectionId.set(v.uniqueId, []);
+    }
+    violationsByInspectionId.get(v.uniqueId)!.push(v);
   }
 
   return rows
     .filter((r) => r.reportNumber !== "")
     .map((r) => {
-      const inspDate = formatInspDate(r.inspectionDate); // YYYYMMDD → YYYY-MM-DD
-      const matchedViolations = violsByDate.get(inspDate) ?? [];
+      const matchedViolations = violationsByInspectionId.get(r.uniqueId) ?? [];
 
       return {
         reportNumber: r.reportNumber,
-        inspectionDate: inspDate,
+        inspectionDate: r.inspectionDate,
         state: r.reportState,
         level: String(r.level),
         facilityName: r.facilityName
           ? `${r.facilityName} — ${r.reportState}`
-          : `Level ${r.level} — ${r.reportState}`,
-        timeWeight: calculateTimeWeight(r.inspectionDate),
+          : "",
+        timeWeight: r.timeWeight,
         violations: matchedViolations.map((v) => ({
           violationCode: v.violationCode,
           description: v.description,
@@ -531,25 +529,12 @@ export async function getInspections(dot: string): Promise<FMCSAInspection[]> {
     });
 }
 
-function formatInspDate(yyyymmdd: string): string {
-  if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
-  return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
-}
-
-function calculateTimeWeight(inspDateYYYYMMDD: string): number {
-  if (!inspDateYYYYMMDD || inspDateYYYYMMDD.length !== 8) return 1;
-  const inspYear = parseInt(inspDateYYYYMMDD.slice(0, 4));
-  const inspMonth = parseInt(inspDateYYYYMMDD.slice(4, 6));
-  const now = new Date();
-  const monthsAgo = (now.getFullYear() - inspYear) * 12 + (now.getMonth() + 1 - inspMonth);
-  if (monthsAgo <= 6) return 3;
-  if (monthsAgo <= 12) return 2;
-  return 1;
-}
-
-export async function getCrashes(dot: string): Promise<FMCSACrashRecord[]> {
+export async function getCrashes(
+  dot: string,
+  options: { throwOnError?: boolean } = {}
+): Promise<FMCSACrashRecord[]> {
   const { getCrashesByDot } = await import("./datahub-client");
-  const rows = await getCrashesByDot(dot);
+  const rows = await getCrashesByDot(dot, options);
   return rows.map((r) => ({
     reportNumber: r.reportNumber,
     crashDate: r.crashDate,

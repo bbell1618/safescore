@@ -1,19 +1,20 @@
 // lib/fmcsa/datahub-client.ts
 // FMCSA data via DOT Data Portal Socrata API
-// Inspection headers: https://data.transportation.gov/resource/fx4q-ay7w.json
+// SMS calculation inspection headers: https://data.transportation.gov/resource/rbkj-cgst.json
 // Violations (SMS):   https://data.transportation.gov/resource/8mt8-2mdr.json
 // Crashes:            https://data.transportation.gov/resource/aayw-vxb3.json (FMCSA Crash File)
 // No key required; X-App-Token header optional to avoid rate limiting
 
-const INSPECTION_ENDPOINT = "https://data.transportation.gov/resource/fx4q-ay7w.json";
+const INSPECTION_ENDPOINT = "https://data.transportation.gov/resource/rbkj-cgst.json";
 const VIOLATION_ENDPOINT  = "https://data.transportation.gov/resource/8mt8-2mdr.json";
 // Correct FMCSA Crash File resource. The prior id (e6mz-jbpz) is dead (404),
 // which silently returned empty crash arrays for every carrier.
 const CRASH_ENDPOINT      = "https://data.transportation.gov/resource/aayw-vxb3.json";
 
 export interface DatahubInspection {
+  uniqueId: string;
   reportNumber: string;
-  inspectionDate: string; // YYYYMMDD format from API
+  inspectionDate: string; // normalized YYYY-MM-DD
   reportState: string;
   level: number; // insp_level_id
   facilityName: string;
@@ -27,6 +28,7 @@ export interface DatahubInspection {
   hazmatOosTotal: number;
   postAccident: boolean;
   carrierName: string;
+  timeWeight: number;
 }
 
 export interface DatahubViolation {
@@ -51,6 +53,8 @@ export interface DatahubCrash {
   towAway: boolean;
   hazmatRelease: boolean;
 }
+
+type DatahubFetchOptions = { throwOnError?: boolean };
 
 async function fetchSocrata<T>(url: string): Promise<T[]> {
   const headers: Record<string, string> = {
@@ -95,30 +99,40 @@ function normalizeBASIC(basicDesc: string): string {
   return "vehicle_maintenance";
 }
 
-export async function getInspectionsByDot(dot: string): Promise<DatahubInspection[]> {
+export async function getInspectionsByDot(
+  dot: string,
+  options: DatahubFetchOptions = {}
+): Promise<DatahubInspection[]> {
   try {
-    const url = `${INSPECTION_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=200&$order=insp_date+DESC`;
+    const url = `${INSPECTION_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=2000`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = await fetchSocrata<any>(url);
 
     return rows.map((r) => ({
+      uniqueId: String(r.unique_id ?? ""),
       reportNumber: String(r.report_number ?? ""),
-      inspectionDate: String(r.insp_date ?? ""),
+      inspectionDate: parseViolDate(String(r.insp_date ?? "")),
       reportState: String(r.report_state ?? ""),
       level: Number(r.insp_level_id ?? 0),
-      facilityName: String(r.insp_facility ?? ""),
-      violTotal: Number(r.viol_total ?? 0),
+      facilityName: "",
+      violTotal: Number(r.basic_viol ?? 0),
       oosTotal: Number(r.oos_total ?? 0),
-      driverViolTotal: Number(r.driver_viol_total ?? 0),
+      driverViolTotal:
+        Number(r.unsafe_viol ?? 0) +
+        Number(r.fatigued_viol ?? 0) +
+        Number(r.dr_fitness_viol ?? 0) +
+        Number(r.subt_alcohol_viol ?? 0),
       driverOosTotal: Number(r.driver_oos_total ?? 0),
-      vehicleViolTotal: Number(r.vehicle_viol_total ?? 0),
+      vehicleViolTotal: Number(r.vh_maint_viol ?? 0),
       vehicleOosTotal: Number(r.vehicle_oos_total ?? 0),
-      hazmatViolTotal: Number(r.hazmat_viol_total ?? 0),
+      hazmatViolTotal: Number(r.hm_viol ?? 0),
       hazmatOosTotal: Number(r.hazmat_oos_total ?? 0),
-      postAccident: String(r.post_acc_ind ?? "N") === "Y",
-      carrierName: String(r.insp_carrier_name ?? ""),
+      postAccident: false,
+      carrierName: "",
+      timeWeight: Number(r.time_weight ?? 1),
     }));
   } catch (err) {
+    if (options.throwOnError) throw err;
     console.error(`Socrata inspection fetch failed for DOT ${dot}:`, err);
     return [];
   }
@@ -129,10 +143,13 @@ export async function getInspectionsByDot(dot: string): Promise<DatahubInspectio
  * Returns violations grouped by normalized inspection date so they can be
  * attached to the matching inspection record.
  */
-export async function getViolationsByDot(dot: string): Promise<DatahubViolation[]> {
+export async function getViolationsByDot(
+  dot: string,
+  options: DatahubFetchOptions = {}
+): Promise<DatahubViolation[]> {
   try {
     // Fetch up to 1000 violations; most carriers have far fewer
-    const url = `${VIOLATION_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=1000&$order=insp_date+DESC`;
+    const url = `${VIOLATION_ENDPOINT}?dot_number=${encodeURIComponent(dot)}&$limit=5000&$order=insp_date+DESC`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = await fetchSocrata<any>(url);
 
@@ -148,12 +165,16 @@ export async function getViolationsByDot(dot: string): Promise<DatahubViolation[
       timeWeight: Number(r.time_weight ?? 1),
     }));
   } catch (err) {
+    if (options.throwOnError) throw err;
     console.error(`Socrata violation fetch failed for DOT ${dot}:`, err);
     return [];
   }
 }
 
-export async function getCrashesByDot(dot: string): Promise<DatahubCrash[]> {
+export async function getCrashesByDot(
+  dot: string,
+  options: DatahubFetchOptions = {}
+): Promise<DatahubCrash[]> {
   try {
     // FMCSA Crash File (aayw-vxb3) keys crashes on dot_number with a YYYYMMDD
     // report_date. Order by report_date DESC and window to the trailing 24
@@ -187,6 +208,7 @@ export async function getCrashesByDot(dot: string): Promise<DatahubCrash[]> {
       };
     });
   } catch (err) {
+    if (options.throwOnError) throw err;
     console.warn(`Socrata crash fetch failed for DOT ${dot}:`, err);
     return [];
   }

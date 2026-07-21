@@ -2,14 +2,9 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import {
-  normalizeViolationLookupCode,
-  parseInspectionDetailXml,
-} from "@/lib/fmcsa/inspection-detail-xml";
-import type {
-  InspectionDetailInspection,
-  InspectionDetailLookup,
-} from "@/lib/fmcsa/inspection-detail-xml-types";
+import { parseInspectionDetailXml } from "@/lib/fmcsa/inspection-detail-xml";
+import type { InspectionDetailInspection } from "@/lib/fmcsa/inspection-detail-xml-types";
+import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { parseAllBasicsExport } from "@/lib/fmcsa/all-basics-export";
 
@@ -19,13 +14,6 @@ const schema = z.object({
   clientId: z.string().uuid(),
   dotNumber: z.string().min(1),
 });
-
-type ReferenceRow = {
-  violation_code: string;
-  basic_category: InspectionDetailLookup["basicCategory"];
-  severity_weight: number | null;
-  is_scored?: boolean;
-};
 
 type InspectionRow = {
   id: string;
@@ -167,7 +155,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const lookup = await loadReferenceLookup(serviceSupabase);
+  const lookup = await loadViolationReferenceLookup(serviceSupabase);
   let inspections: InspectionDetailInspection[];
   try {
     inspections = parseInspectionDetailXml(parsedInput.content, lookup);
@@ -469,40 +457,6 @@ async function registerIngest(
   return error
     ? NextResponse.json({ error: `Ingest registry failed: ${error.message}` }, { status: 500 })
     : null;
-}
-
-async function loadReferenceLookup(
-  serviceSupabase: ServiceSupabaseClient
-): Promise<Record<string, InspectionDetailLookup>> {
-  const rows: ReferenceRow[] = [];
-  const pageSize = 1000;
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await serviceSupabase
-      .from("fmcsa_violation_reference")
-      .select("violation_code, basic_category, severity_weight, is_scored")
-      .order("is_scored", { ascending: false })
-      .order("severity_weight", { ascending: false, nullsFirst: false })
-      .order("violation_code", { ascending: true })
-      .range(from, from + pageSize - 1);
-
-    if (error) throw new Error(error.message);
-    rows.push(...((data ?? []) as ReferenceRow[]));
-    if ((data?.length ?? 0) < pageSize) break;
-  }
-
-  const lookup: Record<string, InspectionDetailLookup> = {};
-  for (const row of rows) {
-    const value = {
-      basicCategory: row.basic_category ?? null,
-      severityWeight: row.severity_weight ?? null,
-    };
-    lookup[row.violation_code.toUpperCase()] = value;
-
-    const normalized = normalizeViolationLookupCode(row.violation_code);
-    lookup[normalized] ??= value;
-  }
-
-  return lookup;
 }
 
 function inspectionPayload(

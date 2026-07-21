@@ -30,13 +30,20 @@ export async function proxy(request: NextRequest) {
   const isClient = role === "client_user";
 
   if (path.startsWith("/api/")) {
+    const publicApiExactPaths = new Set([
+      "/api/cron/monitoring-refresh",
+    ]);
     const publicApiPrefixes = [
       "/api/auth/setup",
       "/api/billing/webhook",
       "/api/fmcsa/",
     ];
     const isPublicEvidenceUpload = /^\/api\/evidence\/[^/]+\/upload$/.test(path);
-    if (isPublicEvidenceUpload || publicApiPrefixes.some((prefix) => path.startsWith(prefix))) return supabaseResponse;
+    if (
+      isPublicEvidenceUpload ||
+      publicApiExactPaths.has(path) ||
+      publicApiPrefixes.some((prefix) => path.startsWith(prefix))
+    ) return supabaseResponse;
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const staffOnlyPrefixes = [

@@ -9,6 +9,92 @@ type SnapshotPerBasic = {
   weighted_points: number;
 };
 
+export type BurdenSnapshotMetrics = {
+  totalPoints: number;
+  violationCount: number;
+  inspectionCount: number;
+  crashCount: number;
+};
+
+export type LatestBurdenSnapshot = BurdenSnapshotMetrics & {
+  capturedAt: string;
+};
+
+export type BurdenSnapshotDecision = {
+  shouldInsert: boolean;
+  reason: "initial" | "metrics_changed" | "max_age" | "unchanged";
+  changedFields: Array<keyof BurdenSnapshotMetrics>;
+  ageMs: number | null;
+};
+
+export const BURDEN_SNAPSHOT_MAX_AGE_MS = 28 * 24 * 60 * 60 * 1000;
+
+/**
+ * Pure snapshot policy used by both the scheduled and interactive refresh paths.
+ * OOS count is still stored for reporting, but it is deliberately not one of the
+ * four fields that independently mints a new snapshot.
+ */
+export function decideBurdenSnapshot({
+  current,
+  latest,
+  now,
+}: {
+  current: BurdenSnapshotMetrics;
+  latest: LatestBurdenSnapshot | null;
+  now: Date;
+}): BurdenSnapshotDecision {
+  if (!latest) {
+    return {
+      shouldInsert: true,
+      reason: "initial",
+      changedFields: [],
+      ageMs: null,
+    };
+  }
+
+  const nowMs = now.getTime();
+  const capturedAtMs = Date.parse(latest.capturedAt);
+  if (!Number.isFinite(nowMs) || !Number.isFinite(capturedAtMs)) {
+    throw new Error("Snapshot policy requires valid current and captured-at timestamps");
+  }
+
+  const metricFields: Array<keyof BurdenSnapshotMetrics> = [
+    "totalPoints",
+    "violationCount",
+    "inspectionCount",
+    "crashCount",
+  ];
+  const changedFields = metricFields.filter(
+    (field) => current[field] !== latest[field]
+  );
+  const ageMs = nowMs - capturedAtMs;
+
+  if (changedFields.length > 0) {
+    return {
+      shouldInsert: true,
+      reason: "metrics_changed",
+      changedFields,
+      ageMs,
+    };
+  }
+
+  if (ageMs >= BURDEN_SNAPSHOT_MAX_AGE_MS) {
+    return {
+      shouldInsert: true,
+      reason: "max_age",
+      changedFields: [],
+      ageMs,
+    };
+  }
+
+  return {
+    shouldInsert: false,
+    reason: "unchanged",
+    changedFields: [],
+    ageMs,
+  };
+}
+
 export type BurdenSnapshotResult =
   | {
       status: "inserted";
@@ -32,8 +118,8 @@ function checkedCount(
   return count ?? 0;
 }
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+function todayIsoDate(now: Date) {
+  return now.toISOString().slice(0, 10);
 }
 
 export async function captureBurdenSnapshot(
@@ -43,7 +129,8 @@ export async function captureBurdenSnapshot(
 ): Promise<BurdenSnapshotResult> {
   const supabase = adminClient ?? (await createServiceClient());
   const burden = await getClientBurden(clientId, supabase);
-  const snapshotDate = todayIsoDate();
+  const now = new Date();
+  const snapshotDate = todayIsoDate(now);
 
   const perBasic: SnapshotPerBasic[] = burden.perBasic.map((item) => ({
     basic_category: item.basicCategory,
@@ -87,7 +174,7 @@ export async function captureBurdenSnapshot(
   const { data: latestSnapshot, error: latestError } = await supabase
     .from("burden_snapshots")
     .select(
-      "snapshot_date, total_points, violation_count, inspection_count, crash_count, oos_count"
+      "snapshot_date, captured_at, total_points, violation_count, inspection_count, crash_count, oos_count"
     )
     .eq("client_id", clientId)
     .order("snapshot_date", { ascending: false })
@@ -99,15 +186,26 @@ export async function captureBurdenSnapshot(
     throw new Error(`Unable to load latest burden snapshot: ${latestError.message}`);
   }
 
-  const unchanged =
-    latestSnapshot &&
-    latestSnapshot.total_points === burden.totalPoints &&
-    latestSnapshot.violation_count === violationCount &&
-    latestSnapshot.inspection_count === inspectionCount &&
-    latestSnapshot.crash_count === crashCount &&
-    latestSnapshot.oos_count === oosCount;
+  const decision = decideBurdenSnapshot({
+    current: {
+      totalPoints: burden.totalPoints,
+      violationCount,
+      inspectionCount,
+      crashCount,
+    },
+    latest: latestSnapshot
+      ? {
+          capturedAt: latestSnapshot.captured_at,
+          totalPoints: latestSnapshot.total_points,
+          violationCount: latestSnapshot.violation_count,
+          inspectionCount: latestSnapshot.inspection_count,
+          crashCount: latestSnapshot.crash_count,
+        }
+      : null,
+    now,
+  });
 
-  if (unchanged) {
+  if (!decision.shouldInsert && latestSnapshot) {
     return {
       status: "unchanged",
       snapshotDate,
@@ -121,7 +219,7 @@ export async function captureBurdenSnapshot(
     .insert({
       client_id: clientId,
       snapshot_date: snapshotDate,
-      captured_at: new Date().toISOString(),
+      captured_at: now.toISOString(),
       source,
       total_points: burden.totalPoints,
       per_basic: perBasic,
