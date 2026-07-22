@@ -301,6 +301,7 @@ Hard rules:
 - Never invent, estimate, generalize, or add example facts. If a datum is absent or null, omit the sentence that would need it.
 - Do not emit square-bracketed text of any kind.
 - Write only the report body. Do not add a title, report-date line, first-period boilerplate, signature, preparer block, or email address; the server adds those fixed fields exactly.
+- The totalPoints and weightedPoints values are SafeScore weighted violation burden, not FMCSA SMS points or an SMS score. Use the exact phrase weighted violation burden for the total and never call it SMS points.
 - For every CPDP case, use the exact phrase crash preventability and describe it only from its stored description. Never call it an inspection dispute.
 - If firstReportingPeriod is true, do not invent a month-over-month comparison. The server adds the required first-reporting-period statement.
 - If a previous snapshot exists, state previous total, latest total, signed total change, every non-zero per-BASIC change, and every new violation.
@@ -363,6 +364,12 @@ export function validateGeneratedReport(
     !/\bcrash preventability\b/i.test(content)
   ) {
     issues.push("missing the required crash preventability description for CPDP");
+  }
+  if (!/\bweighted violation burden\b/i.test(content)) {
+    issues.push("missing the required weighted violation burden label");
+  }
+  if (/\bSMS points?\b/i.test(content)) {
+    issues.push("mislabels weighted violation burden as SMS points");
   }
   return issues;
 }

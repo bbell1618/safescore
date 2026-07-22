@@ -229,16 +229,25 @@ assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
 assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
 
 const validBody =
-  "Burden rose from 582 to 599, an increase of 17 points. CPDP crash preventability work is documented.";
+  "Weighted violation burden rose from 582 to 599, an increase of 17 points. CPDP crash preventability work is documented.";
 const validReport = assembleGeneratedReport(validBody, data);
 assert.deepEqual(validateGeneratedReport(validReport, data), []);
 assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
 assert.ok(validReport.endsWith(PREPARER_BLOCK));
 assert.ok(
   validateGeneratedReport(
-    assembleGeneratedReport("CPDP case documented.", data),
+    assembleGeneratedReport("Weighted violation burden changed. CPDP case documented.", data),
     data
   ).includes("missing the required crash preventability description for CPDP")
+);
+assert.ok(
+  validateGeneratedReport(
+    assembleGeneratedReport(
+      "SMS points rose from 582 to 599. CPDP crash preventability work is documented.",
+      data
+    ),
+    data
+  ).includes("mislabels weighted violation burden as SMS points")
 );
 
 const assembledOnFirstAttempt = await generateValidatedReport(
@@ -286,14 +295,17 @@ assert.ok(validateGeneratedReport(missingFirstPeriodStatement, firstPeriodData).
   "missing the required first-reporting-period statement"
 ));
 assert.deepEqual(
-  validateGeneratedReport(assembleGeneratedReport("First report", firstPeriodData), firstPeriodData),
+  validateGeneratedReport(
+    assembleGeneratedReport("First weighted violation burden report", firstPeriodData),
+    firstPeriodData
+  ),
   []
 );
 
 const firstPeriodGenerated = await generateValidatedReport(
   buildReportPrompts(firstPeriodData),
   firstPeriodData,
-  async () => "Current-period observations only."
+  async () => "Current weighted violation burden observations only."
 );
 assert.ok(firstPeriodGenerated.content.includes(FIRST_REPORTING_PERIOD_STATEMENT));
 assert.equal(
