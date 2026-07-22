@@ -5,8 +5,6 @@ import { FileText, Loader2, Send, Edit3, CheckCircle } from "lucide-react";
 
 interface Props {
   clientId: string;
-  dotNumber: string;
-  carrierName: string;
 }
 
 type ReportType = "assessment" | "monthly" | "quarterly" | "improvement" | "underwriter";
@@ -19,11 +17,12 @@ const reportTypes: Array<{ value: ReportType; label: string; description: string
   { value: "underwriter", label: "Underwriter report", description: "Carrier-ready document showing remediation work completed. Submitted to insurance carriers." },
 ];
 
-export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
+export function ReportGenerator({ clientId }: Props) {
   const [type, setType] = useState<ReportType>("assessment");
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -36,15 +35,32 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
     setSaved(false);
     setSent(false);
     setSendError(null);
+    setGenerationError(null);
     try {
       const res = await fetch(`/api/reports/generate-text`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, dotNumber, type }),
+        body: JSON.stringify({ clientId, type }),
       });
-      const data = await res.json();
-      if (data.content) setContent(data.content);
-      if (data.reportId) setReportId(data.reportId);
+      const data = (await res.json().catch(() => null)) as {
+        content?: string;
+        reportId?: string;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(
+          data?.error ?? `Report generation failed with HTTP ${res.status}`
+        );
+      }
+      if (!data?.content || !data.reportId) {
+        throw new Error("Report generation did not return a saved draft.");
+      }
+      setContent(data.content);
+      setReportId(data.reportId);
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error ? error.message : "Report generation failed."
+      );
     } finally {
       setGenerating(false);
     }
@@ -125,6 +141,15 @@ export function ReportGenerator({ clientId, dotNumber, carrierName }: Props) {
         )}
         {generating ? "Generating AI draft..." : `Generate ${selectedType.label.toLowerCase()}`}
       </button>
+
+      {generationError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+        >
+          {generationError}
+        </p>
+      )}
 
       {content !== null && (
         <div className="space-y-3">

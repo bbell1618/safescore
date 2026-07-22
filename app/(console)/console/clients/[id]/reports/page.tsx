@@ -54,7 +54,7 @@ export default async function ReportsPage({
         <DownloadReportButton clientId={id} clientName={client.name} />
       </div>
 
-      <ReportGenerator clientId={id} dotNumber={client.dot_number} carrierName={client.name} />
+      <ReportGenerator clientId={id} />
 
       {/* Report history */}
       {reports && reports.length > 0 && (
