@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -95,11 +97,12 @@ export default async function CasesPage({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id")
+    .select("id, tier")
     .eq("id", id)
     .single();
 
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const [{ data: dataqCases }, { data: cpdpCases }, { data: crashes }] = await Promise.all([
     supabase
@@ -191,6 +194,7 @@ export default async function CasesPage({
             <p className="text-sm text-gray-500 mt-0.5">DataQs violation challenges and CPDP crash reviews in one work queue.</p>
           </div>
           <div className="flex gap-2">
+            <ServiceTierChip tier={clientTier} feature="case_visibility" />
             <Link className="px-3 py-2 rounded-lg text-sm font-medium border border-[#F0E8DA] text-[#1E1C1A] hover:text-[#C67A1E]" href={`/console/clients/${id}/dataq`}>
               DataQs workbench
             </Link>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
+import type { ClientTier } from "@/lib/supabase/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -10,7 +12,7 @@ interface ClientData {
   name: string;
   dot_number: string;
   status: string;
-  tier?: string;
+  tier?: ClientTier | null;
   email?: string;
   primary_contact?: string;
   phone?: string;
@@ -33,24 +35,31 @@ interface CarrierData {
   phyState?: string;
 }
 
-type Tier = "monitor" | "remediate" | "total_safety";
-
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TIERS: {
-  value: Tier;
+  value: ClientTier;
   name: string;
   price: string;
   priceNote?: string;
   features: string[];
   highlight?: boolean;
-  dataqAccess: boolean;
 }[] = [
+  {
+    value: "assessment",
+    name: "Assessment",
+    price: "$299",
+    priceNote: "one-time diagnostic",
+    features: [
+      "One-time FMCSA safety profile diagnostic",
+      "Current violation and crash review",
+      "Initial SafeScore assessment report",
+    ],
+  },
   {
     value: "monitor",
     name: "Monitor",
     price: "$199/mo",
-    dataqAccess: false,
     features: [
       "BASIC score monitoring",
       "Monthly safety reports",
@@ -63,7 +72,6 @@ const TIERS: {
     name: "Remediate",
     price: "$599/mo",
     highlight: true,
-    dataqAccess: true,
     features: [
       "Everything in Monitor",
       "DataQ challenge management",
@@ -77,7 +85,6 @@ const TIERS: {
     name: "Total Safety",
     price: "$999/mo",
     priceNote: "+ $29/driver/mo",
-    dataqAccess: true,
     features: [
       "Everything in Remediate",
       "Dedicated safety specialist",
@@ -153,8 +160,11 @@ export default function OnboardingPage() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Assigned tier from client record (GEIA sets this)
-  const assignedTier: Tier = (client?.tier as Tier) ?? "monitor";
+  const assignedTier = normalizeClientTier(client?.tier);
   const assignedTierData = TIERS.find((t) => t.value === assignedTier) ?? TIERS[0];
+  const hasCaseServices = tierHasFeature(assignedTier, "case_visibility");
+  const hasRecurringSubscription = tierHasFeature(assignedTier, "monitoring_alerts");
+  const hasDriverBilling = tierHasFeature(assignedTier, "compliance_layer");
 
   // ── Fetch client on mount ────────────────────────────────────────────────────
 
@@ -243,7 +253,7 @@ export default function OnboardingPage() {
   }
 
   async function saveFilingAuthorization() {
-    if (!dataqChecked) return;
+    if (!hasCaseServices || !dataqChecked) return;
     const signer = `${contactName}${contactTitle ? ", " + contactTitle : ""}`;
     try {
       await fetch("/api/portal/onboarding-profile", {
@@ -269,6 +279,12 @@ export default function OnboardingPage() {
   }
 
   async function handleSubscribe() {
+    if (!hasRecurringSubscription) {
+      setCheckoutError(
+        "Assessment is a one-time diagnostic and does not use recurring subscription checkout."
+      );
+      return;
+    }
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
@@ -301,7 +317,7 @@ export default function OnboardingPage() {
   const canProceedStep3 =
     agreementChecked &&
     dataAccessChecked &&
-    (assignedTierData.dataqAccess ? dataqChecked : true);
+    (hasCaseServices ? dataqChecked : true);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -634,7 +650,7 @@ export default function OnboardingPage() {
                   </span>
                 </label>
 
-                {assignedTierData.dataqAccess && (
+                {hasCaseServices && (
                   <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
                     <input
                       type="checkbox"
@@ -659,7 +675,9 @@ export default function OnboardingPage() {
                   <p className="text-sm font-semibold text-[#1E1C1A]">FMCSA Portal PIN <span className="font-normal text-[#8B8178]">(optional)</span></p>
                 </div>
                 <p className="text-sm text-[#5C554E] mb-4">
-                  To file DataQ disputes on your behalf, we need your FMCSA portal PIN. You can also add this later in Settings.
+                  {hasCaseServices
+                    ? "To file DataQ disputes on your behalf, we need your FMCSA portal PIN. You can also add this later in Settings."
+                    : "A Portal PIN is not required for your current service. You can add one later if you upgrade to managed DataQ and CPDP filing."}
                 </p>
 
                 <div className="bg-[#E8ECF2] border border-[#1B2D4F]/10 rounded-xl px-4 py-3 mb-4 text-sm text-[#2A4270]">
@@ -697,7 +715,7 @@ export default function OnboardingPage() {
                   onClick={async () => {
                     await saveProfile();
                     await saveAgreement();
-                    if (dataqChecked) await saveFilingAuthorization();
+                    if (hasCaseServices && dataqChecked) await saveFilingAuthorization();
                     await saveFmcsaAccess();
                     setStep(4);
                   }}
@@ -725,19 +743,24 @@ export default function OnboardingPage() {
           {/* ── Step 4: Confirm & Subscribe ──────────────────────────────────────── */}
           {step === 4 && (
             <div className="p-8">
-              <p className="mono-label text-[#C67A1E] mb-3">Step 4 of {TOTAL_STEPS} — Subscribe</p>
+              {hasRecurringSubscription ? (
+                <p className="mono-label text-[#C67A1E] mb-3">Step 4 of {TOTAL_STEPS} — Subscribe</p>
+              ) : (
+                <p className="mono-label text-[#C67A1E] mb-3">
+                  Step 4 of {TOTAL_STEPS} {"\u2014"} Activate
+                </p>
+              )}
               <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Confirm and activate</h1>
               <p className="text-[#5C554E] mb-6">
                 Your GEIA account manager has selected the{" "}
-                <strong>{assignedTierData.name}</strong> plan for your carrier.
+                <strong>{assignedTierData.name}</strong> service for your carrier.
               </p>
 
               {/* Plan summary */}
               {(() => {
                 const billingDriverCount = driverCount;
-                const isTotalSafety = assignedTier === "total_safety";
                 const estimatedMonthly =
-                  isTotalSafety
+                  hasDriverBilling
                     ? 999 + billingDriverCount * 29
                     : null;
 
@@ -770,7 +793,7 @@ export default function OnboardingPage() {
                       ))}
                     </ul>
                     {/* Total Safety cost breakdown */}
-                    {isTotalSafety && estimatedMonthly != null && (
+                    {hasDriverBilling && estimatedMonthly != null && (
                       <div className="border-t border-[#F0E8DA] pt-3 space-y-1.5">
                         <div className="flex justify-between text-xs text-[#5C554E]">
                           <span>Base plan</span>
@@ -814,16 +837,37 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <button
-                onClick={handleSubscribe}
-                disabled={checkoutLoading}
-                className="w-full py-3.5 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
-              >
-                {checkoutLoading ? "Processing..." : "Subscribe and activate →"}
-              </button>
-              <p className="text-xs text-center text-[#8B8178] mt-3">
-                Redirects to Stripe&apos;s secure checkout. Cancel anytime.
-              </p>
+              {hasRecurringSubscription ? (
+                <>
+                  <button
+                    onClick={handleSubscribe}
+                    disabled={checkoutLoading}
+                    className="w-full py-3.5 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
+                  >
+                    {checkoutLoading ? "Processing..." : "Subscribe and activate →"}
+                  </button>
+                  <p className="text-xs text-center text-[#8B8178] mt-3">
+                    Redirects to Stripe&apos;s secure checkout. Cancel anytime.
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-xl border border-[#C67A1E]/20 bg-[#FDF4E7] p-4">
+                  <p className="text-sm font-semibold text-[#1E1C1A]">
+                    One-time assessment activation
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#5C554E]">
+                    The $299 Assessment is a one-time diagnostic, not a recurring subscription.
+                    No subscription checkout will be opened. GEIA will confirm the one-time
+                    assessment activation and payment separately.
+                  </p>
+                  <a
+                    href="/portal"
+                    className="mt-4 block w-full rounded-xl bg-[#C67A1E] py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#B86E18]"
+                  >
+                    Continue to portal {"\u2192"}
+                  </a>
+                </div>
+              )}
 
               <button onClick={() => setStep(3)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
                 Back

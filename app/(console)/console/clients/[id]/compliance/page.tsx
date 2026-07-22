@@ -1,10 +1,11 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
 import { AddDriverButton, AddVehicleButton, RequestClientDocumentsButton } from "@/components/console/compliance-add-forms";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function CompliancePage({
 
   const client = clientData;
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const { data: drivers } = await supabase
     .from("drivers")
@@ -78,9 +80,7 @@ export default async function CompliancePage({
             Tier 3 - driver qualifications, fleet maintenance, and compliance audit framework
           </p>
         </div>
-        {client.tier !== "total_safety" && (
-          <Badge variant="warning">Tier 3 only</Badge>
-        )}
+        <ServiceTierChip tier={clientTier} feature="compliance_layer" />
       </div>
 
       <div className="grid grid-cols-2 gap-5">

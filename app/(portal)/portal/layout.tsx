@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { PortalNav } from "@/components/portal/nav";
 import Link from "next/link";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export default async function PortalLayout({
   children,
@@ -15,15 +16,19 @@ export default async function PortalLayout({
 
   if (!user) redirect("/login");
 
-  const role = user.user_metadata?.role as string | undefined;
-  if (role === "geia_admin" || role === "geia_staff") redirect("/console");
-
   // Fetch user record with client info
-  const { data: userRecord } = await supabase
+  const { data: userRecord, error: userRecordError } = await supabase
     .from("users")
-    .select("*, clients(name, fmcsa_authorized)")
+    .select("role, client_id, clients(name, fmcsa_authorized, tier)")
     .eq("id", user.id)
     .single();
+
+  if (userRecordError) {
+    throw new Error(`Unable to load portal account: ${userRecordError.message}`);
+  }
+  if (userRecord?.role === "geia_admin" || userRecord?.role === "geia_staff") {
+    redirect("/console");
+  }
 
   const clientName =
     userRecord?.clients && !Array.isArray(userRecord.clients)
@@ -33,10 +38,13 @@ export default async function PortalLayout({
       : undefined;
   const clientRelation = Array.isArray(userRecord?.clients) ? userRecord.clients[0] : userRecord?.clients;
   const fmcsaAuthorized = (clientRelation as { fmcsa_authorized?: boolean } | null)?.fmcsa_authorized === true;
+  const tier = normalizeClientTier(
+    (clientRelation as { tier?: string | null } | null)?.tier
+  );
 
   return (
     <div className="min-h-screen bg-[#FEFCF8]">
-      <PortalNav userEmail={user.email} companyName={clientName} />
+      <PortalNav userEmail={user.email} companyName={clientName} tier={tier} />
       {!fmcsaAuthorized && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
           FMCSA access is incomplete. <Link className="font-semibold underline" href="/onboarding">Complete FMCSA access</Link>

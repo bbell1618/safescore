@@ -6,6 +6,7 @@ import {
   type LatestBurdenSnapshot,
 } from "../lib/monitoring/snapshot";
 import { planRefreshAlerts } from "../lib/monitoring/alert-planner";
+import { SUBSCRIPTION_TIERS, tierHasFeature } from "../lib/tiers";
 
 const now = new Date("2026-07-21T13:00:00.000Z");
 const current: BurdenSnapshotMetrics = {
@@ -23,6 +24,25 @@ function latestAt(ageMs: number): LatestBurdenSnapshot {
 }
 
 const proofs: Record<string, unknown> = {};
+
+assert.deepEqual(SUBSCRIPTION_TIERS, ["monitor", "remediate", "total_safety"]);
+assert.equal(
+  (SUBSCRIPTION_TIERS as readonly string[]).includes("assessment"),
+  false
+);
+assert.equal(tierHasFeature("assessment", "monitoring_alerts"), false);
+assert.equal(tierHasFeature("monitor", "monitoring_alerts"), true);
+assert.equal(tierHasFeature("monitor", "case_visibility"), false);
+assert.equal(tierHasFeature("remediate", "case_visibility"), true);
+assert.equal(tierHasFeature("total_safety", "case_visibility"), true);
+proofs.cronTierPolicy = {
+  processedTiers: SUBSCRIPTION_TIERS,
+  assessmentProcessed: false,
+  monitorReceivesMonitoring: true,
+  monitorReceivesChallengeabilityAssessment: false,
+  remediateReceivesChallengeabilityAssessment: true,
+  totalSafetyReceivesChallengeabilityAssessment: true,
+};
 
 const initial = decideBurdenSnapshot({ current, latest: null, now });
 assert.equal(initial.shouldInsert, true);

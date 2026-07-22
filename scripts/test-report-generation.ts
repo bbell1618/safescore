@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import type { ClientTier } from "../lib/supabase/types";
 import {
   FIRST_REPORTING_PERIOD_STATEMENT,
   PREPARER_BLOCK,
+  REPORT_SECTION_HEADINGS,
   assembleGeneratedReport,
   buildReportGenerationData,
   buildReportPrompts,
@@ -9,10 +11,14 @@ import {
   formatReportDate,
   generateValidatedReport,
   validateGeneratedReport,
+  type ReportCaseRow,
+  type ReportCoachingItemRow,
+  type ReportComplianceInput,
+  type ReportGenerationData,
   type ReportSnapshotRow,
+  type ReportViolationRow,
 } from "../lib/reports/report-generation";
 
-async function main() {
 const latest: ReportSnapshotRow = {
   id: "latest",
   snapshot_date: "2026-07-21",
@@ -79,274 +85,412 @@ const previous: ReportSnapshotRow = {
   oos_count: 9,
 };
 
+const newViolations: ReportViolationRow[] = [
+  {
+    id: "v-tire",
+    violation_code: "39375A3TAOLTIS",
+    violation_description: "Tire description",
+    severity_weight: 8,
+    oos_violation: false,
+    inspection_date: "2026-06-19",
+  },
+  {
+    id: "v-hub",
+    violation_code: "3965BHWSL",
+    violation_description: "Hubs - Wheel seal leaking",
+    severity_weight: 2,
+    oos_violation: true,
+    inspection_date: "2026-06-19",
+  },
+];
+
+const cases: ReportCaseRow[] = [
+  {
+    case_type: "DataQ",
+    case_number: "6103911",
+    status: "filed",
+    description: "Stored DataQ description",
+  },
+  {
+    case_type: "CPDP",
+    case_number: "6123719",
+    status: "filed",
+    description: "Stored crash preventability description",
+  },
+  {
+    case_type: "DataQ",
+    case_number: "closed-case",
+    status: "closed",
+    description: "Closed case must not appear as an open challenge",
+  },
+];
+
+const coachingItems: ReportCoachingItemRow[] = [
+  {
+    type: "compliance",
+    title: "Coach tire inspections",
+    description: "Review tire condition during each pre-trip inspection.",
+    priority: "high",
+    projected_impact_score: 42,
+    status: "in_progress",
+    due_date: "2026-08-01",
+  },
+];
+
+const compliance: ReportComplianceInput = {
+  drivers: [
+    {
+      cdl_number: "TEST-CDL",
+      cdl_expiry: "2027-06-01",
+      medical_cert_expiry: null,
+    },
+  ],
+  driverDocuments: [
+    { doc_type: "medical_certificate", expiry_date: "2026-09-01", status: "expiring" },
+  ],
+  vehicles: [{ id: "vehicle-1" }],
+  maintenanceRecords: [
+    {
+      maintenance_type: "preventive maintenance",
+      scheduled_date: "2026-07-30",
+      completed_date: null,
+      notes: "Tire and lamp review",
+    },
+  ],
+  clearinghouseRecords: [{ query_date: "2026-07-01", result_type: "negative" }],
+};
+
 const reportDate = formatReportDate(new Date("2026-07-21T12:00:00Z"));
-assert.equal(reportDate, "July 21, 2026");
 
-const data = buildReportGenerationData({
-  reportType: "monthly",
-  reportDate,
-  carrier: {
-    name: "Nationwide Carrier Inc",
-    dotNumber: "2533650",
-    mcNumber: "880750",
-  },
-  snapshots: [latest, previous],
-  newViolations: [
-    {
-      id: "v-tire",
-      violation_code: "39375A3TAOLTIS",
-      violation_description: "Tire description",
-      severity_weight: 8,
-      oos_violation: false,
-      inspection_date: "2026-06-19",
+function buildTierData(
+  serviceTier: ClientTier,
+  overrides: Partial<{
+    snapshots: ReportSnapshotRow[];
+    newViolations: ReportViolationRow[];
+    cases: ReportCaseRow[];
+    coachingItems: ReportCoachingItemRow[];
+    compliance: ReportComplianceInput;
+  }> = {}
+): ReportGenerationData {
+  return buildReportGenerationData({
+    reportType: serviceTier === "assessment" ? "assessment" : "monthly",
+    reportDate,
+    serviceTier,
+    carrier: {
+      name: "Nationwide Carrier Inc",
+      dotNumber: "2533650",
+      mcNumber: "880750",
     },
-    {
-      id: "v-hub",
-      violation_code: "3965BHWSL",
-      violation_description: "Hubs - Wheel seal leaking",
-      severity_weight: 2,
-      oos_violation: true,
-      inspection_date: "2026-06-19",
-    },
-  ],
-  cases: [
-    {
-      case_type: "DataQ",
-      case_number: "6103911",
-      status: "filed",
-      description: "Stored DataQ description",
-    },
-    {
-      case_type: "CPDP",
-      case_number: "6123719",
-      status: "filed",
-      description: "Stored crash preventability description",
-    },
-    {
-      case_type: "DataQ",
-      case_number: "closed-case",
-      status: "closed",
-      description: null,
-    },
-  ],
-});
-
-assert.equal(data.comparison.totalPointsDelta, 17);
-assert.equal(data.comparison.violationCountDelta, 2);
-assert.equal(data.comparison.inspectionCountDelta, 3);
-assert.equal(data.comparison.crashCountDelta, 0);
-assert.equal(data.comparison.oosCountDelta, 1);
-assert.equal(data.comparison.firstReportingPeriod, false);
-assert.equal(data.comparison.newViolations.length, 2);
-assert.deepEqual(
-  data.cases.map((item) => [
-    item.case_type,
-    item.case_number,
-    item.status,
-    item.description,
-  ]),
-  [
-    ["DataQ", "6103911", "filed", "Stored DataQ description"],
-    ["CPDP", "6123719", "filed", "Stored crash preventability description"],
-    ["DataQ", "closed-case", "closed", null],
-  ]
-);
-
-const vehicle = data.comparison.perBasicDeltas.find(
-  (item) => item.basicCategory === "vehicle_maintenance"
-);
-const unsafe = data.comparison.perBasicDeltas.find(
-  (item) => item.basicCategory === "unsafe_driving"
-);
-assert.deepEqual(
-  {
-    points: vehicle?.weightedPointsDelta,
-    count: vehicle?.violationCountDelta,
-  },
-  { points: 27, count: 2 }
-);
-assert.deepEqual(
-  {
-    points: unsafe?.weightedPointsDelta,
-    count: unsafe?.violationCountDelta,
-  },
-  { points: -10, count: 0 }
-);
-
-const firstPeriodData = buildReportGenerationData({
-  reportType: "monthly",
-  reportDate,
-  carrier: data.carrier,
-  snapshots: [latest],
-  newViolations: [],
-  cases: [],
-});
-assert.equal(firstPeriodData.comparison.firstReportingPeriod, true);
-assert.equal(firstPeriodData.comparison.totalPointsDelta, null);
-assert.deepEqual(firstPeriodData.comparison.perBasicDeltas, []);
-assert.deepEqual(firstPeriodData.comparison.newViolations, []);
-assert.equal(
-  firstPeriodData.comparison.requiredFirstPeriodStatement,
-  FIRST_REPORTING_PERIOD_STATEMENT
-);
-
-const prompts = buildReportPrompts(data);
-assert.match(prompts.system, /Use only facts present in the structured report data/);
-assert.match(prompts.system, /If a datum is absent or null, omit the sentence/);
-assert.match(prompts.system, /server adds those fixed fields exactly/);
-assert.ok(!prompts.system.includes(PREPARER_BLOCK));
-assert.ok(prompts.user.includes(JSON.stringify(PREPARER_BLOCK)));
-assert.ok(prompts.user.includes('"totalPointsDelta": 17'));
-assert.ok(prompts.user.includes('"caseNumber"') === false);
-assert.ok(prompts.user.includes('"case_number": "6103911"'));
-for (const forbidden of [
-  "[Insert Date]",
-  "changed by [X] points",
-  "[Your Name]",
-  "[briefly describe",
-]) {
-  assert.ok(!`${prompts.system}\n${prompts.user}`.includes(forbidden));
+    snapshots: overrides.snapshots ?? [latest, previous],
+    newViolations: overrides.newViolations ?? newViolations,
+    cases: overrides.cases ?? cases,
+    coachingItems: overrides.coachingItems ?? coachingItems,
+    compliance: overrides.compliance ?? compliance,
+  });
 }
 
-const eighty = "x".repeat(80);
-const scannerInput = `[Insert Date] [X] [VERIFY: fact] [label] [${eighty}]`;
-assert.deepEqual(findReportPlaceholders(scannerInput), [
-  "[Insert Date]",
-  "[X]",
-  "[VERIFY: fact]",
-  "[label]",
-  `[${eighty}]`,
-]);
-assert.deepEqual(findReportPlaceholders(scannerInput), [
-  "[Insert Date]",
-  "[X]",
-  "[VERIFY: fact]",
-  "[label]",
-  `[${eighty}]`,
-]);
-assert.deepEqual(findReportPlaceholders("[]"), []);
-assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
-assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
+function headings(data: ReportGenerationData): string[] {
+  return data.sections.map((section) => section.heading);
+}
 
-const validBody =
-  "Weighted violation burden rose from 582 to 599, an increase of 17 points. CPDP crash preventability work is documented.";
-const validReport = assembleGeneratedReport(validBody, data);
-assert.deepEqual(validateGeneratedReport(validReport, data), []);
-assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
-assert.ok(validReport.endsWith(PREPARER_BLOCK));
-assert.ok(
-  validateGeneratedReport(
-    assembleGeneratedReport("Weighted violation burden changed. CPDP case documented.", data),
-    data
-  ).includes("missing the required crash preventability description for CPDP")
-);
-assert.ok(
-  validateGeneratedReport(
-    assembleGeneratedReport(
-      "SMS points rose from 582 to 599. CPDP crash preventability work is documented.",
-      data
-    ),
-    data
-  ).includes("mislabels weighted violation burden as SMS points")
-);
+function validModelBody(data: ReportGenerationData): string {
+  const modelSections = data.sections.filter(
+    (section) =>
+      !(data.comparison?.firstReportingPeriod && section.key === "burdenTrend")
+  );
+  const grounding = data.cases.some((reportCase) => reportCase.case_type === "CPDP")
+    ? "Weighted violation burden is documented. CPDP crash preventability work is documented."
+    : "Weighted violation burden is documented.";
+  return modelSections
+    .map((section, index) => `${section.heading}\n${index === 0 ? grounding : "Documented data only."}`)
+    .join("\n\n");
+}
 
-const assembledOnFirstAttempt = await generateValidatedReport(
-  prompts,
-  data,
-  async () => validBody
-);
-assert.equal(assembledOnFirstAttempt.attempts, 1);
-assert.equal(assembledOnFirstAttempt.content.split(PREPARER_BLOCK).length - 1, 1);
+async function main() {
+  assert.equal(reportDate, "July 21, 2026");
 
-const retrySystems: string[] = [];
-const retryResponses = [
-  "Report dated [Insert Date]",
-  "Report changed by [X] points",
-  validBody,
-];
-const retried = await generateValidatedReport(
-  prompts,
-  data,
-  async ({ system, attempt }) => {
-    retrySystems.push(system);
-    return retryResponses[attempt - 1];
-  }
-);
-assert.equal(retried.attempts, 3);
-assert.equal(retrySystems.length, 3);
-assert.ok(!retrySystems[0].includes("Corrective system note"));
-assert.ok(retrySystems[1].includes("Corrective system note"));
-assert.ok(retrySystems[2].includes("Corrective system note"));
-assert.deepEqual(findReportPlaceholders(retrySystems[1]), []);
-assert.deepEqual(findReportPlaceholders(retrySystems[2]), []);
+  const assessment = buildTierData("assessment");
+  const monitor = buildTierData("monitor");
+  const remediate = buildTierData("remediate");
+  const totalSafety = buildTierData("total_safety");
 
-let failedAttempts = 0;
-await assert.rejects(
-  generateValidatedReport(prompts, data, async () => {
-    failedAttempts += 1;
-    return "Report [still unresolved]";
-  }),
-  /failed validation after 3 attempts: forbidden bracketed token/
-);
-assert.equal(failedAttempts, 3);
+  assert.deepEqual(headings(assessment), [
+    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
+    REPORT_SECTION_HEADINGS.priorityFindings,
+  ]);
+  assert.equal(assessment.previousSnapshot, null);
+  assert.equal(assessment.comparison, null);
+  assert.deepEqual(assessment.cases, []);
+  assert.deepEqual(assessment.coachingProgram, []);
+  assert.equal(assessment.complianceSweep, null);
 
-const missingFirstPeriodStatement = `First report\n${reportDate}\n${PREPARER_BLOCK}`;
-assert.ok(validateGeneratedReport(missingFirstPeriodStatement, firstPeriodData).includes(
-  "missing the required first-reporting-period statement"
-));
-assert.deepEqual(
-  validateGeneratedReport(
-    assembleGeneratedReport("First weighted violation burden report", firstPeriodData),
-    firstPeriodData
-  ),
-  []
-);
+  assert.deepEqual(headings(monitor), [
+    REPORT_SECTION_HEADINGS.burdenTrend,
+    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
+    REPORT_SECTION_HEADINGS.priorityFindings,
+    REPORT_SECTION_HEADINGS.newViolations,
+  ]);
+  assert.equal(monitor.comparison?.totalPointsDelta, 17);
+  assert.equal(monitor.comparison?.violationCountDelta, 2);
+  assert.equal(monitor.comparison?.inspectionCountDelta, 3);
+  assert.equal(monitor.comparison?.crashCountDelta, 0);
+  assert.equal(monitor.comparison?.oosCountDelta, 1);
+  assert.equal(monitor.comparison?.newViolations.length, 2);
+  assert.deepEqual(monitor.cases, []);
+  assert.deepEqual(monitor.coachingProgram, []);
+  assert.equal(monitor.complianceSweep, null);
 
-const firstPeriodGenerated = await generateValidatedReport(
-  buildReportPrompts(firstPeriodData),
-  firstPeriodData,
-  async () => "Current weighted violation burden observations only."
-);
-assert.ok(firstPeriodGenerated.content.includes(FIRST_REPORTING_PERIOD_STATEMENT));
-assert.equal(
-  firstPeriodGenerated.content.split(FIRST_REPORTING_PERIOD_STATEMENT).length - 1,
-  1
-);
+  assert.deepEqual(headings(remediate), [
+    REPORT_SECTION_HEADINGS.burdenTrend,
+    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
+    REPORT_SECTION_HEADINGS.priorityFindings,
+    REPORT_SECTION_HEADINGS.newViolations,
+    REPORT_SECTION_HEADINGS.openChallenges,
+    REPORT_SECTION_HEADINGS.coachingProgram,
+  ]);
+  assert.deepEqual(
+    remediate.cases.map((reportCase) => reportCase.case_number),
+    ["6103911", "6123719"]
+  );
+  assert.equal(remediate.coachingProgram[0]?.title, "Coach tire inspections");
+  assert.equal(remediate.complianceSweep, null);
 
-let reservedBlockAttempts = 0;
-const reservedBlockRecovery = await generateValidatedReport(
-  prompts,
-  data,
-  async () => {
-    reservedBlockAttempts += 1;
-    return reservedBlockAttempts === 1
-      ? `Body\n\n${PREPARER_BLOCK}`
-      : validBody;
-  }
-);
-assert.equal(reservedBlockRecovery.attempts, 2);
-assert.equal(reservedBlockRecovery.content.split(PREPARER_BLOCK).length - 1, 1);
+  assert.deepEqual(headings(totalSafety), [
+    REPORT_SECTION_HEADINGS.burdenTrend,
+    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
+    REPORT_SECTION_HEADINGS.priorityFindings,
+    REPORT_SECTION_HEADINGS.newViolations,
+    REPORT_SECTION_HEADINGS.openChallenges,
+    REPORT_SECTION_HEADINGS.coachingProgram,
+    REPORT_SECTION_HEADINGS.complianceSweep,
+  ]);
+  assert.equal(totalSafety.complianceSweep?.activeDriverCount, 1);
+  assert.equal(totalSafety.complianceSweep?.driversMissingQualificationData, 1);
+  assert.equal(totalSafety.complianceSweep?.activeVehicleCount, 1);
 
-console.log(
-  JSON.stringify(
-    {
-      passed: true,
-      reportDate,
-      totalPoints: { previous: 582, latest: 599, delta: 17 },
-      perBasic: {
-        vehicleMaintenance: { pointsDelta: 27, countDelta: 2 },
-        unsafeDriving: { pointsDelta: -10, countDelta: 0 },
-      },
-      newViolationCodes: data.comparison.newViolations.map((item) => item.code),
-      casesPreserved: data.cases.length,
-      firstPeriodStatement: FIRST_REPORTING_PERIOD_STATEMENT,
-      placeholderRetryAttempts: retried.attempts,
-      terminalFailureAttempts: failedAttempts,
+  const noOptionalRemediation = buildTierData("remediate", {
+    cases: [],
+    coachingItems: [],
+  });
+  assert.ok(!headings(noOptionalRemediation).includes(REPORT_SECTION_HEADINGS.openChallenges));
+  assert.ok(!headings(noOptionalRemediation).includes(REPORT_SECTION_HEADINGS.coachingProgram));
+  const noCompliance = buildTierData("total_safety", {
+    compliance: {
+      drivers: [],
+      driverDocuments: [],
+      vehicles: [],
+      maintenanceRecords: [],
+      clearinghouseRecords: [],
     },
-    null,
-    2
-  )
-);
+  });
+  assert.ok(!headings(noCompliance).includes(REPORT_SECTION_HEADINGS.complianceSweep));
+
+  const vehicle = monitor.comparison?.perBasicDeltas.find(
+    (item) => item.basicCategory === "vehicle_maintenance"
+  );
+  const unsafe = monitor.comparison?.perBasicDeltas.find(
+    (item) => item.basicCategory === "unsafe_driving"
+  );
+  assert.deepEqual(
+    { points: vehicle?.weightedPointsDelta, count: vehicle?.violationCountDelta },
+    { points: 27, count: 2 }
+  );
+  assert.deepEqual(
+    { points: unsafe?.weightedPointsDelta, count: unsafe?.violationCountDelta },
+    { points: -10, count: 0 }
+  );
+
+  const assessmentPrompts = buildReportPrompts(assessment);
+  const monitorPrompts = buildReportPrompts(monitor);
+  const totalSafetyPrompts = buildReportPrompts(totalSafety);
+  assert.match(totalSafetyPrompts.system, /Use only facts present in the structured report data/);
+  assert.match(totalSafetyPrompts.system, /If a datum is absent or null, omit the sentence/);
+  assert.match(totalSafetyPrompts.system, /server adds those fixed fields exactly/);
+  assert.ok(!totalSafetyPrompts.system.includes(PREPARER_BLOCK));
+  assert.ok(totalSafetyPrompts.user.includes(JSON.stringify(PREPARER_BLOCK)));
+  assert.ok(totalSafetyPrompts.user.includes('"totalPointsDelta": 17'));
+  assert.ok(totalSafetyPrompts.user.includes('"case_number": "6103911"'));
+  assert.ok(!assessmentPrompts.user.includes("6103911"));
+  assert.ok(!assessmentPrompts.user.includes("Coach tire inspections"));
+  assert.ok(!monitorPrompts.user.includes("6103911"));
+  assert.ok(!monitorPrompts.user.includes("Coach tire inspections"));
+  for (const forbidden of [
+    "[Insert Date]",
+    "changed by [X] points",
+    "[Your Name]",
+    "[briefly describe",
+  ]) {
+    assert.ok(!`${totalSafetyPrompts.system}\n${totalSafetyPrompts.user}`.includes(forbidden));
+  }
+
+  const assessmentReport = assembleGeneratedReport(validModelBody(assessment), assessment);
+  assert.deepEqual(validateGeneratedReport(assessmentReport, assessment), []);
+  assert.ok(!assessmentReport.includes(FIRST_REPORTING_PERIOD_STATEMENT));
+  assert.ok(!assessmentReport.includes(REPORT_SECTION_HEADINGS.burdenTrend));
+
+  const validBody = validModelBody(totalSafety);
+  const validReport = assembleGeneratedReport(validBody, totalSafety);
+  assert.deepEqual(validateGeneratedReport(validReport, totalSafety), []);
+  assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
+  assert.ok(validReport.endsWith(PREPARER_BLOCK));
+  assert.ok(
+    validateGeneratedReport(
+      assembleGeneratedReport(
+        validBody.replace("CPDP crash preventability", "CPDP"),
+        totalSafety
+      ),
+      totalSafety
+    ).includes("missing the required crash preventability description for CPDP")
+  );
+  assert.ok(
+    validateGeneratedReport(
+      assembleGeneratedReport(validBody.replace("Weighted violation burden", "SMS points"), totalSafety),
+      totalSafety
+    ).includes("mislabels weighted violation burden as SMS points")
+  );
+
+  const forbiddenHeadingReport = assembleGeneratedReport(
+    `${validModelBody(assessment)}\n\n${REPORT_SECTION_HEADINGS.openChallenges}\nNot allowed.`,
+    assessment
+  );
+  assert.ok(
+    validateGeneratedReport(forbiddenHeadingReport, assessment).includes(
+      `forbidden section heading ${REPORT_SECTION_HEADINGS.openChallenges}`
+    )
+  );
+  const missingHeadingReport = assembleGeneratedReport(
+    validBody.replace(`${REPORT_SECTION_HEADINGS.complianceSweep}\nDocumented data only.`, ""),
+    totalSafety
+  );
+  assert.ok(
+    validateGeneratedReport(missingHeadingReport, totalSafety).includes(
+      `missing required section heading ${REPORT_SECTION_HEADINGS.complianceSweep}`
+    )
+  );
+
+  const firstPeriodMonitor = buildTierData("monitor", {
+    snapshots: [latest],
+    newViolations: [],
+  });
+  assert.equal(firstPeriodMonitor.comparison?.firstReportingPeriod, true);
+  assert.equal(firstPeriodMonitor.comparison?.totalPointsDelta, null);
+  assert.deepEqual(firstPeriodMonitor.comparison?.perBasicDeltas, []);
+  assert.deepEqual(firstPeriodMonitor.comparison?.newViolations, []);
+  assert.equal(
+    firstPeriodMonitor.comparison?.requiredFirstPeriodStatement,
+    FIRST_REPORTING_PERIOD_STATEMENT
+  );
+  const firstPeriodGenerated = await generateValidatedReport(
+    buildReportPrompts(firstPeriodMonitor),
+    firstPeriodMonitor,
+    async () => validModelBody(firstPeriodMonitor)
+  );
+  assert.equal(
+    firstPeriodGenerated.content.split(FIRST_REPORTING_PERIOD_STATEMENT).length - 1,
+    1
+  );
+  assert.equal(
+    firstPeriodGenerated.content.split(REPORT_SECTION_HEADINGS.burdenTrend).length - 1,
+    1
+  );
+  const missingFirstPeriodStatement = `Monthly progress report\nReport date: ${reportDate}\n\n${validModelBody(
+    firstPeriodMonitor
+  )}\n\n${PREPARER_BLOCK}`;
+  assert.ok(
+    validateGeneratedReport(missingFirstPeriodStatement, firstPeriodMonitor).includes(
+      "missing the required first-reporting-period statement"
+    )
+  );
+
+  const eighty = "x".repeat(80);
+  const scannerInput = `[Insert Date] [X] [VERIFY: fact] [label] [${eighty}]`;
+  assert.deepEqual(findReportPlaceholders(scannerInput), [
+    "[Insert Date]",
+    "[X]",
+    "[VERIFY: fact]",
+    "[label]",
+    `[${eighty}]`,
+  ]);
+  assert.deepEqual(findReportPlaceholders("[]"), []);
+  assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
+  assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
+
+  const assembledOnFirstAttempt = await generateValidatedReport(
+    totalSafetyPrompts,
+    totalSafety,
+    async () => validBody
+  );
+  assert.equal(assembledOnFirstAttempt.attempts, 1);
+  assert.equal(assembledOnFirstAttempt.content.split(PREPARER_BLOCK).length - 1, 1);
+
+  const retrySystems: string[] = [];
+  const retryResponses = [
+    "Report dated [Insert Date]",
+    "Report changed by [X] points",
+    validBody,
+  ];
+  const retried = await generateValidatedReport(
+    totalSafetyPrompts,
+    totalSafety,
+    async ({ system, attempt }) => {
+      retrySystems.push(system);
+      return retryResponses[attempt - 1]!;
+    }
+  );
+  assert.equal(retried.attempts, 3);
+  assert.equal(retrySystems.length, 3);
+  assert.ok(!retrySystems[0]?.includes("Corrective system note"));
+  assert.ok(retrySystems[1]?.includes("Corrective system note"));
+  assert.ok(retrySystems[2]?.includes("Corrective system note"));
+  assert.deepEqual(findReportPlaceholders(retrySystems[1] ?? ""), []);
+  assert.deepEqual(findReportPlaceholders(retrySystems[2] ?? ""), []);
+
+  let failedAttempts = 0;
+  await assert.rejects(
+    generateValidatedReport(totalSafetyPrompts, totalSafety, async () => {
+      failedAttempts += 1;
+      return "Report [still unresolved]";
+    }),
+    /failed validation after 3 attempts: forbidden bracketed token/
+  );
+  assert.equal(failedAttempts, 3);
+
+  let reservedBlockAttempts = 0;
+  const reservedBlockRecovery = await generateValidatedReport(
+    totalSafetyPrompts,
+    totalSafety,
+    async () => {
+      reservedBlockAttempts += 1;
+      return reservedBlockAttempts === 1 ? `Body\n\n${PREPARER_BLOCK}` : validBody;
+    }
+  );
+  assert.equal(reservedBlockRecovery.attempts, 2);
+  assert.equal(reservedBlockRecovery.content.split(PREPARER_BLOCK).length - 1, 1);
+
+  console.log(
+    JSON.stringify(
+      {
+        passed: true,
+        tiers: {
+          assessment: headings(assessment),
+          monitor: headings(monitor),
+          remediate: headings(remediate),
+          totalSafety: headings(totalSafety),
+        },
+        totalPoints: { previous: 582, latest: 599, delta: 17 },
+        openChallenges: remediate.cases.length,
+        coachingItems: remediate.coachingProgram.length,
+        complianceSourceRows: totalSafety.complianceSweep?.sourceRowCounts,
+        assessmentHasFirstPeriodBoilerplate: assessmentReport.includes(
+          FIRST_REPORTING_PERIOD_STATEMENT
+        ),
+        placeholderRetryAttempts: retried.attempts,
+        terminalFailureAttempts: failedAttempts,
+      },
+      null,
+      2
+    )
+  );
 }
 
 void main().catch((error) => {

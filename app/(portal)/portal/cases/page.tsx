@@ -1,9 +1,8 @@
-﻿import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+﻿import { getPortalPageAccess } from "@/lib/portal/access";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, caseStatusLabel, caseStatusVariant } from "@/lib/utils";
-import { Info } from "lucide-react";
 import { CaseTabs } from "./case-tabs";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 
 export const dynamic = "force-dynamic";
 
@@ -48,31 +47,17 @@ const cpdpOutcomeLabel: Record<string, string> = {
 };
 
 export default async function PortalCasesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: userRecord } = await supabase
-    .from("users")
-    .select("client_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!userRecord?.client_id) {
+  const access = await getPortalPageAccess("case_visibility");
+  if (!access.allowed) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
-          <Info className="w-6 h-6 text-gray-400" />
-        </div>
-        <p className="text-sm text-gray-500">Your account is being set up.</p>
-      </div>
+      <TierUpgradeNote
+        feature="case_visibility"
+        currentTier={access.tier}
+        title="Case status is not included in your plan"
+      />
     );
   }
-
-  const clientId = userRecord.client_id;
+  const { clientId, supabase } = access;
 
   const [{ data: dataqCases }, { data: cpdpCases }] = await Promise.all([
     supabase

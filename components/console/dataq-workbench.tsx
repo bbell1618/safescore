@@ -25,6 +25,8 @@ import {
 import { mapReasonCode } from "@/lib/analysis/reason-codes";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import type { ClientTier } from "@/lib/supabase/types";
 
 interface ViolationDetail {
   violation_code: string;
@@ -85,6 +87,7 @@ export interface EvidenceItem {
 
 interface Props {
   clientId: string;
+  clientTier: ClientTier;
   filingAuthorized: boolean;
   filingAuthorizedBy: string | null;
   filingAuthorizationScope: string | null;
@@ -180,6 +183,7 @@ function evidenceAcquisitionClass(method: string | null) {
 
 export function DataqWorkbench({
   clientId,
+  clientTier,
   filingAuthorized,
   filingAuthorizedBy,
   filingAuthorizationScope,
@@ -978,6 +982,7 @@ export function DataqWorkbench({
                     {/* C — Evidence section (DRAFT) */}
                     <EvidenceSection
                       caseId={c.id}
+                      clientTier={clientTier}
                       evidence={caseEvidence}
                       mode="draft"
                       sendingEvidenceRequest={sendingEvidenceRequest === c.id}
@@ -1433,6 +1438,7 @@ export function DataqWorkbench({
                     {caseEvidence.length > 0 && (
                       <EvidenceSection
                         caseId={c.id}
+                        clientTier={clientTier}
                         evidence={caseEvidence}
                         mode="readonly"
                         sendingEvidenceRequest={false}
@@ -1646,6 +1652,7 @@ export function DataqWorkbench({
 
 interface EvidenceSectionProps {
   caseId: string;
+  clientTier: ClientTier;
   evidence: EvidenceItem[];
   mode: "draft" | "readonly";
   sendingEvidenceRequest: boolean;
@@ -1666,6 +1673,7 @@ interface EvidenceSectionProps {
 }
 
 function EvidenceSection({
+  clientTier,
   evidence,
   mode,
   sendingEvidenceRequest,
@@ -1824,6 +1832,7 @@ function EvidenceSection({
       {/* Send evidence request to client (draft mode only) */}
       {mode === "draft" && (
         <div className="space-y-2">
+          <ServiceTierChip tier={clientTier} feature="evidence_requests" compact />
           {evidenceRequestError && (
             <p className="text-xs text-[#B83B32]">{evidenceRequestError}</p>
           )}

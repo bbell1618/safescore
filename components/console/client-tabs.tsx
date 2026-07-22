@@ -2,18 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import type { ClientTier } from "@/lib/supabase/types";
+import type { TierFeature } from "@/lib/tiers";
 
-const TABS = [
+const TABS: ReadonlyArray<{
+  key: string;
+  label: string;
+  href: string;
+  feature?: TierFeature;
+}> = [
   { key: "overview", label: "Overview", href: "" },
   { key: "violations", label: "Violations", href: "/violations" },
-  { key: "remediation", label: "Remediation", href: "/remediation" },
-  { key: "cases", label: "Cases", href: "/cases" },
-  { key: "requests", label: "Requests", href: "/requests" },
-  { key: "monitoring", label: "Monitoring", href: "/monitoring" },
-  { key: "compliance", label: "Compliance", href: "/compliance" },
-  { key: "reports", label: "Reports", href: "/reports" },
+  { key: "remediation", label: "Remediation", href: "/remediation", feature: "playbook_coach" },
+  { key: "cases", label: "Cases", href: "/cases", feature: "case_visibility" },
+  { key: "requests", label: "Requests", href: "/requests", feature: "evidence_requests" },
+  { key: "monitoring", label: "Monitoring", href: "/monitoring", feature: "monitoring_alerts" },
+  { key: "compliance", label: "Compliance", href: "/compliance", feature: "compliance_layer" },
+  { key: "reports", label: "Reports", href: "/reports", feature: "monthly_reports" },
   { key: "account", label: "Account", href: "/account" },
-] as const;
+];
 
 function activeTab(pathname: string) {
   if (pathname.includes("/cases") || pathname.includes("/dataq") || pathname.includes("/cpdp")) {
@@ -29,7 +37,7 @@ function activeTab(pathname: string) {
   return "overview";
 }
 
-export function ClientTabs({ clientId }: { clientId: string }) {
+export function ClientTabs({ clientId, tier }: { clientId: string; tier: ClientTier }) {
   const pathname = usePathname();
   const active = activeTab(pathname);
   const base = `/console/clients/${clientId}`;
@@ -46,7 +54,10 @@ export function ClientTabs({ clientId }: { clientId: string }) {
               : "border-transparent text-gray-500 hover:text-[#C67A1E]"
           }`}
         >
-          {tab.label}
+          <span className="inline-flex items-center gap-1.5">
+            {tab.label}
+            {tab.feature && <ServiceTierChip tier={tier} feature={tab.feature} compact />}
+          </span>
         </Link>
       ))}
     </nav>

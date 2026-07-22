@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { REQUEST_UPLOAD_MAX_BYTES, REQUEST_UPLOAD_MIMES, safeFilename } from "@/lib/request-queue/upload";
 import { syncClientEvidenceRequest, type RequestedEvidenceItem } from "@/lib/request-queue/sync";
+import { getPortalApiAccess } from "@/lib/portal/access";
 
 export async function POST(request: Request, { params }: { params: Promise<{ requestId: string }> }) {
   const { requestId } = await params;
-  const auth = await createClient();
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await getPortalApiAccess("evidence_requests");
+  if (access.status === "unauthenticated") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (access.status !== "linked") return NextResponse.json({ error: "Client account not linked" }, { status: 403 });
+  if (!access.allowed) return NextResponse.json({ error: "Evidence requests are not included in this plan" }, { status: 403 });
   const service = await createServiceClient();
-  const { data: userRow } = await service.from("users").select("client_id").eq("id", user.id).single();
-  if (!userRow?.client_id) return NextResponse.json({ error: "Client account not linked" }, { status: 403 });
 
   const { data: queueItem } = await service
     .from("client_requests")
     .select("id, client_id, category, requested_items, status")
     .eq("id", requestId)
-    .eq("client_id", userRow.client_id)
+    .eq("client_id", access.clientId)
     .eq("responsibility", "client")
     .maybeSingle();
   if (!queueItem || queueItem.status !== "open") {
@@ -56,15 +56,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
       const { error: closeError } = await service.from("client_requests").update({ status: "fulfilled", closed_at: now, next_reminder_at: null, updated_at: now }).eq("id", requestId).eq("status", "open");
       if (closeError) return NextResponse.json({ error: closeError.message }, { status: 500 });
     }
-    await syncClientEvidenceRequest(service, userRow.client_id);
+    await syncClientEvidenceRequest(service, access.clientId);
     return NextResponse.json({ ok: true, evidenceId, requestStatus, remaining });
   }
 
-  const storagePath = `${userRow.client_id}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
+  const storagePath = `${access.clientId}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
   const { error: storageError } = await service.storage.from("documents").upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
   if (storageError) return NextResponse.json({ error: storageError.message }, { status: 500 });
   const category = queueItem.category === "dqf_roster" ? "dqf" : "other";
-  const { data: documentRow, error: documentError } = await service.from("documents").insert({ client_id: userRow.client_id, storage_path: storagePath, filename: file.name, file_size: file.size, mime_type: file.type, category, status: "pending_review", uploaded_by: user.id }).select("id").single();
+  const { data: documentRow, error: documentError } = await service.from("documents").insert({ client_id: access.clientId, storage_path: storagePath, filename: file.name, file_size: file.size, mime_type: file.type, category, status: "pending_review", uploaded_by: access.userId }).select("id").single();
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 });
   const now = new Date().toISOString();
   const { error: closeError } = await service.from("client_requests").update({ status: "fulfilled", closed_at: now, next_reminder_at: null, updated_at: now }).eq("id", requestId);

@@ -1,4 +1,6 @@
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import type { ClientTier } from "@/lib/supabase/types";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 
 export const PREPARER_BLOCK =
   "Golden Era SafeScore Team\nGolden Era Insurance Agency\ninfo@goldenerainsurance.com";
@@ -49,6 +51,57 @@ export interface ReportCaseRow {
   description: string | null;
 }
 
+export interface ReportCoachingItemRow {
+  type: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  projected_impact_score: number | null;
+  status: string;
+  due_date: string | null;
+}
+
+export interface ReportComplianceInput {
+  drivers: Array<{
+    cdl_number: string | null;
+    cdl_expiry: string | null;
+    medical_cert_expiry: string | null;
+  }>;
+  driverDocuments: Array<{
+    doc_type: string;
+    expiry_date: string | null;
+    status: string;
+  }>;
+  vehicles: Array<{ id: string }>;
+  maintenanceRecords: Array<{
+    maintenance_type: string;
+    scheduled_date: string | null;
+    completed_date: string | null;
+    notes: string | null;
+  }>;
+  clearinghouseRecords: Array<{
+    query_date: string;
+    result_type: string;
+  }>;
+}
+
+export const REPORT_SECTION_HEADINGS = {
+  burdenTrend: "Burden Trend",
+  diagnosticSnapshot: "Diagnostic Snapshot",
+  priorityFindings: "Priority Findings",
+  newViolations: "New Violations",
+  openChallenges: "Open Challenges",
+  coachingProgram: "Coaching Program",
+  complianceSweep: "Compliance Sweep",
+} as const;
+
+export type ReportSectionKey = keyof typeof REPORT_SECTION_HEADINGS;
+
+export interface ReportSection {
+  key: ReportSectionKey;
+  heading: (typeof REPORT_SECTION_HEADINGS)[ReportSectionKey];
+}
+
 interface StructuredSnapshotBasic {
   basicCategory: string;
   label: string;
@@ -68,9 +121,64 @@ interface StructuredSnapshot {
   perBasic: StructuredSnapshotBasic[];
 }
 
+interface ReportComparison {
+  firstReportingPeriod: boolean;
+  requiredFirstPeriodStatement: string | null;
+  totalPointsDelta: number | null;
+  violationCountDelta: number | null;
+  inspectionCountDelta: number | null;
+  crashCountDelta: number | null;
+  oosCountDelta: number | null;
+  perBasicDeltas: Array<{
+    basicCategory: string;
+    label: string;
+    previousWeightedPoints: number;
+    latestWeightedPoints: number;
+    weightedPointsDelta: number;
+    previousViolationCount: number;
+    latestViolationCount: number;
+    violationCountDelta: number;
+  }>;
+  newViolations: Array<{
+    code: string;
+    description: string;
+    severityWeight: number | null;
+    oos: boolean;
+    inspectionDate: string | null;
+  }>;
+}
+
+interface StructuredCoachingItem {
+  type: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  projectedImpactScore: number | null;
+  status: string;
+  dueDate: string | null;
+}
+
+interface StructuredComplianceSweep {
+  sourceRowCounts: {
+    drivers: number;
+    driverDocuments: number;
+    vehicles: number;
+    maintenanceRecords: number;
+    clearinghouseRecords: number;
+  };
+  activeDriverCount: number;
+  driversMissingQualificationData: number;
+  activeVehicleCount: number;
+  driverDocuments: ReportComplianceInput["driverDocuments"];
+  maintenanceRecords: ReportComplianceInput["maintenanceRecords"];
+  clearinghouseRecords: ReportComplianceInput["clearinghouseRecords"];
+}
+
 export interface ReportGenerationData {
   reportDate: string;
   reportType: ReportType;
+  serviceTier: ClientTier;
+  sections: ReportSection[];
   carrier: {
     name: string;
     dotNumber: string;
@@ -78,33 +186,10 @@ export interface ReportGenerationData {
   };
   latestSnapshot: StructuredSnapshot;
   previousSnapshot: StructuredSnapshot | null;
-  comparison: {
-    firstReportingPeriod: boolean;
-    requiredFirstPeriodStatement: string | null;
-    totalPointsDelta: number | null;
-    violationCountDelta: number | null;
-    inspectionCountDelta: number | null;
-    crashCountDelta: number | null;
-    oosCountDelta: number | null;
-    perBasicDeltas: Array<{
-      basicCategory: string;
-      label: string;
-      previousWeightedPoints: number;
-      latestWeightedPoints: number;
-      weightedPointsDelta: number;
-      previousViolationCount: number;
-      latestViolationCount: number;
-      violationCountDelta: number;
-    }>;
-    newViolations: Array<{
-      code: string;
-      description: string;
-      severityWeight: number | null;
-      oos: boolean;
-      inspectionDate: string | null;
-    }>;
-  };
+  comparison: ReportComparison | null;
   cases: ReportCaseRow[];
+  coachingProgram: StructuredCoachingItem[];
+  complianceSweep: StructuredComplianceSweep | null;
   preparer: {
     block: string;
   };
@@ -136,16 +221,100 @@ const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 
 const REPORT_TYPE_INSTRUCTIONS: Record<ReportType, string> = {
   assessment:
-    "Explain the carrier's current safety profile, weighted violation burden, documented case work, and practical priorities.",
+    "Explain the carrier's current safety profile and practical priorities using only the tier-authorized sections.",
   monthly:
-    "State the previous and latest totals and the signed change. Explain every non-zero BASIC change, identify every newly present violation, summarize every case from its stored description, and give grounded priorities for the next month.",
+    "Give the client a concise monthly readout using only the tier-authorized sections and their structured data.",
   quarterly:
-    "Explain the previous and latest snapshot comparison, documented case work, and current safety priorities.",
+    "Give the client a quarterly readout using only the tier-authorized sections and their structured data.",
   improvement:
-    "Explain only improvements and remaining issues demonstrated by the snapshot comparison and documented cases.",
+    "Explain only improvements and remaining issues demonstrated by the tier-authorized structured data.",
   underwriter:
-    "Present the current burden, measured changes, and documented remediation or case work without making guarantees.",
+    "Present the tier-authorized current burden and documented work without making guarantees.",
 };
+
+const ALL_REPORT_SECTION_HEADINGS = Object.values(REPORT_SECTION_HEADINGS);
+const LEGACY_FORBIDDEN_HEADINGS = ["Month-over-month comparison"] as const;
+
+function reportSection(key: ReportSectionKey): ReportSection {
+  return { key, heading: REPORT_SECTION_HEADINGS[key] };
+}
+
+function isOpenCase(reportCase: ReportCaseRow): boolean {
+  if (reportCase.case_type === "CPDP") {
+    return !["determination_made", "closed"].includes(reportCase.status);
+  }
+  return !["approved", "denied", "closed"].includes(reportCase.status);
+}
+
+function normalizeCoachingItem(item: ReportCoachingItemRow): StructuredCoachingItem {
+  return {
+    type: item.type,
+    title: item.title,
+    description: item.description,
+    priority: item.priority,
+    projectedImpactScore: item.projected_impact_score,
+    status: item.status,
+    dueDate: item.due_date,
+  };
+}
+
+function buildComplianceSweep(
+  input: ReportComplianceInput
+): StructuredComplianceSweep | null {
+  const sourceRowCounts = {
+    drivers: input.drivers.length,
+    driverDocuments: input.driverDocuments.length,
+    vehicles: input.vehicles.length,
+    maintenanceRecords: input.maintenanceRecords.length,
+    clearinghouseRecords: input.clearinghouseRecords.length,
+  };
+  if (Object.values(sourceRowCounts).every((count) => count === 0)) return null;
+
+  return {
+    sourceRowCounts,
+    activeDriverCount: input.drivers.length,
+    driversMissingQualificationData: input.drivers.filter(
+      (driver) =>
+        !driver.cdl_number || !driver.cdl_expiry || !driver.medical_cert_expiry
+    ).length,
+    activeVehicleCount: input.vehicles.length,
+    driverDocuments: input.driverDocuments,
+    maintenanceRecords: input.maintenanceRecords,
+    clearinghouseRecords: input.clearinghouseRecords,
+  };
+}
+
+export function buildReportSectionPlan(params: {
+  serviceTier: ClientTier | string | null | undefined;
+  newViolationCount: number;
+  openChallengeCount: number;
+  coachingItemCount: number;
+  hasComplianceData: boolean;
+}): ReportSection[] {
+  const tier = normalizeClientTier(params.serviceTier);
+  const sections: ReportSection[] = [];
+
+  if (tierHasFeature(tier, "trend_history")) {
+    sections.push(reportSection("burdenTrend"));
+  }
+  sections.push(reportSection("diagnosticSnapshot"));
+  sections.push(reportSection("priorityFindings"));
+
+  if (tierHasFeature(tier, "trend_history") && params.newViolationCount > 0) {
+    sections.push(reportSection("newViolations"));
+  }
+  if (tierHasFeature(tier, "case_visibility") && params.openChallengeCount > 0) {
+    sections.push(reportSection("openChallenges"));
+  }
+  if (tierHasFeature(tier, "playbook_coach") && params.coachingItemCount > 0) {
+    sections.push(reportSection("coachingProgram"));
+  }
+  if (tierHasFeature(tier, "compliance_layer") && params.hasComplianceData) {
+    sections.push(reportSection("complianceSweep"));
+  }
+
+  return sections;
+}
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -193,18 +362,23 @@ export function formatReportDate(date: Date = new Date()): string {
 export function buildReportGenerationData(params: {
   reportType: ReportType;
   reportDate: string;
+  serviceTier: ClientTier | string | null | undefined;
   carrier: { name: string; dotNumber: string; mcNumber: string | null };
   snapshots: ReportSnapshotRow[];
   newViolations: ReportViolationRow[];
   cases: ReportCaseRow[];
+  coachingItems?: ReportCoachingItemRow[];
+  compliance?: ReportComplianceInput;
 }): ReportGenerationData {
   const latest = params.snapshots[0];
   if (!latest) {
     throw new Error("No burden snapshot is available for this client.");
   }
 
+  const serviceTier = normalizeClientTier(params.serviceTier);
+  const hasTrendHistory = tierHasFeature(serviceTier, "trend_history");
   const latestSnapshot = normalizeSnapshot(latest);
-  const previousSnapshot = params.snapshots[1]
+  const previousSnapshot = hasTrendHistory && params.snapshots[1]
     ? normalizeSnapshot(params.snapshots[1])
     : null;
 
@@ -250,50 +424,87 @@ export function buildReportGenerationData(params: {
         )
     : [];
 
+  const comparison: ReportComparison | null = hasTrendHistory
+    ? {
+        firstReportingPeriod: previousSnapshot === null,
+        requiredFirstPeriodStatement: previousSnapshot
+          ? null
+          : FIRST_REPORTING_PERIOD_STATEMENT,
+        totalPointsDelta: previousSnapshot
+          ? latestSnapshot.totalPoints - previousSnapshot.totalPoints
+          : null,
+        violationCountDelta: previousSnapshot
+          ? latestSnapshot.violationCount - previousSnapshot.violationCount
+          : null,
+        inspectionCountDelta: previousSnapshot
+          ? latestSnapshot.inspectionCount - previousSnapshot.inspectionCount
+          : null,
+        crashCountDelta: previousSnapshot
+          ? latestSnapshot.crashCount - previousSnapshot.crashCount
+          : null,
+        oosCountDelta: previousSnapshot
+          ? latestSnapshot.oosCount - previousSnapshot.oosCount
+          : null,
+        perBasicDeltas,
+        newViolations: previousSnapshot
+          ? params.newViolations.map((violation) => ({
+              code: violation.violation_code,
+              description: violation.violation_description,
+              severityWeight: violation.severity_weight,
+              oos: violation.oos_violation,
+              inspectionDate: violation.inspection_date,
+            }))
+          : [],
+      }
+    : null;
+  const cases = tierHasFeature(serviceTier, "case_visibility")
+    ? params.cases.filter(isOpenCase)
+    : [];
+  const coachingProgram = tierHasFeature(serviceTier, "playbook_coach")
+    ? (params.coachingItems ?? []).map(normalizeCoachingItem)
+    : [];
+  const complianceSweep = tierHasFeature(serviceTier, "compliance_layer")
+    ? buildComplianceSweep(
+        params.compliance ?? {
+          drivers: [],
+          driverDocuments: [],
+          vehicles: [],
+          maintenanceRecords: [],
+          clearinghouseRecords: [],
+        }
+      )
+    : null;
+  const sections = buildReportSectionPlan({
+    serviceTier,
+    newViolationCount: comparison?.newViolations.length ?? 0,
+    openChallengeCount: cases.length,
+    coachingItemCount: coachingProgram.length,
+    hasComplianceData: complianceSweep !== null,
+  });
+
   return {
     reportDate: params.reportDate,
     reportType: params.reportType,
+    serviceTier,
+    sections,
     carrier: params.carrier,
     latestSnapshot,
     previousSnapshot,
-    comparison: {
-      firstReportingPeriod: previousSnapshot === null,
-      requiredFirstPeriodStatement: previousSnapshot
-        ? null
-        : FIRST_REPORTING_PERIOD_STATEMENT,
-      totalPointsDelta: previousSnapshot
-        ? latestSnapshot.totalPoints - previousSnapshot.totalPoints
-        : null,
-      violationCountDelta: previousSnapshot
-        ? latestSnapshot.violationCount - previousSnapshot.violationCount
-        : null,
-      inspectionCountDelta: previousSnapshot
-        ? latestSnapshot.inspectionCount - previousSnapshot.inspectionCount
-        : null,
-      crashCountDelta: previousSnapshot
-        ? latestSnapshot.crashCount - previousSnapshot.crashCount
-        : null,
-      oosCountDelta: previousSnapshot
-        ? latestSnapshot.oosCount - previousSnapshot.oosCount
-        : null,
-      perBasicDeltas,
-      newViolations: previousSnapshot
-        ? params.newViolations.map((violation) => ({
-            code: violation.violation_code,
-            description: violation.violation_description,
-            severityWeight: violation.severity_weight,
-            oos: violation.oos_violation,
-            inspectionDate: violation.inspection_date,
-          }))
-        : [],
-    },
-    cases: params.cases,
+    comparison,
+    cases,
+    coachingProgram,
+    complianceSweep,
     preparer: { block: PREPARER_BLOCK },
   };
 }
 
 export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
   const reportLabel = REPORT_TYPE_LABELS[data.reportType];
+  const serverOwnsFirstTrend = data.comparison?.firstReportingPeriod === true;
+  const modelSections = data.sections.filter(
+    (section) => !(serverOwnsFirstTrend && section.key === "burdenTrend")
+  );
+  const exactHeadings = modelSections.map((section) => section.heading);
   const system = `You are a trucking safety consultant writing a client-facing report for Golden Era SafeScore.
 
 Hard rules:
@@ -301,16 +512,22 @@ Hard rules:
 - Never invent, estimate, generalize, or add example facts. If a datum is absent or null, omit the sentence that would need it.
 - Do not emit square-bracketed text of any kind.
 - Write only the report body. Do not add a title, report-date line, first-period boilerplate, signature, preparer block, or email address; the server adds those fixed fields exactly.
+- Use exactly these standalone section headings, once each and in this order: ${exactHeadings.join(
+    "; "
+  )}. Do not add, rename, decorate, or omit a heading.
 - The totalPoints and weightedPoints values are SafeScore weighted violation burden, not FMCSA SMS points or an SMS score. Use the exact phrase weighted violation burden for the total and never call it SMS points.
-- For every CPDP case, use the exact phrase crash preventability and describe it only from its stored description. Never call it an inspection dispute.
-- If firstReportingPeriod is true, do not invent a month-over-month comparison. The server adds the required first-reporting-period statement.
-- If a previous snapshot exists, state previous total, latest total, signed total change, every non-zero per-BASIC change, and every new violation.
-- For each new violation, explicitly state its code, real description, the words severity weight followed by its value, OOS yes or OOS no, and its inspection date.
-- Include every provided case with its case type, real case number, status, and a concise summary grounded only in its stored description.`;
+- If comparison.firstReportingPeriod is true, do not write the Burden Trend heading or invent a comparison; the server adds that section and its fixed statement.
+- If previousSnapshot exists, state previous total, latest total, signed total change, and every non-zero per-BASIC change in Burden Trend.
+- In New Violations, include every provided violation's code, real description, the words severity weight followed by its value, OOS yes or OOS no, and inspection date.
+- In Open Challenges, include every provided case with its available case type, case number, status, and a concise summary grounded only in its stored description. For every CPDP case, use the exact phrase crash preventability and never call it an inspection dispute.
+- Coaching Program and Compliance Sweep may be written only when those exact sections and their real rows are present in the structured data. Do not imply a compliance certification or invent missing records.`;
 
-  const user = `Write the ${reportLabel} below in approximately 500 words. Use clear section headings and plain English for a small fleet owner. Do not include legal opinions or guarantees.
+  const user = `Write the ${reportLabel} below in approximately 500 words. Use the exact required section headings and plain English for a small fleet owner. Do not include legal opinions or guarantees.
 
 Report-specific instruction: ${REPORT_TYPE_INSTRUCTIONS[data.reportType]}
+
+Required model-written section headings:
+${exactHeadings.join("\n")}
 
 Structured report data:
 ${JSON.stringify(data, null, 2)}`;
@@ -326,11 +543,19 @@ export function assembleGeneratedReport(
   body: string,
   data: ReportGenerationData
 ): string {
-  const firstPeriodSection = data.comparison.firstReportingPeriod
-    ? `\n\nMonth-over-month comparison\n${FIRST_REPORTING_PERIOD_STATEMENT}`
+  const firstPeriodSection = data.comparison?.firstReportingPeriod
+    ? `${REPORT_SECTION_HEADINGS.burdenTrend}\n${FIRST_REPORTING_PERIOD_STATEMENT}\n\n`
     : "";
 
-  return `${REPORT_TYPE_LABELS[data.reportType]}\nReport date: ${data.reportDate}${firstPeriodSection}\n\n${body.trim()}\n\n${PREPARER_BLOCK}`;
+  return `${REPORT_TYPE_LABELS[data.reportType]}\nReport date: ${data.reportDate}\n\n${firstPeriodSection}${body.trim()}\n\n${PREPARER_BLOCK}`;
+}
+
+function headingLineIndexes(content: string, heading: string): number[] {
+  const indexes: number[] = [];
+  for (const [index, line] of content.split(/\r?\n/).entries()) {
+    if (line === heading) indexes.push(index);
+  }
+  return indexes;
 }
 
 export function validateGeneratedReport(
@@ -354,10 +579,48 @@ export function validateGeneratedReport(
     issues.push("the exact preparer block appeared more than once");
   }
   if (
-    data.comparison.firstReportingPeriod &&
+    data.comparison?.firstReportingPeriod &&
     !content.includes(FIRST_REPORTING_PERIOD_STATEMENT)
   ) {
     issues.push("missing the required first-reporting-period statement");
+  }
+  if (
+    !data.comparison?.firstReportingPeriod &&
+    content.includes(FIRST_REPORTING_PERIOD_STATEMENT)
+  ) {
+    issues.push("contains an unexpected first-reporting-period statement");
+  }
+
+  const plannedHeadings = new Set(data.sections.map((section) => section.heading));
+  const plannedHeadingIndexes: number[] = [];
+  for (const section of data.sections) {
+    const indexes = headingLineIndexes(content, section.heading);
+    if (indexes.length === 0) {
+      issues.push(`missing required section heading ${section.heading}`);
+    } else {
+      plannedHeadingIndexes.push(indexes[0]!);
+    }
+    if (indexes.length > 1) {
+      issues.push(`section heading ${section.heading} appeared more than once`);
+    }
+  }
+  for (const heading of ALL_REPORT_SECTION_HEADINGS) {
+    if (!plannedHeadings.has(heading) && headingLineIndexes(content, heading).length > 0) {
+      issues.push(`forbidden section heading ${heading}`);
+    }
+  }
+  for (const heading of LEGACY_FORBIDDEN_HEADINGS) {
+    if (headingLineIndexes(content, heading).length > 0) {
+      issues.push(`forbidden section heading ${heading}`);
+    }
+  }
+  if (
+    plannedHeadingIndexes.length === data.sections.length &&
+    plannedHeadingIndexes.some(
+      (index, position) => position > 0 && index <= plannedHeadingIndexes[position - 1]!
+    )
+  ) {
+    issues.push("report section headings are out of order");
   }
   if (
     data.cases.some((reportCase) => reportCase.case_type === "CPDP") &&
@@ -412,7 +675,7 @@ export async function generateValidatedReport(
       generatedBody.includes("info@goldenerainsurance.com")
         ? ["the model included the reserved preparer block"]
         : []),
-      ...(data.comparison.firstReportingPeriod &&
+      ...(data.comparison?.firstReportingPeriod &&
       generatedBody.includes(FIRST_REPORTING_PERIOD_STATEMENT)
         ? ["the model included the reserved first-reporting-period statement"]
         : []),

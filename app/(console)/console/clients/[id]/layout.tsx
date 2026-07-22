@@ -7,12 +7,11 @@ import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
-
-const tierLabel: Record<string, string> = {
-  monitor: "Monitor",
-  remediate: "Remediate",
-  total_safety: "Total Safety",
-};
+import {
+  normalizeClientTier,
+  tierBadgeVariant,
+  TIER_LABELS,
+} from "@/lib/tiers";
 
 const statusLabel: Record<string, string> = {
   onboarding: "Onboarding",
@@ -29,12 +28,6 @@ const statusVariant: Record<string, "success" | "default" | "warning" | "danger"
   paused: "warning",
   churned: "default",
 };
-
-function tierVariant(tier: string | null): "gold" | "info" | "default" {
-  if (tier === "total_safety") return "gold";
-  if (tier === "remediate") return "info";
-  return "default";
-}
 
 export default async function ClientFileLayout({
   children,
@@ -83,6 +76,7 @@ export default async function ClientFileLayout({
   ]);
 
   const cp = carrierProfile as { authority_status?: string | null; entity_type?: string | null } | null;
+  const clientTier = normalizeClientTier(client.tier);
 
   return (
     <div className="min-h-screen bg-[#FEFCF8]">
@@ -98,13 +92,11 @@ export default async function ClientFileLayout({
                 {cp?.entity_type ? ` | ${cp.entity_type}` : ""}
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-3">
-                {client.tier && (
-                  <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                    Plan:
-                    <Badge variant={tierVariant(client.tier)}>{tierLabel[client.tier] ?? client.tier}</Badge>
-                    <Tooltip content="The SafeScore service tier assigned to this client. Billing and included services are handled from the Account tab." position="bottom" />
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                  Plan:
+                  <Badge variant={tierBadgeVariant(clientTier)}>{TIER_LABELS[clientTier]}</Badge>
+                  <Tooltip content="The SafeScore service tier assigned to this client. Billing and included services are handled from the Account tab." position="bottom" />
+                </span>
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                   Status:
                   <Badge variant={statusVariant[client.status] ?? "default"}>
@@ -131,7 +123,7 @@ export default async function ClientFileLayout({
               <FmcsaExportUpload clientId={id} dotNumber={client.dot_number} />
             </div>
           </div>
-          <ClientTabs clientId={id} />
+          <ClientTabs clientId={id} tier={clientTier} />
         </div>
       </div>
       {children}

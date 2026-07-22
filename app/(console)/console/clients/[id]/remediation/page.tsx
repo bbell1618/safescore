@@ -5,6 +5,8 @@ import { scoreChallenge, type ChallengeScore } from "@/lib/analysis/challengeabi
 import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
 import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
 import { createClient } from "@/lib/supabase/server";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { normalizeClientTier } from "@/lib/tiers";
 import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
@@ -123,11 +125,12 @@ export default async function RemediationPage({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, dot_number")
+    .select("id, name, dot_number, tier")
     .eq("id", id)
     .single();
 
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const { inspectionIds: canonicalInspectionIds } =
     await getCanonicalInspectionScope(id, supabase);
@@ -209,6 +212,7 @@ export default async function RemediationPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
+            <ServiceTierChip tier={clientTier} feature="playbook_coach" />
             {queue.excludedCount > 0 && (
               <Badge variant="outline">
                 {queue.excludedCount} violations not counted in the score

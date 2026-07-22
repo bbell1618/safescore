@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { ChevronRight, Car, AlertTriangle } from "lucide-react";
 import { CpdpCreateButton } from "@/components/console/cpdp-create-button";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function CpdpPage({
     .single();
 
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const { data: crashes } = await supabase
     .from("crashes")
@@ -121,7 +123,7 @@ export default async function CpdpPage({
                   </div>
                   <div className="flex gap-2">
                     {!hasCase && crash.cpdp_eligible !== false && (
-                      <CpdpCreateButton clientId={id} crashId={crash.id} />
+                      <CpdpCreateButton clientId={id} crashId={crash.id} clientTier={clientTier} />
                     )}
                     {hasCase && (() => {
                       const caseObj = (crash.cpdp_cases as any[])[0];

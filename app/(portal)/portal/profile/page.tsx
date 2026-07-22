@@ -3,20 +3,13 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { NotificationPrefsForm } from "./notification-prefs-form";
 import { Building2, Truck, Info, CreditCard, Bell, FileText } from "lucide-react";
+import {
+  normalizeClientTier,
+  tierBadgeVariant,
+  TIER_LABELS,
+} from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
-
-const tierLabel: Record<string, string> = {
-  monitor: "Monitor",
-  remediate: "Remediate",
-  total_safety: "Total Safety",
-};
-
-const tierVariant = (tier: string | null): "default" | "info" | "gold" => {
-  if (tier === "total_safety") return "gold";
-  if (tier === "remediate") return "info";
-  return "default";
-};
 
 function ProfileRow({
   label,
@@ -88,6 +81,7 @@ export default async function PortalProfilePage() {
   const address = [client.address, client.city, client.state, client.zip]
     .filter(Boolean)
     .join(", ");
+  const clientTier = normalizeClientTier(client.tier);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -145,13 +139,9 @@ export default async function PortalProfilePage() {
         <div className="flex items-start justify-between gap-4 py-3 border-b border-[#F0E8DA]">
           <span className="text-sm text-gray-500 shrink-0 w-44">Service tier</span>
           <span className="text-sm text-[#1E1C1A]">
-            {client.tier ? (
-              <Badge variant={tierVariant(client.tier)}>
-                {tierLabel[client.tier]}
-              </Badge>
-            ) : (
-              "—"
-            )}
+            <Badge variant={tierBadgeVariant(clientTier)}>
+              {TIER_LABELS[clientTier]}
+            </Badge>
           </span>
         </div>
 

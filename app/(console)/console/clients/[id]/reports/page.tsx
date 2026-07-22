@@ -5,6 +5,8 @@ import { ReportGenerator } from "@/components/console/report-generator";
 import { DownloadReportButton } from "@/components/console/download-report-button";
 import { formatDate } from "@/lib/utils";
 import { FileText } from "lucide-react";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export default async function ReportsPage({
     .single();
 
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const { data: reports } = await supabase
     .from("reports")
@@ -51,10 +54,13 @@ export default async function ReportsPage({
             AI-generated reports with human review before sending to client
           </p>
         </div>
-        <DownloadReportButton clientId={id} clientName={client.name} />
+        <div className="flex items-center gap-2">
+          <ServiceTierChip tier={clientTier} feature="monthly_reports" />
+          <DownloadReportButton clientId={id} clientName={client.name} />
+        </div>
       </div>
 
-      <ReportGenerator clientId={id} />
+      <ReportGenerator clientId={id} clientTier={clientTier} />
 
       {/* Report history */}
       {reports && reports.length > 0 && (

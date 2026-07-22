@@ -4,8 +4,9 @@ import { ArrowRight, ClipboardCheck, Shield, Wrench } from "lucide-react";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { diffSnapshots, getRecentSnapshots } from "@/lib/monitoring/diff";
-import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import { getPortalPageAccess } from "@/lib/portal/access";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 
 export const dynamic = "force-dynamic";
 
@@ -176,22 +177,17 @@ function isVisibleDataqCase(caseRow: DataqCaseRow) {
 }
 
 export default async function PortalPlanPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: userRecord } = await supabase
-    .from("users")
-    .select("client_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!userRecord?.client_id) redirect("/portal");
-
-  const clientId = userRecord.client_id;
+  const access = await getPortalPageAccess("playbook_coach");
+  if (!access.allowed) {
+    return (
+      <TierUpgradeNote
+        feature="playbook_coach"
+        currentTier={access.tier}
+        title="The coaching playbook is not included in your plan"
+      />
+    );
+  }
+  const { clientId, supabase } = access;
 
   const [
     { data: client },

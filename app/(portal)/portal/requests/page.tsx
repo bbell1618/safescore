@@ -1,16 +1,16 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { RequestUpload } from "@/components/portal/request-upload";
+import { getPortalPageAccess } from "@/lib/portal/access";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 
 type EvidenceItem = { evidenceId: string; label: string; contextNote: string | null; caseType: string };
 
 export default async function PortalRequestsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { data: userRow } = await supabase.from("users").select("client_id").eq("id", user.id).single();
-  if (!userRow?.client_id) redirect("/portal");
-  const { data: requests } = await supabase.from("client_requests").select("id, category, title, description, requested_items, status, due_at, reminder_count, created_at").eq("client_id", userRow.client_id).eq("responsibility", "client").order("created_at", { ascending: false });
+  const access = await getPortalPageAccess("evidence_requests");
+  if (!access.allowed) {
+    return <TierUpgradeNote feature="evidence_requests" currentTier={access.tier} title="Evidence requests are not included in your plan" />;
+  }
+  const { clientId, supabase } = access;
+  const { data: requests } = await supabase.from("client_requests").select("id, category, title, description, requested_items, status, due_at, reminder_count, created_at").eq("client_id", clientId).eq("responsibility", "client").order("created_at", { ascending: false });
   const open = (requests ?? []).filter((row) => row.status === "open");
   const completed = (requests ?? []).filter((row) => row.status === "fulfilled");
   return (

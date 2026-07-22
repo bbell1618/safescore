@@ -2,22 +2,25 @@
 
 import { useState } from "react";
 import { FileText, Loader2, Send, Edit3, CheckCircle } from "lucide-react";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import type { ClientTier } from "@/lib/supabase/types";
 
 interface Props {
   clientId: string;
+  clientTier: ClientTier;
 }
 
 type ReportType = "assessment" | "monthly" | "quarterly" | "improvement" | "underwriter";
 
 const reportTypes: Array<{ value: ReportType; label: string; description: string }> = [
   { value: "assessment", label: "Initial assessment", description: "Full safety profile analysis with recommendations. Used to onboard new clients." },
-  { value: "monthly", label: "Monthly progress", description: "Score changes, new violations, case updates, and next steps." },
+  { value: "monthly", label: "Monthly progress", description: "Burden trend, new violations, and next priorities. Open challenges are added for Remediate and above." },
   { value: "quarterly", label: "Quarterly re-analysis", description: "Comprehensive re-analysis with before/after comparison." },
   { value: "improvement", label: "Improvement report", description: "Before/after summary of score improvements achieved. Used for insurance re-marketing." },
   { value: "underwriter", label: "Underwriter report", description: "Carrier-ready document showing remediation work completed. Submitted to insurance carriers." },
 ];
 
-export function ReportGenerator({ clientId }: Props) {
+export function ReportGenerator({ clientId, clientTier }: Props) {
   const [type, setType] = useState<ReportType>("assessment");
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
@@ -124,6 +127,11 @@ export function ReportGenerator({ clientId }: Props) {
                 {rt.label}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">{rt.description}</p>
+              {rt.value === "monthly" && (
+                <span className="mt-1 inline-flex">
+                  <ServiceTierChip tier={clientTier} feature="monthly_reports" compact />
+                </span>
+              )}
             </button>
           ))}
         </div>

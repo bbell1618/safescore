@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { DataqWorkbench } from "@/components/console/dataq-workbench";
 import { ChevronRight } from "lucide-react";
+import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { normalizeClientTier } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ export default async function DataqPage({
     .single();
 
   if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const { data: cases } = await supabase
     .from("dataq_cases")
@@ -127,12 +130,15 @@ export default async function DataqPage({
             <span className="text-[#C67A1E] font-medium">{counts.denied ?? 0} denied</span>
           </p>
         </div>
-        <Link
-          href={`/console/clients/${id}/violations`}
-          className="px-4 py-2 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
-        >
-          + Create from violation
-        </Link>
+        <div className="flex items-center gap-2">
+          <ServiceTierChip tier={clientTier} feature="case_visibility" />
+          <Link
+            href={`/console/clients/${id}/violations`}
+            className="px-4 py-2 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] transition-colors"
+          >
+            + Create from violation
+          </Link>
+        </div>
       </div>
 
       {/* Pipeline summary */}
@@ -160,6 +166,7 @@ export default async function DataqPage({
 
       <DataqWorkbench
         clientId={id}
+        clientTier={clientTier}
         filingAuthorized={(client.filing_authorized as boolean | null) ?? false}
         filingAuthorizedBy={client.filing_authorized_by as string | null}
         filingAuthorizationScope={client.filing_authorization_scope as string | null}

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendNewViolationAlert } from "@/lib/email/client";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 import {
   planRefreshAlerts,
   type AlertSeverity,
@@ -139,6 +140,20 @@ async function sendViolationEmailRows(
 ): Promise<number> {
   const violationIds = new Set(input.violationIds);
   if (violationIds.size === 0) return 0;
+
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .select("tier")
+    .eq("id", input.clientId)
+    .single();
+  if (clientError || !client) {
+    throw new Error(
+      `Unable to verify violation-alert entitlement: ${clientError?.message ?? "client not found"}`
+    );
+  }
+  if (!tierHasFeature(normalizeClientTier(client.tier), "monitoring_alerts")) {
+    return 0;
+  }
 
   const { data: recipient, error } = await supabase
     .from("users")

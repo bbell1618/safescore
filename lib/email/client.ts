@@ -109,7 +109,7 @@ function emailWrapper(content: string): string {
     </div>
     <div class="footer">
       <p>Golden Era Insurance Agency | SafeScore | Confidential</p>
-      <p style="margin-top:4px;">You are receiving this because you are enrolled in the SafeScore monitoring program.</p>
+      <p style="margin-top:4px;">You are receiving this message about your SafeScore account.</p>
     </div>
   </div>
 </body>
@@ -201,7 +201,7 @@ export async function sendNewViolationAlert(
         <div class="value"><span class="${data.severityWeight >= 8 ? "badge-red" : "badge-gold"}">${data.severityWeight}</span></div>
       </div>
     </div>
-    <p>Log in to your SafeScore portal to review this violation and assess challengeability.</p>
+    <p>Log in to your SafeScore portal to review this violation and its impact on your safety profile.</p>
     <a href="${data.portalUrl}" class="cta">View in portal</a>
   `);
 
@@ -297,12 +297,12 @@ export async function sendWelcomeEmail(
 
   const html = emailWrapper(`
     <h2>${greeting}</h2>
-    <p>Your SafeScore account for <strong>${data.companyName}</strong> (DOT ${data.dotNumber}) is now active. Your GEIA safety team is monitoring your DOT safety profile and will notify you of any issues.</p>
+    <p>Your SafeScore account for <strong>${data.companyName}</strong> (DOT ${data.dotNumber}) is now active.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
       <div class="detail-row"><div class="label">Company</div><div class="value">${data.companyName}</div></div>
       <div class="detail-row"><div class="label">DOT number</div><div class="value">${data.dotNumber}</div></div>
     </div>
-    <p>Your full BASIC score analysis will be available in your portal within 24 hours.</p>
+    <p>Your portal will show the safety information included with your SafeScore service.</p>
     <a href="${data.portalUrl}" class="cta">Access your portal</a>
   `);
 

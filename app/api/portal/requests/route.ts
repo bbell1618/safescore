@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getPortalApiAccess } from "@/lib/portal/access";
 
 export async function GET() {
-  const auth = await createClient();
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await getPortalApiAccess("evidence_requests");
+  if (access.status === "unauthenticated") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (access.status !== "linked") return NextResponse.json({ error: "Client account not linked" }, { status: 403 });
+  if (!access.allowed) return NextResponse.json({ error: "Evidence requests are not included in this plan" }, { status: 403 });
   const service = await createServiceClient();
-  const { data: userRow } = await service.from("users").select("client_id").eq("id", user.id).single();
-  if (!userRow?.client_id) return NextResponse.json({ error: "Client account not linked" }, { status: 403 });
   const { data, error } = await service
     .from("client_requests")
     .select("id, category, title, description, source, requested_items, status, due_at, reminder_count, created_at")
-    .eq("client_id", userRow.client_id)
+    .eq("client_id", access.clientId)
     .eq("responsibility", "client")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

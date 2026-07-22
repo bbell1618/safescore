@@ -4,6 +4,8 @@ import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
+import type { ClientTier } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ type ClientRow = {
   mc_number: string | null;
   city: string | null;
   state: string | null;
+  tier: ClientTier | null;
 };
 
 type CarrierSummary = {
@@ -118,7 +121,7 @@ export async function POST(request: Request) {
 
   const clientResult = await serviceSupabase
     .from("clients")
-    .select("id, name, dot_number, mc_number, city, state")
+    .select("id, name, dot_number, mc_number, city, state, tier")
     .eq("id", clientId)
     .single();
   const { data: client, error: clientError } = clientResult as unknown as { data: ClientRow | null; error: unknown };
@@ -129,6 +132,15 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  const serviceTier = normalizeClientTier(client.tier);
+  if (role === "client_user" && !tierHasFeature(serviceTier, "monthly_reports")) {
+    return new Response(
+      JSON.stringify({ error: "Reports are not included in this plan" }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  const includeCaseWork = tierHasFeature(serviceTier, "case_visibility");
 
   let carrier: CarrierSummary = {
     legalName: client.name,
@@ -205,16 +217,20 @@ export async function POST(request: Request) {
     canonicalInspectionIds.length > 0
       ? violationQuery.in("inspection_id", canonicalInspectionIds)
       : violationQuery.in("inspection_id", []),
-    serviceSupabase
-      .from("cpdp_cases")
-      .select("id, case_number, status")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false }),
-    serviceSupabase
-      .from("dataq_cases")
-      .select("id, case_number, status")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false }),
+    includeCaseWork
+      ? serviceSupabase
+          .from("cpdp_cases")
+          .select("id, case_number, status")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    includeCaseWork
+      ? serviceSupabase
+          .from("dataq_cases")
+          .select("id, case_number, status")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const burden = burdenRaw as BurdenResult;

@@ -1,37 +1,22 @@
-﻿import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { Info } from "lucide-react";
+﻿import { getPortalPageAccess } from "@/lib/portal/access";
 import { ReportViewer } from "./report-viewer";
 import { PortalDownloadReportButton } from "@/components/portal/download-report-button";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalReportsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: userRecord } = await supabase
-    .from("users")
-    .select("client_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!userRecord?.client_id) {
+  const access = await getPortalPageAccess("monthly_reports");
+  if (!access.allowed) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
-          <Info className="w-6 h-6 text-gray-400" />
-        </div>
-        <p className="text-sm text-gray-500">Your account is being set up.</p>
-      </div>
+      <TierUpgradeNote
+        feature="monthly_reports"
+        currentTier={access.tier}
+        title="Monthly reports are not included in your plan"
+      />
     );
   }
-
-  const clientId = userRecord.client_id;
+  const { clientId, supabase } = access;
 
   const { data: reports } = await supabase
     .from("reports")

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isClientTier, isSubscriptionTier } from "@/lib/tiers";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -97,13 +98,24 @@ export async function proxy(request: NextRequest) {
     }
     const isOnboardingPath = path === "/portal/onboarding" || path.startsWith("/portal/onboarding/");
     if (!isOnboardingPath && userRecord?.client_id) {
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("id")
-        .eq("client_id", userRecord.client_id)
-        .eq("status", "active")
-        .maybeSingle();
-      if (!subscription) {
+      const [{ data: client }, { data: subscription }] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("status, tier")
+          .eq("id", userRecord.client_id)
+          .maybeSingle(),
+        supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("client_id", userRecord.client_id)
+          .eq("status", "active")
+          .maybeSingle(),
+      ]);
+      const activeAssessment =
+        client?.status === "active" &&
+        isClientTier(client.tier) &&
+        !isSubscriptionTier(client.tier);
+      if (!activeAssessment && !subscription) {
         const url = request.nextUrl.clone();
         url.pathname = "/portal/onboarding";
         return NextResponse.redirect(url);

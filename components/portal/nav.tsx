@@ -4,26 +4,36 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, LogOut, Menu, X } from "lucide-react";
+import { ShieldCheck, LogOut, Menu, X, LockKeyhole } from "lucide-react";
 import { useState } from "react";
+import { tierHasFeature, type TierFeature } from "@/lib/tiers";
+import type { ClientTier } from "@/lib/supabase/types";
 
-const navItems = [
-  { href: "/portal/plan", label: "Plan" },
+const navItems: Array<{
+  href: string;
+  label: string;
+  exact?: boolean;
+  feature?: TierFeature;
+}> = [
   { href: "/portal", label: "Dashboard", exact: true },
   { href: "/portal/safety", label: "Safety profile" },
-  { href: "/portal/cases", label: "Cases" },
-  { href: "/portal/requests", label: "Requests" },
-  { href: "/portal/documents", label: "Documents" },
-  { href: "/portal/reports", label: "Reports" },
+  { href: "/portal/monitoring", label: "Monitoring", feature: "trend_history" },
+  { href: "/portal/reports", label: "Reports", feature: "monthly_reports" },
+  { href: "/portal/cases", label: "Cases", feature: "case_visibility" },
+  { href: "/portal/requests", label: "Requests", feature: "evidence_requests" },
+  { href: "/portal/plan", label: "Playbook", feature: "playbook_coach" },
+  { href: "/portal/documents", label: "Documents", feature: "compliance_layer" },
+  { href: "/portal/compliance", label: "Compliance", feature: "compliance_layer" },
   { href: "/portal/profile", label: "Settings" },
 ];
 
 interface PortalNavProps {
   userEmail?: string;
   companyName?: string;
+  tier: ClientTier;
 }
 
-export function PortalNav({ userEmail, companyName }: PortalNavProps) {
+export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -72,7 +82,12 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                       : "text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0]"
                   )}
                 >
-                  {item.label}
+                  <span className="inline-flex items-center gap-1">
+                    {item.label}
+                    {item.feature && !tierHasFeature(tier, item.feature) && (
+                      <LockKeyhole className="h-3 w-3 text-gray-400" aria-label="Upgrade required" />
+                    )}
+                  </span>
                 </Link>
               );
             })}
@@ -133,7 +148,12 @@ export function PortalNav({ userEmail, companyName }: PortalNavProps) {
                       : "text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0]"
                   )}
                 >
-                  {item.label}
+                  <span className="inline-flex items-center gap-1.5">
+                    {item.label}
+                    {item.feature && !tierHasFeature(tier, item.feature) && (
+                      <LockKeyhole className="h-3 w-3 text-gray-400" aria-label="Upgrade required" />
+                    )}
+                  </span>
                 </Link>
               );
             })}

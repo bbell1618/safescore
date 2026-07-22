@@ -7,6 +7,8 @@ import {
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { ClientTier } from "@/lib/supabase/types";
+import { SUBSCRIPTION_TIERS, tierHasFeature } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -15,6 +17,7 @@ type ActiveClient = {
   id: string;
   name: string;
   dot_number: string;
+  tier: ClientTier;
 };
 
 type CronSummary = {
@@ -38,8 +41,9 @@ export async function GET(request: Request) {
   const supabase = await createServiceClient();
   const { data, error } = await supabase
     .from("clients")
-    .select("id, name, dot_number")
+    .select("id, name, dot_number, tier")
     .eq("status", "active")
+    .in("tier", [...SUBSCRIPTION_TIERS])
     .order("created_at", { ascending: true });
   if (error) {
     return NextResponse.json(
@@ -59,6 +63,10 @@ export async function GET(request: Request) {
 
   for (const client of (data ?? []) as ActiveClient[]) {
     try {
+      const shouldAssessChallengeability = tierHasFeature(
+        client.tier,
+        "case_visibility"
+      );
       const refresh = await runClientRefresh(
         { clientId: client.id, dotNumber: client.dot_number },
         supabase
@@ -80,22 +88,28 @@ export async function GET(request: Request) {
       summary.alerts_created += emittedAlerts.created.length;
 
       const assessmentErrors: string[] = [];
-      for (const violationId of refresh.newViolationIds) {
-        try {
-          const assessment = await runChallengeabilityAssessment(supabase, client.id, {
-            violationIds: [violationId],
-          });
-          if (assessment.failures.length > 0 || assessment.assessed !== 1) {
+      // Challengeability feeds Remediate case work. Monitor intentionally stops
+      // after refresh, snapshot, alert creation, and client notification.
+      if (shouldAssessChallengeability) {
+        for (const violationId of refresh.newViolationIds) {
+          try {
+            const assessment = await runChallengeabilityAssessment(
+              supabase,
+              client.id,
+              { violationIds: [violationId] }
+            );
+            if (assessment.failures.length > 0 || assessment.assessed !== 1) {
+              assessmentErrors.push(
+                `violation ${violationId}: ${assessment.failures
+                  .map((failure) => failure.error)
+                  .join("; ") || "no assessment was persisted"}`
+              );
+            }
+          } catch (assessmentError) {
             assessmentErrors.push(
-              `violation ${violationId}: ${assessment.failures
-                .map((failure) => failure.error)
-                .join("; ") || "no assessment was persisted"}`
+              `violation ${violationId}: ${errorMessage(assessmentError)}`
             );
           }
-        } catch (assessmentError) {
-          assessmentErrors.push(
-            `violation ${violationId}: ${errorMessage(assessmentError)}`
-          );
         }
       }
 
@@ -119,6 +133,10 @@ export async function GET(request: Request) {
           new_inspections: refresh.newInspectionCount,
           snapshot_status: snapshot.status,
           alerts_created: emittedAlerts.created.length,
+          subscription_tier: client.tier,
+          challengeability_assessment: shouldAssessChallengeability
+            ? "run"
+            : "not_included",
           assessment_errors: assessmentErrors,
         },
       });

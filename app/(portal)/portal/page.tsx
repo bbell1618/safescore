@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, priorityVariant } from "@/lib/utils";
 import {
@@ -75,6 +76,17 @@ export default async function PortalDashboardPage() {
   }
 
   const clientId = userRecord.client_id;
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", clientId)
+    .single();
+  if (clientError) throw new Error(`Unable to load portal client: ${clientError.message}`);
+  if (!client) redirect("/portal");
+
+  const clientTier = normalizeClientTier(client.tier);
+  const canSeeCases = tierHasFeature(clientTier, "case_visibility");
+  const canSeePlaybook = tierHasFeature(clientTier, "playbook_coach");
   const { inspectionIds: canonicalInspectionIds } =
     await getCanonicalInspectionScope(clientId, supabase);
   const violationCountQuery = supabase
@@ -84,7 +96,6 @@ export default async function PortalDashboardPage() {
 
   // Fetch all dashboard data in parallel
   const [
-    { data: client },
     { data: dataqCases },
     { data: cpdpCases },
     { data: actionItems },
@@ -92,29 +103,36 @@ export default async function PortalDashboardPage() {
     { count: violationCount },
     { count: crashCount },
   ] = await Promise.all([
-    supabase.from("clients").select("*").eq("id", clientId).single(),
-    supabase
-      .from("dataq_cases")
-      .select("id, status")
-      .eq("client_id", clientId)
-      .not("status", "in", '("approved","denied","closed")'),
-    supabase
-      .from("cpdp_cases")
-      .select("id, status")
-      .eq("client_id", clientId)
-      .not("status", "in", '("determination_made","closed")'),
-    supabase
-      .from("action_items")
-      .select("*")
-      .eq("client_id", clientId)
-      .in("status", ["pending", "in_progress"])
-      .order("priority", { ascending: true })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("action_items")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .eq("status", "completed"),
+    canSeeCases
+      ? supabase
+          .from("dataq_cases")
+          .select("id, status")
+          .eq("client_id", clientId)
+          .not("status", "in", '("approved","denied","closed")')
+      : Promise.resolve({ data: [], error: null }),
+    canSeeCases
+      ? supabase
+          .from("cpdp_cases")
+          .select("id, status")
+          .eq("client_id", clientId)
+          .not("status", "in", '("determination_made","closed")')
+      : Promise.resolve({ data: [], error: null }),
+    canSeePlaybook
+      ? supabase
+          .from("action_items")
+          .select("*")
+          .eq("client_id", clientId)
+          .in("status", ["pending", "in_progress"])
+          .order("priority", { ascending: true })
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    canSeePlaybook
+      ? supabase
+          .from("action_items")
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", clientId)
+          .eq("status", "completed")
+      : Promise.resolve({ count: 0, data: null, error: null }),
     canonicalInspectionIds.length > 0
       ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
       : violationCountQuery.in("inspection_id", []),
@@ -123,8 +141,6 @@ export default async function PortalDashboardPage() {
       .select("*", { count: "exact", head: true })
       .eq("client_id", clientId),
   ]);
-
-  if (!client) redirect("/portal");
 
   const burden = await getClientBurden(clientId);
 
@@ -157,7 +173,7 @@ export default async function PortalDashboardPage() {
       </div>
 
       {/* Quick stats row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid gap-4 ${canSeeCases ? "grid-cols-3" : "grid-cols-2"}`}>
         {[
           {
             label: "Violations on file",
@@ -173,13 +189,15 @@ export default async function PortalDashboardPage() {
             iconBg: "bg-orange-50",
             iconColor: "text-orange-600",
           },
-          {
-            label: "Open cases",
-            value: openCaseCount,
-            icon: FileSearch,
-            iconBg: "bg-[#FDF4E7]",
-            iconColor: "text-[#C67A1E]",
-          },
+          ...(canSeeCases
+            ? [{
+                label: "Open cases",
+                value: openCaseCount,
+                icon: FileSearch,
+                iconBg: "bg-[#FDF4E7]",
+                iconColor: "text-[#C67A1E]",
+              }]
+            : []),
         ].map((stat) => (
           <div
             key={stat.label}
@@ -296,13 +314,18 @@ export default async function PortalDashboardPage() {
         ) : (
           <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-8 text-center">
             <p className="text-sm font-medium text-[#1E1C1A]">No scored violations in the 24-month window.</p>
-            <p className="text-xs text-gray-500 mt-1">We will keep monitoring as new FMCSA data is refreshed.</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {tierHasFeature(clientTier, "monitoring_alerts")
+                ? "We will keep monitoring as new FMCSA data is refreshed."
+                : "This assessment reflects the FMCSA data currently available."}
+            </p>
           </div>
         )}
       </div>
 
       {/* Cases summary + Action items */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {canSeeCases && canSeePlaybook && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Cases summary */}
         <div className="space-y-3">
           <h2
@@ -404,7 +427,8 @@ export default async function PortalDashboardPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* GEIA team info banner */}
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-4 flex items-center gap-3">

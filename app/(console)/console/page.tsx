@@ -5,20 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { QuickAssessment } from "@/components/console/quick-assessment";
 import { NewClientButton } from "@/components/console/new-client-button";
 import { AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
+import {
+  normalizeClientTier,
+  tierBadgeVariant,
+  TIER_LABELS,
+} from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
-
-const tierLabel: Record<string, string> = {
-  monitor: "Monitor",
-  remediate: "Remediate",
-  total_safety: "Total Safety",
-};
-
-const tierVariant: Record<string, "default" | "info" | "gold" | "warning"> = {
-  monitor: "default",
-  remediate: "info",
-  total_safety: "gold",
-};
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
@@ -118,6 +111,7 @@ export default async function ConsolePage() {
                   const alerts = alertMap.get(client.id) ?? 0;
                   const burden = burdenByClient.get(client.id);
                   const topBasic = burden?.perBasic[0] ?? null;
+                  const clientTier = normalizeClientTier(client.tier);
 
                   const locationParts = [client.city, client.state].filter(Boolean);
 
@@ -142,11 +136,9 @@ export default async function ConsolePage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {client.tier && (
-                          <Badge variant={tierVariant[client.tier] ?? "default"}>
-                            {tierLabel[client.tier]}
-                          </Badge>
-                        )}
+                        <Badge variant={tierBadgeVariant(clientTier)}>
+                          {TIER_LABELS[clientTier]}
+                        </Badge>
                         <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
                           {statusLabel[client.status] ?? client.status}
                         </Badge>

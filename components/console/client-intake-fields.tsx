@@ -1,6 +1,39 @@
 "use client";
 
-export type ClientTierValue = "monitor" | "remediate" | "total_safety";
+import {
+  CLIENT_TIERS,
+  normalizeClientTier,
+  TIER_LABELS,
+} from "@/lib/tiers";
+import type { ClientTier } from "@/lib/supabase/types";
+
+export type ClientTierValue = ClientTier;
+
+const TIER_PRICING: Record<
+  ClientTier,
+  { priceLabel: string; baseMonthly: number | null; perDriverMonthly: number | null }
+> = {
+  assessment: {
+    priceLabel: "$299 one-time",
+    baseMonthly: null,
+    perDriverMonthly: null,
+  },
+  monitor: {
+    priceLabel: "$199/mo",
+    baseMonthly: 199,
+    perDriverMonthly: null,
+  },
+  remediate: {
+    priceLabel: "$599/mo",
+    baseMonthly: 599,
+    perDriverMonthly: null,
+  },
+  total_safety: {
+    priceLabel: "$999/mo + $29/driver/mo",
+    baseMonthly: 999,
+    perDriverMonthly: 29,
+  },
+};
 
 export interface ClientIntakeValues {
   name: string;
@@ -34,9 +67,14 @@ export function ClientIntakeFields({
     onChange({ ...values, [key]: value });
   };
 
+  const selectedTier = normalizeClientTier(values.tier);
+  const selectedPricing = TIER_PRICING[selectedTier];
   const estimatedMonthly =
-    values.tier === "total_safety" && values.driverCount
-      ? 999 + parseInt(values.driverCount, 10) * 29
+    selectedPricing.baseMonthly !== null &&
+    selectedPricing.perDriverMonthly !== null &&
+    values.driverCount
+      ? selectedPricing.baseMonthly +
+        parseInt(values.driverCount, 10) * selectedPricing.perDriverMonthly
       : null;
 
   return (
@@ -141,22 +179,24 @@ export function ClientIntakeFields({
         <select
           id={`${idPrefix}-tier`}
           value={values.tier}
-          onChange={(e) => setValue("tier", e.target.value as ClientTierValue)}
+          onChange={(e) => setValue("tier", normalizeClientTier(e.target.value))}
           className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C67A1E]"
         >
-          <option value="monitor">Monitor ($199/mo)</option>
-          <option value="remediate">Remediate ($599/mo)</option>
-          <option value="total_safety">Total Safety ($999/mo + $29/driver/mo)</option>
+          {CLIENT_TIERS.map((tier) => (
+            <option key={tier} value={tier}>
+              {TIER_LABELS[tier]} ({TIER_PRICING[tier].priceLabel})
+            </option>
+          ))}
         </select>
-        {values.tier === "total_safety" && values.driverCount && (
+        {selectedPricing.perDriverMonthly !== null && values.driverCount && (
           <p className="text-xs text-gray-500 mt-1">
-            Estimated monthly: $999 + ({values.driverCount} drivers {"\u00D7"} $29) ={" "}
+            Estimated monthly: ${selectedPricing.baseMonthly} + ({values.driverCount} drivers {"\u00D7"} ${selectedPricing.perDriverMonthly}) ={" "}
             <span className="font-semibold text-[#1E1C1A]">
               ${estimatedMonthly?.toLocaleString()}/mo
             </span>
           </p>
         )}
-        {values.tier === "total_safety" && !values.driverCount && (
+        {selectedPricing.perDriverMonthly !== null && !values.driverCount && (
           <p className="text-xs text-gray-400 mt-1">
             Enter driver count to see estimated monthly total.
           </p>

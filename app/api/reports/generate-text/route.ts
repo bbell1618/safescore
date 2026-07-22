@@ -6,12 +6,15 @@ import {
   generateValidatedReport,
   reportTypeLabel,
   type ReportCaseRow,
+  type ReportCoachingItemRow,
+  type ReportComplianceInput,
   type ReportGenerationData,
   type ReportSnapshotRow,
   type ReportType,
   type ReportViolationRow,
 } from "@/lib/reports/report-generation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -27,7 +30,14 @@ type ClientRow = {
   name: string;
   dot_number: string;
   mc_number: string | null;
+  tier: string | null;
 };
+
+type ComplianceDriverRow = ReportComplianceInput["drivers"][number];
+type ComplianceDriverDocumentRow = ReportComplianceInput["driverDocuments"][number];
+type ComplianceVehicleRow = ReportComplianceInput["vehicles"][number];
+type ComplianceMaintenanceRow = ReportComplianceInput["maintenanceRecords"][number];
+type ComplianceClearinghouseRow = ReportComplianceInput["clearinghouseRecords"][number];
 
 type StoredCaseRow = {
   case_number: string | null;
@@ -200,40 +210,11 @@ export async function POST(request: Request) {
     type: ReportType;
   };
 
-  const [clientResult, snapshotsResult, dataqResult, cpdpResult] =
-    await Promise.all([
-      serviceSupabase
-        .from("clients")
-        .select("id, name, dot_number, mc_number")
-        .eq("id", clientId)
-        .single(),
-      serviceSupabase
-        .from("burden_snapshots")
-        .select(
-          "id, snapshot_date, captured_at, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
-        )
-        .eq("client_id", clientId)
-        .order("snapshot_date", { ascending: false })
-        .order("captured_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(2),
-      serviceSupabase
-        .from("dataq_cases")
-        .select(
-          "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
-        )
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-      serviceSupabase
-        .from("cpdp_cases")
-        .select(
-          "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
-        )
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-    ]);
+  const clientResult = await serviceSupabase
+    .from("clients")
+    .select("id, name, dot_number, mc_number, tier")
+    .eq("id", clientId)
+    .single();
 
   if (clientResult.error || !clientResult.data) {
     const status = clientResult.error?.code === "PGRST116" ? 404 : 500;
@@ -247,26 +228,124 @@ export async function POST(request: Request) {
       { status }
     );
   }
-  if (snapshotsResult.error) {
-    return NextResponse.json(
-      { error: `Unable to load burden snapshots: ${snapshotsResult.error.message}` },
-      { status: 500 }
-    );
-  }
-  if (dataqResult.error) {
-    return NextResponse.json(
-      { error: `Unable to load DataQ cases: ${dataqResult.error.message}` },
-      { status: 500 }
-    );
-  }
-  if (cpdpResult.error) {
-    return NextResponse.json(
-      { error: `Unable to load CPDP cases: ${cpdpResult.error.message}` },
-      { status: 500 }
-    );
+  const client = clientResult.data as ClientRow;
+  const clientTier = normalizeClientTier(client.tier);
+  const canTrend = tierHasFeature(clientTier, "trend_history");
+  const canSeeCases = tierHasFeature(clientTier, "case_visibility");
+  const canSeeCoaching = tierHasFeature(clientTier, "playbook_coach");
+  const canSeeCompliance = tierHasFeature(clientTier, "compliance_layer");
+  const emptyResult = () => Promise.resolve({ data: [], error: null });
+
+  const [
+    snapshotsResult,
+    dataqResult,
+    cpdpResult,
+    coachingResult,
+    driversResult,
+    driverDocumentsResult,
+    vehiclesResult,
+    maintenanceResult,
+    clearinghouseResult,
+  ] = await Promise.all([
+    serviceSupabase
+      .from("burden_snapshots")
+      .select(
+        "id, snapshot_date, captured_at, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
+      )
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .order("captured_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(canTrend ? 2 : 1),
+    canSeeCases
+      ? serviceSupabase
+          .from("dataq_cases")
+          .select(
+            "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
+          )
+          .eq("client_id", clientId)
+          .not("status", "in", '("approved","denied","closed")')
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+      : emptyResult(),
+    canSeeCases
+      ? serviceSupabase
+          .from("cpdp_cases")
+          .select(
+            "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
+          )
+          .eq("client_id", clientId)
+          .not("status", "in", '("determination_made","closed")')
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+      : emptyResult(),
+    canSeeCoaching
+      ? serviceSupabase
+          .from("action_items")
+          .select(
+            "type, title, description, priority, projected_impact_score, status, due_date"
+          )
+          .eq("client_id", clientId)
+          .neq("status", "dismissed")
+          .order("priority", { ascending: true })
+          .order("created_at", { ascending: true })
+      : emptyResult(),
+    canSeeCompliance
+      ? serviceSupabase
+          .from("drivers")
+          .select("cdl_number, cdl_expiry, medical_cert_expiry")
+          .eq("client_id", clientId)
+          .eq("status", "active")
+      : emptyResult(),
+    canSeeCompliance
+      ? serviceSupabase
+          .from("driver_documents")
+          .select("doc_type, expiry_date, status")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: true })
+      : emptyResult(),
+    canSeeCompliance
+      ? serviceSupabase
+          .from("vehicles")
+          .select("id")
+          .eq("client_id", clientId)
+          .eq("status", "active")
+      : emptyResult(),
+    canSeeCompliance
+      ? serviceSupabase
+          .from("vehicle_maintenance")
+          .select("maintenance_type, scheduled_date, completed_date, notes")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: true })
+      : emptyResult(),
+    canSeeCompliance
+      ? serviceSupabase
+          .from("clearinghouse_records")
+          .select("query_date, result_type")
+          .eq("client_id", clientId)
+          .order("query_date", { ascending: true })
+      : emptyResult(),
+  ]);
+
+  for (const [label, result] of [
+    ["burden snapshots", snapshotsResult],
+    ["DataQ cases", dataqResult],
+    ["CPDP cases", cpdpResult],
+    ["coaching program", coachingResult],
+    ["compliance drivers", driversResult],
+    ["compliance driver documents", driverDocumentsResult],
+    ["compliance vehicles", vehiclesResult],
+    ["compliance maintenance", maintenanceResult],
+    ["compliance clearinghouse records", clearinghouseResult],
+  ] as const) {
+    if (result.error) {
+      return NextResponse.json(
+        { error: `Unable to load ${label}: ${result.error.message}` },
+        { status: 500 }
+      );
+    }
   }
 
-  const client = clientResult.data as ClientRow;
   const snapshots = (snapshotsResult.data ?? []) as unknown as ReportSnapshotRow[];
   if (snapshots.length === 0) {
     return NextResponse.json(
@@ -276,7 +355,7 @@ export async function POST(request: Request) {
   }
 
   let newViolations: ReportViolationRow[] = [];
-  if (snapshots[1]) {
+  if (canTrend && snapshots[1]) {
     let canonicalInspectionIds: Set<string>;
     try {
       const scope = await getCanonicalInspectionScope(clientId, serviceSupabase);
@@ -334,12 +413,21 @@ export async function POST(request: Request) {
       description: storedCaseDescription(row),
     })),
   ];
+  const coachingItems = (coachingResult.data ?? []) as unknown as ReportCoachingItemRow[];
+  const compliance: ReportComplianceInput = {
+    drivers: (driversResult.data ?? []) as unknown as ComplianceDriverRow[],
+    driverDocuments: (driverDocumentsResult.data ?? []) as unknown as ComplianceDriverDocumentRow[],
+    vehicles: (vehiclesResult.data ?? []) as unknown as ComplianceVehicleRow[],
+    maintenanceRecords: (maintenanceResult.data ?? []) as unknown as ComplianceMaintenanceRow[],
+    clearinghouseRecords: (clearinghouseResult.data ?? []) as unknown as ComplianceClearinghouseRow[],
+  };
 
   let reportData: ReportGenerationData;
   try {
     reportData = buildReportGenerationData({
       reportType: type,
       reportDate: formatReportDate(),
+      serviceTier: clientTier,
       carrier: {
         name: client.name,
         dotNumber: client.dot_number,
@@ -348,6 +436,8 @@ export async function POST(request: Request) {
       snapshots,
       newViolations,
       cases,
+      coachingItems,
+      compliance,
     });
   } catch (error) {
     return NextResponse.json(
@@ -405,6 +495,8 @@ export async function POST(request: Request) {
     description: `${reportLabel} AI draft generated`,
     metadata: {
       generation_attempts: generationAttempts,
+      service_tier: reportData.serviceTier,
+      section_headings: reportData.sections.map((section) => section.heading),
       latest_snapshot_id: reportData.latestSnapshot.id,
       previous_snapshot_id: reportData.previousSnapshot?.id ?? null,
     },
