@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
 import { toFilingReadyNarrative } from "@/lib/cpdp/filing-narrative";
+import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
+import { FiledAuthorizationStatus } from "@/components/console/filed-authorization-status";
 import {
   Car,
   AlertTriangle,
   Check,
-  ChevronDown,
-  ChevronUp,
   Download,
   Upload,
   FileText,
@@ -101,44 +101,57 @@ const STATUS_STEPS = [
 ] as const;
 
 // 'pending' is deprecated — treat it as 'filed' for display purposes.
-type CpdpStatus = (typeof STATUS_STEPS)[number]["key"]; // 'pending' deprecated, maps to 'filed'
-
-function StatusTracker({ status }: { status: string }) {
+function StatusTracker({
+  status,
+  filedDate,
+}: {
+  status: string;
+  filedDate: string | null;
+}) {
   // Defensive: treat legacy 'pending' rows as 'filed' in the tracker.
   const normalizedStatus = status === "pending" ? "filed" : status;
   const currentIdx = STATUS_STEPS.findIndex((s) => s.key === normalizedStatus);
+  const filedTimeline =
+    normalizedStatus === "filed" ? cpdpFiledTimelineLabel(filedDate) : null;
   return (
-    <div className="flex items-center gap-0 w-full overflow-x-auto pb-1">
-      {STATUS_STEPS.map((step, i) => {
-        const done = i < currentIdx;
-        const active = i === currentIdx;
-        return (
-          <div key={step.key} className="flex items-center flex-1 min-w-0">
-            <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-              <div
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold
-                  ${done ? "bg-green-500 text-white" : active ? "bg-[#C67A1E] text-white" : "bg-gray-200 text-gray-400"}`}
-              >
-                {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
+    <div className="space-y-3">
+      <div className="flex items-center gap-0 w-full overflow-x-auto pb-1">
+        {STATUS_STEPS.map((step, i) => {
+          const done = i < currentIdx;
+          const active = i === currentIdx;
+          return (
+            <div key={step.key} className="flex items-center flex-1 min-w-0">
+              <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                <div
+                  className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold
+                    ${done ? "bg-green-500 text-white" : active ? "bg-[#C67A1E] text-white" : "bg-gray-200 text-gray-400"}`}
+                >
+                  {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
+                </div>
+                <span
+                  className={`text-[10px] text-center leading-tight truncate w-full px-1 ${
+                    active ? "text-[#C67A1E] font-semibold" : done ? "text-green-600" : "text-gray-400"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`text-[10px] text-center leading-tight truncate w-full px-1 ${
-                  active ? "text-[#C67A1E] font-semibold" : done ? "text-green-600" : "text-gray-400"
-                }`}
-              >
-                {step.label}
-              </span>
+              {i < STATUS_STEPS.length - 1 && (
+                <div
+                  className={`h-0.5 flex-shrink-0 w-6 mx-1 ${
+                    i < currentIdx ? "bg-green-400" : "bg-gray-200"
+                  }`}
+                />
+              )}
             </div>
-            {i < STATUS_STEPS.length - 1 && (
-              <div
-                className={`h-0.5 flex-shrink-0 w-6 mx-1 ${
-                  i < currentIdx ? "bg-green-400" : "bg-gray-200"
-                }`}
-              />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {filedTimeline && (
+        <p className="text-center text-xs font-medium text-gray-600">
+          {filedTimeline}
+        </p>
+      )}
     </div>
   );
 }
@@ -585,7 +598,7 @@ export function CpdpCaseEditor({
 
       {/* ── Status Tracker ─────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-[#F0E8DA] p-5">
-        <StatusTracker status={status} />
+        <StatusTracker status={status} filedDate={cpdpCase.filed_date} />
       </div>
 
       {/* ── Case Summary ───────────────────────────────────────────────────── */}
@@ -971,34 +984,43 @@ export function CpdpCaseEditor({
         <div className="bg-white rounded-xl border border-[#F0E8DA] p-5 space-y-4">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">4. File with FMCSA</h2>
 
-          <div
-            className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${
-              filingAuthorized
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-amber-200 bg-amber-50 text-amber-800"
-            }`}
-          >
-            {filingAuthorized ? (
-              <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
-            ) : (
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
-            )}
-            <div>
-              <p className="font-semibold">
-                {filingAuthorized
-                  ? `Client authorized GEIA to file on their behalf${filingAuthorizedBy ? ` (${filingAuthorizedBy})` : ""}.`
-                  : "No filing authorization on record for this client."}
-              </p>
-              {!filingAuthorized && (
-                <p className="mt-0.5">
-                  GEIA files on the carrier&apos;s behalf and attests under 18 USC 1001 - obtain the client&apos;s authorization (onboarding Step 3) before filing.
+          {status === "filed" || status === "pending" ? (
+            <FiledAuthorizationStatus
+              clientId={clientId}
+              filingAuthorized={filingAuthorized}
+              filingAuthorizedBy={filingAuthorizedBy}
+              filingAuthorizationScope={filingAuthorizationScope}
+            />
+          ) : (
+            <div
+              className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${
+                filingAuthorized
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {filingAuthorized ? (
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+              )}
+              <div>
+                <p className="font-semibold">
+                  {filingAuthorized
+                    ? `Client authorized GEIA to file on their behalf${filingAuthorizedBy ? ` (${filingAuthorizedBy})` : ""}.`
+                    : "No filing authorization on record for this client."}
                 </p>
-              )}
-              {filingAuthorized && filingAuthorizationScope && (
-                <p className="mt-0.5 text-[11px] text-green-600">{filingAuthorizationScope}</p>
-              )}
+                {!filingAuthorized && (
+                  <p className="mt-0.5">
+                    GEIA files on the carrier&apos;s behalf and attests under 18 USC 1001 - obtain the client&apos;s authorization (onboarding Step 3) before filing.
+                  </p>
+                )}
+                {filingAuthorized && filingAuthorizationScope && (
+                  <p className="mt-0.5 text-[11px] text-green-600">{filingAuthorizationScope}</p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {status === "filed" || status === "pending" ? (
             // 'filed' and legacy 'pending' are the same state: submitted to DataQs,
@@ -1400,6 +1422,18 @@ export function CpdpCaseEditor({
       )}
 
       {/* ── Section 5: Determination ───────────────────────────────────────── */}
+      {isResolved && (
+        <div className="bg-white rounded-xl border border-[#F0E8DA] p-5 space-y-4">
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">4. File with FMCSA</h2>
+          <FiledAuthorizationStatus
+            clientId={clientId}
+            filingAuthorized={filingAuthorized}
+            filingAuthorizedBy={filingAuthorizedBy}
+            filingAuthorizationScope={filingAuthorizationScope}
+          />
+        </div>
+      )}
+
       {status === "determination_made" && (
         <div className="bg-white rounded-xl border border-[#F0E8DA] p-5 space-y-3">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">5. Determination</h2>

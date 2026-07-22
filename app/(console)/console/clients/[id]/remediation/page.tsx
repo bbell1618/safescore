@@ -11,6 +11,7 @@ import { caseStatusLabel, caseStatusVariant, formatDate } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { getRemediationNextStep } from "@/lib/analysis/remediation-next-step";
+import { summarizeInvestigationBurden } from "@/lib/analysis/remediation-presentation";
 
 export const dynamic = "force-dynamic";
 
@@ -182,6 +183,10 @@ export default async function RemediationPage({
 
   const laneBPercent = queue.totalPoints > 0 ? Math.round((queue.laneBPoints / queue.totalPoints) * 100) : 0;
   const laneCPercent = queue.totalPoints > 0 ? Math.round((queue.laneCPoints / queue.totalPoints) * 100) : 0;
+  const investigationSummary = summarizeInvestigationBurden(
+    queue.laneInvestigate,
+    queue.totalPoints
+  );
   const openCaseCount = [...(dataqCases ?? []), ...(cpdpCases ?? [])].filter(
     (caseRow) => !["won", "lost", "closed", "withdrawn"].includes(caseRow.status)
   ).length;
@@ -210,6 +215,15 @@ export default async function RemediationPage({
             <p className="text-sm text-gray-500 mt-2">
               Most carriers&apos; burden is operational and reduces as violations age out of the 24-month window; only genuine data errors and crash-preventability are challengeable.
             </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Under investigation:{" "}
+              <span className="font-semibold text-[#1E1C1A]">
+                {investigationSummary.points} pts ({investigationSummary.percent}%)
+              </span>{" "}
+              across {investigationSummary.violationCount} violation
+              {investigationSummary.violationCount === 1 ? "" : "s"}
+              {" \u2014 evidence pending."}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <ServiceTierChip tier={clientTier} feature="playbook_coach" />
@@ -231,33 +245,33 @@ export default async function RemediationPage({
         </div>
       </div>
 
-      <section className="bg-white rounded-xl border border-[#E1D5C4] p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <section className="rounded-2xl border-2 border-[#C67A1E]/40 bg-gradient-to-br from-[#FFF8EA] via-white to-[#FBF7F0] p-6 shadow-sm">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold text-[#1E1C1A] text-sm">What next</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8B5E2B]">What next</p>
               <Badge variant="outline">{nextStep.label}</Badge>
             </div>
-            <p className="text-sm font-medium text-[#1E1C1A] mt-2">{nextStep.title}</p>
-            <p className="text-xs text-gray-500 mt-1 max-w-3xl">{nextStep.detail}</p>
+            <h2 className="mt-2 text-xl font-bold text-[#1E1C1A]">{nextStep.title}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">{nextStep.detail}</p>
           </div>
           <Link
             href={`/console/clients/${id}${nextStep.hrefSuffix}`}
-            className="text-xs font-medium text-[#8B5E2B] hover:underline shrink-0"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#C67A1E] px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#B86E18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A1E] focus-visible:ring-offset-2"
           >
             {nextStep.action} &rarr;
           </Link>
         </div>
-        <div className="grid gap-2 mt-4 md:grid-cols-3 text-xs">
-          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+        <div className="mt-5 grid gap-2 border-t border-[#EAD8BC] pt-4 text-xs md:grid-cols-3">
+          <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
             <p className="font-semibold text-[#1E1C1A]">Lane A - CPDP</p>
             <p className="text-gray-500 mt-1">Review eligible crashes for documented non-preventability.</p>
           </div>
-          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+          <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
             <p className="font-semibold text-[#1E1C1A]">Lane B - DataQs</p>
             <p className="text-gray-500 mt-1">File only genuinely erroneous violations supported by actual evidence. Investigate means evidence is needed, not that the violation is removable.</p>
           </div>
-          <div className="rounded-lg bg-[#FBF7F0] border border-[#F0E8DA] p-3">
+          <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
             <p className="font-semibold text-[#1E1C1A]">Lane C - operational fixes</p>
             <p className="text-gray-500 mt-1">Correct legitimate safety issues and monitor their 24-month age-out.</p>
           </div>
@@ -345,7 +359,7 @@ export default async function RemediationPage({
                       </td>
                     </tr>
                   ) : (
-                    <tr key={`operational-${item.violation.id}`} className="bg-[#FBF7F0]">
+                    <tr key={`operational-${item.violation.id}`} className="bg-white/50">
                       <td className="px-5 py-4"><Badge variant="outline">C</Badge></td>
                       <td className="px-5 py-4">
                         <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
@@ -356,9 +370,11 @@ export default async function RemediationPage({
                       <td className="px-5 py-4 text-gray-600">
                         {OPERATIONAL_RECOMMENDATIONS[item.basicCategory] ?? "Operational correction. Ages out over 24 months."}
                       </td>
-                      <td className="px-5 py-4"><Badge variant="outline">Operational</Badge></td>
                       <td className="px-5 py-4">
-                        <Link className="text-[#C67A1E] hover:underline font-medium" href={`/console/clients/${id}/violations`}>
+                        <span className="text-xs text-gray-400">No filing action</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <Link className="font-medium text-gray-500 hover:text-[#8B5E2B] hover:underline" href={`/console/clients/${id}/violations`}>
                           Open
                         </Link>
                       </td>
@@ -371,24 +387,24 @@ export default async function RemediationPage({
         </div>
       </section>
 
-      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
-        <div className="p-5 border-b border-[#F0E8DA]">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">Operational burden (not challengeable)</h2>
-          <p className="text-xs text-gray-500 mt-1">Lane C is not filed against FMCSA - the remedy is operational + time decay, and SafeScore monitors the decay.</p>
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white/60">
+        <div className="border-b border-gray-200 p-5">
+          <h2 className="text-sm font-medium text-gray-600">Operational burden (not challengeable)</h2>
+          <p className="mt-1 text-xs text-gray-400">Lane C is not filed against FMCSA - the remedy is operational + time decay, and SafeScore monitors the decay.</p>
         </div>
-        <div className="divide-y divide-[#F0E8DA]">
+        <div className="divide-y divide-gray-100">
           {queue.operationalGroups.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-gray-400">No scored operational burden in the current window.</div>
           ) : (
             queue.operationalGroups.map((group) => (
-              <div key={group.basicCategory} className="p-5 grid gap-3 md:grid-cols-[220px_1fr]">
+              <div key={group.basicCategory} className="grid gap-3 p-5 text-gray-500 md:grid-cols-[220px_1fr]">
                 <div>
-                  <div className="font-semibold text-[#1E1C1A] text-sm">{group.label}</div>
+                  <div className="text-sm font-medium text-gray-600">{group.label}</div>
                   <div className="text-xs text-gray-500 mt-1">
                     {group.count} violation{group.count === 1 ? "" : "s"} {"\u00B7"} {group.points} pts
                   </div>
                 </div>
-                <p className="text-sm text-gray-600">{group.recommendation}</p>
+                <p className="text-sm text-gray-500">{group.recommendation}</p>
               </div>
             ))
           )}

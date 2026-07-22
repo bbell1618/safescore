@@ -14,8 +14,21 @@ export default async function ConsoleLayout({
 
   if (!user) redirect("/login");
 
-  const role = user.user_metadata?.role as string | undefined;
-  if (role === "client_user") redirect("/portal");
+  const { data: userRecord, error: roleError } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (roleError || !userRecord) {
+    throw new Error(
+      `Unable to verify console access: ${roleError?.message ?? "profile not found"}`
+    );
+  }
+  if (userRecord.role === "client_user") redirect("/portal");
+  if (userRecord.role !== "geia_admin" && userRecord.role !== "geia_staff") {
+    redirect("/login");
+  }
 
   return (
     <div className="flex h-screen bg-[#FEFCF8] overflow-hidden">

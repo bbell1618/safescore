@@ -146,7 +146,7 @@ export default async function DataqPage({
         {[
           { status: "investigating", label: "Investigating" },
           { status: "draft", label: "Draft" },
-          { status: "filed", label: "Filed" },
+          { status: "filed", label: "Filed / Pending FMCSA" },
           { status: "pending_state", label: "Pending state" },
           { status: "pending_fmcsa", label: "Pending FMCSA" },
           { status: "approved", label: "Approved" },

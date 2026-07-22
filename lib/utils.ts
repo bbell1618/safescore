@@ -53,7 +53,7 @@ export function caseStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     investigating: "Investigating",
     draft: "Draft",
-    filed: "Filed",
+    filed: "Filed / Pending FMCSA",
     pending_state: "Pending state",
     pending_fmcsa: "Pending FMCSA",
     approved: "Approved",

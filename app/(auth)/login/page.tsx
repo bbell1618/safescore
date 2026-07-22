@@ -30,8 +30,22 @@ function LoginForm() {
       return;
     }
 
-    const role = data.user?.user_metadata?.role as string | undefined;
-    router.push(role === "client_user" ? "/portal" : "/console");
+    const { data: userRecord, error: roleError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    if (roleError || !userRecord) {
+      await supabase.auth.signOut();
+      setError(
+        `Unable to verify your SafeScore role: ${roleError?.message ?? "profile not found"}`
+      );
+      setLoading(false);
+      return;
+    }
+
+    router.push(userRecord.role === "client_user" ? "/portal" : "/console");
   }
 
   return (

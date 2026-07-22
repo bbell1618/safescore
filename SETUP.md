@@ -69,12 +69,14 @@ SET role = 'geia_admin'
 WHERE email = 'your-staff-email@example.com';
 ```
 
-Or to set role at signup, the `handle_new_user` trigger reads `raw_user_meta_data.role`.
-You can use the Supabase Admin API to create a user with metadata:
+The signup trigger always creates a `client_user` profile. Never put an authorization
+role in user metadata because account holders can edit that metadata. Staff promotion
+must be an explicit privileged update to `public.users.role` through the Supabase
+dashboard/SQL editor or another service-role-only admin path.
 
 ```bash
 # Using Supabase dashboard: Authentication → Users → Add user
-# Then update role in SQL editor as shown above
+# Then update public.users.role in SQL editor as shown above
 ```
 
 ---

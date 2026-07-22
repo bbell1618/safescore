@@ -26,6 +26,7 @@ import { mapReasonCode } from "@/lib/analysis/reason-codes";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narrative-sentinels";
 import { ServiceTierChip } from "@/components/console/service-tier-chip";
+import { FiledAuthorizationStatus } from "@/components/console/filed-authorization-status";
 import type { ClientTier } from "@/lib/supabase/types";
 
 interface ViolationDetail {
@@ -1392,7 +1393,7 @@ export function DataqWorkbench({
                       {(() => {
                         const steps = [
                           { key: "draft", label: "Draft" },
-                          { key: "filed", label: "Filed" },
+                          { key: "filed", label: "Filed / Pending FMCSA" },
                           { key: "pending_state", label: "Pending State" },
                           { key: "pending_fmcsa", label: "Pending FMCSA" },
                           { key: "resolved", label: "Resolved" },
@@ -1435,6 +1436,13 @@ export function DataqWorkbench({
                     </div>
 
                     {/* D — Evidence section (FILED, read-only) */}
+                    <FiledAuthorizationStatus
+                      clientId={clientId}
+                      filingAuthorized={filingAuthorized}
+                      filingAuthorizedBy={filingAuthorizedBy}
+                      filingAuthorizationScope={filingAuthorizationScope}
+                    />
+
                     {caseEvidence.length > 0 && (
                       <EvidenceSection
                         caseId={c.id}
@@ -1572,6 +1580,13 @@ export function DataqWorkbench({
                 {/* ===================== RESOLVED PHASE ===================== */}
                 {isResolved && (
                   <>
+                    <FiledAuthorizationStatus
+                      clientId={clientId}
+                      filingAuthorized={filingAuthorized}
+                      filingAuthorizedBy={filingAuthorizedBy}
+                      filingAuthorizationScope={filingAuthorizationScope}
+                    />
+
                     <div className="flex items-center gap-3 flex-wrap">
                       <span
                         className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-bold ${

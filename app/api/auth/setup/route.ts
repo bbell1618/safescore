@@ -113,8 +113,6 @@ export async function POST(request: Request) {
           password,
           email_confirm: true,
           user_metadata: {
-            role: "client_user",
-            client_id: invite.client_id,
             full_name: fullName || "",
           },
         }
@@ -131,8 +129,6 @@ export async function POST(request: Request) {
         password,
         email_confirm: true,
         user_metadata: {
-          role: "client_user",
-          client_id: invite.client_id,
           full_name: fullName || "",
         },
       });
@@ -148,7 +144,7 @@ export async function POST(request: Request) {
     }
 
     // Ensure users table row exists with correct client_id
-    await supabase.from("users").upsert(
+    const { error: userUpsertError } = await supabase.from("users").upsert(
       {
         id: authUserId,
         email: invite.email.toLowerCase(),
@@ -158,12 +154,24 @@ export async function POST(request: Request) {
       },
       { onConflict: "id" }
     );
+    if (userUpsertError) {
+      return NextResponse.json(
+        { error: `Failed to link portal profile: ${userUpsertError.message}` },
+        { status: 500 }
+      );
+    }
 
     // Mark invite as used
-    await supabase
+    const { error: inviteUpdateError } = await supabase
       .from("client_invites")
       .update({ used_at: new Date().toISOString() })
       .eq("id", invite.id);
+    if (inviteUpdateError) {
+      return NextResponse.json(
+        { error: `Failed to complete invite: ${inviteUpdateError.message}` },
+        { status: 500 }
+      );
+    }
 
     // Send welcome email — non-fatal if it fails
     const { data: clientRecord } = await supabase

@@ -2,7 +2,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
 import { sendViolationEmailsForIds } from "@/lib/monitoring/alerts";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runChallengeabilityAssessment, type ChallengeabilityRunResult } from "@/lib/analysis/challengeability-assessment-server";
@@ -30,8 +30,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = user.user_metadata?.role as string | undefined;
-  if (role !== "geia_admin" && role !== "geia_staff") {
+  const serviceClient = await createServiceClient();
+  const { data: userRecord, error: roleError } = await serviceClient
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (roleError) {
+    return NextResponse.json(
+      { error: `Unable to verify staff role: ${roleError.message}` },
+      { status: 500 }
+    );
+  }
+  if (userRecord?.role !== "geia_admin" && userRecord?.role !== "geia_staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
