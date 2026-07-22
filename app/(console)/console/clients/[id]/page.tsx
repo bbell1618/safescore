@@ -6,6 +6,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { getClientBasicReconciliation } from "@/lib/analysis/basic-reconciliation-server";
 import { getRecentSnapshots } from "@/lib/monitoring/diff";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { formatViolationWindowSummary } from "@/lib/analysis/violation-list";
 
 export const dynamic = "force-dynamic";
 
@@ -79,12 +80,6 @@ export default async function ClientOverviewPage({
     .from("violations")
     .select("*", { count: "exact", head: true })
     .eq("client_id", id);
-  const challengeableCountQuery = supabase
-    .from("violations")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", id)
-    .not("basic_category", "is", null)
-    .not("severity_weight", "is", null);
 
   const [
     { data: carrierProfile },
@@ -92,7 +87,6 @@ export default async function ClientOverviewPage({
     { count: violationCount },
     { count: dataqCount },
     { count: cpdpCount },
-    { count: challengeableCount },
     reconciliation,
     monitoringSnapshots,
   ] = await Promise.all([
@@ -113,9 +107,6 @@ export default async function ClientOverviewPage({
       : violationCountQuery.in("inspection_id", []),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("cpdp_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
-    canonicalInspectionIds.length > 0
-      ? challengeableCountQuery.in("inspection_id", canonicalInspectionIds)
-      : challengeableCountQuery.in("inspection_id", []),
     getClientBasicReconciliation(id),
     getRecentSnapshots(id, 2),
   ]);
@@ -245,7 +236,10 @@ export default async function ClientOverviewPage({
         <SummaryLink
           title="Violations"
           value={`${violationCount ?? 0} total violations on file`}
-          body={`${challengeableCount ?? 0} have category and severity data for BASIC scoring.`}
+          body={formatViolationWindowSummary(
+            violationCount ?? 0,
+            reconciliation.queryTrace.inWindowViolationCount
+          )}
           href={`/console/clients/${id}/violations`}
           linkText="View in Violations"
         />

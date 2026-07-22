@@ -12,6 +12,10 @@ import {
   planDetailViolationWrites,
   type DetailViolationCandidate,
 } from "@/lib/fmcsa/ingest-write-policy";
+import {
+  reassessViolationOnChange,
+  type ViolationEnrichmentRow,
+} from "@/lib/challengeability/reassess-on-change";
 
 export const dynamic = "force-dynamic";
 
@@ -283,7 +287,8 @@ export async function POST(request: NextRequest) {
   if (upsertedIds.length > 0) {
     const { data: existingViolationRows, error: violationReadError } = await serviceSupabase
       .from("violations")
-      .select("id, inspection_id, violation_code")
+      .select("id, client_id, inspection_id, violation_code, citation_number, citation_result, convicted")
+      .eq("client_id", clientId)
       .in("inspection_id", upsertedIds);
     if (violationReadError) {
       return NextResponse.json({ error: violationReadError.message }, { status: 500 });
@@ -314,13 +319,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const existingViolationById = new Map(
+      (existingViolationRows ?? []).map((row) => [row.id, row])
+    );
+
     for (const update of violationPlan.updates) {
-      const { error } = await serviceSupabase
+      const before = existingViolationById.get(update.id);
+      if (!before) {
+        return NextResponse.json(
+          { error: `Unable to load existing violation ${update.id} before enrichment update` },
+          { status: 500 }
+        );
+      }
+
+      const { data: after, error } = await serviceSupabase
         .from("violations")
         .update(update.payload)
-        .eq("id", update.id);
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        .eq("client_id", clientId)
+        .eq("id", update.id)
+        .select("id, client_id, citation_number, citation_result, convicted")
+        .single();
+      if (error || !after) {
+        return NextResponse.json(
+          { error: error?.message ?? `Failed to update violation ${update.id}` },
+          { status: 500 }
+        );
+      }
+
+      try {
+        await reassessViolationOnChange(serviceSupabase, {
+          clientId,
+          violationId: update.id,
+          before: before as ViolationEnrichmentRow,
+          after: after as ViolationEnrichmentRow,
+        });
+      } catch (reassessmentError) {
+        const message = reassessmentError instanceof Error
+          ? reassessmentError.message
+          : "Unknown challengeability reassessment failure";
+        return NextResponse.json(
+          {
+            error: `Violation ${update.id} was enriched, but challengeability reassessment failed: ${message}`,
+          },
+          { status: 502 }
+        );
       }
     }
 

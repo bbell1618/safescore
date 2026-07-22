@@ -34,7 +34,7 @@ export default async function ViolationsPage({
     await getCanonicalInspectionScope(id, supabase);
   const violationsQuery = supabase
     .from("violations")
-    .select("*, inspections(inspection_date, state, level, facility_name)")
+    .select("*, inspections(inspection_date, state, level, facility_name, report_number)")
     .eq("client_id", id)
     .order("created_at", { ascending: false });
   const scopedViolationsQuery = canonicalInspectionIds.length > 0

@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  isPublicEvidencePagePath,
+  isPublicEvidenceUploadPath,
+} from "@/lib/auth/public-paths";
 import { isClientTier, isSubscriptionTier } from "@/lib/tiers";
 
 export async function proxy(request: NextRequest) {
@@ -39,7 +43,7 @@ export async function proxy(request: NextRequest) {
       "/api/billing/webhook",
       "/api/fmcsa/",
     ];
-    const isPublicEvidenceUpload = /^\/api\/evidence\/[^/]+\/upload$/.test(path);
+    const isPublicEvidenceUpload = isPublicEvidenceUploadPath(path);
     if (
       isPublicEvidenceUpload ||
       publicApiExactPaths.has(path) ||
@@ -72,7 +76,13 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (!user && !path.startsWith("/login") && !path.startsWith("/auth") && !path.startsWith("/setup")) {
+  if (
+    !user &&
+    !path.startsWith("/login") &&
+    !path.startsWith("/auth") &&
+    !path.startsWith("/setup") &&
+    !isPublicEvidencePagePath(path)
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

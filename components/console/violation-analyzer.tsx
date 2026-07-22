@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { scoreChallenge } from "@/lib/analysis/challengeability-v2";
 import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
 import { BASIC_LABELS, timeWeightFor } from "@/lib/analysis/basic-measure";
+import {
+  countViolationTiers,
+  violationMatchesSearch,
+  type ViolationTierFilter,
+} from "@/lib/analysis/violation-list";
 import { formatDate } from "@/lib/utils";
 import {
   CheckCircle,
@@ -33,6 +38,7 @@ interface ViolationRow {
     state: string | null;
     level: string | null;
     facility_name: string | null;
+    report_number: string | null;
   } | null;
 }
 
@@ -48,20 +54,13 @@ interface Props {
   dataqCases: DataqCaseRow[];
 }
 
-type TierFilter =
-  | "all"
-  | "strong"
-  | "moderate"
-  | "investigate"
-  | "not_challengeable"
-  | "operational";
 type SeverityFilter = "all" | "8plus" | "5plus" | "under5" | "unscored";
 type SortField = "date" | "points" | "severity";
 type SortDirection = "asc" | "desc";
 
 export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
   const router = useRouter();
-  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [tierFilter, setTierFilter] = useState<ViolationTierFilter>("all");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [searchText, setSearchText] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -120,6 +119,11 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
     });
   }, [violations, asOf]);
 
+  const tierCounts = useMemo(
+    () => countViolationTiers(scoredViolations.map(({ challengeScore }) => challengeScore.label)),
+    [scoredViolations]
+  );
+
   const basicOptions = useMemo(() => {
     return Array.from(
       new Set(violations.map((violation) => violation.basic_category).filter(Boolean) as string[])
@@ -127,7 +131,6 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
   }, [violations]);
 
   const filtered = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
     const rows = scoredViolations.filter(({ violation, challengeScore }) => {
       if (tierFilter !== "all" && challengeScore.label !== tierFilter) return false;
       if (basicFilter !== "all" && violation.basic_category !== basicFilter) return false;
@@ -142,10 +145,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
       if (dateFrom && (!inspectionDate || inspectionDate < dateFrom)) return false;
       if (dateTo && (!inspectionDate || inspectionDate > dateTo)) return false;
 
-      if (query) {
-        const haystack = `${violation.violation_code ?? ""} ${violation.violation_description ?? ""}`.toLowerCase();
-        if (!haystack.includes(query)) return false;
-      }
+      if (!violationMatchesSearch(violation, searchText)) return false;
 
       return true;
     });
@@ -230,8 +230,9 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
             ["investigate", "Investigate"],
             ["not_challengeable", "Not challengeable"],
             ["operational", "Operational"],
-          ] as Array<[TierFilter, string]>).map(([value, label]) => (
+          ] as Array<[ViolationTierFilter, string]>).map(([value, label]) => (
             <button
+              type="button"
               key={value}
               onClick={() => setTierFilter(value)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -240,7 +241,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
                   : "bg-[#FEFCF8] text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {label}
+              {label} {"\u00B7"} {tierCounts[value]}
             </button>
           ))}
         </div>
@@ -251,7 +252,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Code or description"
+              placeholder="Code, description, or report number"
               className="mt-1 w-full rounded-lg border border-[#F0E8DA] bg-white px-3 py-2 text-sm text-[#1E1C1A] outline-none focus:border-[#C67A1E]"
             />
           </label>
