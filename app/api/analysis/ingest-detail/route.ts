@@ -7,6 +7,11 @@ import type { InspectionDetailInspection } from "@/lib/fmcsa/inspection-detail-x
 import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { parseAllBasicsExport } from "@/lib/fmcsa/all-basics-export";
+import {
+  buildSourceUpdate,
+  planDetailViolationWrites,
+  type DetailViolationCandidate,
+} from "@/lib/fmcsa/ingest-write-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +24,15 @@ type InspectionRow = {
   id: string;
   mcmis_inspection_id: string | null;
   report_number: string;
+};
+
+type InspectionVehicleIdentity = {
+  id: string;
+  inspection_id: string;
+  unit_number: number | null;
+  vin: string | null;
+  license_plate: string | null;
+  license_state: string | null;
 };
 
 type ServiceSupabaseClient = Awaited<ReturnType<typeof createServiceClient>>;
@@ -168,41 +182,74 @@ export async function POST(request: NextRequest) {
   if (inspections.length === 0) {
     return NextResponse.json({ error: "COMPASS XML contains no inspections" }, { status: 400 });
   }
-  const incomingMcmisIds = inspections.map((inspection) => inspection.mcmisInspectionId);
-
-  const { data: untouchedRows } = await serviceSupabase
-    .from("inspections")
-    .select("id")
-    .eq("client_id", clientId)
-    .eq("dot_number", dotNumber)
-    .not("mcmis_inspection_id", "in", `(${incomingMcmisIds.map(quotePostgrestListValue).join(",")})`);
-
   const { data: existingRows, error: existingError } = await serviceSupabase
     .from("inspections")
     .select("id, mcmis_inspection_id, report_number")
-    .eq("client_id", clientId)
-    .in("mcmis_inspection_id", incomingMcmisIds);
+    .eq("client_id", clientId);
 
   if (existingError) {
     return NextResponse.json({ error: existingError.message }, { status: 500 });
   }
 
-  const existingByMcmis = new Map(
-    ((existingRows ?? []) as InspectionRow[])
-      .filter((row) => row.mcmis_inspection_id)
-      .map((row) => [row.mcmis_inspection_id as string, row])
+  const existingByMcmis = new Map<string, InspectionRow>();
+  for (const row of (existingRows ?? []) as InspectionRow[]) {
+    if (!row.mcmis_inspection_id) continue;
+    const prior = existingByMcmis.get(row.mcmis_inspection_id);
+    if (prior && prior.id !== row.id) {
+      return NextResponse.json(
+        { error: `Ambiguous existing MCMIS inspection ID: ${row.mcmis_inspection_id}` },
+        { status: 409 }
+      );
+    }
+    existingByMcmis.set(row.mcmis_inspection_id, row);
+  }
+  const existingByReport = new Map(
+    ((existingRows ?? []) as InspectionRow[]).map((row) => [row.report_number, row])
   );
 
+  const incomingMcmisIds = new Set<string>();
+  const incomingReportNumbers = new Set<string>();
+  for (const inspection of inspections) {
+    if (incomingMcmisIds.has(inspection.mcmisInspectionId)) {
+      return NextResponse.json(
+        { error: `Duplicate incoming MCMIS inspection ID: ${inspection.mcmisInspectionId}` },
+        { status: 409 }
+      );
+    }
+    if (incomingReportNumbers.has(inspection.reportNumber)) {
+      return NextResponse.json(
+        { error: `Duplicate incoming report number: ${inspection.reportNumber}` },
+        { status: 409 }
+      );
+    }
+    incomingMcmisIds.add(inspection.mcmisInspectionId);
+    incomingReportNumbers.add(inspection.reportNumber);
+  }
+
   const upserted: Array<{ inspection: InspectionDetailInspection; row: InspectionRow }> = [];
+  const matchedExistingIds = new Set<string>();
+  let insertedInspectionCount = 0;
 
   for (const inspection of inspections) {
     const payload = inspectionPayload(clientId, dotNumber, inspection);
-    const existing = existingByMcmis.get(inspection.mcmisInspectionId);
+    const byMcmis = existingByMcmis.get(inspection.mcmisInspectionId);
+    const byReport = existingByReport.get(inspection.reportNumber);
+    if (byMcmis && byReport && byMcmis.id !== byReport.id) {
+      return NextResponse.json(
+        {
+          error:
+            `Ambiguous inspection match for MCMIS ${inspection.mcmisInspectionId} ` +
+            `and report ${inspection.reportNumber}`,
+        },
+        { status: 409 }
+      );
+    }
+    const existing = byMcmis ?? byReport;
 
     if (existing) {
       const { data: updated, error } = await serviceSupabase
         .from("inspections")
-        .update(payload)
+        .update(buildSourceUpdate(payload))
         .eq("id", existing.id)
         .select("id, mcmis_inspection_id, report_number")
         .single();
@@ -213,6 +260,7 @@ export async function POST(request: NextRequest) {
         );
       }
       upserted.push({ inspection, row: updated });
+      matchedExistingIds.add(existing.id);
     } else {
       const { data: inserted, error } = await serviceSupabase
         .from("inspections")
@@ -226,21 +274,22 @@ export async function POST(request: NextRequest) {
         );
       }
       upserted.push({ inspection, row: inserted });
+      insertedInspectionCount += 1;
     }
   }
 
   const upsertedIds = upserted.map(({ row }) => row.id);
 
   if (upsertedIds.length > 0) {
-    const { error: violationDeleteError } = await serviceSupabase
+    const { data: existingViolationRows, error: violationReadError } = await serviceSupabase
       .from("violations")
-      .delete()
+      .select("id, inspection_id, violation_code")
       .in("inspection_id", upsertedIds);
-    if (violationDeleteError) {
-      return NextResponse.json({ error: violationDeleteError.message }, { status: 500 });
+    if (violationReadError) {
+      return NextResponse.json({ error: violationReadError.message }, { status: 500 });
     }
 
-    const violationRows = upserted.flatMap(({ inspection, row }) =>
+    const violationRows: DetailViolationCandidate[] = upserted.flatMap(({ inspection, row }) =>
       inspection.violations.map((violation) => ({
         inspection_id: row.id,
         client_id: clientId,
@@ -250,32 +299,46 @@ export async function POST(request: NextRequest) {
         severity_weight: violation.severityWeight,
         time_weight: violation.timeWeight,
         oos_violation: violation.oosViolation,
-        convicted: null,
         citation_number: violation.citationNumber,
         citation_result: violation.citationResult,
-        challengeable: null,
-        challenge_tier: null,
-        challenge_reason: null,
-        challenge_priority: null,
-        ai_assessed_at: null,
       }))
     );
 
-    if (violationRows.length > 0) {
+    let violationPlan: ReturnType<typeof planDetailViolationWrites>;
+    try {
+      violationPlan = planDetailViolationWrites(existingViolationRows ?? [], violationRows);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Ambiguous violation merge" },
+        { status: 409 }
+      );
+    }
+
+    for (const update of violationPlan.updates) {
+      const { error } = await serviceSupabase
+        .from("violations")
+        .update(update.payload)
+        .eq("id", update.id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    if (violationPlan.inserts.length > 0) {
       const { error: violationInsertError } = await serviceSupabase
         .from("violations")
-        .insert(violationRows);
+        .insert(violationPlan.inserts);
       if (violationInsertError) {
         return NextResponse.json({ error: violationInsertError.message }, { status: 500 });
       }
     }
 
-    const { error: vehicleDeleteError } = await serviceSupabase
+    const { data: existingVehicleRows, error: vehicleReadError } = await serviceSupabase
       .from("inspection_vehicles")
-      .delete()
+      .select("id, inspection_id, unit_number, vin, license_plate, license_state")
       .in("inspection_id", upsertedIds);
-    if (vehicleDeleteError) {
-      return NextResponse.json({ error: vehicleDeleteError.message }, { status: 500 });
+    if (vehicleReadError) {
+      return NextResponse.json({ error: vehicleReadError.message }, { status: 500 });
     }
 
     const vehicleRows = upserted.flatMap(({ inspection, row }) =>
@@ -292,18 +355,47 @@ export async function POST(request: NextRequest) {
       }))
     );
 
-    if (vehicleRows.length > 0) {
+    let vehiclePlan: ReturnType<typeof planVehicleWrites>;
+    try {
+      vehiclePlan = planVehicleWrites(existingVehicleRows ?? [], vehicleRows);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Ambiguous vehicle merge" },
+        { status: 409 }
+      );
+    }
+
+    for (const update of vehiclePlan.updates) {
+      const { error } = await serviceSupabase
+        .from("inspection_vehicles")
+        .update(update.payload)
+        .eq("id", update.id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    if (vehiclePlan.inserts.length > 0) {
       const { error: vehicleInsertError } = await serviceSupabase
         .from("inspection_vehicles")
-        .insert(vehicleRows);
+        .insert(vehiclePlan.inserts);
       if (vehicleInsertError) {
         return NextResponse.json({ error: vehicleInsertError.message }, { status: 500 });
       }
     }
 
-    for (const { inspection, row } of upserted) {
-      const totalViolations = inspection.violations.length;
-      const oosViolations = inspection.violations.filter((violation) => violation.oosViolation).length;
+    for (const { row } of upserted) {
+      const { data: persistedViolations, error: countError } = await serviceSupabase
+        .from("violations")
+        .select("oos_violation")
+        .eq("inspection_id", row.id);
+      if (countError) {
+        return NextResponse.json({ error: countError.message }, { status: 500 });
+      }
+      const totalViolations = persistedViolations?.length ?? 0;
+      const oosViolations = (persistedViolations ?? []).filter(
+        (violation) => violation.oos_violation
+      ).length;
       const { error } = await serviceSupabase
         .from("inspections")
         .update({
@@ -349,9 +441,9 @@ export async function POST(request: NextRequest) {
     citations: citationCount,
     vehicles: vehicleCount,
     unmatched_codes: unmatchedCodes(inspections),
-    untouched_inspections: untouchedRows?.length ?? 0,
+    untouched_inspections: (existingRows?.length ?? 0) - matchedExistingIds.size,
     parsed: inspections.length,
-    inserted: upserted.filter(({ inspection }) => !existingByMcmis.has(inspection.mcmisInspectionId)).length,
+    inserted: insertedInspectionCount,
     skipped: 0,
     flagged: oosCount + unmatchedCodes(inspections).length,
   };
@@ -503,6 +595,108 @@ function stringOrNull(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : null;
 }
 
-function quotePostgrestListValue(value: string) {
-  return `"${value.replace(/"/g, '\\"')}"`;
+type InspectionVehicleCandidate = {
+  inspection_id: string;
+  client_id: string;
+  unit_number: number | null;
+  unit_type: string | null;
+  make: string | null;
+  vin: string | null;
+  license_plate: string | null;
+  license_state: string | null;
+  iep_dot: string | null;
+};
+
+function planVehicleWrites(
+  existingRows: InspectionVehicleIdentity[],
+  incomingRows: InspectionVehicleCandidate[]
+) {
+  const existingByKey = new Map<string, InspectionVehicleIdentity>();
+  for (const row of existingRows) {
+    const keys = vehicleKeys(row);
+    for (const key of keys) {
+      const prior = existingByKey.get(key);
+      if (prior && prior.id !== row.id) {
+        throw new Error(`Ambiguous existing inspection vehicle key: ${key}`);
+      }
+      existingByKey.set(key, row);
+    }
+  }
+
+  const incomingKeys = new Set<string>();
+  const matchedExistingIds = new Set<string>();
+  const updates: Array<{ id: string; payload: Record<string, unknown> }> = [];
+  const inserts: InspectionVehicleCandidate[] = [];
+
+  for (const incoming of incomingRows) {
+    const keys = vehicleKeys(incoming);
+    if (keys.length === 0) {
+      throw new Error(
+        `Inspection vehicle for ${incoming.inspection_id} lacks a stable unit, VIN, or plate key`
+      );
+    }
+    for (const key of keys) {
+      if (incomingKeys.has(key)) {
+        throw new Error(`Ambiguous incoming inspection vehicle key: ${key}`);
+      }
+      incomingKeys.add(key);
+    }
+
+    const matches = [
+      ...new Map(
+        keys
+          .map((key) => existingByKey.get(key))
+          .filter((row): row is InspectionVehicleIdentity => Boolean(row))
+          .map((row) => [row.id, row])
+      ).values(),
+    ];
+    if (matches.length > 1) {
+      throw new Error(
+        `Inspection vehicle keys resolve to multiple existing rows: ${keys.join(", ")}`
+      );
+    }
+
+    const existing = matches[0];
+    if (!existing) {
+      inserts.push(incoming);
+      continue;
+    }
+    if (matchedExistingIds.has(existing.id)) {
+      throw new Error(`Multiple incoming vehicles resolve to existing row ${existing.id}`);
+    }
+    matchedExistingIds.add(existing.id);
+    updates.push({
+      id: existing.id,
+      payload: buildSourceUpdate({
+        unit_number: incoming.unit_number,
+        unit_type: incoming.unit_type,
+        make: incoming.make,
+        vin: incoming.vin,
+        license_plate: incoming.license_plate,
+        license_state: incoming.license_state,
+        iep_dot: incoming.iep_dot,
+      }),
+    });
+  }
+
+  return { updates, inserts };
+}
+
+function vehicleKeys(
+  row: Pick<
+    InspectionVehicleCandidate,
+    "inspection_id" | "unit_number" | "vin" | "license_plate" | "license_state"
+  >
+) {
+  const prefix = row.inspection_id;
+  const keys: string[] = [];
+  if (row.unit_number !== null) keys.push(`${prefix}:unit:${row.unit_number}`);
+  if (row.vin?.trim()) keys.push(`${prefix}:vin:${row.vin.trim().toUpperCase()}`);
+  if (row.license_plate?.trim()) {
+    keys.push(
+      `${prefix}:plate:${row.license_state?.trim().toUpperCase() ?? ""}:` +
+        row.license_plate.trim().toUpperCase()
+    );
+  }
+  return keys;
 }

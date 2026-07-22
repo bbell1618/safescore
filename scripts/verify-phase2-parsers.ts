@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseAllBasicsExport } from "../lib/fmcsa/all-basics-export";
@@ -13,6 +14,17 @@ async function main() {
   const inspections = parseInspectionDetailXml(xml, {
     "3958AELD": { basicCategory: "hos_compliance", severityWeight: 5 },
   });
+
+  const firstInspection = inspections[0];
+  assert.ok(firstInspection, "Inspection-detail fixture did not produce an inspection");
+  const firstViolation = firstInspection.violations[0];
+  assert.ok(firstViolation, "Inspection-detail fixture did not produce a violation");
+  assert.equal(firstViolation.citationNumber, "SYN-CIT-1");
+  assert.equal(firstViolation.citationResult, "Pending");
+  assert.equal(firstInspection.mcmisInspectionId, "990000001");
+  assert.equal(firstInspection.startTime, "08:15");
+  assert.equal(firstInspection.endTime, "09:05");
+  assert.equal(firstInspection.locationText, "Synthetic inspection facility");
 
   console.log(
     JSON.stringify(

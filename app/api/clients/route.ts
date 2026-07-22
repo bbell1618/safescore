@@ -111,7 +111,6 @@ export async function POST(request: Request) {
     // not guaranteed to finish in serverless environments after response is sent).
     try {
       const carrier = await getCarrier(client.dot_number);
-      await supabase.from("carrier_profiles").delete().eq("client_id", client.id);
       const { error: cpErr } = await supabase.from("carrier_profiles").insert({
         client_id: client.id,
         dot_number: client.dot_number,

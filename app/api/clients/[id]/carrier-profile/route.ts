@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getCarrier } from "@/lib/fmcsa/client";
+import { buildSourceUpdate } from "@/lib/fmcsa/ingest-write-policy";
 import { NextResponse } from "next/server";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
@@ -62,7 +63,7 @@ export async function GET(
   return NextResponse.json({ profile: profile ?? null });
 }
 
-// POST — fetch fresh data from FMCSA and upsert into DB.
+// POST — fetch fresh data from FMCSA and merge it into the cached profile.
 // Called from both the console (staff) and the portal (onboarding wizard Step 1).
 export async function POST(
   _request: Request,
@@ -93,62 +94,72 @@ export async function POST(
 
   try {
     const carrier = await getCarrier(client.dot_number);
+    const profileSource = buildSourceUpdate({
+      dot_number: client.dot_number,
+      mc_number: carrier.mcNumber,
+      legal_name: carrier.legalName,
+      dba_name: carrier.dbaName,
+      address: [carrier.phyStreet, carrier.phyCity, carrier.phyState, carrier.phyZip]
+        .filter(Boolean)
+        .join(", "),
+      power_units: carrier.totalPowerUnits ?? null,
+      drivers: carrier.totalDrivers ?? null,
+      mcs150_date: parseFmcsaDate(carrier.mcs150FormDate),
+      mcs150_mileage: carrier.mcs150Mileage ?? null,
+      safety_rating: carrier.safetyRating ?? null,
+      raw_api_response: carrier as unknown as Record<string, unknown>,
+      fetched_at: new Date().toISOString(),
+    });
 
-    // Delete old profile rows for this client before inserting fresh one
-    const { error: deleteError } = await admin
+    const { data: existingProfile, error: readError } = await admin
       .from("carrier_profiles")
-      .delete()
-      .eq("client_id", id);
+      .select("id")
+      .eq("client_id", id)
+      .maybeSingle();
 
-    if (deleteError) {
+    if (readError) {
       console.error(
-        "carrier-profile POST: delete old profiles failed:",
-        deleteError.code,
-        deleteError.message,
-        deleteError.details
+        "carrier-profile POST: existing profile lookup failed:",
+        readError.code,
+        readError.message,
+        readError.details
       );
-      // Non-fatal — proceed with insert; unique constraint will handle duplicates
+      return NextResponse.json({ error: readError.message }, { status: 500 });
     }
 
-    const { data: profile, error: insertError } = await admin
-      .from("carrier_profiles")
-      .insert({
-        client_id: id,
-        dot_number: client.dot_number,
-        mc_number: carrier.mcNumber,
-        legal_name: carrier.legalName,
-        dba_name: carrier.dbaName,
-        address: [carrier.phyStreet, carrier.phyCity, carrier.phyState, carrier.phyZip]
-          .filter(Boolean)
-          .join(", "),
-        power_units: carrier.totalPowerUnits ?? null,
-        drivers: carrier.totalDrivers ?? null,
-        mcs150_date: parseFmcsaDate(carrier.mcs150FormDate),
-        mcs150_mileage: carrier.mcs150Mileage ?? null,
-        safety_rating: carrier.safetyRating ?? null,
-        raw_api_response: carrier as unknown as Record<string, unknown>,
-        fetched_at: new Date().toISOString(),
-      })
-      .select("*")
-      .single();
+    // QCMobile is sparse. Update only source-owned values that were actually
+    // returned, retaining the row ID and all SAFER-only enrichment columns.
+    const profileWrite = existingProfile
+      ? admin
+          .from("carrier_profiles")
+          .update(profileSource)
+          .eq("id", existingProfile.id)
+          .select("*")
+          .single()
+      : admin
+          .from("carrier_profiles")
+          .insert({ client_id: id, ...profileSource })
+          .select("*")
+          .single();
+    const { data: profile, error: writeError } = await profileWrite;
 
-    if (insertError) {
+    if (writeError) {
       console.error(
-        "carrier-profile POST: insert failed:",
-        insertError.code,
-        insertError.message,
-        insertError.details,
-        insertError.hint
+        "carrier-profile POST: write failed:",
+        writeError.code,
+        writeError.message,
+        writeError.details,
+        writeError.hint
       );
       return NextResponse.json(
-        { error: insertError.message ?? "Failed to store carrier profile" },
+        { error: writeError.message ?? "Failed to store carrier profile" },
         { status: 500 }
       );
     }
 
     if (!profile) {
       return NextResponse.json(
-        { error: "Insert returned no data" },
+        { error: "Carrier profile write returned no data" },
         { status: 500 }
       );
     }

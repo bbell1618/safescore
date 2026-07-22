@@ -14,6 +14,12 @@ import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import type { BurdenResult } from "@/lib/analysis/basic-measure";
 import { createServiceClient } from "@/lib/supabase/server";
+import {
+  buildPublicScoreSnapshotUpdate,
+  buildPublicViolationUpdate,
+  buildSourceUpdate,
+  violationIdentityKey,
+} from "@/lib/fmcsa/ingest-write-policy";
 
 type ExistingViolation = {
   id: string;
@@ -122,45 +128,87 @@ export async function runClientRefresh(
     if (existingProfile?.mc_number) censusPayload.mc_number = existingProfile.mc_number;
 
     const profileWrite = existingProfile
-      ? await supabase.from("carrier_profiles").update(censusPayload).eq("id", existingProfile.id)
+      ? await supabase
+          .from("carrier_profiles")
+          .update(buildSourceUpdate(censusPayload))
+          .eq("id", existingProfile.id)
       : await supabase.from("carrier_profiles").insert({ client_id: clientId, ...censusPayload });
     if (profileWrite.error) throw dbError("Unable to persist carrier profile", profileWrite.error);
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const { error: scoreError } = await supabase.from("score_snapshots").upsert(
-    {
-      client_id: clientId,
-      snapshot_date: today,
-      unsafe_driving_measure: basics.unsafeDriving?.measureValue ?? null,
-      unsafe_driving_pct: basics.unsafeDriving?.percentile ?? null,
-      unsafe_driving_alert: basics.unsafeDriving?.alert ?? false,
-      hos_compliance_measure: basics.hosCompliance?.measureValue ?? null,
-      hos_compliance_pct: basics.hosCompliance?.percentile ?? null,
-      hos_compliance_alert: basics.hosCompliance?.alert ?? false,
-      driver_fitness_measure: basics.driverFitness?.measureValue ?? null,
-      driver_fitness_pct: basics.driverFitness?.percentile ?? null,
-      driver_fitness_alert: basics.driverFitness?.alert ?? false,
-      controlled_substance_measure: basics.controlledSubstances?.measureValue ?? null,
-      controlled_substance_pct: basics.controlledSubstances?.percentile ?? null,
-      controlled_substance_alert: basics.controlledSubstances?.alert ?? false,
-      vehicle_maint_measure: basics.vehicleMaintenance?.measureValue ?? null,
-      vehicle_maint_pct: basics.vehicleMaintenance?.percentile ?? null,
-      vehicle_maint_alert: basics.vehicleMaintenance?.alert ?? false,
-      hm_compliance_measure: basics.hmCompliance?.measureValue ?? null,
-      hm_compliance_pct: basics.hmCompliance?.percentile ?? null,
-      hm_compliance_alert: basics.hmCompliance?.alert ?? false,
-      crash_indicator_measure: basics.crashIndicator?.measureValue ?? null,
-      crash_indicator_pct: basics.crashIndicator?.percentile ?? null,
-      crash_indicator_alert: basics.crashIndicator?.alert ?? false,
-      oos_vehicle_rate: saferSnapshot?.vehicleOosRate ?? oos.vehicleOosRate,
-      oos_driver_rate: saferSnapshot?.driverOosRate ?? oos.driverOosRate,
-      oos_hazmat_rate: saferSnapshot?.hazmatOosRate ?? oos.hazmatOosRate,
-      source: "api",
-    },
-    { onConflict: "client_id,snapshot_date" }
-  );
-  if (scoreError) throw dbError("Unable to persist score snapshot", scoreError);
+  const publicScorePayload: Record<string, unknown> = {
+    client_id: clientId,
+    snapshot_date: today,
+    ...(basics.unsafeDriving
+      ? {
+          unsafe_driving_measure: basics.unsafeDriving.measureValue,
+          unsafe_driving_pct: basics.unsafeDriving.percentile,
+          unsafe_driving_alert: basics.unsafeDriving.alert,
+        }
+      : {}),
+    ...(basics.hosCompliance
+      ? {
+          hos_compliance_measure: basics.hosCompliance.measureValue,
+          hos_compliance_pct: basics.hosCompliance.percentile,
+          hos_compliance_alert: basics.hosCompliance.alert,
+        }
+      : {}),
+    ...(basics.driverFitness
+      ? {
+          driver_fitness_measure: basics.driverFitness.measureValue,
+          driver_fitness_pct: basics.driverFitness.percentile,
+          driver_fitness_alert: basics.driverFitness.alert,
+        }
+      : {}),
+    ...(basics.controlledSubstances
+      ? {
+          controlled_substance_measure: basics.controlledSubstances.measureValue,
+          controlled_substance_pct: basics.controlledSubstances.percentile,
+          controlled_substance_alert: basics.controlledSubstances.alert,
+        }
+      : {}),
+    ...(basics.vehicleMaintenance
+      ? {
+          vehicle_maint_measure: basics.vehicleMaintenance.measureValue,
+          vehicle_maint_pct: basics.vehicleMaintenance.percentile,
+          vehicle_maint_alert: basics.vehicleMaintenance.alert,
+        }
+      : {}),
+    ...(basics.hmCompliance
+      ? {
+          hm_compliance_measure: basics.hmCompliance.measureValue,
+          hm_compliance_pct: basics.hmCompliance.percentile,
+          hm_compliance_alert: basics.hmCompliance.alert,
+        }
+      : {}),
+    ...(basics.crashIndicator
+      ? {
+          crash_indicator_measure: basics.crashIndicator.measureValue,
+          crash_indicator_pct: basics.crashIndicator.percentile,
+          crash_indicator_alert: basics.crashIndicator.alert,
+        }
+      : {}),
+    oos_vehicle_rate: saferSnapshot?.vehicleOosRate ?? oos.vehicleOosRate,
+    oos_driver_rate: saferSnapshot?.driverOosRate ?? oos.driverOosRate,
+    oos_hazmat_rate: saferSnapshot?.hazmatOosRate ?? oos.hazmatOosRate,
+    source: "api",
+  };
+  const { data: existingScore, error: scoreReadError } = await supabase
+    .from("score_snapshots")
+    .select("id, source")
+    .eq("client_id", clientId)
+    .eq("snapshot_date", today)
+    .maybeSingle();
+  if (scoreReadError) throw dbError("Unable to load score snapshot", scoreReadError);
+
+  const scoreWrite = existingScore
+    ? await supabase
+        .from("score_snapshots")
+        .update(buildPublicScoreSnapshotUpdate(publicScorePayload, existingScore.source))
+        .eq("id", existingScore.id)
+    : await supabase.from("score_snapshots").insert(publicScorePayload);
+  if (scoreWrite.error) throw dbError("Unable to persist score snapshot", scoreWrite.error);
 
   const [{ data: existingInspections, error: inspectionReadError }, existingViolations] =
     await Promise.all([
@@ -175,9 +223,13 @@ export async function runClientRefresh(
   const existingInspectionByReport = new Map(
     (existingInspections ?? []).map((row) => [row.report_number, row])
   );
-  const existingViolationMap = new Map(
-    existingViolations.map((row) => [`${row.inspection_id}:${row.violation_code}`, row])
-  );
+  const existingViolationMap = new Map<string, ExistingViolation[]>();
+  for (const row of existingViolations) {
+    const key = violationIdentityKey(row.inspection_id, row.violation_code);
+    const matches = existingViolationMap.get(key) ?? [];
+    matches.push(row);
+    existingViolationMap.set(key, matches);
+  }
   const newViolationIds: string[] = [];
   let newInspectionCount = 0;
   let violationsProcessed = 0;
@@ -262,21 +314,24 @@ export async function runClientRefresh(
         referenceLookup[normalizeViolationLookupCode(violation.violationCode)];
       const basicCategory = reference?.basicCategory ?? violation.basicCategory;
       const severityWeight = reference?.severityWeight ?? violation.severityWeight;
-      const key = `${inspectionRow.id}:${violation.violationCode}`;
-      const existing = existingViolationMap.get(key);
-      const payload = {
+      const key = violationIdentityKey(inspectionRow.id, violation.violationCode);
+      const existing = existingViolationMap.get(key) ?? [];
+      const publicPayload = buildPublicViolationUpdate({
         violation_description: violation.description,
         basic_category: basicCategory,
         severity_weight: severityWeight,
         time_weight: inspection.timeWeight,
         oos_violation: violation.oosViolation,
-        convicted: violation.convicted,
-        citation_number: violation.citationNumber ?? null,
-      };
+      });
 
-      if (existing) {
-        const { error } = await supabase.from("violations").update(payload).eq("id", existing.id);
-        if (error) throw dbError("Unable to update violation", error);
+      if (existing.length > 0) {
+        for (const existingRow of existing) {
+          const { error } = await supabase
+            .from("violations")
+            .update(publicPayload)
+            .eq("id", existingRow.id);
+          if (error) throw dbError("Unable to update violation", error);
+        }
       } else {
         const { data: inserted, error } = await supabase
           .from("violations")
@@ -284,9 +339,17 @@ export async function runClientRefresh(
             inspection_id: inspectionRow.id,
             client_id: clientId,
             violation_code: violation.violationCode,
-            ...payload,
+            ...publicPayload,
+            // Public SMS data has no conviction or citation disposition.
+            // Explicit null avoids the historical false/true fabrication.
+            convicted: null,
+            citation_number: null,
+            citation_result: null,
             challengeable: null,
             challenge_tier: null,
+            challenge_reason: null,
+            challenge_priority: null,
+            ai_assessed_at: null,
           })
           .select("id")
           .single();
@@ -294,11 +357,13 @@ export async function runClientRefresh(
           throw dbError("Unable to insert violation", error ?? { message: "insert returned no row" });
         }
         newViolationIds.push(inserted.id);
-        existingViolationMap.set(key, {
-          id: inserted.id,
-          inspection_id: inspectionRow.id,
-          violation_code: violation.violationCode,
-        });
+        existingViolationMap.set(key, [
+          {
+            id: inserted.id,
+            inspection_id: inspectionRow.id,
+            violation_code: violation.violationCode,
+          },
+        ]);
       }
       violationsProcessed += 1;
     }
@@ -324,10 +389,12 @@ export async function runClientRefresh(
       fatalities: crash.fatalities,
       injuries: crash.injuries,
       tow_away: crash.towAway,
-      hazmat_release: crash.hazmatRelease,
     };
     if (existingId) {
-      const { error } = await supabase.from("crashes").update(payload).eq("id", existingId);
+      const { error } = await supabase
+        .from("crashes")
+        .update(buildSourceUpdate(payload))
+        .eq("id", existingId);
       if (error) throw dbError("Unable to update crash", error);
     } else {
       const { data: inserted, error } = await supabase
@@ -337,6 +404,9 @@ export async function runClientRefresh(
           dot_number: dotNumber,
           report_number: crash.reportNumber,
           ...payload,
+          // The public Crash File exposes a placard flag, not a release result.
+          // Keep the schema default until Portal/client evidence supplies one.
+          hazmat_release: false,
           preventable: null,
           cpdp_eligible: null,
           raw_data: {},

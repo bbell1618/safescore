@@ -464,7 +464,7 @@ export interface FMCSAViolationRecord {
   basicCategory: string;
   severityWeight: number;
   oosViolation: boolean;
-  convicted: boolean;
+  convicted: null;
   citationNumber: string | null;
 }
 
@@ -522,7 +522,8 @@ export async function getInspections(
           basicCategory: v.basicCategory,
           severityWeight: v.severityWeight,
           oosViolation: v.oosViolation,
-          convicted: true, // all violations in SMS dataset are convicted
+          // The public SMS input dataset does not provide court disposition.
+          convicted: null,
           citationNumber: null,
         })),
       };
