@@ -163,6 +163,11 @@ assert.match(cronSource, /\.eq\("status",\s*"active"\)/);
 assert.match(cronSource, /\.in\("tier",\s*\[\.\.\.SUBSCRIPTION_TIERS\]\)/);
 assert.ok(cronSource.includes('tierHasFeature(\n        client.tier,\n        "case_visibility"'));
 
+const proxySource = readFileSync(resolve(process.cwd(), "proxy.ts"), "utf8");
+assert.ok(proxySource.includes("activeAssignedClient"));
+assert.ok(proxySource.includes("!subscription || subscription.status === \"active\""));
+assert.ok(proxySource.includes("isSubscriptionTier(client.tier)"));
+
 console.log(
   JSON.stringify(
     {

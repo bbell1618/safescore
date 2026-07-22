@@ -106,16 +106,18 @@ export async function proxy(request: NextRequest) {
           .maybeSingle(),
         supabase
           .from("subscriptions")
-          .select("id")
+          .select("id, status")
           .eq("client_id", userRecord.client_id)
-          .eq("status", "active")
           .maybeSingle(),
       ]);
-      const activeAssessment =
+      const activeAssignedClient =
         client?.status === "active" &&
-        isClientTier(client.tier) &&
-        !isSubscriptionTier(client.tier);
-      if (!activeAssessment && !subscription) {
+        isClientTier(client.tier);
+      const billingAllowsAccess =
+        client && isSubscriptionTier(client.tier)
+          ? !subscription || subscription.status === "active"
+          : true;
+      if (!activeAssignedClient || !billingAllowsAccess) {
         const url = request.nextUrl.clone();
         url.pathname = "/portal/onboarding";
         return NextResponse.redirect(url);
