@@ -45,6 +45,8 @@ export async function getRecentSnapshots(clientId: string, n = 2): Promise<Snaps
     )
     .eq("client_id", clientId)
     .order("snapshot_date", { ascending: false })
+    .order("captured_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(n);
 
   if (error) throw new Error(`Unable to load burden snapshots: ${error.message}`);
