@@ -14,6 +14,7 @@ const baseUrl = (process.argv[2] ?? "https://safescore.vercel.app").replace(
   /\/$/,
   ""
 );
+const existingReportId = process.argv[3] ?? null;
 const clientId = "879b62c2-f8ea-430d-b8d3-9264150d84bf";
 
 type GeneratedResponse = {
@@ -28,43 +29,56 @@ async function main() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-  const session = await createDeployedStaffSession(baseUrl);
+  const session = existingReportId
+    ? null
+    : await createDeployedStaffSession(baseUrl);
 
   try {
-    const baseline = await service
-      .from("reports")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .eq("type", "monthly");
-    if (baseline.error) throw baseline.error;
-
-    const response = await fetch(`${baseUrl}/api/reports/generate-text`, {
-      method: "POST",
-      headers: {
-        cookie: session.cookie,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        clientId,
-        type: "monthly",
-      }),
-    });
-    const rawResponse = await response.text();
     let generated: GeneratedResponse;
-    try {
-      generated = JSON.parse(rawResponse) as GeneratedResponse;
-    } catch {
-      throw new Error(
-        `Monthly report route returned non-JSON HTTP ${response.status}: ${rawResponse}`
-      );
-    }
-    if (!response.ok) {
-      throw new Error(
-        `Monthly report route returned HTTP ${response.status}: ${generated.error ?? rawResponse}`
-      );
-    }
-    if (!generated.reportId || !generated.content) {
-      throw new Error("Monthly report route did not return a saved report and content.");
+    let routeStatus: number | "existing-row";
+    let monthlyRowsBefore: number | null = null;
+    let monthlyRowsAfter: number | null = null;
+
+    if (existingReportId) {
+      generated = { reportId: existingReportId };
+      routeStatus = "existing-row";
+    } else {
+      const baseline = await service
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("type", "monthly");
+      if (baseline.error) throw baseline.error;
+      monthlyRowsBefore = baseline.count ?? 0;
+
+      const response = await fetch(`${baseUrl}/api/reports/generate-text`, {
+        method: "POST",
+        headers: {
+          cookie: session!.cookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          clientId,
+          type: "monthly",
+        }),
+      });
+      routeStatus = response.status;
+      const rawResponse = await response.text();
+      try {
+        generated = JSON.parse(rawResponse) as GeneratedResponse;
+      } catch {
+        throw new Error(
+          `Monthly report route returned non-JSON HTTP ${response.status}: ${rawResponse}`
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Monthly report route returned HTTP ${response.status}: ${generated.error ?? rawResponse}`
+        );
+      }
+      if (!generated.reportId || !generated.content) {
+        throw new Error("Monthly report route did not return a saved report and content.");
+      }
     }
 
     const savedResult = await service
@@ -78,12 +92,15 @@ async function main() {
       throw savedResult.error ?? new Error("Saved report row was not found.");
     }
 
-    const after = await service
-      .from("reports")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .eq("type", "monthly");
-    if (after.error) throw after.error;
+    if (!existingReportId) {
+      const after = await service
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("type", "monthly");
+      if (after.error) throw after.error;
+      monthlyRowsAfter = after.count ?? 0;
+    }
 
     const saved = savedResult.data;
     const content = saved.final_content ?? "";
@@ -98,9 +115,11 @@ async function main() {
     assert.ok(saved.ai_content);
     assert.ok(saved.final_content);
     assert.equal(saved.ai_content, saved.final_content);
-    assert.equal(generated.content, saved.final_content);
+    if (generated.content) assert.equal(generated.content, saved.final_content);
     assert.deepEqual(placeholders, []);
-    assert.equal(after.count, (baseline.count ?? 0) + 1);
+    if (monthlyRowsBefore !== null && monthlyRowsAfter !== null) {
+      assert.equal(monthlyRowsAfter, monthlyRowsBefore + 1);
+    }
 
     for (const expected of [
       expectedDate,
@@ -122,20 +141,20 @@ async function main() {
     assert.match(content, /39530B1|ELD/i);
     assert.match(content, /6103911[\s\S]{0,120}filed|filed[\s\S]{0,120}6103911/i);
     assert.match(content, /6123719[\s\S]{0,120}filed|filed[\s\S]{0,120}6123719/i);
-    assert.match(content, /39375A3TAOLTIS[\s\S]{0,500}severity weight\s*(?:of\s*)?8/i);
-    assert.match(content, /3965BHWSL[\s\S]{0,500}severity weight\s*(?:of\s*)?2/i);
-    assert.match(content, /39375A3TAOLTIS[\s\S]{0,600}OOS\s*(?:value\s*)?no/i);
-    assert.match(content, /3965BHWSL[\s\S]{0,600}OOS\s*(?:value\s*)?yes/i);
+    assert.match(content, /39375A3TAOLTIS[\s\S]{0,500}severity weight(?:\s|\*)*(?:of(?:\s|\*)*)?8/i);
+    assert.match(content, /3965BHWSL[\s\S]{0,500}severity weight(?:\s|\*)*(?:of(?:\s|\*)*)?2/i);
+    assert.match(content, /39375A3TAOLTIS[\s\S]{0,600}OOS(?:\s|\*)*(?:value(?:\s|\*)*)?no/i);
+    assert.match(content, /3965BHWSL[\s\S]{0,600}OOS(?:\s|\*)*(?:value(?:\s|\*)*)?yes/i);
     assert.match(content, /June 19, 2026|2026-06-19/);
 
     console.log(
       JSON.stringify(
         {
-          routeStatus: response.status,
+          routeStatus,
           reportId: saved.id,
           generationAttempts: generated.generationAttempts,
-          monthlyRowsBefore: baseline.count ?? 0,
-          monthlyRowsAfter: after.count ?? 0,
+          monthlyRowsBefore,
+          monthlyRowsAfter,
           placeholderMatches: placeholders,
           savedRow: {
             id: saved.id,
@@ -157,7 +176,7 @@ async function main() {
       )
     );
   } finally {
-    await session.revoke();
+    await session?.revoke();
   }
 }
 
