@@ -228,11 +228,18 @@ assert.deepEqual(findReportPlaceholders("[]"), []);
 assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
 assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
 
-const validBody = "Burden rose from 582 to 599, an increase of 17 points.";
+const validBody =
+  "Burden rose from 582 to 599, an increase of 17 points. CPDP crash preventability work is documented.";
 const validReport = assembleGeneratedReport(validBody, data);
 assert.deepEqual(validateGeneratedReport(validReport, data), []);
 assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
 assert.ok(validReport.endsWith(PREPARER_BLOCK));
+assert.ok(
+  validateGeneratedReport(
+    assembleGeneratedReport("CPDP case documented.", data),
+    data
+  ).includes("missing the required crash preventability description for CPDP")
+);
 
 const assembledOnFirstAttempt = await generateValidatedReport(
   prompts,
