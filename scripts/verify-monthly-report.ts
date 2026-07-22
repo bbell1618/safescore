@@ -137,6 +137,8 @@ async function main() {
       assert.ok(content.includes(expected), `Report is missing expected text: ${expected}`);
     }
     assert.match(content, /wheel seal/i);
+    assert.match(content, /weighted violation burden/i);
+    assert.doesNotMatch(content, /\bSMS points?\b/i);
     assert.match(content, /crash preventability/i);
     assert.match(content, /39530B1|ELD/i);
     assert.match(content, /6103911[\s\S]{0,120}filed|filed[\s\S]{0,120}6103911/i);
