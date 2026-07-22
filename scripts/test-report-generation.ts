@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   FIRST_REPORTING_PERIOD_STATEMENT,
   PREPARER_BLOCK,
+  assembleGeneratedReport,
   buildReportGenerationData,
   buildReportPrompts,
   findReportPlaceholders,
@@ -192,7 +193,9 @@ assert.equal(
 const prompts = buildReportPrompts(data);
 assert.match(prompts.system, /Use only facts present in the structured report data/);
 assert.match(prompts.system, /If a datum is absent or null, omit the sentence/);
-assert.ok(prompts.system.includes(PREPARER_BLOCK));
+assert.match(prompts.system, /server adds those fixed fields exactly/);
+assert.ok(!prompts.system.includes(PREPARER_BLOCK));
+assert.ok(prompts.user.includes(JSON.stringify(PREPARER_BLOCK)));
 assert.ok(prompts.user.includes('"totalPointsDelta": 17'));
 assert.ok(prompts.user.includes('"caseNumber"') === false);
 assert.ok(prompts.user.includes('"case_number": "6103911"'));
@@ -225,14 +228,25 @@ assert.deepEqual(findReportPlaceholders("[]"), []);
 assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
 assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
 
-const validReport = `Monthly progress report\n${reportDate}\nBurden rose from 582 to 599, an increase of 17 points.\n${PREPARER_BLOCK}`;
+const validBody = "Burden rose from 582 to 599, an increase of 17 points.";
+const validReport = assembleGeneratedReport(validBody, data);
 assert.deepEqual(validateGeneratedReport(validReport, data), []);
+assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
+assert.ok(validReport.endsWith(PREPARER_BLOCK));
+
+const assembledOnFirstAttempt = await generateValidatedReport(
+  prompts,
+  data,
+  async () => validBody
+);
+assert.equal(assembledOnFirstAttempt.attempts, 1);
+assert.equal(assembledOnFirstAttempt.content.split(PREPARER_BLOCK).length - 1, 1);
 
 const retrySystems: string[] = [];
 const retryResponses = [
-  `Report dated [Insert Date]\n${PREPARER_BLOCK}`,
-  `Report changed by [X] points on ${reportDate}\n${PREPARER_BLOCK}`,
-  validReport,
+  "Report dated [Insert Date]",
+  "Report changed by [X] points",
+  validBody,
 ];
 const retried = await generateValidatedReport(
   prompts,
@@ -254,25 +268,45 @@ let failedAttempts = 0;
 await assert.rejects(
   generateValidatedReport(prompts, data, async () => {
     failedAttempts += 1;
-    return `Report [still unresolved]\n${reportDate}\n${PREPARER_BLOCK}`;
+    return "Report [still unresolved]";
   }),
   /failed validation after 3 attempts: forbidden bracketed token/
 );
 assert.equal(failedAttempts, 3);
 
 const missingFirstPeriodStatement = `First report\n${reportDate}\n${PREPARER_BLOCK}`;
-assert.ok(
-  validateGeneratedReport(missingFirstPeriodStatement, firstPeriodData).includes(
-    "missing the required first-reporting-period statement"
-  )
-);
+assert.ok(validateGeneratedReport(missingFirstPeriodStatement, firstPeriodData).includes(
+  "missing the required first-reporting-period statement"
+));
 assert.deepEqual(
-  validateGeneratedReport(
-    `${missingFirstPeriodStatement}\n${FIRST_REPORTING_PERIOD_STATEMENT}`,
-    firstPeriodData
-  ),
+  validateGeneratedReport(assembleGeneratedReport("First report", firstPeriodData), firstPeriodData),
   []
 );
+
+const firstPeriodGenerated = await generateValidatedReport(
+  buildReportPrompts(firstPeriodData),
+  firstPeriodData,
+  async () => "Current-period observations only."
+);
+assert.ok(firstPeriodGenerated.content.includes(FIRST_REPORTING_PERIOD_STATEMENT));
+assert.equal(
+  firstPeriodGenerated.content.split(FIRST_REPORTING_PERIOD_STATEMENT).length - 1,
+  1
+);
+
+let reservedBlockAttempts = 0;
+const reservedBlockRecovery = await generateValidatedReport(
+  prompts,
+  data,
+  async () => {
+    reservedBlockAttempts += 1;
+    return reservedBlockAttempts === 1
+      ? `Body\n\n${PREPARER_BLOCK}`
+      : validBody;
+  }
+);
+assert.equal(reservedBlockRecovery.attempts, 2);
+assert.equal(reservedBlockRecovery.content.split(PREPARER_BLOCK).length - 1, 1);
 
 console.log(
   JSON.stringify(

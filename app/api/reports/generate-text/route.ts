@@ -119,6 +119,7 @@ async function requestReportText(params: {
         { role: "user", content: params.user },
       ],
       temperature: 0.2,
+      max_tokens: 1800,
     }),
   });
 
@@ -129,14 +130,23 @@ async function requestReportText(params: {
     );
   }
 
-  let data: { choices?: Array<{ message?: { content?: string } }> };
+  let data: {
+    choices?: Array<{
+      message?: { content?: string };
+      finish_reason?: string | null;
+    }>;
+  };
   try {
     data = JSON.parse(rawBody) as typeof data;
   } catch {
     throw new Error("OpenRouter returned a non-JSON response.");
   }
 
-  const content = data.choices?.[0]?.message?.content;
+  const choice = data.choices?.[0];
+  if (choice?.finish_reason === "length") {
+    throw new Error("OpenRouter truncated the generated report before completion.");
+  }
+  const content = choice?.message?.content;
   if (!content?.trim()) throw new Error("OpenRouter returned an empty report.");
   return content;
 }
