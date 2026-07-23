@@ -52,6 +52,13 @@ export function isClientTier(value: unknown): value is ClientTier {
   return typeof value === "string" && (CLIENT_TIERS as readonly string[]).includes(value);
 }
 
+export function tierDisplayLabel(
+  value: unknown,
+  fallback = "Not assigned"
+): string {
+  return isClientTier(value) ? TIER_LABELS[value] : fallback;
+}
+
 export function isSubscriptionTier(
   value: unknown
 ): value is (typeof SUBSCRIPTION_TIERS)[number] {

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
+import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +92,7 @@ export default async function AccountPage({
             <Field label="Primary contact" value={account.primary_contact ?? "Not recorded"} />
             <Field label="Email" value={account.email ?? "Not recorded"} />
             <Field label="Phone" value={account.phone ?? "Not recorded"} />
-            <Field label="Plan" value={account.tier ?? "Not assigned"} />
+            <Field label="Plan" value={tierDisplayLabel(account.tier)} />
           </div>
         </section>
 
@@ -99,7 +100,7 @@ export default async function AccountPage({
           <h2 className="font-semibold text-[#1E1C1A] text-sm">Subscription</h2>
           {subscription ? (
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-              <Field label="Tier" value={subscription.tier} />
+              <Field label="Tier" value={tierDisplayLabel(subscription.tier)} />
               <Field label="Status" value={subscription.status} />
               <Field label="MRR" value={subscription.mrr == null ? "Not recorded" : `$${subscription.mrr}`} />
               <Field label="Billing cycle" value={subscription.billing_cycle ?? "Not recorded"} />

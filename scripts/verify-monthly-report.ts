@@ -3,6 +3,7 @@ import { loadEnvConfig } from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 import {
   PREPARER_BLOCK,
+  REPORT_SECTION_HEADINGS,
   findReportPlaceholders,
   formatReportDate,
 } from "../lib/reports/report-generation";
@@ -123,31 +124,85 @@ async function main() {
 
     for (const expected of [
       expectedDate,
-      "582",
+      "550",
       "599",
-      "17",
-      "123",
+      "49",
+      "402",
+      "372",
+      "80",
+      "71",
       "113",
-      "39375A3TAOLTIS",
-      "3965BHWSL",
+      "103",
       "6103911",
       "6123719",
       PREPARER_BLOCK,
     ]) {
       assert.ok(content.includes(expected), `Report is missing expected text: ${expected}`);
     }
-    assert.match(content, /wheel seal/i);
     assert.match(content, /weighted violation burden/i);
     assert.doesNotMatch(content, /\bSMS points?\b/i);
     assert.match(content, /crash preventability/i);
     assert.match(content, /39530B1|ELD/i);
     assert.match(content, /6103911[\s\S]{0,120}filed|filed[\s\S]{0,120}6103911/i);
     assert.match(content, /6123719[\s\S]{0,120}filed|filed[\s\S]{0,120}6123719/i);
-    assert.match(content, /39375A3TAOLTIS[\s\S]{0,500}severity weight(?:\s|\*)*(?:of(?:\s|\*)*)?8/i);
-    assert.match(content, /3965BHWSL[\s\S]{0,500}severity weight(?:\s|\*)*(?:of(?:\s|\*)*)?2/i);
-    assert.match(content, /39375A3TAOLTIS[\s\S]{0,600}OOS(?:\s|\*)*(?:value(?:\s|\*)*)?no/i);
-    assert.match(content, /3965BHWSL[\s\S]{0,600}OOS(?:\s|\*)*(?:value(?:\s|\*)*)?yes/i);
-    assert.match(content, /June 19, 2026|2026-06-19/);
+    for (const heading of [
+      REPORT_SECTION_HEADINGS.burdenTrend,
+      REPORT_SECTION_HEADINGS.diagnosticSnapshot,
+      REPORT_SECTION_HEADINGS.priorityFindings,
+      REPORT_SECTION_HEADINGS.openChallenges,
+    ]) {
+      assert.ok(
+        content.split(/\r?\n/).includes(heading),
+        `Report is missing canonical heading: ${heading}`
+      );
+    }
+    assert.ok(
+      !content.split(/\r?\n/).includes(REPORT_SECTION_HEADINGS.newViolations)
+    );
+    assert.doesNotMatch(content, /\*\*(?:Burden Trend|Diagnostic Snapshot|Priority Findings|Open Challenges)\*\*/);
+
+    const completionLog = await service
+      .from("activity_log")
+      .select("metadata")
+      .eq("action_type", "report_generated")
+      .eq("entity_id", saved.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (completionLog.error || !completionLog.data) {
+      throw completionLog.error ?? new Error("Report completion log was not found.");
+    }
+    const completionMetadata = completionLog.data.metadata as {
+      generation_id?: string;
+      snapshot_selection_strategy?: string;
+      latest_snapshot_id?: string;
+      previous_snapshot_id?: string;
+    };
+    assert.ok(completionMetadata.generation_id);
+    assert.equal(
+      completionMetadata.snapshot_selection_strategy,
+      "prior_distinct_date"
+    );
+    assert.equal(
+      completionMetadata.latest_snapshot_id,
+      "c47e45cd-3923-4ca3-8d47-8455f4b7797a"
+    );
+    assert.equal(
+      completionMetadata.previous_snapshot_id,
+      "cd4e5505-7d51-48df-b001-38f1ea21d731"
+    );
+    const attemptsResult = await service
+      .from("activity_log")
+      .select("action_type, description, metadata, created_at")
+      .eq("entity_type", "report_generation")
+      .eq("entity_id", completionMetadata.generation_id)
+      .order("created_at", { ascending: true });
+    if (attemptsResult.error) throw attemptsResult.error;
+    const attemptStatuses = (attemptsResult.data ?? []).map(
+      (row) => (row.metadata as { status?: string } | null)?.status
+    );
+    assert.equal(attemptStatuses[0], "started");
+    assert.equal(attemptStatuses.at(-1), "succeeded");
 
     console.log(
       JSON.stringify(
@@ -170,6 +225,14 @@ async function main() {
             created_by: saved.created_by,
             created_at: saved.created_at,
             sent_at: saved.sent_at,
+          },
+          generationAudit: {
+            generationId: completionMetadata.generation_id,
+            snapshotSelectionStrategy:
+              completionMetadata.snapshot_selection_strategy,
+            latestSnapshotId: completionMetadata.latest_snapshot_id,
+            previousSnapshotId: completionMetadata.previous_snapshot_id,
+            attemptStatuses,
           },
           fullReportText: content,
         },

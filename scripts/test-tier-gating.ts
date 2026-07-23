@@ -7,6 +7,8 @@ import {
   isSubscriptionTier,
   SUBSCRIPTION_TIERS,
   TIER_FEATURES,
+  TIER_LABELS,
+  tierDisplayLabel,
   tierHasFeature,
   type TierFeature,
 } from "../lib/tiers";
@@ -36,6 +38,56 @@ assert.deepEqual(CLIENT_TIERS, [
 assert.deepEqual(SUBSCRIPTION_TIERS, ["monitor", "remediate", "total_safety"]);
 assert.equal(isSubscriptionTier("assessment"), false);
 assert.equal(isSubscriptionTier("monitor"), true);
+
+const expectedTierLabels = {
+  assessment: "Assessment",
+  monitor: "Monitor",
+  remediate: "Remediate",
+  total_safety: "Total Safety",
+} as const;
+
+assert.deepEqual(TIER_LABELS, expectedTierLabels);
+for (const tier of CLIENT_TIERS) {
+  assert.equal(tierDisplayLabel(tier), expectedTierLabels[tier]);
+}
+assert.equal(tierDisplayLabel(null), "Not assigned");
+assert.equal(tierDisplayLabel("unknown_tier"), "Not assigned");
+assert.equal(tierDisplayLabel("unknown_tier", "Unknown tier"), "Unknown tier");
+
+const accountSource = readFileSync(
+  resolve(process.cwd(), "app/(console)/console/clients/[id]/account/page.tsx"),
+  "utf8"
+);
+assert.ok(accountSource.includes("tierDisplayLabel(account.tier)"));
+assert.ok(accountSource.includes("tierDisplayLabel(subscription.tier)"));
+assert.ok(!accountSource.includes('value={account.tier ?? "Not assigned"}'));
+assert.ok(!accountSource.includes("value={subscription.tier}"));
+
+const sharedTierLabelRenderers = {
+  "app/page.tsx": "TIER_LABELS[tier.value]",
+  "app/onboarding/page.tsx": "TIER_LABELS[assignedTierData.value]",
+  "app/(console)/console/page.tsx": "TIER_LABELS[clientTier]",
+  "app/(console)/console/clients/[id]/layout.tsx": "TIER_LABELS[clientTier]",
+  "app/(portal)/portal/profile/page.tsx": "TIER_LABELS[clientTier]",
+  "components/console/client-intake-fields.tsx": "TIER_LABELS[tier]",
+  "components/console/service-tier-chip.tsx": "TIER_LABELS[minimumTier]",
+  "components/portal/tier-upgrade-note.tsx": "TIER_LABELS[currentTier]",
+} as const;
+
+for (const [file, labelExpression] of Object.entries(sharedTierLabelRenderers)) {
+  const source = readFileSync(resolve(process.cwd(), file), "utf8");
+  assert.ok(
+    source.includes(labelExpression),
+    `${file} must render service tiers from the shared tier labels`
+  );
+}
+
+for (const file of ["app/page.tsx", "app/onboarding/page.tsx"]) {
+  const source = readFileSync(resolve(process.cwd(), file), "utf8");
+  assert.ok(!source.includes('name: "Monitor"'), `${file} must not duplicate Monitor`);
+  assert.ok(!source.includes('name: "Remediate"'), `${file} must not duplicate Remediate`);
+  assert.ok(!source.includes('name: "Total Safety"'), `${file} must not duplicate Total Safety`);
+}
 
 const expectedAllowedFeatures: Record<
   (typeof CLIENT_TIERS)[number],
@@ -173,6 +225,8 @@ console.log(
     {
       passed: true,
       featureMinimums: TIER_FEATURES,
+      tierLabels: TIER_LABELS,
+      sharedTierLabelRenderers,
       portalMatrix,
       pageGuards,
       apiGuards,

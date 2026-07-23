@@ -1,10 +1,11 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ReportGenerator } from "@/components/console/report-generator";
 import { DownloadReportButton } from "@/components/console/download-report-button";
 import { formatDate } from "@/lib/utils";
-import { FileText } from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 import { ServiceTierChip } from "@/components/console/service-tier-chip";
 import { normalizeClientTier } from "@/lib/tiers";
 
@@ -27,11 +28,14 @@ export default async function ReportsPage({
   if (!client) notFound();
   const clientTier = normalizeClientTier(client.tier);
 
-  const { data: reports } = await supabase
+  const { data: reports, error: reportsError } = await supabase
     .from("reports")
-    .select("*")
+    .select("id, type, title, status, created_at")
     .eq("client_id", id)
     .order("created_at", { ascending: false });
+  if (reportsError) {
+    throw new Error(`Unable to load report history: ${reportsError.message}`);
+  }
 
   const typeLabel: Record<string, string> = {
     assessment: "Assessment report",
@@ -74,7 +78,12 @@ export default async function ReportsPage({
           </div>
           <div className="divide-y divide-[#F0E8DA]">
             {reports.map((r) => (
-              <div key={r.id} className="px-5 py-3.5 flex items-center gap-4">
+              <Link
+                key={r.id}
+                href={`/console/clients/${id}/reports/${r.id}`}
+                className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C67A1E]"
+                aria-label={`Open ${r.title}`}
+              >
                 <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[#1E1C1A]">{r.title}</p>
@@ -86,7 +95,8 @@ export default async function ReportsPage({
                     {r.status}
                   </Badge>
                 </div>
-              </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+              </Link>
             ))}
           </div>
         </div>

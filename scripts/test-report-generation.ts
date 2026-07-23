@@ -10,6 +10,8 @@ import {
   findReportPlaceholders,
   formatReportDate,
   generateValidatedReport,
+  normalizeModelSectionHeadings,
+  selectReportSnapshotPair,
   validateGeneratedReport,
   type ReportCaseRow,
   type ReportCoachingItemRow,
@@ -209,6 +211,55 @@ function validModelBody(data: ReportGenerationData): string {
 async function main() {
   assert.equal(reportDate, "July 21, 2026");
 
+  const sameDayEarlier: ReportSnapshotRow = {
+    ...latest,
+    id: "same-day-earlier",
+    snapshot_date: "2026-07-22",
+    captured_at: "2026-07-22T13:00:29.131Z",
+    total_points: 590,
+  };
+  const sameDayLatest: ReportSnapshotRow = {
+    ...latest,
+    id: "same-day-latest",
+    snapshot_date: "2026-07-22",
+    captured_at: "2026-07-22T16:39:49.928Z",
+    total_points: 550,
+  };
+  const distinctDateSelection = selectReportSnapshotPair(
+    [sameDayEarlier, previous, sameDayLatest, latest],
+    true
+  );
+  assert.equal(distinctDateSelection.strategy, "prior_distinct_date");
+  assert.deepEqual(distinctDateSelection.immediatePairIds, [
+    "same-day-latest",
+    "same-day-earlier",
+  ]);
+  assert.deepEqual(
+    distinctDateSelection.snapshots.map((snapshot) => snapshot.id),
+    ["same-day-latest", "latest"]
+  );
+  const sameDayFallback = selectReportSnapshotPair(
+    [sameDayEarlier, sameDayLatest],
+    true
+  );
+  assert.equal(sameDayFallback.strategy, "same_day_fallback");
+  assert.deepEqual(
+    sameDayFallback.snapshots.map((snapshot) => snapshot.id),
+    ["same-day-latest", "same-day-earlier"]
+  );
+  assert.equal(
+    selectReportSnapshotPair([sameDayEarlier, sameDayLatest], false).strategy,
+    "latest_only"
+  );
+  assert.throws(
+    () =>
+      selectReportSnapshotPair(
+        [{ ...sameDayLatest, id: "invalid-date", captured_at: "not-a-date" }],
+        true
+      ),
+    /invalid captured_at timestamp/
+  );
+
   const assessment = buildTierData("assessment");
   const monitor = buildTierData("monitor");
   const remediate = buildTierData("remediate");
@@ -329,6 +380,32 @@ async function main() {
   assert.ok(!assessmentReport.includes(REPORT_SECTION_HEADINGS.burdenTrend));
 
   const validBody = validModelBody(totalSafety);
+  const markdownDecoratedBody = totalSafety.sections.reduce(
+    (body, section) =>
+      body.replace(
+        `${section.heading}\n`,
+        `## **${section.heading}**  \n`
+      ),
+    validBody
+  );
+  const normalizedMarkdownBody = normalizeModelSectionHeadings(
+    markdownDecoratedBody,
+    totalSafety.sections
+  );
+  for (const section of totalSafety.sections) {
+    assert.ok(normalizedMarkdownBody.includes(`${section.heading}\n`));
+    assert.ok(!normalizedMarkdownBody.includes(`**${section.heading}**`));
+  }
+  const markdownDecoratedReport = await generateValidatedReport(
+    buildReportPrompts(totalSafety),
+    totalSafety,
+    async () => markdownDecoratedBody
+  );
+  assert.equal(markdownDecoratedReport.attempts, 1);
+  assert.deepEqual(
+    validateGeneratedReport(markdownDecoratedReport.content, totalSafety),
+    []
+  );
   const validReport = assembleGeneratedReport(validBody, totalSafety);
   assert.deepEqual(validateGeneratedReport(validReport, totalSafety), []);
   assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
@@ -424,6 +501,12 @@ async function main() {
   assert.equal(assembledOnFirstAttempt.content.split(PREPARER_BLOCK).length - 1, 1);
 
   const retrySystems: string[] = [];
+  const attemptEvents: Array<{
+    attempt: number;
+    status: string;
+    reason: string;
+    rawOutput?: string;
+  }> = [];
   const retryResponses = [
     "Report dated [Insert Date]",
     "Report changed by [X] points",
@@ -435,6 +518,11 @@ async function main() {
     async ({ system, attempt }) => {
       retrySystems.push(system);
       return retryResponses[attempt - 1]!;
+    },
+    {
+      onAttempt: async (event) => {
+        attemptEvents.push(event);
+      },
     }
   );
   assert.equal(retried.attempts, 3);
@@ -444,6 +532,19 @@ async function main() {
   assert.ok(retrySystems[2]?.includes("Corrective system note"));
   assert.deepEqual(findReportPlaceholders(retrySystems[1] ?? ""), []);
   assert.deepEqual(findReportPlaceholders(retrySystems[2] ?? ""), []);
+  assert.deepEqual(
+    attemptEvents.map((event) => `${event.attempt}:${event.status}`),
+    [
+      "1:started",
+      "1:failed",
+      "2:started",
+      "2:failed",
+      "3:started",
+      "3:succeeded",
+    ]
+  );
+  assert.equal(attemptEvents[1]?.rawOutput, retryResponses[0]);
+  assert.match(attemptEvents[1]?.reason ?? "", /Validation failed/);
 
   let failedAttempts = 0;
   await assert.rejects(

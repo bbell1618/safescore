@@ -4,6 +4,7 @@ import {
   isPublicEvidencePagePath,
   isPublicEvidenceUploadPath,
 } from "@/lib/auth/public-paths";
+import { isStaffReportActionPath } from "@/lib/auth/report-paths";
 import { isClientTier, isSubscriptionTier } from "@/lib/tiers";
 
 export async function proxy(request: NextRequest) {
@@ -59,7 +60,7 @@ export async function proxy(request: NextRequest) {
       "/api/violations/",
       "/api/reports/generate-text",
     ];
-    const staffOnlyExact = path === "/api/reports" || /^\/api\/reports\/[^/]+\/send$/.test(path);
+    const staffOnlyExact = isStaffReportActionPath(path);
     if ((staffOnlyExact || staffOnlyPrefixes.some((prefix) => path.startsWith(prefix))) && !isStaff) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

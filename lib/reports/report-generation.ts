@@ -27,6 +27,7 @@ export interface ReportSnapshotRow {
   id: string;
   snapshot_date: string;
   captured_at: string;
+  source?: string | null;
   total_points: number;
   per_basic: SnapshotBasicRow[];
   violation_count: number;
@@ -113,6 +114,7 @@ interface StructuredSnapshot {
   id: string;
   snapshotDate: string;
   capturedAt: string;
+  source: string | null;
   totalPoints: number;
   violationCount: number;
   inspectionCount: number;
@@ -205,11 +207,36 @@ export interface ValidatedReport {
   attempts: number;
 }
 
+export type ReportGenerationAttemptEvent = {
+  attempt: number;
+  status: "started" | "succeeded" | "failed";
+  reason: string;
+  rawOutput?: string;
+  validationIssues?: string[];
+};
+
+export interface ReportSnapshotSelection {
+  snapshots: ReportSnapshotRow[];
+  immediatePairIds: string[];
+  strategy:
+    | "latest_only"
+    | "first_reporting_period"
+    | "immediate_previous"
+    | "prior_distinct_date"
+    | "same_day_fallback";
+}
+
 type ReportTextGenerator = (params: {
   system: string;
   user: string;
   attempt: number;
 }) => Promise<string>;
+
+type ReportGenerationOptions = {
+  onAttempt?: (
+    event: ReportGenerationAttemptEvent
+  ) => Promise<void> | void;
+};
 
 const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   assessment: "Initial assessment report",
@@ -320,6 +347,78 @@ function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function snapshotTimestamp(snapshot: ReportSnapshotRow): number {
+  const value = Date.parse(snapshot.captured_at);
+  if (!Number.isFinite(value)) {
+    throw new Error(
+      `Burden snapshot ${snapshot.id} has an invalid captured_at timestamp.`
+    );
+  }
+  return value;
+}
+
+export function selectReportSnapshotPair(
+  candidates: ReportSnapshotRow[],
+  includePrevious: boolean
+): ReportSnapshotSelection {
+  const unique = new Map<string, ReportSnapshotRow>();
+  for (const candidate of candidates) {
+    snapshotTimestamp(candidate);
+    if (!unique.has(candidate.id)) unique.set(candidate.id, candidate);
+  }
+  const ordered = [...unique.values()].sort((left, right) => {
+    const timestampDelta =
+      snapshotTimestamp(right) - snapshotTimestamp(left);
+    return timestampDelta || right.id.localeCompare(left.id);
+  });
+  const latest = ordered[0];
+  if (!latest) {
+    throw new Error("No burden snapshot is available for this client.");
+  }
+  const immediatePrevious = ordered[1] ?? null;
+  const immediatePairIds = [latest, immediatePrevious]
+    .filter((snapshot): snapshot is ReportSnapshotRow => snapshot !== null)
+    .map((snapshot) => snapshot.id);
+
+  if (!includePrevious) {
+    return {
+      snapshots: [latest],
+      immediatePairIds,
+      strategy: "latest_only",
+    };
+  }
+  if (!immediatePrevious) {
+    return {
+      snapshots: [latest],
+      immediatePairIds,
+      strategy: "first_reporting_period",
+    };
+  }
+  if (immediatePrevious.snapshot_date !== latest.snapshot_date) {
+    return {
+      snapshots: [latest, immediatePrevious],
+      immediatePairIds,
+      strategy: "immediate_previous",
+    };
+  }
+
+  const previousDistinctDate = ordered.find(
+    (snapshot) => snapshot.snapshot_date !== latest.snapshot_date
+  );
+  if (previousDistinctDate) {
+    return {
+      snapshots: [latest, previousDistinctDate],
+      immediatePairIds,
+      strategy: "prior_distinct_date",
+    };
+  }
+  return {
+    snapshots: [latest, immediatePrevious],
+    immediatePairIds,
+    strategy: "same_day_fallback",
+  };
+}
+
 function normalizeSnapshot(snapshot: ReportSnapshotRow): StructuredSnapshot {
   const perBasic = (Array.isArray(snapshot.per_basic) ? snapshot.per_basic : [])
     .filter(
@@ -341,6 +440,7 @@ function normalizeSnapshot(snapshot: ReportSnapshotRow): StructuredSnapshot {
     id: snapshot.id,
     snapshotDate: snapshot.snapshot_date,
     capturedAt: snapshot.captured_at,
+    source: snapshot.source ?? null,
     totalPoints: numberOrZero(snapshot.total_points),
     violationCount: numberOrZero(snapshot.violation_count),
     inspectionCount: numberOrZero(snapshot.inspection_count),
@@ -539,6 +639,26 @@ export function findReportPlaceholders(content: string): string[] {
   return content.match(REPORT_PLACEHOLDER_PATTERN) ?? [];
 }
 
+export function normalizeModelSectionHeadings(
+  body: string,
+  sections: ReportSection[]
+): string {
+  const plannedHeadings = new Map(
+    sections.map((section) => [section.heading.toLowerCase(), section.heading])
+  );
+  return body
+    .split(/\r?\n/)
+    .map((line) => {
+      let candidate = line.trim();
+      candidate = candidate.replace(/^#{1,6}\s*/, "").replace(/\s*#+$/, "");
+      candidate = candidate.replace(/^(\*\*|__)(.+)\1$/, "$2");
+      candidate = candidate.replace(/^(\*|_)(.+)\1$/, "$2");
+      candidate = candidate.replace(/:$/, "").trim();
+      return plannedHeadings.get(candidate.toLowerCase()) ?? line;
+    })
+    .join("\n");
+}
+
 export function assembleGeneratedReport(
   body: string,
   data: ReportGenerationData
@@ -546,8 +666,9 @@ export function assembleGeneratedReport(
   const firstPeriodSection = data.comparison?.firstReportingPeriod
     ? `${REPORT_SECTION_HEADINGS.burdenTrend}\n${FIRST_REPORTING_PERIOD_STATEMENT}\n\n`
     : "";
+  const normalizedBody = normalizeModelSectionHeadings(body, data.sections);
 
-  return `${REPORT_TYPE_LABELS[data.reportType]}\nReport date: ${data.reportDate}\n\n${firstPeriodSection}${body.trim()}\n\n${PREPARER_BLOCK}`;
+  return `${REPORT_TYPE_LABELS[data.reportType]}\nReport date: ${data.reportDate}\n\n${firstPeriodSection}${normalizedBody.trim()}\n\n${PREPARER_BLOCK}`;
 }
 
 function headingLineIndexes(content: string, heading: string): number[] {
@@ -640,7 +761,8 @@ export function validateGeneratedReport(
 export async function generateValidatedReport(
   prompts: ReportPrompts,
   data: ReportGenerationData,
-  generateText: ReportTextGenerator
+  generateText: ReportTextGenerator,
+  options: ReportGenerationOptions = {}
 ): Promise<ValidatedReport> {
   let lastIssues: string[] = [];
 
@@ -663,11 +785,34 @@ export async function generateValidatedReport(
         : `\n\nCorrective system note: The previous body was rejected for these reasons: ${correctionReasons.join(
             "; "
           )}. Generate only the complete report body again from the structured data. Remove every bracketed token, correct the listed body issues, and do not add the server-owned title, date, first-period boilerplate, preparer block, or email address.`;
-    const generatedBody = await generateText({
-      system: `${prompts.system}${correctiveNote}`,
-      user: prompts.user,
+    const retryReason =
+      attempt === 1
+        ? "Initial generation attempt."
+        : `Retrying after validation failed: ${lastIssues.join("; ")}`;
+    await options.onAttempt?.({
       attempt,
+      status: "started",
+      reason: retryReason,
     });
+    let generatedBody: string;
+    try {
+      generatedBody = await generateText({
+        system: `${prompts.system}${correctiveNote}`,
+        user: prompts.user,
+        attempt,
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message
+          ? error.message
+          : "The text provider failed without an error message.";
+      await options.onAttempt?.({
+        attempt,
+        status: "failed",
+        reason,
+      });
+      throw error;
+    }
     const content = assembleGeneratedReport(generatedBody, data);
     const reservedFieldIssues = [
       ...(!generatedBody.trim() ? ["the generated report body was empty"] : []),
@@ -681,7 +826,22 @@ export async function generateValidatedReport(
         : []),
     ];
     const issues = [...reservedFieldIssues, ...validateGeneratedReport(content, data)];
-    if (issues.length === 0) return { content, attempts: attempt };
+    if (issues.length === 0) {
+      await options.onAttempt?.({
+        attempt,
+        status: "succeeded",
+        reason: "Generated report passed validation.",
+        rawOutput: generatedBody,
+      });
+      return { content, attempts: attempt };
+    }
+    await options.onAttempt?.({
+      attempt,
+      status: "failed",
+      reason: `Validation failed: ${issues.join("; ")}`,
+      rawOutput: generatedBody,
+      validationIssues: issues,
+    });
     lastIssues = issues;
   }
 

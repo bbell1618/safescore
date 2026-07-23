@@ -5,9 +5,11 @@ import {
   formatReportDate,
   generateValidatedReport,
   reportTypeLabel,
+  selectReportSnapshotPair,
   type ReportCaseRow,
   type ReportCoachingItemRow,
   type ReportComplianceInput,
+  type ReportGenerationAttemptEvent,
   type ReportGenerationData,
   type ReportSnapshotRow,
   type ReportType,
@@ -15,6 +17,7 @@ import {
 } from "@/lib/reports/report-generation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -237,7 +240,7 @@ export async function POST(request: Request) {
   const emptyResult = () => Promise.resolve({ data: [], error: null });
 
   const [
-    snapshotsResult,
+    snapshotCandidatesResult,
     dataqResult,
     cpdpResult,
     coachingResult,
@@ -250,10 +253,9 @@ export async function POST(request: Request) {
     serviceSupabase
       .from("burden_snapshots")
       .select(
-        "id, snapshot_date, captured_at, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
+        "id, snapshot_date, captured_at, source, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
       )
       .eq("client_id", clientId)
-      .order("snapshot_date", { ascending: false })
       .order("captured_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(canTrend ? 2 : 1),
@@ -328,7 +330,7 @@ export async function POST(request: Request) {
   ]);
 
   for (const [label, result] of [
-    ["burden snapshots", snapshotsResult],
+    ["burden snapshots", snapshotCandidatesResult],
     ["DataQ cases", dataqResult],
     ["CPDP cases", cpdpResult],
     ["coaching program", coachingResult],
@@ -346,13 +348,53 @@ export async function POST(request: Request) {
     }
   }
 
-  const snapshots = (snapshotsResult.data ?? []) as unknown as ReportSnapshotRow[];
-  if (snapshots.length === 0) {
+  const snapshotCandidates = (snapshotCandidatesResult.data ??
+    []) as unknown as ReportSnapshotRow[];
+  if (snapshotCandidates.length === 0) {
     return NextResponse.json(
       { error: "No burden snapshot is available for this client." },
       { status: 422 }
     );
   }
+  if (
+    canTrend &&
+    snapshotCandidates.length > 1 &&
+    snapshotCandidates[0]!.snapshot_date ===
+      snapshotCandidates[1]!.snapshot_date
+  ) {
+    const priorDateResult = await serviceSupabase
+      .from("burden_snapshots")
+      .select(
+        "id, snapshot_date, captured_at, source, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
+      )
+      .eq("client_id", clientId)
+      .lt("snapshot_date", snapshotCandidates[0]!.snapshot_date)
+      .order("captured_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
+    if (priorDateResult.error) {
+      return NextResponse.json(
+        {
+          error: `Unable to load the prior reporting date: ${priorDateResult.error.message}`,
+        },
+        { status: 500 }
+      );
+    }
+    const priorDateSnapshot = (priorDateResult.data ??
+      [])[0] as unknown as ReportSnapshotRow | undefined;
+    if (priorDateSnapshot) snapshotCandidates.push(priorDateSnapshot);
+  }
+
+  let snapshotSelection;
+  try {
+    snapshotSelection = selectReportSnapshotPair(snapshotCandidates, canTrend);
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error, "Unable to select report snapshots.") },
+      { status: 422 }
+    );
+  }
+  const snapshots = snapshotSelection.snapshots;
 
   let newViolations: ReportViolationRow[] = [];
   if (canTrend && snapshots[1]) {
@@ -447,6 +489,34 @@ export async function POST(request: Request) {
   }
 
   const prompts = buildReportPrompts(reportData);
+  const generationId = randomUUID();
+  const attemptEvidence: ReportGenerationAttemptEvent[] = [];
+  const recordAttempt = async (event: ReportGenerationAttemptEvent) => {
+    attemptEvidence.push(event);
+    const result = await serviceSupabase.from("activity_log").insert({
+      client_id: clientId,
+      user_id: user.id,
+      action_type: "report_generation_attempt",
+      entity_type: "report_generation",
+      entity_id: generationId,
+      description: `${reportTypeLabel(type)} generation attempt ${event.attempt} ${event.status}: ${event.reason}`,
+      metadata: {
+        generation_id: generationId,
+        attempt: event.attempt,
+        status: event.status,
+        reason: event.reason,
+        raw_output: event.rawOutput ?? null,
+        validation_issues: event.validationIssues ?? [],
+        latest_snapshot_id: reportData.latestSnapshot.id,
+        previous_snapshot_id: reportData.previousSnapshot?.id ?? null,
+      },
+    });
+    if (result.error) {
+      throw new Error(
+        `Could not write report generation attempt ${event.attempt} ${event.status} to the activity log: ${result.error.message}`
+      );
+    }
+  };
   let aiText: string;
   let generationAttempts: number;
   try {
@@ -454,13 +524,41 @@ export async function POST(request: Request) {
       prompts,
       reportData,
       ({ system, user: userPrompt }) =>
-        requestReportText({ system, user: userPrompt })
+        requestReportText({ system, user: userPrompt }),
+      { onAttempt: recordAttempt }
     );
     aiText = generated.content;
     generationAttempts = generated.attempts;
   } catch (error) {
     const message = errorMessage(error, "Report generation failed.");
     console.error("Report generation failed:", message);
+    const failureResult = await serviceSupabase.from("activity_log").insert({
+      client_id: clientId,
+      user_id: user.id,
+      action_type: "report_generation_failed",
+      entity_type: "report_generation",
+      entity_id: generationId,
+      description: `${reportTypeLabel(type)} generation failed: ${message}`,
+      metadata: {
+        generation_id: generationId,
+        reason: message,
+        fact_payload: reportData,
+        attempt_outputs: attemptEvidence,
+        snapshot_selection: {
+          strategy: snapshotSelection.strategy,
+          immediate_pair_ids: snapshotSelection.immediatePairIds,
+          selected_snapshot_ids: snapshots.map((snapshot) => snapshot.id),
+        },
+      },
+    });
+    if (failureResult.error) {
+      return NextResponse.json(
+        {
+          error: `${message} Failure evidence could not be persisted: ${failureResult.error.message}`,
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
@@ -499,11 +597,18 @@ export async function POST(request: Request) {
       section_headings: reportData.sections.map((section) => section.heading),
       latest_snapshot_id: reportData.latestSnapshot.id,
       previous_snapshot_id: reportData.previousSnapshot?.id ?? null,
+      generation_id: generationId,
+      snapshot_selection_strategy: snapshotSelection.strategy,
+      immediate_snapshot_pair_ids: snapshotSelection.immediatePairIds,
     },
   });
   if (activityResult.error) {
-    console.error(
-      `Report ${report.id} saved, but activity logging failed: ${activityResult.error.message}`
+    return NextResponse.json(
+      {
+        error: `Report ${report.id} was saved, but its completion audit log failed: ${activityResult.error.message}`,
+        reportId: report.id,
+      },
+      { status: 500 }
     );
   }
 

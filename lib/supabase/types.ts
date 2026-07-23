@@ -321,12 +321,20 @@ export interface Database {
           status: ReportStatus;
           ai_content: string | null;
           final_content: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           sent_at: string | null;
           sent_by: string | null;
           created_by: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["reports"]["Row"], "id" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["reports"]["Row"],
+          "id" | "created_at" | "reviewed_at" | "reviewed_by"
+        > & {
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["reports"]["Insert"]>;
       };
       alerts: {

@@ -1,9 +1,10 @@
 ﻿import Link from "next/link";
 import { ShieldCheck, TrendingDown, Check, ArrowRight, Search } from "lucide-react";
+import { TIER_LABELS } from "@/lib/tiers";
 
 const TIERS = [
   {
-    name: "Monitor",
+    value: "monitor",
     price: "$199/mo",
     priceNote: null,
     description: "Continuous visibility into your DOT safety profile.",
@@ -16,13 +17,13 @@ const TIERS = [
     ],
   },
   {
-    name: "Remediate",
+    value: "remediate",
     price: "$599/mo",
     priceNote: null,
     description: "Active case management and violation challenges.",
     highlight: true,
     features: [
-      "Everything in Monitor",
+      `Everything in ${TIER_LABELS.monitor}`,
       "DataQ challenge management",
       "CPDP crash preventability review",
       "AI violation assessment",
@@ -30,20 +31,20 @@ const TIERS = [
     ],
   },
   {
-    name: "Total Safety",
+    value: "total_safety",
     price: "$999/mo",
     priceNote: "+ $29/driver/mo",
     description: "Full-service safety management with a dedicated specialist.",
     highlight: false,
     features: [
-      "Everything in Remediate",
+      `Everything in ${TIER_LABELS.remediate}`,
       "Dedicated safety specialist",
       "MCS-150 compliance support",
       "Priority case handling",
       "Quarterly strategic review",
     ],
   },
-];
+] as const;
 
 export default function LandingPage() {
   return (
@@ -208,7 +209,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {TIERS.map((tier) => (
               <div
-                key={tier.name}
+                key={tier.value}
                 className={`rounded-2xl border-2 p-6 ${
                   tier.highlight
                     ? "border-[#C67A1E] bg-[#1B2D4F] text-white"
@@ -225,7 +226,7 @@ export default function LandingPage() {
                     tier.highlight ? "text-white" : "text-[#1E1C1A]"
                   }`}
                 >
-                  {tier.name}
+                  {TIER_LABELS[tier.value]}
                 </h3>
                 <div className="mb-1">
                   <span

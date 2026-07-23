@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
-import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
+import { normalizeClientTier, tierHasFeature, TIER_LABELS } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,7 +39,6 @@ interface CarrierData {
 
 const TIERS: {
   value: ClientTier;
-  name: string;
   price: string;
   priceNote?: string;
   features: string[];
@@ -47,7 +46,6 @@ const TIERS: {
 }[] = [
   {
     value: "assessment",
-    name: "Assessment",
     price: "$299",
     priceNote: "one-time diagnostic",
     features: [
@@ -58,7 +56,6 @@ const TIERS: {
   },
   {
     value: "monitor",
-    name: "Monitor",
     price: "$199/mo",
     features: [
       "BASIC score monitoring",
@@ -69,11 +66,10 @@ const TIERS: {
   },
   {
     value: "remediate",
-    name: "Remediate",
     price: "$599/mo",
     highlight: true,
     features: [
-      "Everything in Monitor",
+      `Everything in ${TIER_LABELS.monitor}`,
       "DataQ challenge management",
       "CPDP crash preventability review",
       "AI violation assessment",
@@ -82,11 +78,10 @@ const TIERS: {
   },
   {
     value: "total_safety",
-    name: "Total Safety",
     price: "$999/mo",
     priceNote: "+ $29/driver/mo",
     features: [
-      "Everything in Remediate",
+      `Everything in ${TIER_LABELS.remediate}`,
       "Dedicated safety specialist",
       "MCS-150 compliance support",
       "Priority case handling",
@@ -753,7 +748,7 @@ export default function OnboardingPage() {
               <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Confirm and activate</h1>
               <p className="text-[#5C554E] mb-6">
                 Your GEIA account manager has selected the{" "}
-                <strong>{assignedTierData.name}</strong> service for your carrier.
+                <strong>{TIER_LABELS[assignedTierData.value]}</strong> service for your carrier.
               </p>
 
               {/* Plan summary */}
@@ -768,7 +763,9 @@ export default function OnboardingPage() {
                   <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-4">
                     <div className="flex items-baseline justify-between mb-4">
                       <div>
-                        <p className="font-bold text-[#1E1C1A]">{assignedTierData.name}</p>
+                        <p className="font-bold text-[#1E1C1A]">
+                          {TIER_LABELS[assignedTierData.value]}
+                        </p>
                         {assignedTierData.highlight && (
                           <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full mt-1 inline-block">
                             Most popular
