@@ -102,7 +102,7 @@ function source(relativePath: string) {
 }
 
 const migration = source(
-  "supabase/migrations/20260723161948_add_report_review_audit.sql"
+  "supabase/migrations/20260723163056_add_report_review_audit.sql"
 );
 assert.match(migration, /add column if not exists reviewed_by uuid/i);
 assert.match(migration, /add column if not exists reviewed_at timestamptz/i);
