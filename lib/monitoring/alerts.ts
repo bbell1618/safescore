@@ -8,6 +8,8 @@ import {
   type AlertSeverity,
   type MonitoringAlertCandidate,
   type MonitoringCrashRow,
+  type MonitoringInspectionRow,
+  type MonitoringOosRateChange,
   type MonitoringViolationRow,
 } from "./alert-planner";
 
@@ -107,25 +109,54 @@ async function loadCrashRows(
   return rows;
 }
 
+async function loadInspectionRows(
+  supabase: SupabaseClient,
+  ids: string[]
+): Promise<MonitoringInspectionRow[]> {
+  if (ids.length === 0) return [];
+  const rows: MonitoringInspectionRow[] = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const { data, error } = await supabase
+      .from("inspections")
+      .select(
+        "id, report_number, inspection_date, state, level, total_violations, oos_violations"
+      )
+      .in("id", ids.slice(offset, offset + 100));
+    if (error) {
+      throw new Error(`Unable to load new inspections for alerts: ${error.message}`);
+    }
+    rows.push(...((data ?? []) as MonitoringInspectionRow[]));
+  }
+  return rows;
+}
+
 export async function emitRefreshAlerts(
   supabase: SupabaseClient,
-  input: { clientId: string; newViolationIds: string[]; newCrashIds: string[] }
+  input: {
+    clientId: string;
+    newViolationIds: string[];
+    newInspectionIds: string[];
+    newCrashIds: string[];
+    oosRateChange: MonitoringOosRateChange | null;
+  }
 ): Promise<{
   created: CreatedAlert[];
   violations: MonitoringViolationRow[];
+  inspections: MonitoringInspectionRow[];
   crashes: MonitoringCrashRow[];
 }> {
-  const [violations, crashes] = await Promise.all([
+  const [violations, inspections, crashes] = await Promise.all([
     loadViolationRows(supabase, input.newViolationIds),
+    loadInspectionRows(supabase, input.newInspectionIds),
     loadCrashRows(supabase, input.newCrashIds),
   ]);
-  const planned = planRefreshAlerts({ ...input, violations, crashes });
+  const planned = planRefreshAlerts({ ...input, violations, inspections, crashes });
   const created: CreatedAlert[] = [];
   for (const candidate of planned) {
     const alert = await emitAlertOnce(supabase, candidate);
     if (alert) created.push(alert);
   }
-  return { created, violations, crashes };
+  return { created, violations, inspections, crashes };
 }
 
 async function sendViolationEmailRows(

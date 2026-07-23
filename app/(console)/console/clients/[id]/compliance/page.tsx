@@ -6,6 +6,11 @@ import { AddDriverButton, AddVehicleButton, RequestClientDocumentsButton } from 
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { ServiceTierChip } from "@/components/console/service-tier-chip";
 import { normalizeClientTier } from "@/lib/tiers";
+import { timeWeightFor } from "@/lib/analysis/basic-measure";
+import {
+  formatComplianceBasis,
+  formatComplianceIssueStatus,
+} from "@/lib/analysis/compliance-presentation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,55 +22,93 @@ export default async function CompliancePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: clientData } = await supabase
+  const { data: clientData, error: clientError } = await supabase
     .from("clients")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
+  if (clientError) {
+    throw new Error(`Unable to load compliance client: ${clientError.message}`);
+  }
   const client = clientData;
   if (!client) notFound();
   const clientTier = normalizeClientTier(client.tier);
 
-  const { data: drivers } = await supabase
+  const { data: drivers, error: driversError } = await supabase
     .from("drivers")
     .select("*")
     .eq("client_id", id)
     .eq("status", "active")
     .order("full_name");
 
-  const { data: vehicles } = await supabase
+  if (driversError) {
+    throw new Error(`Unable to load driver roster: ${driversError.message}`);
+  }
+
+  const { data: vehicles, error: vehiclesError } = await supabase
     .from("vehicles")
     .select("*")
     .eq("client_id", id)
     .eq("status", "active")
     .order("unit_number");
+  if (vehiclesError) {
+    throw new Error(`Unable to load vehicle roster: ${vehiclesError.message}`);
+  }
 
   const { inspectionIds } = await getCanonicalInspectionScope(id, supabase);
-  const { data: violationRows } = inspectionIds.length > 0
+  const { data: violationRows, error: violationsError } = inspectionIds.length > 0
     ? await supabase
         .from("violations")
-        .select("violation_code, basic_category")
+        .select("violation_code, basic_category, inspections(inspection_date)")
         .eq("client_id", id)
         .in("inspection_id", inspectionIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (violationsError) {
+    throw new Error(`Unable to load compliance violations: ${violationsError.message}`);
+  }
   const violations = violationRows ?? [];
-  const countWhere = (predicate: (violation: (typeof violations)[number]) => boolean) =>
-    violations.filter(predicate).length;
+  type ComplianceViolation = (typeof violations)[number];
+  const inspectionDateFor = (violation: ComplianceViolation) => {
+    const inspection = Array.isArray(violation.inspections)
+      ? violation.inspections[0]
+      : violation.inspections;
+    return inspection?.inspection_date ?? null;
+  };
+  const asOf = new Date();
+  const inWindowViolations = violations.filter(
+    (violation) => timeWeightFor(inspectionDateFor(violation), asOf) > 0
+  );
+  const countWhere = (
+    rows: ComplianceViolation[],
+    predicate: (violation: ComplianceViolation) => boolean
+  ) => rows.filter(predicate).length;
   const incompleteDrivers = (drivers ?? []).filter(
     (driver) => !driver.cdl_number || !driver.cdl_expiry || !driver.medical_cert_expiry
   ).length;
-  const auditAreas = [
-    { area: "Parts and Accessories", count: countWhere((v) => v.basic_category === "vehicle_maintenance" && v.violation_code.startsWith("393")), inputMissing: (vehicles?.length ?? 0) === 0 },
-    { area: "Driver Qualifications", count: countWhere((v) => v.basic_category === "driver_fitness") + incompleteDrivers, inputMissing: (drivers?.length ?? 0) === 0 },
-    { area: "Operational Requirements", count: countWhere((v) => v.basic_category === "unsafe_driving" || v.basic_category === "controlled_substance"), inputMissing: false },
-    { area: "Hours of Service", count: countWhere((v) => v.basic_category === "hos_compliance"), inputMissing: false },
-    { area: "Vehicle Inspection, Repair, and Maintenance", count: countWhere((v) => v.basic_category === "vehicle_maintenance" && !v.violation_code.startsWith("393")), inputMissing: (vehicles?.length ?? 0) === 0 },
-    { area: "Hazardous Materials", count: countWhere((v) => v.basic_category === "hazmat_compliance"), inputMissing: false },
-  ].map((area) => ({
-    ...area,
-    status: area.count > 0 ? "needs_review" : area.inputMissing || inspectionIds.length === 0 ? "insufficient_data" : "no_violations",
-  }));
+  const auditAreaDefinitions: Array<{
+    area: string;
+    predicate: (violation: ComplianceViolation) => boolean;
+    supplementalCount: number;
+    inputMissing: boolean;
+  }> = [
+    { area: "Parts and Accessories", predicate: (v) => v.basic_category === "vehicle_maintenance" && v.violation_code.startsWith("393"), supplementalCount: 0, inputMissing: (vehicles?.length ?? 0) === 0 },
+    { area: "Driver Qualifications", predicate: (v) => v.basic_category === "driver_fitness", supplementalCount: incompleteDrivers, inputMissing: (drivers?.length ?? 0) === 0 },
+    { area: "Operational Requirements", predicate: (v) => v.basic_category === "unsafe_driving" || v.basic_category === "controlled_substance", supplementalCount: 0, inputMissing: false },
+    { area: "Hours of Service", predicate: (v) => v.basic_category === "hos_compliance", supplementalCount: 0, inputMissing: false },
+    { area: "Vehicle Inspection, Repair, and Maintenance", predicate: (v) => v.basic_category === "vehicle_maintenance" && !v.violation_code.startsWith("393"), supplementalCount: 0, inputMissing: (vehicles?.length ?? 0) === 0 },
+    { area: "Hazardous Materials", predicate: (v) => v.basic_category === "hazmat_compliance", supplementalCount: 0, inputMissing: false },
+  ];
+  const auditAreas = auditAreaDefinitions.map((area) => {
+    const count = countWhere(violations, area.predicate) + area.supplementalCount;
+    const inWindowCount = countWhere(inWindowViolations, area.predicate) + area.supplementalCount;
+    return {
+      ...area,
+      count,
+      inWindowCount,
+      status: count > 0 ? "needs_review" : area.inputMissing || inspectionIds.length === 0 ? "insufficient_data" : "no_violations",
+    };
+  });
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
@@ -173,6 +216,9 @@ export default async function CompliancePage({
         >
           Computed compliance review - 6 FMCSA audit areas
         </h2>
+        <p className="text-xs text-gray-500 -mt-2 mb-4">
+          {formatComplianceBasis(violations.length, inWindowViolations.length)}
+        </p>
         <div className="grid grid-cols-2 gap-3">
           {auditAreas.map((area) => (
             <div
@@ -192,9 +238,9 @@ export default async function CompliancePage({
                 <p className="text-sm font-medium text-[#1E1C1A]">{area.area}</p>
                 <p className="text-xs text-gray-500">
                   {area.status === "needs_review"
-                    ? `Needs review - ${area.count} live issue${area.count === 1 ? "" : "s"}`
+                    ? formatComplianceIssueStatus(area.count, area.inWindowCount)
                     : area.status === "no_violations"
-                      ? "No in-window violations found"
+                      ? "No issues on file"
                       : "Insufficient client data"}
                 </p>
               </div>
@@ -202,7 +248,7 @@ export default async function CompliancePage({
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-4">
-          Statuses are derived from the canonical in-window violation layer and the current driver and vehicle rosters. &quot;No violations found&quot; is not a certification of compliance.
+          Statuses are derived from the canonical violation layer and the current driver and vehicle rosters. &quot;No issues on file&quot; is not a certification of compliance.
         </p>
       </div>
     </div>

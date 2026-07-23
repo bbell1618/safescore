@@ -28,7 +28,7 @@ async function main() {
         containsMockHeading: html.includes("Mock compliance review"),
         containsPassingStatus: />Passing</.test(html),
         containsHazmat: html.includes("Hazardous Materials"),
-        liveIssueLabels: ["42 live issues", "20 live issues", "9 live issues", "1 live issue"].filter((label) => html.includes(label)),
+        issueOnFileLabels: ["37 issues on file", "20 issues on file", "8 issues on file", "5 issues on file", "1 issue on file"].filter((label) => html.includes(label)),
       };
     }
 

@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import { getBasics } from "@/lib/fmcsa/client";
 import { diffSnapshots, getRecentSnapshots } from "@/lib/monitoring/diff";
+import {
+  monitoringWatchStatusText,
+  mostRecentMonitoringCheck,
+} from "@/lib/monitoring/watch-status";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -17,14 +22,20 @@ function movementClass(value: number) {
   return "text-gray-500";
 }
 
+function formatFmcsaDate(value: string | null) {
+  if (!value) return null;
+  const dateOnly = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  return formatDate(dateOnly ?? value);
+}
+
 const OFFICIAL_BASICS = [
-  { label: "Unsafe Driving", measure: "unsafe_driving_measure", percentile: "unsafe_driving_pct", alert: "unsafe_driving_alert" },
-  { label: "HOS Compliance", measure: "hos_compliance_measure", percentile: "hos_compliance_pct", alert: "hos_compliance_alert" },
-  { label: "Driver Fitness", measure: "driver_fitness_measure", percentile: "driver_fitness_pct", alert: "driver_fitness_alert" },
-  { label: "Controlled Substances/Alcohol", measure: "controlled_substance_measure", percentile: "controlled_substance_pct", alert: "controlled_substance_alert" },
-  { label: "Vehicle Maintenance", measure: "vehicle_maint_measure", percentile: "vehicle_maint_pct", alert: "vehicle_maint_alert" },
-  { label: "HM Compliance", measure: "hm_compliance_measure", percentile: "hm_compliance_pct", alert: "hm_compliance_alert" },
-  { label: "Crash Indicator", measure: "crash_indicator_measure", percentile: "crash_indicator_pct", alert: "crash_indicator_alert" },
+  { label: "Unsafe Driving", source: "unsafeDriving", measure: "unsafe_driving_measure", percentile: "unsafe_driving_pct", alert: "unsafe_driving_alert" },
+  { label: "HOS Compliance", source: "hosCompliance", measure: "hos_compliance_measure", percentile: "hos_compliance_pct", alert: "hos_compliance_alert" },
+  { label: "Driver Fitness", source: "driverFitness", measure: "driver_fitness_measure", percentile: "driver_fitness_pct", alert: "driver_fitness_alert" },
+  { label: "Controlled Substances/Alcohol", source: "controlledSubstances", measure: "controlled_substance_measure", percentile: "controlled_substance_pct", alert: "controlled_substance_alert" },
+  { label: "Vehicle Maintenance", source: "vehicleMaintenance", measure: "vehicle_maint_measure", percentile: "vehicle_maint_pct", alert: "vehicle_maint_alert" },
+  { label: "HM Compliance", source: "hmCompliance", measure: "hm_compliance_measure", percentile: "hm_compliance_pct", alert: "hm_compliance_alert" },
+  { label: "Crash Indicator", source: "crashIndicator", measure: "crash_indicator_measure", percentile: "crash_indicator_pct", alert: "crash_indicator_alert" },
 ] as const;
 
 export default async function MonitoringPage({
@@ -35,21 +46,40 @@ export default async function MonitoringPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+  const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id")
+    .select("id, dot_number")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
+  if (clientError) {
+    throw new Error(`Unable to load client monitoring record: ${clientError.message}`);
+  }
   if (!client) notFound();
 
-  const { data: officialSnapshot } = await supabase
+  const { data: officialSnapshot, error: officialSnapshotError } = await supabase
     .from("score_snapshots")
     .select("*")
     .eq("client_id", id)
     .order("snapshot_date", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (officialSnapshotError) {
+    throw new Error(
+      `Unable to load the official FMCSA snapshot: ${officialSnapshotError.message}`
+    );
+  }
+
+  let publicBasics: Awaited<ReturnType<typeof getBasics>> | null = null;
+  let publicBasicsError: string | null = null;
+  if (!officialSnapshot || officialSnapshot.source !== "authenticated") {
+    try {
+      publicBasics = await getBasics(client.dot_number, { throwOnError: true });
+    } catch (error) {
+      publicBasicsError =
+        error instanceof Error ? error.message : "Unknown FMCSA API error";
+    }
+  }
 
   const snapshots = await getRecentSnapshots(id, 12);
   const latest = snapshots[0] ?? null;
@@ -59,6 +89,43 @@ export default async function MonitoringPage({
     snapshot,
     diffFromPrior: snapshots[index + 1] ? diffSnapshots(snapshot, snapshots[index + 1]) : null,
   }));
+
+  const { data: latestMonitoringRun, error: latestMonitoringRunError } =
+    await supabase
+      .from("activity_log")
+      .select("created_at, metadata")
+      .eq("client_id", id)
+      .filter("metadata->>source", "eq", "monitoring_cron")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+  if (latestMonitoringRunError) {
+    throw new Error(
+      `Unable to load the latest monitoring run: ${latestMonitoringRunError.message}`
+    );
+  }
+
+  const runSource = latestMonitoringRun?.metadata?.source;
+  if (latestMonitoringRun && typeof runSource !== "string") {
+    throw new Error("Latest monitoring run is missing its source metadata");
+  }
+  const lastCheck = mostRecentMonitoringCheck([
+    latestMonitoringRun && typeof runSource === "string"
+      ? {
+          timestamp: latestMonitoringRun.created_at,
+          source: runSource,
+          kind: "run",
+        }
+      : null,
+    latest
+      ? {
+          timestamp: latest.captured_at,
+          source: latest.source,
+          kind: "snapshot",
+        }
+      : null,
+  ]);
+  const watchStatus = monitoringWatchStatusText({ lastCheck });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -79,21 +146,41 @@ export default async function MonitoringPage({
         )}
       </div>
 
+      <section
+        aria-label="Monitoring watch status"
+        className="rounded-xl border border-[#D9E8DD] bg-[#F3F8F4] px-5 py-4"
+      >
+        <p className="text-sm font-medium leading-6 text-[#315E3E]">
+          {watchStatus}
+        </p>
+      </section>
+
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <div>
           <h2 className="font-semibold text-[#1E1C1A] text-sm">FMCSA official measures</h2>
           <p className="mt-1 text-xs text-gray-500">
-            {officialSnapshot
-              ? `${officialSnapshot.source === "authenticated" ? "Authenticated FMCSA Portal export" : "Public FMCSA API"} dated ${formatDate(officialSnapshot.snapshot_date)}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.`
-              : "No FMCSA measure snapshot has been imported yet."}
+            {publicBasics
+              ? `Public FMCSA API · FMCSA SMS snapshot ${formatFmcsaDate(publicBasics.smsSnapshotDate) ?? "date not provided"} · fetched ${formatFmcsaDate(publicBasics.retrievedAt) ?? "date not provided"}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.`
+              : officialSnapshot
+                ? `${officialSnapshot.source === "authenticated" ? "Authenticated FMCSA Portal export" : "Public FMCSA API"} · FMCSA SMS snapshot ${officialSnapshot.source === "authenticated" ? formatDate(officialSnapshot.snapshot_date) : "date unavailable on stored snapshot"} · fetched ${formatDate(officialSnapshot.created_at)}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.${publicBasicsError ? ` Live source check failed: ${publicBasicsError}` : ""}`
+                : publicBasicsError
+                  ? `Unable to load FMCSA official measures: ${publicBasicsError}`
+                  : "No FMCSA measure snapshot has been imported yet."}
           </p>
         </div>
-        {officialSnapshot && (
+        {(publicBasics || officialSnapshot) && (
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {OFFICIAL_BASICS.map((basic) => {
-              const measure = officialSnapshot[basic.measure];
-              const percentile = officialSnapshot[basic.percentile];
-              const alert = officialSnapshot[basic.alert];
+              const sourceBasic = publicBasics?.[basic.source] ?? null;
+              const measure = publicBasics
+                ? sourceBasic?.measureValue ?? null
+                : officialSnapshot?.[basic.measure] ?? null;
+              const percentile = publicBasics
+                ? sourceBasic?.percentile ?? null
+                : officialSnapshot?.[basic.percentile] ?? null;
+              const alert = publicBasics
+                ? sourceBasic?.alert ?? false
+                : officialSnapshot?.[basic.alert] ?? false;
               return (
                 <div key={basic.label} className="rounded-lg border border-[#F0E8DA] bg-white/60 p-3">
                   <div className="flex items-start justify-between gap-2">

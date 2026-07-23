@@ -20,6 +20,10 @@ import {
   buildSourceUpdate,
   violationIdentityKey,
 } from "@/lib/fmcsa/ingest-write-policy";
+import {
+  detectOosRateChange,
+  type MonitoringOosRateChange,
+} from "@/lib/monitoring/alert-planner";
 
 type ExistingViolation = {
   id: string;
@@ -30,12 +34,15 @@ type ExistingViolation = {
 export type ClientRefreshResult = {
   newViolationIds: string[];
   newCrashIds: string[];
+  newInspectionIds: string[];
   newInspectionCount: number;
+  oosRateChange: MonitoringOosRateChange | null;
   burden: BurdenResult;
   inspectionsPulled: number;
   violationsProcessed: number;
   crashesPulled: number;
   hadExistingViolations: boolean;
+  hadMonitoringBaseline: boolean;
   saferSnapshot: SAFERSnapshot | null;
   basics: FMCSABasics;
 };
@@ -194,21 +201,54 @@ export async function runClientRefresh(
     oos_hazmat_rate: saferSnapshot?.hazmatOosRate ?? oos.hazmatOosRate,
     source: "api",
   };
-  const { data: existingScore, error: scoreReadError } = await supabase
-    .from("score_snapshots")
-    .select("id, source")
-    .eq("client_id", clientId)
-    .eq("snapshot_date", today)
-    .maybeSingle();
-  if (scoreReadError) throw dbError("Unable to load score snapshot", scoreReadError);
+  const scoreSnapshotFields =
+    "id, snapshot_date, source, oos_vehicle_rate, oos_driver_rate, oos_hazmat_rate";
+  const [existingScoreResult, previousScoreResult] = await Promise.all([
+    supabase
+      .from("score_snapshots")
+      .select(scoreSnapshotFields)
+      .eq("client_id", clientId)
+      .eq("snapshot_date", today)
+      .maybeSingle(),
+    supabase
+      .from("score_snapshots")
+      .select(scoreSnapshotFields)
+      .eq("client_id", clientId)
+      .order("snapshot_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (existingScoreResult.error) {
+    throw dbError("Unable to load today's score snapshot", existingScoreResult.error);
+  }
+  if (previousScoreResult.error) {
+    throw dbError("Unable to load previous score snapshot", previousScoreResult.error);
+  }
+  const existingScore = existingScoreResult.data;
+  const previousScore = previousScoreResult.data;
 
   const scoreWrite = existingScore
     ? await supabase
         .from("score_snapshots")
         .update(buildPublicScoreSnapshotUpdate(publicScorePayload, existingScore.source))
         .eq("id", existingScore.id)
-    : await supabase.from("score_snapshots").insert(publicScorePayload);
-  if (scoreWrite.error) throw dbError("Unable to persist score snapshot", scoreWrite.error);
+        .select(scoreSnapshotFields)
+        .single()
+    : await supabase
+        .from("score_snapshots")
+        .insert(publicScorePayload)
+        .select(scoreSnapshotFields)
+        .single();
+  if (scoreWrite.error || !scoreWrite.data) {
+    throw dbError(
+      "Unable to persist score snapshot",
+      scoreWrite.error ?? { message: "write returned no row" }
+    );
+  }
+
+  const oosRateChange = detectOosRateChange(previousScore, scoreWrite.data);
 
   const [{ data: existingInspections, error: inspectionReadError }, existingViolations] =
     await Promise.all([
@@ -231,6 +271,7 @@ export async function runClientRefresh(
     existingViolationMap.set(key, matches);
   }
   const newViolationIds: string[] = [];
+  const newInspectionIds: string[] = [];
   let newInspectionCount = 0;
   let violationsProcessed = 0;
 
@@ -276,6 +317,7 @@ export async function runClientRefresh(
     }
     if (isNewInspection) {
       newInspectionCount += 1;
+      newInspectionIds.push(inspectionRow.id);
     }
     existingInspectionByReport.set(inspection.reportNumber, {
       id: inspectionRow.id,
@@ -425,12 +467,19 @@ export async function runClientRefresh(
   return {
     newViolationIds,
     newCrashIds,
+    newInspectionIds,
     newInspectionCount,
+    oosRateChange,
     burden,
     inspectionsPulled: inspections.length,
     violationsProcessed,
     crashesPulled: crashes.length,
     hadExistingViolations: existingViolations.length > 0,
+    hadMonitoringBaseline:
+      previousScore !== null ||
+      (existingInspections?.length ?? 0) > 0 ||
+      existingViolations.length > 0 ||
+      (existingCrashes?.length ?? 0) > 0,
     saferSnapshot,
     basics,
   };

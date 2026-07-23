@@ -1,7 +1,10 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
-import { sendViolationEmailsForIds } from "@/lib/monitoring/alerts";
+import {
+  emitRefreshAlerts,
+  sendViolationEmailsForIds,
+} from "@/lib/monitoring/alerts";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -69,6 +72,16 @@ export async function runAnalysisImport({
     const violationCount = refresh.violationsProcessed;
     const newViolationCount = refresh.newViolationIds.length;
     const crashes = { length: refresh.crashesPulled };
+
+    const emittedAlerts = refresh.hadMonitoringBaseline
+      ? await emitRefreshAlerts(supabase, {
+          clientId,
+          newViolationIds: refresh.newViolationIds,
+          newInspectionIds: refresh.newInspectionIds,
+          newCrashIds: refresh.newCrashIds,
+          oosRateChange: refresh.oosRateChange,
+        })
+      : { created: [] };
 
     if (refresh.hadExistingViolations) {
       await sendViolationEmailsForIds(supabase, {
@@ -387,8 +400,9 @@ export async function runAnalysisImport({
       entity_type: "client",
       description:
         `Full analysis run: ${censusSummary}; ${inspections.length} inspections, ` +
-        `${violationCount} violations (${newViolationCount} new), ` +
-        `${crashes.length} crashes ingested. BASIC measures + percentiles updated; ${alertSummary}. ` +
+        `${refresh.newInspectionIds.length} new inspections, ${violationCount} violations (${newViolationCount} new), ` +
+        `${crashes.length} crashes ingested, ${emittedAlerts.created.length} monitoring alerts created. ` +
+        `BASIC measures + percentiles updated; ${alertSummary}. ` +
         `OOS rates (SAFER): veh ${saferSnap?.vehicleOosRate ?? "n/a"}%, drv ${saferSnap?.driverOosRate ?? "n/a"}%, hm ${saferSnap?.hazmatOosRate ?? "n/a"}%.`,
     });
 
@@ -405,9 +419,12 @@ export async function runAnalysisImport({
           }
         : null,
       inspections: inspections.length,
+      newInspections: refresh.newInspectionIds.length,
       violations: violationCount,
       newViolations: newViolationCount,
       crashes: crashes.length,
+      oosChanges: refresh.oosRateChange?.changes ?? [],
+      alertsCreated: emittedAlerts.created.length,
       oos: {
         vehicle: saferSnap?.vehicleOosRate ?? null,
         driver: saferSnap?.driverOosRate ?? null,

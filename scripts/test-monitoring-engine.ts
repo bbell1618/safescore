@@ -5,7 +5,10 @@ import {
   type BurdenSnapshotMetrics,
   type LatestBurdenSnapshot,
 } from "../lib/monitoring/snapshot";
-import { planRefreshAlerts } from "../lib/monitoring/alert-planner";
+import {
+  detectOosRateChange,
+  planRefreshAlerts,
+} from "../lib/monitoring/alert-planner";
 import { SUBSCRIPTION_TIERS, tierHasFeature } from "../lib/tiers";
 
 const now = new Date("2026-07-21T13:00:00.000Z");
@@ -106,9 +109,34 @@ assert.throws(
 );
 proofs.invalidTimestamp = "rejected";
 
+const priorOosRates = {
+  id: "score-snapshot-prior",
+  oos_vehicle_rate: "18.50",
+  oos_driver_rate: 4.25,
+  oos_hazmat_rate: null,
+};
+const currentOosRates = {
+  id: "score-snapshot-1",
+  oos_vehicle_rate: 19.25,
+  oos_driver_rate: "4.25",
+  oos_hazmat_rate: 1.5,
+};
+const detectedOosRateChange = detectOosRateChange(
+  priorOosRates,
+  currentOosRates
+);
+assert.deepEqual(detectedOosRateChange, {
+  scoreSnapshotId: "score-snapshot-1",
+  changes: [{ label: "Vehicle", previous: 18.5, current: 19.25 }],
+});
+assert.equal(detectOosRateChange(null, currentOosRates), null);
+assert.equal(detectOosRateChange(currentOosRates, currentOosRates), null);
+proofs.oosRateDetection = detectedOosRateChange;
+
 const alertCandidates = planRefreshAlerts({
   clientId: "client-1",
   newViolationIds: ["v-oos", "v-weight", "v-normal"],
+  newInspectionIds: ["inspection-new"],
   newCrashIds: ["crash-new"],
   violations: [
     {
@@ -148,6 +176,26 @@ const alertCandidates = planRefreshAlerts({
       inspections: { inspection_date: "2026-07-17" },
     },
   ],
+  inspections: [
+    {
+      id: "inspection-new",
+      report_number: "INSP-NEW",
+      inspection_date: "2026-07-20",
+      state: "CA",
+      level: "1",
+      total_violations: 2,
+      oos_violations: 1,
+    },
+    {
+      id: "inspection-preexisting",
+      report_number: "INSP-OLD",
+      inspection_date: "2026-06-20",
+      state: "CA",
+      level: "2",
+      total_violations: 0,
+      oos_violations: 0,
+    },
+  ],
   crashes: [
     {
       id: "crash-new",
@@ -170,21 +218,46 @@ const alertCandidates = planRefreshAlerts({
       tow_away: true,
     },
   ],
+  oosRateChange: detectedOosRateChange,
 });
 assert.deepEqual(
   alertCandidates.map((candidate) => candidate.entityId),
-  ["v-oos", "v-weight", "v-normal", "crash-new"]
+  [
+    "v-oos",
+    "v-weight",
+    "v-normal",
+    "inspection-new",
+    "crash-new",
+    "score-snapshot-1",
+  ]
 );
 assert.deepEqual(
   alertCandidates.map((candidate) => candidate.severity),
-  ["critical", "critical", "info", "critical"]
+  ["critical", "critical", "info", "warning", "critical", "warning"]
+);
+assert.deepEqual(
+  alertCandidates.map((candidate) => candidate.type),
+  [
+    "new_violation",
+    "new_violation",
+    "new_violation",
+    "new_inspection",
+    "new_crash",
+    "oos_change",
+  ]
 );
 assert.equal(alertCandidates.some((candidate) => candidate.entityId === "v-preexisting"), false);
+assert.equal(
+  alertCandidates.some((candidate) => candidate.entityId === "inspection-preexisting"),
+  false
+);
 assert.equal(alertCandidates.some((candidate) => candidate.entityId === "crash-preexisting"), false);
 proofs.alertEmission = {
   mockedInsertedViolationIds: ["v-oos", "v-weight", "v-normal"],
+  mockedInsertedInspectionIds: ["inspection-new"],
   mockedInsertedCrashIds: ["crash-new"],
   emittedEntityIds: alertCandidates.map((candidate) => candidate.entityId),
+  emittedTypes: alertCandidates.map((candidate) => candidate.type),
   severities: alertCandidates.map((candidate) => candidate.severity),
   preexistingRowsEmitted: false,
 };

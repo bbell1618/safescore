@@ -47,6 +47,8 @@ export interface FMCSABasic {
   investigationCount: number;
   violationCount: number;
   category: string;
+  sourceId: number | null;
+  runDate: string | null;
   alert: boolean;
   outofservice: boolean;
 }
@@ -59,7 +61,25 @@ export interface FMCSABasics {
   vehicleMaintenance: FMCSABasic | null;
   hmCompliance: FMCSABasic | null;
   crashIndicator: FMCSABasic | null;
+  smsSnapshotDate: string | null;
+  retrievedAt: string | null;
 }
+
+export type FMCSABasicsPayload = {
+  content: Array<{
+    basic: {
+      basicsType: { basicsCode: string; basicsId: number };
+      basicsRunDate?: string | null;
+      measureValue: string | number;
+      basicsPercentile: string | number | null;
+      totalViolation: number;
+      totalInspectionWithViolation: number;
+      exceededFMCSAInterventionThreshold: string;
+      onRoadPerformanceThresholdViolationIndicator?: string;
+    };
+  }>;
+  retrievalDate?: string | null;
+};
 
 export interface FMCSAOosRates {
   vehicleOosRate: number | null;
@@ -83,11 +103,11 @@ export interface FMCSACarrierResponse {
 }
 
 async function fetchFMCSA<T>(path: string, opts?: { revalidate?: number }): Promise<T> {
-  const apiKey = process.env.FMCSA_API_KEY;
+  const apiKey = process.env.FMCSA_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("FMCSA_API_KEY not configured");
   }
-  const url = `${BASE_URL}${path}?webKey=${apiKey}`;
+  const url = `${BASE_URL}${path}?webKey=${encodeURIComponent(apiKey)}`;
   // Default: no cache so analysis import runs always get fresh data.
   // Pass opts.revalidate to opt into Next.js Data Cache for display-only reads.
   const fetchOpts: RequestInit =
@@ -184,78 +204,76 @@ export async function getBasics(
   dot: string,
   options: { throwOnError?: boolean } = {}
 ): Promise<FMCSABasics> {
-  if (!process.env.FMCSA_API_KEY) {
+  if (!process.env.FMCSA_API_KEY?.trim()) {
     if (options.throwOnError) throw new Error("FMCSA_API_KEY not configured");
     console.warn("FMCSA_API_KEY not set"); return emptyBasics();
   }
   try {
     // The API returns { content: Array<{ basic: { basicsType: { basicsCode }, measureValue, basicsPercentile, ... } }> }
     // NOT the previously assumed { content: { BasicsInfo: [] } } shape.
-    const data = await fetchFMCSA<{
-      content: Array<{
-        basic: {
-          basicsType: { basicsCode: string; basicsId: number };
-          measureValue: string | number;
-          basicsPercentile: string | number | null;
-          totalViolation: number;
-          totalInspectionWithViolation: number;
-          exceededFMCSAInterventionThreshold: string;
-          onRoadPerformanceThresholdViolationIndicator?: string;
-        };
-      }>;
-    }>(`/carriers/${dot}/basics`);
-
-    const basics: FMCSABasics = {
-      unsafeDriving: null,
-      hosCompliance: null,
-      driverFitness: null,
-      controlledSubstances: null,
-      vehicleMaintenance: null,
-      hmCompliance: null,
-      crashIndicator: null,
-    };
-
-    const items = Array.isArray(data.content) ? data.content : [];
-    for (const entry of items) {
-      const b = entry?.basic;
-      if (!b) continue;
-
-      const code = b.basicsType?.basicsCode ?? "";
-      const measureValue = parseFloat(String(b.measureValue ?? "0")) || 0;
-
-      // basicsPercentile is "Not Public" when carrier is not publicly scored;
-      // a numeric string like "75" or a number when public.
-      let percentile: number | null = null;
-      if (b.basicsPercentile !== null && b.basicsPercentile !== undefined) {
-        const pctNum = parseFloat(String(b.basicsPercentile));
-        if (!isNaN(pctNum)) percentile = pctNum;
-      }
-
-      const item: FMCSABasic = {
-        measureValue,
-        percentile,
-        investigationCount: b.totalInspectionWithViolation ?? 0,
-        violationCount: b.totalViolation ?? 0,
-        category: code,
-        alert: b.exceededFMCSAInterventionThreshold === "1",
-        outofservice: b.onRoadPerformanceThresholdViolationIndicator === "Yes",
-      };
-
-      const cat = code.toLowerCase();
-      if (cat.includes("unsafe")) basics.unsafeDriving = item;
-      else if (cat.includes("hos") || cat.includes("hours")) basics.hosCompliance = item;
-      else if (cat.includes("driver") && cat.includes("fit")) basics.driverFitness = item;
-      else if (cat.includes("drug") || cat.includes("alcohol") || cat.includes("controlled") || cat.includes("substance")) basics.controlledSubstances = item;
-      else if (cat.includes("vehicle") || cat.includes("maint")) basics.vehicleMaintenance = item;
-      else if (cat.includes("hm") || cat.includes("hazmat") || cat.includes("hazardous")) basics.hmCompliance = item;
-      else if (cat.includes("crash")) basics.crashIndicator = item;
-    }
-    return basics;
+    const data = await fetchFMCSA<FMCSABasicsPayload>(`/carriers/${dot}/basics`);
+    return mapFmcsaBasicsPayload(data);
   } catch (err) {
     if (options.throwOnError) throw err;
     console.error(`FMCSA basics API failed for DOT ${dot}:`, err);
     return emptyBasics();
   }
+}
+
+/**
+ * Normalize the exact QCMobile /basics response. Keeping this pure makes the
+ * source-field mapping independently testable and preserves FMCSA's own SMS
+ * run date separately from the API retrieval timestamp.
+ */
+export function mapFmcsaBasicsPayload(data: FMCSABasicsPayload): FMCSABasics {
+  const basics = emptyBasics();
+  basics.retrievedAt = data.retrievalDate ?? null;
+  const runDates = new Set<string>();
+
+  const items = Array.isArray(data.content) ? data.content : [];
+  for (const entry of items) {
+    const b = entry?.basic;
+    if (!b) continue;
+
+    const code = b.basicsType?.basicsCode ?? "";
+    const measureValue = parseFloat(String(b.measureValue ?? "0")) || 0;
+
+    // basicsPercentile is "Not Public" when carrier is not publicly scored;
+    // a numeric string like "75" or a number when public.
+    let percentile: number | null = null;
+    if (b.basicsPercentile !== null && b.basicsPercentile !== undefined) {
+      const pctNum = parseFloat(String(b.basicsPercentile));
+      if (!isNaN(pctNum)) percentile = pctNum;
+    }
+
+    const runDate = b.basicsRunDate ?? null;
+    if (runDate) runDates.add(runDate);
+    const item: FMCSABasic = {
+      measureValue,
+      percentile,
+      investigationCount: b.totalInspectionWithViolation ?? 0,
+      violationCount: b.totalViolation ?? 0,
+      category: code,
+      sourceId: b.basicsType?.basicsId ?? null,
+      runDate,
+      alert: b.exceededFMCSAInterventionThreshold === "1",
+      outofservice: b.onRoadPerformanceThresholdViolationIndicator === "Yes",
+    };
+
+    const cat = code.toLowerCase();
+    if (cat.includes("unsafe")) basics.unsafeDriving = item;
+    else if (cat.includes("hos") || cat.includes("hours")) basics.hosCompliance = item;
+    else if (cat.includes("driver") && cat.includes("fit")) basics.driverFitness = item;
+    else if (cat.includes("drug") || cat.includes("alcohol") || cat.includes("controlled") || cat.includes("substance")) basics.controlledSubstances = item;
+    else if (cat.includes("vehicle") || cat.includes("maint")) basics.vehicleMaintenance = item;
+    else if (cat.includes("hm") || cat.includes("hazmat") || cat.includes("hazardous")) basics.hmCompliance = item;
+    else if (cat.includes("crash")) basics.crashIndicator = item;
+  }
+
+  // QCMobile currently stamps every returned BASIC with the same SMS run date.
+  // If that ever changes, do not present one date as applying to mixed snapshots.
+  basics.smsSnapshotDate = runDates.size === 1 ? [...runDates][0] : null;
+  return basics;
 }
 
 export async function getOosRates(dot: string): Promise<FMCSAOosRates> {
@@ -427,6 +445,8 @@ function emptyBasics(): FMCSABasics {
     vehicleMaintenance: null,
     hmCompliance: null,
     crashIndicator: null,
+    smsSnapshotDate: null,
+    retrievedAt: null,
   };
 }
 
