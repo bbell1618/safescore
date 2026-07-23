@@ -337,6 +337,32 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["reports"]["Insert"]>;
       };
+      client_playbooks: {
+        Row: {
+          id: string;
+          client_id: string;
+          version: number;
+          template_version: string;
+          trailing_window_days: number;
+          source_as_of: string;
+          owner_curriculum: unknown;
+          family_programs: unknown;
+          installment_calendar: unknown;
+          ai_content: unknown;
+          source_snapshot: unknown;
+          generated_by: string;
+          generated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["client_playbooks"]["Row"],
+          "id" | "generated_at"
+        > & {
+          generated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["client_playbooks"]["Insert"]
+        >;
+      };
       alerts: {
         Row: {
           id: string;

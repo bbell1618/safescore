@@ -39,16 +39,39 @@ export async function getCanonicalInspectionScope(
   adminClient?: SupabaseClient
 ): Promise<CanonicalInspectionScope> {
   const supabase = adminClient ?? (await createServiceClient());
-  const { data: rows, error } = await supabase
+  const rows: InspectionScopeRow[] = [];
+  const pageSize = 1_000;
+  const countResult = await supabase
     .from("inspections")
-    .select("id, mcmis_inspection_id")
+    .select("id", { count: "exact", head: true })
     .eq("client_id", clientId);
-
-  if (error) {
+  if (countResult.error) {
     throw new Error(
-      `Unable to load canonical inspection scope: ${error.message}`
+      `Unable to count canonical inspection scope: ${countResult.error.message}`
     );
   }
+  const expectedCount = countResult.count ?? 0;
+  while (rows.length < expectedCount) {
+    const { data, error } = await supabase
+      .from("inspections")
+      .select("id, mcmis_inspection_id")
+      .eq("client_id", clientId)
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + pageSize - 1);
 
-  return selectCanonicalInspectionScope((rows ?? []) as InspectionScopeRow[]);
+    if (error) {
+      throw new Error(
+        `Unable to load canonical inspection scope: ${error.message}`
+      );
+    }
+    const page = (data ?? []) as InspectionScopeRow[];
+    if (page.length === 0) {
+      throw new Error(
+        `Unable to load canonical inspection scope: expected ${expectedCount} rows but received ${rows.length}.`
+      );
+    }
+    rows.push(...page);
+  }
+
+  return selectCanonicalInspectionScope(rows);
 }

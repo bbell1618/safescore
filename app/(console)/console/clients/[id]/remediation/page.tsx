@@ -12,6 +12,8 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { getRemediationNextStep } from "@/lib/analysis/remediation-next-step";
 import { summarizeInvestigationBurden } from "@/lib/analysis/remediation-presentation";
+import { buildLaneCFamilyGroups } from "@/lib/playbooks/families";
+import { FAMILY_DEFINITIONS } from "@/lib/playbooks/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -102,19 +104,52 @@ type LaneAItem = {
   caseRow: CpdpCaseRow | null;
 };
 
-const OPERATIONAL_RECOMMENDATIONS: Record<string, string> = {
-  vehicle_maintenance:
-    "Address at the shop (tires, brakes, lighting, steering). Not DataQ-challengeable; decays out of the 24-month CSA window over time.",
-  hos_compliance:
-    "Driver HOS coaching / ELD discipline. Genuine logging errors that ARE challengeable appear under Priority actions; the rest age out over 24 months.",
-  unsafe_driving:
-    "Driver behavior coaching (speed management, following distance, seat-belt use). Not challengeable; decays over 24 months.",
-  driver_fitness:
-    "Complete/correct the driver qualification file. Ages out over 24 months.",
-  hazmat_compliance:
-    "HM compliance correction (marking, packaging, documentation). Ages out over 24 months.",
-  controlled_substance: "Testing / program compliance. Ages out over 24 months.",
-};
+type RemediationSupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function loadCanonicalViolations(
+  supabase: RemediationSupabaseClient,
+  clientId: string,
+  canonicalInspectionIds: string[]
+): Promise<ViolationRow[]> {
+  const countResult = await supabase
+    .from("violations")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId);
+  if (countResult.error) {
+    throw new Error(
+      `Unable to count remediation violations: ${countResult.error.message}`
+    );
+  }
+
+  const expectedCount = countResult.count ?? 0;
+  const rows: ViolationRow[] = [];
+  const pageSize = 1_000;
+  while (rows.length < expectedCount) {
+    const pageResult = await supabase
+      .from("violations")
+      .select(
+        "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, challenge_tier, inspections(inspection_date, state)"
+      )
+      .eq("client_id", clientId)
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + pageSize - 1);
+    if (pageResult.error) {
+      throw new Error(
+        `Unable to load remediation violations: ${pageResult.error.message}`
+      );
+    }
+    const page = (pageResult.data ?? []) as unknown as ViolationRow[];
+    if (page.length === 0) {
+      throw new Error(
+        `Unable to load remediation violations: expected ${expectedCount} rows but received ${rows.length}.`
+      );
+    }
+    rows.push(...page);
+  }
+
+  const canonical = new Set(canonicalInspectionIds);
+  return rows.filter((row) => canonical.has(row.inspection_id));
+}
 
 export default async function RemediationPage({
   params,
@@ -124,61 +159,97 @@ export default async function RemediationPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+  const { data: client, error: clientError } = await supabase
     .from("clients")
     .select("id, name, dot_number, tier")
     .eq("id", id)
     .single();
 
+  if (clientError && clientError.code !== "PGRST116") {
+    throw new Error(`Unable to load remediation client: ${clientError.message}`);
+  }
   if (!client) notFound();
   const clientTier = normalizeClientTier(client.tier);
 
   const { inspectionIds: canonicalInspectionIds } =
     await getCanonicalInspectionScope(id, supabase);
 
-  let violationsQuery = supabase
-    .from("violations")
-    .select(
-      "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, citation_number, citation_result, convicted, challenge_reason, challenge_tier, inspections(inspection_date, state)"
-    )
-    .eq("client_id", id);
+  const [
+    violations,
+    crashesResult,
+    dataqCasesResult,
+    cpdpCasesResult,
+  ] = await Promise.all([
+    loadCanonicalViolations(supabase, id, canonicalInspectionIds),
+    supabase
+      .from("crashes")
+      .select("id, crash_date, state, city, tow_away, injuries, fatalities")
+      .eq("client_id", id)
+      .order("crash_date", { ascending: false }),
+    supabase
+      .from("dataq_cases")
+      .select("id, violation_id, inspection_id, status, case_number")
+      .eq("client_id", id),
+    supabase
+      .from("cpdp_cases")
+      .select("id, crash_id, status, case_number")
+      .eq("client_id", id),
+  ]);
 
-  violationsQuery = canonicalInspectionIds.length > 0
-    ? violationsQuery.in("inspection_id", canonicalInspectionIds)
-    : violationsQuery.in("inspection_id", []);
-
-  const [{ data: violations }, { data: crashes }, { data: dataqCases }, { data: cpdpCases }] =
-    await Promise.all([
-      violationsQuery,
-      supabase
-        .from("crashes")
-        .select("id, crash_date, state, city, tow_away, injuries, fatalities")
-        .eq("client_id", id)
-        .order("crash_date", { ascending: false }),
-      supabase
-        .from("dataq_cases")
-        .select("id, violation_id, inspection_id, status, case_number")
-        .eq("client_id", id),
-      supabase
-        .from("cpdp_cases")
-        .select("id, crash_id, status, case_number")
-        .eq("client_id", id),
-    ]);
+  for (const [label, error] of [
+    ["crashes", crashesResult.error],
+    ["DataQ cases", dataqCasesResult.error],
+    ["CPDP cases", cpdpCasesResult.error],
+  ] as const) {
+    if (error) {
+      throw new Error(`Unable to load remediation ${label}: ${error.message}`);
+    }
+  }
+  const crashes = crashesResult.data;
+  const dataqCases = dataqCasesResult.data;
+  const cpdpCases = cpdpCasesResult.data;
 
   const dataqCaseIds = (dataqCases ?? []).map((caseRow) => caseRow.id);
-  const { data: dataqEvidence } = dataqCaseIds.length
+  const dataqEvidenceResult = dataqCaseIds.length
     ? await supabase
         .from("dataq_evidence")
         .select("case_id, acquisition_method")
         .in("case_id", dataqCaseIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (dataqEvidenceResult.error) {
+    throw new Error(
+      `Unable to load remediation DataQ evidence: ${dataqEvidenceResult.error.message}`
+    );
+  }
+  const dataqEvidence = dataqEvidenceResult.data;
 
+  const violationRows = (violations ?? []) as unknown as ViolationRow[];
+  const asOf = new Date();
+  asOf.setUTCHours(0, 0, 0, 0);
   const queue = buildQueue(
-    (violations ?? []) as unknown as ViolationRow[],
+    violationRows,
     (crashes ?? []) as unknown as CrashRow[],
     (dataqCases ?? []) as unknown as DataqCaseRow[],
     (cpdpCases ?? []) as unknown as CpdpCaseRow[],
-    (dataqEvidence ?? []) as unknown as DataqEvidenceRow[]
+    (dataqEvidence ?? []) as unknown as DataqEvidenceRow[],
+    asOf
+  );
+  const laneCFamilyGroups = buildLaneCFamilyGroups(
+    violationRows.map((violation) => ({
+      id: violation.id,
+      violation_code: violation.violation_code,
+      violation_description: violation.violation_description,
+      basic_category: violation.basic_category,
+      severity_weight: violation.severity_weight,
+      oos_violation: violation.oos_violation,
+      citation_number: violation.citation_number,
+      citation_result: violation.citation_result,
+      convicted: violation.convicted,
+      challenge_reason: violation.challenge_reason,
+      challenge_tier: violation.challenge_tier,
+      inspection_date: violation.inspections?.inspection_date ?? null,
+    })),
+    { asOf, trailingWindowDays: 90 }
   );
 
   const laneBPercent = queue.totalPoints > 0 ? Math.round((queue.laneBPoints / queue.totalPoints) * 100) : 0;
@@ -192,7 +263,7 @@ export default async function RemediationPage({
   ).length;
   const nextStep = getRemediationNextStep({
     safetyRecordCount: (violations ?? []).length + (crashes ?? []).length,
-    actionCount: queue.priorityRows.length,
+    actionCount: queue.priorityRows.length + laneCFamilyGroups.length,
     openCaseCount,
   });
 
@@ -280,8 +351,8 @@ export default async function RemediationPage({
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">Action queue</h2>
-          <p className="text-xs text-gray-500 mt-1">All carrier actions in one queue: crash preventability review, evidence investigation, genuine challenge filings, and operational coaching/shop work.</p>
+          <h2 className="font-semibold text-[#1E1C1A] text-sm">Case and evidence action queue</h2>
+          <p className="text-xs text-gray-500 mt-1">Lanes A, I, and B stay item-level for crash review, evidence investigation, and genuine challenge filings. Lane C coaching and shop work is grouped by root-cause family below.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -300,7 +371,7 @@ export default async function RemediationPage({
               {queue.priorityRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">
-                    No priority CPDP or DataQs actions.
+                    No item-level CPDP, evidence, or DataQs actions.
                   </td>
                 </tr>
               ) : (
@@ -358,28 +429,7 @@ export default async function RemediationPage({
                         </Link>
                       </td>
                     </tr>
-                  ) : (
-                    <tr key={`operational-${item.violation.id}`} className="bg-white/50">
-                      <td className="px-5 py-4"><Badge variant="outline">C</Badge></td>
-                      <td className="px-5 py-4">
-                        <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
-                        <div className="text-xs text-gray-500 max-w-sm truncate">{item.violation.violation_description}</div>
-                      </td>
-                      <td className="px-5 py-4 text-gray-500">{item.basicLabel}</td>
-                      <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{item.points} pts</td>
-                      <td className="px-5 py-4 text-gray-600">
-                        {OPERATIONAL_RECOMMENDATIONS[item.basicCategory] ?? "Operational correction. Ages out over 24 months."}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-xs text-gray-400">No filing action</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Link className="font-medium text-gray-500 hover:text-[#8B5E2B] hover:underline" href={`/console/clients/${id}/violations`}>
-                          Open
-                        </Link>
-                      </td>
-                    </tr>
-                  )
+                  ) : null
                 )
               )}
             </tbody>
@@ -388,24 +438,73 @@ export default async function RemediationPage({
       </section>
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white/60">
-        <div className="border-b border-gray-200 p-5">
-          <h2 className="text-sm font-medium text-gray-600">Operational burden (not challengeable)</h2>
-          <p className="mt-1 text-xs text-gray-400">Lane C is not filed against FMCSA - the remedy is operational + time decay, and SafeScore monitors the decay.</p>
+        <div className="flex flex-col gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-medium text-gray-600">Lane C family programs</h2>
+              <ServiceTierChip tier={clientTier} feature="playbook_coach" />
+            </div>
+            <p className="mt-1 text-xs text-gray-400">Operational burden is grouped at the root-cause level. The remedy is coaching, maintenance, and stopping new inflow while SafeScore monitors the 24-month decay.</p>
+          </div>
+          <Link
+            href={`/console/clients/${id}/remediation/playbook`}
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-[#DCCCB5] bg-white px-3 py-2 text-xs font-semibold text-[#8B5E2B] transition-colors hover:border-[#C67A1E] hover:bg-[#FDF4E7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A1E] focus-visible:ring-offset-2"
+          >
+            Open safety playbook &rarr;
+          </Link>
         </div>
-        <div className="divide-y divide-gray-100">
-          {queue.operationalGroups.length === 0 ? (
+        <div className="grid gap-3 p-4 lg:grid-cols-2">
+          {laneCFamilyGroups.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-gray-400">No scored operational burden in the current window.</div>
           ) : (
-            queue.operationalGroups.map((group) => (
-              <div key={group.basicCategory} className="grid gap-3 p-5 text-gray-500 md:grid-cols-[220px_1fr]">
-                <div>
-                  <div className="text-sm font-medium text-gray-600">{group.label}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {group.count} violation{group.count === 1 ? "" : "s"} {"\u00B7"} {group.points} pts
+            laneCFamilyGroups.map((group) => (
+              <article
+                key={group.familyKey}
+                className="rounded-xl border border-[#F0E8DA] bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{group.familyCode}</Badge>
+                      {group.familyKey === "general_safety" && (
+                        <Badge variant="warning">Mapping review needed</Badge>
+                      )}
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold text-[#1E1C1A]">
+                      {group.familyName}
+                    </h3>
                   </div>
+                  <Link
+                    href={`/console/clients/${id}/remediation/playbook#program-${group.familyKey}`}
+                    className="shrink-0 text-xs font-semibold text-[#C67A1E] hover:underline"
+                  >
+                    Open program
+                  </Link>
                 </div>
-                <p className="text-sm text-gray-500">{group.recommendation}</p>
-              </div>
+                <dl className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-[#FBF7F0] p-2.5">
+                    <dt className="text-[10px] text-gray-400">Violations</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-[#1E1C1A]">
+                      {group.count}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-[#FBF7F0] p-2.5">
+                    <dt className="text-[10px] text-gray-400">Current points</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-[#1E1C1A]">
+                      {group.points}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-[#FBF7F0] p-2.5">
+                    <dt className="text-[10px] text-gray-400">90-day inflow</dt>
+                    <dd className="mt-0.5 text-sm font-bold text-[#1E1C1A]">
+                      {group.inflowRatePerMonth.toFixed(2)}/mo
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-xs leading-5 text-gray-500">
+                  {FAMILY_DEFINITIONS[group.familyKey].riskContext}
+                </p>
+              </article>
             ))
           )}
         </div>
@@ -419,7 +518,8 @@ function buildQueue(
   crashes: CrashRow[],
   dataqCases: DataqCaseRow[],
   cpdpCases: CpdpCaseRow[],
-  dataqEvidence: DataqEvidenceRow[]
+  dataqEvidence: DataqEvidenceRow[],
+  asOf: Date
 ) {
   const dataqByViolation = new Map<string, DataqCaseRow>();
   for (const c of dataqCases) {
@@ -442,7 +542,7 @@ function buildQueue(
     }
   }
 
-  const crashCutoff = new Date();
+  const crashCutoff = new Date(asOf);
   crashCutoff.setMonth(crashCutoff.getMonth() - 24);
 
   let agedOutCrashCount = 0;
@@ -468,7 +568,7 @@ function buildQueue(
   let countedCount = 0;
 
   for (const violation of violations) {
-    const timeWeight = timeWeightFor(violation.inspections?.inspection_date ?? null, new Date());
+    const timeWeight = timeWeightFor(violation.inspections?.inspection_date ?? null, asOf);
     const points =
       violation.severity_weight != null && timeWeight > 0
         ? timeWeight * (violation.severity_weight + (violation.oos_violation ? 2 : 0))
@@ -545,15 +645,11 @@ function buildQueue(
   laneInvestigate.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
   laneC.sort((a, b) => b.points - a.points || (b.violation.inspections?.inspection_date ?? "").localeCompare(a.violation.inspections?.inspection_date ?? ""));
 
-  const operationalGroups = [...groupOperational(laneC.filter((item) => item.points > 0)).values()].sort(
-    (a, b) => b.points - a.points || b.count - a.count
-  );
-
   const laneBPoints = laneB.reduce((sum, item) => sum + item.points, 0);
   const laneInvestigatePoints = laneInvestigate.reduce((sum, item) => sum + item.points, 0);
   const laneCPoints = laneC.reduce((sum, item) => sum + item.points, 0);
 
-  const priorityRows = [...laneA, ...laneInvestigate, ...laneB, ...laneC].sort(compareQueueItems);
+  const priorityRows = [...laneA, ...laneInvestigate, ...laneB].sort(compareQueueItems);
 
   return {
     laneA,
@@ -568,7 +664,6 @@ function buildQueue(
     excludedCount,
     agedOutCrashCount,
     priorityRows,
-    operationalGroups,
   };
 }
 
@@ -610,30 +705,6 @@ function evidenceRequirementsSummary(
     incrementEvidenceSummary(summary, item.acquisitionMethod);
   }
   return summary;
-}
-
-function groupOperational(items: LaneCItem[]) {
-  const groups = new Map<
-    string,
-    { basicCategory: string; label: string; count: number; points: number; recommendation: string }
-  >();
-
-  for (const item of items) {
-    const current = groups.get(item.basicCategory) ?? {
-      basicCategory: item.basicCategory,
-      label: BASIC_LABELS[item.basicCategory] ?? item.basicCategory,
-      count: 0,
-      points: 0,
-      recommendation:
-        OPERATIONAL_RECOMMENDATIONS[item.basicCategory] ??
-        "Operational correction. Ages out over 24 months.",
-    };
-    current.count += 1;
-    current.points += item.points;
-    groups.set(item.basicCategory, current);
-  }
-
-  return groups;
 }
 
 function renderDataqStatus(caseRow: DataqCaseRow | null) {
