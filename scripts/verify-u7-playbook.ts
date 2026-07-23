@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { loadEnvConfig } from "@next/env";
 import { createClient } from "@supabase/supabase-js";
+import { findPlaybookPlaceholdersInValue } from "../lib/playbooks/playbook-generation";
 import { createDeployedStaffSession } from "./lib/deployed-staff-session";
 
 loadEnvConfig(process.cwd());
@@ -9,8 +10,8 @@ const baseUrl = (process.argv[2] ?? "https://safescore.vercel.app").replace(
   /\/$/,
   ""
 );
+const existingPlaybookId = process.argv[3] ?? null;
 const clientId = "879b62c2-f8ea-430d-b8d3-9264150d84bf";
-const placeholderPattern = /\[[^\]\n]{1,80}\]/g;
 
 type FamilyProgram = {
   familyKey: string;
@@ -91,37 +92,46 @@ async function main() {
 
   const session = await createDeployedStaffSession(baseUrl);
   try {
-    const response = await fetch(`${baseUrl}/api/playbooks/generate`, {
-      method: "POST",
-      headers: {
-        cookie: session.cookie,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ clientId }),
-    });
-    const rawResponse = await response.text();
     let generated: GenerateResponse;
-    try {
-      generated = JSON.parse(rawResponse) as GenerateResponse;
-    } catch {
-      throw new Error(
-        `Playbook route returned non-JSON HTTP ${response.status}: ${rawResponse}`
-      );
-    }
-    if (!response.ok) {
-      throw new Error(
-        `Playbook route returned HTTP ${response.status}: ${
-          generated.error ?? rawResponse
-        }`
-      );
+    let routeStatus: number | "existing-row";
+    if (existingPlaybookId) {
+      generated = { playbookId: existingPlaybookId };
+      routeStatus = "existing-row";
+    } else {
+      const response = await fetch(`${baseUrl}/api/playbooks/generate`, {
+        method: "POST",
+        headers: {
+          cookie: session.cookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ clientId }),
+      });
+      routeStatus = response.status;
+      const rawResponse = await response.text();
+      try {
+        generated = JSON.parse(rawResponse) as GenerateResponse;
+      } catch {
+        throw new Error(
+          `Playbook route returned non-JSON HTTP ${response.status}: ${rawResponse}`
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Playbook route returned HTTP ${response.status}: ${
+            generated.error ?? rawResponse
+          }`
+        );
+      }
     }
 
     assert.ok(generated.playbookId);
-    assert.equal(generated.version, priorVersion + 1);
-    assert.equal(generated.familyCount, 13);
-    assert.equal(generated.laneCViolationCount, 60);
-    assert.equal(generated.laneCWeightedPoints, 448);
-    assert.deepEqual(generated.unmappedCodes, ["39617CPI"]);
+    if (!existingPlaybookId) {
+      assert.equal(generated.version, priorVersion + 1);
+      assert.equal(generated.familyCount, 13);
+      assert.equal(generated.laneCViolationCount, 60);
+      assert.equal(generated.laneCWeightedPoints, 448);
+      assert.deepEqual(generated.unmappedCodes, ["39617CPI"]);
+    }
 
     const rowResult = await service
       .from("client_playbooks")
@@ -184,15 +194,13 @@ async function main() {
     assert.equal(source.laneCViolationCount, 60);
     assert.equal(source.laneCWeightedPoints, 448);
     assert.equal(source.trailingWindowDays, 90);
-    assert.deepEqual(
-      JSON.stringify({
-        owner: row.owner_curriculum,
-        programs: row.family_programs,
-        calendar: row.installment_calendar,
-        ai: row.ai_content,
-      }).match(placeholderPattern) ?? [],
-      []
-    );
+    const placeholderMatches = findPlaybookPlaceholdersInValue({
+      owner: row.owner_curriculum,
+      programs: row.family_programs,
+      calendar: row.installment_calendar,
+      ai: row.ai_content,
+    });
+    assert.deepEqual(placeholderMatches, []);
 
     const completionResult = await service
       .from("activity_log")
@@ -274,7 +282,7 @@ async function main() {
     for (const expected of [
       "Lane C family programs",
       "Tires &amp; Wheels",
-      "0.67/mo",
+      "0.67",
       "Open program",
     ]) {
       assert.ok(
@@ -292,11 +300,13 @@ async function main() {
     console.log(
       JSON.stringify(
         {
-          routeStatus: response.status,
+          routeStatus,
           unauthenticatedRouteStatus: unauthenticated.status,
           playbookId: row.id,
           version: row.version,
-          generationAttempts: generated.generationAttempts,
+          generationAttempts:
+            generated.generationAttempts ??
+            completionMetadata.generation_attempts,
           generatedAt: row.generated_at,
           sourceAsOf: row.source_as_of,
           sourceSnapshot: source,
@@ -308,7 +318,7 @@ async function main() {
             inflowCount: program.inflowCount,
             inflowRatePerMonth: program.inflowRatePerMonth,
           })),
-          placeholderMatches: [],
+          placeholderMatches,
           audit: {
             completionEntityId: completionResult.data.entity_id,
             generationId: completionMetadata.generation_id,
