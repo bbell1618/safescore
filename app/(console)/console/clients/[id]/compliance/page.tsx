@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { User, Truck, AlertTriangle, CheckCircle } from "lucide-react";
 import { AddDriverButton, AddVehicleButton, RequestClientDocumentsButton } from "@/components/console/compliance-add-forms";
+import { Mcs150TruthUpSection } from "@/components/console/mcs150-truth-up-section";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { ServiceTierChip } from "@/components/console/service-tier-chip";
-import { normalizeClientTier } from "@/lib/tiers";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
+import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import {
   formatComplianceBasis,
@@ -125,6 +127,16 @@ export default async function CompliancePage({
         </div>
         <ServiceTierChip tier={clientTier} feature="compliance_layer" />
       </div>
+
+      {tierHasFeature(clientTier, "compliance_layer") ? (
+        <Mcs150TruthUpSection clientId={id} />
+      ) : (
+        <TierUpgradeNote
+          feature="compliance_layer"
+          currentTier={clientTier}
+          title="MCS-150 truth-up is not included in this client’s plan"
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-5">
         {/* Driver roster */}

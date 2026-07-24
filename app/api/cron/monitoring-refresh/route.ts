@@ -7,6 +7,10 @@ import {
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { shouldRunMonitoringInvocation } from "@/lib/monitoring/watch-status";
+import {
+  runMcs150TruthUp,
+  type Mcs150TruthUpRunResult,
+} from "@/lib/mcs150/truth-up-server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { ClientTier } from "@/lib/supabase/types";
 import { SUBSCRIPTION_TIERS, tierHasFeature } from "@/lib/tiers";
@@ -29,6 +33,14 @@ type CronSummary = {
   oos_changes: number;
   snapshots_created: number;
   alerts_created: number;
+  mcs150_checks_succeeded: number;
+  mcs150_requests_created: number;
+  mcs150_updates_confirmed: number;
+};
+
+type Mcs150CronResult = {
+  client_id: string;
+  result: Mcs150TruthUpRunResult;
 };
 
 function errorMessage(error: unknown) {
@@ -77,8 +89,12 @@ export async function GET(request: Request) {
     oos_changes: 0,
     snapshots_created: 0,
     alerts_created: 0,
+    mcs150_checks_succeeded: 0,
+    mcs150_requests_created: 0,
+    mcs150_updates_confirmed: 0,
   };
   const errors: Array<{ client_id: string; error: string }> = [];
+  const mcs150Results: Mcs150CronResult[] = [];
 
   for (const client of (data ?? []) as ActiveClient[]) {
     try {
@@ -86,6 +102,12 @@ export async function GET(request: Request) {
         client.tier,
         "case_visibility"
       );
+      const hasComplianceLayer = tierHasFeature(
+        client.tier,
+        "compliance_layer"
+      );
+      let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
+      let mcs150TruthUpError: string | null = null;
       const refresh = await runClientRefresh(
         { clientId: client.id, dotNumber: client.dot_number },
         supabase
@@ -94,6 +116,41 @@ export async function GET(request: Request) {
       summary.new_violations += refresh.newViolationIds.length;
       summary.new_crashes += refresh.newCrashIds.length;
       summary.oos_changes += refresh.oosRateChange ? 1 : 0;
+      if (hasComplianceLayer) {
+        try {
+          mcs150TruthUp = await runMcs150TruthUp(
+            {
+              clientId: client.id,
+              clientName: client.name,
+              dotNumber: client.dot_number,
+              complianceIncluded: true,
+              freshCensus: refresh.saferSnapshot,
+              burdenPoints: refresh.burden.totalPoints,
+            },
+            supabase
+          );
+          mcs150Results.push({ client_id: client.id, result: mcs150TruthUp });
+          summary.mcs150_checks_succeeded +=
+            mcs150TruthUp.quarterly.status === "succeeded" ? 1 : 0;
+          summary.mcs150_requests_created +=
+            mcs150TruthUp.quarterly.artifactsCreated ? 1 : 0;
+          summary.mcs150_updates_confirmed +=
+            mcs150TruthUp.reconciliation.confirmedUpdateIds.length;
+          if (mcs150TruthUp.quarterly.status === "failed") {
+            mcs150TruthUpError = mcs150TruthUp.quarterly.reason;
+            errors.push({
+              client_id: client.id,
+              error: `MCS-150 truth-up check failed: ${mcs150TruthUpError}`,
+            });
+          }
+        } catch (truthUpError) {
+          mcs150TruthUpError = errorMessage(truthUpError);
+          errors.push({
+            client_id: client.id,
+            error: `MCS-150 truth-up check failed: ${mcs150TruthUpError}`,
+          });
+        }
+      }
       const snapshot = await captureBurdenSnapshot(
         client.id,
         "scheduled_refresh",
@@ -182,5 +239,9 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json(errors.length > 0 ? { ...summary, errors } : summary);
+  return NextResponse.json(
+    errors.length > 0
+      ? { ...summary, mcs150_results: mcs150Results, errors }
+      : { ...summary, mcs150_results: mcs150Results }
+  );
 }

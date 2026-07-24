@@ -40,6 +40,9 @@ export interface SAFERSnapshot {
   entityType: string | null;
   operatingStatus: string | null;
   operatingAuthority: string | null;
+  operationClassification: string | null;
+  physicalAddress: string | null;
+  mailingAddress: string | null;
   mcs150Date: string | null;       // YYYY-MM-DD normalized
   mcs150MileageYear: number | null;
   mcs150Mileage: number | null;
@@ -347,6 +350,25 @@ function parseCargoTypes(html: string): string[] {
   return cargo;
 }
 
+/** Parse checked values from SAFER's X-marked option tables. */
+function parseCheckedOptions(html: string, summary: string): string[] {
+  const tableHtml = extractTableBySummary(html, summary);
+  if (!tableHtml) {
+    console.warn(`[safer] ${summary} table not found`);
+    return [];
+  }
+
+  const checked: string[] = [];
+  const checkedCellRegex =
+    /<TD[^>]*class="queryfield"[^>]*>\s*X\s*<\/TD>\s*<TD[^>]*>([\s\S]*?)<\/TD>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = checkedCellRegex.exec(tableHtml)) !== null) {
+    const value = stripTags(match[1]).trim();
+    if (value) checked.push(value);
+  }
+  return checked;
+}
+
 /** Parse the safety rating review table. */
 function parseSafetyRating(html: string): {
   safetyRating: string | null;
@@ -419,6 +441,16 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
 
   const entityTypeRaw = extractAfterLabel(html, "Entity Type:");
   const entityType = entityTypeRaw || null;
+  const physicalAddress = extractAfterLabel(html, "Physical Address:") || null;
+  const mailingAddress = extractAfterLabel(html, "Mailing Address:") || null;
+  const operationClassifications = parseCheckedOptions(
+    html,
+    "Operation Classification"
+  );
+  const operationClassification =
+    operationClassifications.length > 0
+      ? operationClassifications.join(" | ")
+      : null;
 
   // USDOT Status — cell may contain HTML comments like <!--ACTIVE-->
   let operatingStatus: string | null = null;
@@ -543,6 +575,9 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     entityType,
     operatingStatus,
     operatingAuthority,
+    operationClassification,
+    physicalAddress,
+    mailingAddress,
     powerUnits,
     drivers,
     mcs150Date,
@@ -564,6 +599,9 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     entityType,
     operatingStatus,
     operatingAuthority,
+    operationClassification,
+    physicalAddress,
+    mailingAddress,
     mcs150Date,
     mcs150MileageYear,
     mcs150Mileage,

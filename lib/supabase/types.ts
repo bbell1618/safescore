@@ -92,16 +92,127 @@ export interface Database {
           drivers: number | null;
           mcs150_date: string | null;
           mcs150_mileage: number | null;
+          mcs150_mileage_year: number | null;
           cargo_types: string[] | null;
           insurance_status: string | null;
           authority_status: string | null;
           safety_rating: string | null;
+          safety_rating_date: string | null;
+          review_type: string | null;
+          review_date: string | null;
+          entity_type: string | null;
+          carrier_operation: string | null;
+          operation_classification: string | null;
+          physical_address: string | null;
+          mailing_address: string | null;
+          safer_as_of: string | null;
+          national_vehicle_oos_rate: number | null;
+          national_driver_oos_rate: number | null;
+          national_hazmat_oos_rate: number | null;
           raw_api_response: Record<string, unknown> | null;
           fetched_at: string;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["carrier_profiles"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["carrier_profiles"]["Insert"]>;
+      };
+      client_attested_profiles: {
+        Row: {
+          id: string;
+          client_id: string;
+          power_units: number | null;
+          drivers: number | null;
+          annual_mileage: number | null;
+          mileage_year: number | null;
+          operation_classification: string | null;
+          cargo_types: string[];
+          physical_address: string | null;
+          mailing_address: string | null;
+          officials: unknown[];
+          source: "census_default" | "operator_recorded";
+          attested_at: string | null;
+          attested_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          power_units?: number | null;
+          drivers?: number | null;
+          annual_mileage?: number | null;
+          mileage_year?: number | null;
+          operation_classification?: string | null;
+          cargo_types?: string[];
+          physical_address?: string | null;
+          mailing_address?: string | null;
+          officials?: unknown[];
+          source?: "census_default" | "operator_recorded";
+          attested_at?: string | null;
+          attested_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["client_attested_profiles"]["Insert"]
+        >;
+      };
+      client_requests: {
+        Row: {
+          id: string;
+          client_id: string;
+          dedupe_key: string;
+          category: string;
+          title: string;
+          description: string | null;
+          source: "standing" | "case";
+          responsibility: "client" | "geia";
+          case_type: "dataq" | "cpdp" | null;
+          case_id: string | null;
+          requested_items: unknown[];
+          status: "open" | "fulfilled" | "cancelled";
+          due_at: string | null;
+          reminder_count: number;
+          reminder_limit: number;
+          reminder_interval_days: number;
+          last_reminded_at: string | null;
+          next_reminder_at: string | null;
+          escalated_at: string | null;
+          closed_at: string | null;
+          upload_token: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          dedupe_key: string;
+          category: string;
+          title: string;
+          description?: string | null;
+          source?: "standing" | "case";
+          responsibility?: "client" | "geia";
+          case_type?: "dataq" | "cpdp" | null;
+          case_id?: string | null;
+          requested_items?: unknown[];
+          status?: "open" | "fulfilled" | "cancelled";
+          due_at?: string | null;
+          reminder_count?: number;
+          reminder_limit?: number;
+          reminder_interval_days?: number;
+          last_reminded_at?: string | null;
+          next_reminder_at?: string | null;
+          escalated_at?: string | null;
+          closed_at?: string | null;
+          upload_token?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["client_requests"]["Insert"]
+        >;
       };
       score_snapshots: {
         Row: {
@@ -294,6 +405,53 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["cpdp_cases"]["Row"], "id" | "updated_at" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["cpdp_cases"]["Insert"]>;
       };
+      mcs150_updates: {
+        Row: {
+          id: string;
+          client_id: string;
+          status: "draft" | "pending_review" | "submitted" | "confirmed";
+          proposed_changes: Record<string, unknown>;
+          notes: string | null;
+          submitted_date: string | null;
+          confirmed_date: string | null;
+          created_by: string | null;
+          client_request_id: string | null;
+          trigger_key: string | null;
+          trigger_reasons: unknown[] | null;
+          census_snapshot: Record<string, unknown> | null;
+          attested_snapshot: Record<string, unknown> | null;
+          honesty_prediction: Record<string, unknown> | null;
+          biennial_due_date: string | null;
+          last_checked_at: string | null;
+          confirmed_census_snapshot: Record<string, unknown> | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          status?: "draft" | "pending_review" | "submitted" | "confirmed";
+          proposed_changes?: Record<string, unknown>;
+          notes?: string | null;
+          submitted_date?: string | null;
+          confirmed_date?: string | null;
+          created_by?: string | null;
+          client_request_id?: string | null;
+          trigger_key?: string | null;
+          trigger_reasons?: unknown[] | null;
+          census_snapshot?: Record<string, unknown> | null;
+          attested_snapshot?: Record<string, unknown> | null;
+          honesty_prediction?: Record<string, unknown> | null;
+          biennial_due_date?: string | null;
+          last_checked_at?: string | null;
+          confirmed_census_snapshot?: Record<string, unknown> | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["mcs150_updates"]["Insert"]
+        >;
+      };
       action_items: {
         Row: {
           id: string;
@@ -448,7 +606,44 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      record_mcs150_submission_v1: {
+        Args: {
+          p_client_id: string;
+          p_update_id: string;
+          p_submitted_date: string;
+          p_proposed_changes: Record<string, unknown>;
+          p_trigger_key: string;
+          p_trigger_reasons: unknown[];
+          p_attested_snapshot: Record<string, unknown>;
+          p_honesty_prediction: Record<string, unknown>;
+          p_biennial_due_date: string;
+          p_notes: string;
+          p_request_description: string;
+          p_user_id: string;
+        };
+        Returns: Array<{
+          update_id: string;
+          status: string;
+          submitted_date: string;
+          client_request_id: string;
+        }>;
+      };
+      confirm_mcs150_update_v1: {
+        Args: {
+          p_client_id: string;
+          p_update_id: string;
+          p_confirmed_date: string;
+          p_confirmed_census_snapshot: Record<string, unknown>;
+          p_checked_at: string;
+        };
+        Returns: Array<{
+          update_id: string;
+          status: string;
+          client_request_id: string;
+        }>;
+      };
+    };
     Enums: Record<string, never>;
   };
 }

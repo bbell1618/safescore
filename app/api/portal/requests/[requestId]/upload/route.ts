@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { REQUEST_UPLOAD_MAX_BYTES, REQUEST_UPLOAD_MIMES, safeFilename } from "@/lib/request-queue/upload";
 import { syncClientEvidenceRequest, type RequestedEvidenceItem } from "@/lib/request-queue/sync";
 import { getPortalApiAccess } from "@/lib/portal/access";
+import { tierHasFeature } from "@/lib/tiers";
 
 export async function POST(request: Request, { params }: { params: Promise<{ requestId: string }> }) {
   const { requestId } = await params;
@@ -21,6 +22,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
     .maybeSingle();
   if (!queueItem || queueItem.status !== "open") {
     return NextResponse.json({ error: "Open request not found" }, { status: 404 });
+  }
+  if (
+    queueItem.category === "mcs150_truth_up" &&
+    !tierHasFeature(access.tier, "compliance_layer")
+  ) {
+    return NextResponse.json(
+      { error: "MCS-150 truth-up is not included in this plan" },
+      { status: 403 }
+    );
   }
 
   const form = await request.formData();
@@ -66,6 +76,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   const category = queueItem.category === "dqf_roster" ? "dqf" : "other";
   const { data: documentRow, error: documentError } = await service.from("documents").insert({ client_id: access.clientId, storage_path: storagePath, filename: file.name, file_size: file.size, mime_type: file.type, category, status: "pending_review", uploaded_by: access.userId }).select("id").single();
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 });
+  if (queueItem.category === "mcs150_truth_up") {
+    return NextResponse.json({
+      ok: true,
+      documentId: documentRow.id,
+      requestStatus: "open",
+      remaining: null,
+      closure: "awaiting_public_census_match",
+    });
+  }
   const now = new Date().toISOString();
   const { error: closeError } = await service.from("client_requests").update({ status: "fulfilled", closed_at: now, next_reminder_at: null, updated_at: now }).eq("id", requestId);
   if (closeError) return NextResponse.json({ error: closeError.message }, { status: 500 });

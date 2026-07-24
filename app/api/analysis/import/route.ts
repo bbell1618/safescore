@@ -9,6 +9,11 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runChallengeabilityAssessment, type ChallengeabilityRunResult } from "@/lib/analysis/challengeability-assessment-server";
+import {
+  runMcs150TruthUp,
+  type Mcs150TruthUpRunResult,
+} from "@/lib/mcs150/truth-up-server";
+import { tierHasFeature } from "@/lib/tiers";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -67,6 +72,43 @@ export async function runAnalysisImport({
   try {
     const refresh = await runClientRefresh({ clientId, dotNumber }, supabase);
     const saferSnap = refresh.saferSnapshot;
+    let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
+    let mcs150TruthUpError: string | null = null;
+    try {
+      const { data: truthUpClient, error: truthUpClientError } = await supabase
+        .from("clients")
+        .select("name, tier")
+        .eq("id", clientId)
+        .single();
+      if (truthUpClientError || !truthUpClient) {
+        throw new Error(
+          `Unable to load the client tier for MCS-150 truth-up: ${
+            truthUpClientError?.message ?? "Client not found"
+          }`
+        );
+      }
+      mcs150TruthUp = tierHasFeature(
+        truthUpClient.tier,
+        "compliance_layer"
+      )
+        ? await runMcs150TruthUp(
+            {
+              clientId,
+              clientName: truthUpClient.name,
+              dotNumber,
+              complianceIncluded: true,
+              freshCensus: saferSnap,
+              burdenPoints: refresh.burden.totalPoints,
+            },
+            supabase
+          )
+        : null;
+    } catch (truthUpError) {
+      mcs150TruthUpError =
+        truthUpError instanceof Error
+          ? truthUpError.message
+          : "MCS-150 truth-up check failed";
+    }
     const basics = refresh.basics;
     const inspections = { length: refresh.inspectionsPulled };
     const violationCount = refresh.violationsProcessed;
@@ -404,6 +446,9 @@ export async function runAnalysisImport({
         `${crashes.length} crashes ingested, ${emittedAlerts.created.length} monitoring alerts created. ` +
         `BASIC measures + percentiles updated; ${alertSummary}. ` +
         `OOS rates (SAFER): veh ${saferSnap?.vehicleOosRate ?? "n/a"}%, drv ${saferSnap?.driverOosRate ?? "n/a"}%, hm ${saferSnap?.hazmatOosRate ?? "n/a"}%.`,
+      metadata: {
+        source: "operator_analysis_import",
+      },
     });
 
     const responseBody = {
@@ -431,15 +476,27 @@ export async function runAnalysisImport({
         hazmat: saferSnap?.hazmatOosRate ?? null,
       },
       monitoringSnapshot,
+      mcs150TruthUp,
       challengeability,
     };
 
-    if (challengeabilityError) {
+    const incompleteStages = [
+      challengeabilityError
+        ? `challengeability analysis did not complete: ${challengeabilityError}`
+          : null,
+      mcs150TruthUpError
+        ? `MCS-150 truth-up check failed: ${mcs150TruthUpError}`
+        : null,
+      mcs150TruthUp?.quarterly.status === "failed"
+        ? `MCS-150 truth-up check failed: ${mcs150TruthUp.quarterly.reason}`
+        : null,
+    ].filter((message): message is string => Boolean(message));
+    if (incompleteStages.length > 0) {
       return NextResponse.json({
         ...responseBody,
         success: false,
         importCompleted: true,
-        error: `FMCSA import completed, but challengeability analysis did not: ${challengeabilityError}`,
+        error: `FMCSA import completed, but ${incompleteStages.join(" | ")}`,
       }, { status: 502 });
     }
 
