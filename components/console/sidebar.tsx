@@ -1,16 +1,16 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   Users,
-  LayoutDashboard,
   Activity,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
+import { useState } from "react";
 
 const navItems = [
   { href: "/console", label: "Clients", icon: Users, exact: true },
@@ -23,12 +23,20 @@ interface SidebarProps {
 
 export function ConsoleSidebar({ userEmail }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
+    setSigningOut(true);
+    setSignOutError(null);
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) {
+      setSignOutError(`Unable to sign out: ${error.message}`);
+      setSigningOut(false);
+      return;
+    }
+    window.location.replace("/login");
   }
 
   return (
@@ -86,11 +94,17 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
         )}
         <button
           onClick={handleSignOut}
+          disabled={signingOut}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
         >
           <LogOut className="w-4 h-4" />
-          Sign out
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
+        {signOutError && (
+          <p role="alert" className="mt-2 px-3 text-xs leading-5 text-red-200">
+            {signOutError}
+          </p>
+        )}
       </div>
     </aside>
   );

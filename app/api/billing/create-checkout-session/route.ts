@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/client";
 import Stripe from "stripe";
+import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 
 const TIER_PRICE_MAP: Record<string, string> = {
   monitor: process.env.STRIPE_PRICE_MONITOR ?? "STRIPE_PRICE_MONITOR_PLACEHOLDER",
@@ -29,11 +30,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
   }
 
-  const { data: userRecord } = await supabase
+  const { data: userRecord, error: userRecordError } = await supabase
     .from("users")
     .select("client_id")
     .eq("id", user.id)
-    .single() as any;
+    .single();
+
+  if (userRecordError) {
+    return NextResponse.json(
+      { error: userRecordError.message },
+      { status: 500 }
+    );
+  }
 
   if (!userRecord?.client_id) {
     return NextResponse.json(
@@ -44,11 +52,29 @@ export async function POST(request: Request) {
 
   const clientId = userRecord.client_id;
 
-  const { data: client } = await supabase
+  const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("name, driver_count")
+    .select("name, driver_count, status")
     .eq("id", clientId)
-    .single() as any;
+    .single();
+
+  if (clientError || !client) {
+    return NextResponse.json(
+      { error: clientError?.message ?? "Client record not found" },
+      { status: 500 }
+    );
+  }
+
+  if (isClientPostOnboardingLifecycle(client)) {
+    return NextResponse.json(
+      {
+        error:
+          "This carrier has already completed onboarding. A second checkout cannot be created.",
+        code: "ONBOARDING_LOCKED",
+      },
+      { status: 409 }
+    );
+  }
 
   const lineItems: Stripe.Checkout.SessionCreateParams["line_items"] = [
     {

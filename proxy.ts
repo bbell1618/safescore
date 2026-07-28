@@ -5,6 +5,7 @@ import {
   isPublicEvidenceUploadPath,
 } from "@/lib/auth/public-paths";
 import { isStaffReportActionPath } from "@/lib/auth/report-paths";
+import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { isClientTier, isSubscriptionTier } from "@/lib/tiers";
 
 export async function proxy(request: NextRequest) {
@@ -38,6 +39,7 @@ export async function proxy(request: NextRequest) {
   if (path.startsWith("/api/")) {
     const publicApiExactPaths = new Set([
       "/api/cron/monitoring-refresh",
+      "/api/auth/password-reset",
     ]);
     const publicApiPrefixes = [
       "/api/auth/setup",
@@ -98,14 +100,16 @@ export async function proxy(request: NextRequest) {
 
   if (path.startsWith("/console") && !isStaff) {
     const url = request.nextUrl.clone();
-    url.pathname = isClient ? "/portal" : "/login";
+    url.pathname = isClient ? "/access-mismatch" : "/login";
+    if (isClient) url.searchParams.set("target", "console");
     return NextResponse.redirect(url);
   }
 
   if (path.startsWith("/portal")) {
     if (!isClient) {
       const url = request.nextUrl.clone();
-      url.pathname = isStaff ? "/console" : "/login";
+      url.pathname = isStaff ? "/access-mismatch" : "/login";
+      if (isStaff) url.searchParams.set("target", "portal");
       return NextResponse.redirect(url);
     }
     const isOnboardingPath = path === "/portal/onboarding" || path.startsWith("/portal/onboarding/");
@@ -123,13 +127,20 @@ export async function proxy(request: NextRequest) {
           .maybeSingle(),
       ]);
       const activeAssignedClient =
-        client?.status === "active" &&
+        client != null &&
+        client.status === "active" &&
         isClientTier(client.tier);
       const billingAllowsAccess =
         client && isSubscriptionTier(client.tier)
           ? !subscription || subscription.status === "active"
           : true;
       if (!activeAssignedClient || !billingAllowsAccess) {
+        if (client && isClientPostOnboardingLifecycle(client)) {
+          return new NextResponse(
+            "SafeScore portal access is unavailable for this carrier. Contact your GEIA representative.",
+            { status: 403 }
+          );
+        }
         const url = request.nextUrl.clone();
         url.pathname = "/portal/onboarding";
         return NextResponse.redirect(url);
@@ -137,9 +148,40 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  const isWritableOnboardingPage =
+    path === "/onboarding" ||
+    path === "/onboarding/" ||
+    path === "/portal/onboarding" ||
+    path === "/portal/onboarding/";
+  if (
+    isWritableOnboardingPage &&
+    user &&
+    isClient &&
+    userRecord?.client_id
+  ) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("status, service_agreement_accepted")
+      .eq("id", userRecord.client_id)
+      .maybeSingle();
+    if (clientError || !client) {
+      return new NextResponse(
+        `Unable to verify onboarding access: ${clientError?.message ?? "client record not found"}`,
+        { status: 500 }
+      );
+    }
+    if (isClientPostOnboardingLifecycle(client)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/portal";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if ((path === "/onboarding" || path.startsWith("/onboarding/")) && user && !isClient) {
     const url = request.nextUrl.clone();
-    url.pathname = isStaff ? "/console" : "/login";
+    url.pathname = isStaff ? "/access-mismatch" : "/login";
+    if (isStaff) url.searchParams.set("target", "portal");
     return NextResponse.redirect(url);
   }
 

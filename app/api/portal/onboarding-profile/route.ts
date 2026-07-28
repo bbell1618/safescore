@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { isClientOnboardingLocked } from "@/lib/auth/access";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -59,18 +60,34 @@ export async function POST(request: Request) {
 
   const { data: clientRecord, error: clientError } = await admin
     .from("clients")
-    .select("primary_contact, primary_contact_title")
+    .select(
+      "primary_contact, primary_contact_title, status, service_agreement_accepted"
+    )
     .eq("id", clientId)
     .single();
 
-  if (clientError) {
+  if (clientError || !clientRecord) {
     console.error(
       "onboarding-profile: client lookup failed:",
-      clientError.code,
-      clientError.message,
-      clientError.details
+      clientError?.code,
+      clientError?.message,
+      clientError?.details
     );
-    return NextResponse.json({ error: "Client lookup failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: clientError?.message ?? "Client lookup failed" },
+      { status: 500 }
+    );
+  }
+
+  if (isClientOnboardingLocked(clientRecord)) {
+    return NextResponse.json(
+      {
+        error:
+          "Onboarding is already complete for this carrier. Live client data cannot be changed through onboarding.",
+        code: "ONBOARDING_LOCKED",
+      },
+      { status: 409 }
+    );
   }
 
   // Build update — only include fields that are present in the request body.

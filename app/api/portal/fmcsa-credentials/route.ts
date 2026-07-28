@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { isClientOnboardingLocked } from "@/lib/auth/access";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -62,23 +63,38 @@ export async function POST(request: Request) {
 
   const clientId: string = userRecord.client_id;
 
-  // Get client's DOT number
+  // Verify onboarding is still writable before saving any credentials.
   const { data: clientRecord, error: clientLookupError } = await admin
     .from("clients")
-    .select("dot_number")
+    .select("dot_number, status, service_agreement_accepted")
     .eq("id", clientId)
     .single();
 
-  if (clientLookupError) {
+  if (clientLookupError || !clientRecord) {
     console.error(
       "fmcsa-credentials: client lookup failed:",
-      clientLookupError.code,
-      clientLookupError.message,
-      clientLookupError.details
+      clientLookupError?.code,
+      clientLookupError?.message,
+      clientLookupError?.details
+    );
+    return NextResponse.json(
+      { error: clientLookupError?.message ?? "Client record not found" },
+      { status: 500 }
     );
   }
 
-  const dotNumber: string | null = clientRecord?.dot_number ?? null;
+  if (isClientOnboardingLocked(clientRecord)) {
+    return NextResponse.json(
+      {
+        error:
+          "Onboarding is already complete for this carrier. FMCSA onboarding credentials cannot be overwritten.",
+        code: "ONBOARDING_LOCKED",
+      },
+      { status: 409 }
+    );
+  }
+
+  const dotNumber: string | null = clientRecord.dot_number ?? null;
 
   // ── Save PIN to client_credentials ──────────────────────────────────────────
   if (pin && pin.trim()) {
@@ -131,6 +147,10 @@ export async function POST(request: Request) {
         authFlagError.code,
         authFlagError.message,
         authFlagError.details
+      );
+      return NextResponse.json(
+        { error: authFlagError.message },
+        { status: 500 }
       );
     }
   }

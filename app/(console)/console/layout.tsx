@@ -1,6 +1,7 @@
 ﻿import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ConsoleSidebar } from "@/components/console/sidebar";
+import { SessionCollision } from "@/components/auth/session-collision";
 
 export default async function ConsoleLayout({
   children,
@@ -25,7 +26,9 @@ export default async function ConsoleLayout({
       `Unable to verify console access: ${roleError?.message ?? "profile not found"}`
     );
   }
-  if (userRecord.role === "client_user") redirect("/portal");
+  if (userRecord.role === "client_user") {
+    return <SessionCollision target="console" />;
+  }
   if (userRecord.role !== "geia_admin" && userRecord.role !== "geia_staff") {
     redirect("/login");
   }

@@ -11,6 +11,7 @@ import {
   type ReportComplianceInput,
   type ReportGenerationAttemptEvent,
   type ReportGenerationData,
+  type ReportPriorityViolationRow,
   type ReportSnapshotRow,
   type ReportType,
   type ReportViolationRow,
@@ -50,13 +51,25 @@ type StoredCaseRow = {
   filing_notes: string | null;
 };
 
-type NewViolationQueryRow = {
+type CurrentViolationQueryRow = {
   id: string;
   inspection_id: string;
   violation_code: string;
   violation_description: string;
+  basic_category: string | null;
   severity_weight: number | null;
   oos_violation: boolean;
+  convicted: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
+  challenge_reason: string | null;
+  challenge_tier:
+    | "strong"
+    | "moderate"
+    | "investigate"
+    | "not_challengeable"
+    | "operational"
+    | null;
   created_at: string;
   inspections:
     | { inspection_date: string | null }
@@ -83,11 +96,56 @@ function storedCaseDescription(row: StoredCaseRow): string | null {
   return null;
 }
 
-function inspectionDate(row: NewViolationQueryRow): string | null {
+function inspectionDate(row: CurrentViolationQueryRow): string | null {
   if (Array.isArray(row.inspections)) {
     return row.inspections[0]?.inspection_date ?? null;
   }
   return row.inspections?.inspection_date ?? null;
+}
+
+type ReportServiceClient = Awaited<ReturnType<typeof createServiceClient>>;
+
+async function loadCurrentViolationRows(
+  supabase: ReportServiceClient,
+  clientId: string
+): Promise<CurrentViolationQueryRow[]> {
+  const countResult = await supabase
+    .from("violations")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId);
+  if (countResult.error) {
+    throw new Error(
+      `Unable to count current violation priorities: ${countResult.error.message}`
+    );
+  }
+
+  const expectedCount = countResult.count ?? 0;
+  const rows: CurrentViolationQueryRow[] = [];
+  const pageSize = 1_000;
+  while (rows.length < expectedCount) {
+    const pageResult = await supabase
+      .from("violations")
+      .select(
+        "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_reason, challenge_tier, created_at, inspections(inspection_date)"
+      )
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + pageSize - 1);
+    if (pageResult.error) {
+      throw new Error(
+        `Unable to load current violation priorities: ${pageResult.error.message}`
+      );
+    }
+    const page = (pageResult.data ?? []) as unknown as CurrentViolationQueryRow[];
+    if (page.length === 0) {
+      throw new Error(
+        `Unable to load current violation priorities: expected ${expectedCount} rows but received ${rows.length}.`
+      );
+    }
+    rows.push(...page);
+  }
+  return rows;
 }
 
 function openRouterError(rawBody: string): string {
@@ -396,50 +454,70 @@ export async function POST(request: Request) {
   }
   const snapshots = snapshotSelection.snapshots;
 
-  let newViolations: ReportViolationRow[] = [];
-  if (canTrend && snapshots[1]) {
-    let canonicalInspectionIds: Set<string>;
-    try {
-      const scope = await getCanonicalInspectionScope(clientId, serviceSupabase);
-      canonicalInspectionIds = new Set(scope.inspectionIds);
-    } catch (error) {
-      return NextResponse.json(
-        { error: errorMessage(error, "Unable to load canonical inspection scope.") },
-        { status: 500 }
-      );
-    }
-
-    const violationsResult = await serviceSupabase
-      .from("violations")
-      .select(
-        "id, inspection_id, violation_code, violation_description, severity_weight, oos_violation, created_at, inspections(inspection_date)"
-      )
-      .eq("client_id", clientId)
-      .gt("created_at", snapshots[1].captured_at)
-      .lte("created_at", snapshots[0].captured_at)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
-
-    if (violationsResult.error) {
-      return NextResponse.json(
-        {
-          error: `Unable to load newly present violations: ${violationsResult.error.message}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    newViolations = ((violationsResult.data ?? []) as unknown as NewViolationQueryRow[])
-      .filter((row) => canonicalInspectionIds.has(row.inspection_id))
-      .map((row) => ({
-        id: row.id,
-        violation_code: row.violation_code,
-        violation_description: row.violation_description,
-        severity_weight: row.severity_weight,
-        oos_violation: row.oos_violation,
-        inspection_date: inspectionDate(row),
-      }));
+  let canonicalInspectionIds: Set<string>;
+  try {
+    const scope = await getCanonicalInspectionScope(clientId, serviceSupabase);
+    canonicalInspectionIds = new Set(scope.inspectionIds);
+  } catch (error) {
+    return NextResponse.json(
+      { error: errorMessage(error, "Unable to load canonical inspection scope.") },
+      { status: 500 }
+    );
   }
+
+  let currentViolationRows: CurrentViolationQueryRow[];
+  try {
+    currentViolationRows = await loadCurrentViolationRows(
+      serviceSupabase,
+      clientId
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: errorMessage(
+          error,
+          "Unable to load current violation priorities."
+        ),
+      },
+      { status: 500 }
+    );
+  }
+
+  const canonicalViolationRows = currentViolationRows.filter((row) =>
+    canonicalInspectionIds.has(row.inspection_id)
+  );
+  const priorityViolations: ReportPriorityViolationRow[] =
+    canonicalViolationRows.map((row) => ({
+      id: row.id,
+      violation_code: row.violation_code,
+      violation_description: row.violation_description,
+      basic_category: row.basic_category,
+      severity_weight: row.severity_weight,
+      oos_violation: row.oos_violation,
+      convicted: row.convicted,
+      citation_number: row.citation_number,
+      citation_result: row.citation_result,
+      challenge_reason: row.challenge_reason,
+      challenge_tier: row.challenge_tier,
+      inspection_date: inspectionDate(row),
+    }));
+  const newViolations: ReportViolationRow[] =
+    canTrend && snapshots[1]
+      ? canonicalViolationRows
+          .filter(
+            (row) =>
+              row.created_at > snapshots[1]!.captured_at &&
+              row.created_at <= snapshots[0]!.captured_at
+          )
+          .map((row) => ({
+            id: row.id,
+            violation_code: row.violation_code,
+            violation_description: row.violation_description,
+            severity_weight: row.severity_weight,
+            oos_violation: row.oos_violation,
+            inspection_date: inspectionDate(row),
+          }))
+      : [];
 
   const cases: ReportCaseRow[] = [
     ...((dataqResult.data ?? []) as unknown as StoredCaseRow[]).map((row) => ({
@@ -477,6 +555,8 @@ export async function POST(request: Request) {
       },
       snapshots,
       newViolations,
+      onFileViolationCount: canonicalViolationRows.length,
+      priorityViolations,
       cases,
       coachingItems,
       compliance,

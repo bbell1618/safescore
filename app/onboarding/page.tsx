@@ -22,6 +22,7 @@ interface ClientData {
   safety_contact_name?: string | null;
   safety_contact_email?: string | null;
   standing_authorization?: boolean;
+  service_agreement_accepted?: boolean;
 }
 
 interface CarrierData {
@@ -153,6 +154,7 @@ export default function OnboardingPage() {
 
   // Saving state
   const [savingProfile, setSavingProfile] = useState(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
   // Assigned tier from client record (GEIA sets this)
   const assignedTier = normalizeClientTier(client?.tier);
@@ -168,6 +170,9 @@ export default function OnboardingPage() {
       try {
         const res = await fetch("/api/portal/me");
         const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error ?? "Unable to load the onboarding account");
+        }
         if (data.client) {
           setClient(data.client);
           setContactName(data.client.primary_contact ?? "");
@@ -179,8 +184,16 @@ export default function OnboardingPage() {
           setSafetyContactEmail(data.client.safety_contact_email ?? data.client.email ?? "");
           setDataAccessChecked(data.client.fmcsa_authorized === true);
           setDataqChecked(data.client.standing_authorization === true);
+        } else {
+          throw new Error("No client is linked to this portal account");
         }
-      } catch { /* fail silently */ }
+      } catch (loadError) {
+        setOnboardingError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load the onboarding account"
+        );
+      }
       finally { setLoadingClient(false); }
     }
     fetchClient();
@@ -213,64 +226,84 @@ export default function OnboardingPage() {
     );
   }
 
+  async function postOnboarding(path: string, body: Record<string, unknown>) {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        typeof result.error === "string"
+          ? result.error
+          : `Onboarding request failed with status ${response.status}`
+      );
+    }
+    return result;
+  }
+
   async function saveProfile() {
-    setSavingProfile(true);
-    try {
-      await fetch("/api/portal/onboarding-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactName,
-          contactTitle,
-          contactPhone,
-          contactEmail,
-          vehicleTypes,
-          operatingStates,
-          operatingRadius: operatingRadius || undefined,
-          driverCount,
-          eldProvider,
-          safetyContactName,
-          safetyContactEmail,
-        }),
-      });
-    } catch { /* non-fatal */ }
-    finally { setSavingProfile(false); }
+    await postOnboarding("/api/portal/onboarding-profile", {
+      contactName,
+      contactTitle,
+      contactPhone,
+      contactEmail,
+      vehicleTypes,
+      operatingStates,
+      operatingRadius: operatingRadius || undefined,
+      driverCount,
+      eldProvider,
+      safetyContactName,
+      safetyContactEmail,
+    });
   }
 
   async function saveAgreement() {
-    try {
-      await fetch("/api/portal/onboarding-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceAgreementAccepted: true }),
-      });
-    } catch { /* non-fatal */ }
+    await postOnboarding("/api/portal/onboarding-profile", {
+      serviceAgreementAccepted: true,
+    });
   }
 
   async function saveFilingAuthorization() {
     if (!hasCaseServices || !dataqChecked) return;
     const signer = `${contactName}${contactTitle ? ", " + contactTitle : ""}`;
-    try {
-      await fetch("/api/portal/onboarding-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filingAuthorized: true,
-          filingAuthorizedBy: signer,
-          standingAuthorization: true,
-        }),
-      });
-    } catch { /* non-fatal */ }
+    await postOnboarding("/api/portal/onboarding-profile", {
+      filingAuthorized: true,
+      filingAuthorizedBy: signer,
+      standingAuthorization: true,
+    });
   }
 
   async function saveFmcsaAccess() {
+    await postOnboarding("/api/portal/fmcsa-credentials", {
+      pin: pin.trim() || undefined,
+      authorized: dataAccessChecked,
+    });
+  }
+
+  async function finishAuthorization(includeFmcsaAccess: boolean) {
+    setSavingProfile(true);
+    setOnboardingError(null);
     try {
-      await fetch("/api/portal/fmcsa-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pin.trim() || undefined, authorized: dataAccessChecked }),
-      });
-    } catch { /* non-fatal */ }
+      await saveProfile();
+      if (includeFmcsaAccess) {
+        if (hasCaseServices && dataqChecked) await saveFilingAuthorization();
+        await saveFmcsaAccess();
+      }
+      // Persist the agreement after the other Step 3 fields. Billing activation
+      // moves the client into the post-onboarding lifecycle state.
+      await saveAgreement();
+      setStep(4);
+    } catch (saveError) {
+      setOnboardingError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save onboarding"
+      );
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   async function handleSubscribe() {
@@ -313,6 +346,66 @@ export default function OnboardingPage() {
     agreementChecked &&
     dataAccessChecked &&
     (hasCaseServices ? dataqChecked : true);
+
+  const profileLockedAwaitingActivation =
+    client?.service_agreement_accepted === true &&
+    (client.status === "onboarding" || client.status === "prospect");
+
+  if (profileLockedAwaitingActivation) {
+    return (
+      <div className="min-h-screen bg-[#FEFCF8] flex items-center justify-center p-6">
+        <div className="w-full max-w-lg rounded-2xl border border-[#F0E8DA] bg-[#FBF7F0] p-8 shadow-sm">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-8 w-8 text-[#3D7A52]" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#C67A1E]">
+                Profile received
+              </p>
+              <h1 className="mt-1 text-2xl font-bold text-[#1E1C1A]">
+                Onboarding details are read-only
+              </h1>
+            </div>
+          </div>
+          <p className="mt-5 text-sm leading-6 text-[#5C554E]">
+            Your carrier profile and authorizations are already recorded.
+            They cannot be overwritten from onboarding.
+          </p>
+          <div className="mt-5 rounded-xl border border-[#F0E8DA] bg-white/70 p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">
+              Assigned service
+            </p>
+            <p className="mt-1 font-semibold text-[#1E1C1A]">
+              {TIER_LABELS[assignedTier]}
+            </p>
+          </div>
+          {checkoutError ? (
+            <p
+              role="alert"
+              className="mt-4 rounded-lg border border-[#B83B32]/20 bg-[#FAECEB] px-3 py-2 text-sm text-[#B83B32]"
+            >
+              {checkoutError}
+            </p>
+          ) : null}
+          {hasRecurringSubscription ? (
+            <button
+              type="button"
+              onClick={() => void handleSubscribe()}
+              disabled={checkoutLoading}
+              className="mt-6 w-full rounded-xl bg-[#C67A1E] px-4 py-3 text-sm font-semibold text-white hover:bg-[#B86E18] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {checkoutLoading
+                ? "Opening secure checkout..."
+                : "Continue to secure checkout"}
+            </button>
+          ) : (
+            <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Contact your GEIA representative to activate this assessment.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -584,6 +677,15 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {onboardingError && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-lg border border-[#B83B32]/20 bg-[#FAECEB] px-3 py-2 text-sm text-[#B83B32]"
+                >
+                  {onboardingError}
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
                   Back
@@ -707,13 +809,7 @@ export default function OnboardingPage() {
                   Back
                 </button>
                 <button
-                  onClick={async () => {
-                    await saveProfile();
-                    await saveAgreement();
-                    if (hasCaseServices && dataqChecked) await saveFilingAuthorization();
-                    await saveFmcsaAccess();
-                    setStep(4);
-                  }}
+                  onClick={() => finishAuthorization(true)}
                   disabled={!canProceedStep3 || savingProfile}
                   className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -722,11 +818,7 @@ export default function OnboardingPage() {
               </div>
               <button
                 type="button"
-                onClick={async () => {
-                  await saveProfile();
-                  if (agreementChecked) await saveAgreement();
-                  setStep(4);
-                }}
+                onClick={() => finishAuthorization(false)}
                 disabled={!agreementChecked || savingProfile}
                 className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors disabled:opacity-40"
               >

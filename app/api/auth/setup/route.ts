@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWelcomeEmail } from "@/lib/email/client";
+import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { NextResponse } from "next/server";
 
 // GET /api/auth/setup?token=xxx — look up invite to pre-populate setup page
@@ -34,16 +35,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invite expired" }, { status: 410 });
   }
 
-  const { data: clientRecord } = await supabase
+  const { data: clientRecord, error: clientError } = await supabase
     .from("clients")
-    .select("name, primary_contact")
+    .select("name, primary_contact, status, service_agreement_accepted")
     .eq("id", invite.client_id)
     .single();
+  if (clientError || !clientRecord) {
+    return NextResponse.json(
+      { error: clientError?.message ?? "Client record not found" },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
-    companyName: clientRecord?.name ?? null,
+    companyName: clientRecord.name,
     email: invite.email,
-    primaryContact: clientRecord?.primary_contact ?? null,
+    primaryContact: clientRecord.primary_contact ?? null,
+    onboardingRequired:
+      !isClientPostOnboardingLifecycle(clientRecord) &&
+      clientRecord.service_agreement_accepted !== true,
   });
 }
 
@@ -98,15 +108,79 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: clientRecord, error: clientError } = await supabase
+      .from("clients")
+      .select(
+        "name, dot_number, status, service_agreement_accepted"
+      )
+      .eq("id", invite.client_id)
+      .single();
+    if (clientError || !clientRecord) {
+      return NextResponse.json(
+        { error: clientError?.message ?? "Client record not found" },
+        { status: 500 }
+      );
+    }
+    const nextPath = isClientPostOnboardingLifecycle(clientRecord)
+      ? "/portal"
+      : "/onboarding";
+
     // Check if a Supabase Auth user already exists with this email
-    const { data: userList } = await supabase.auth.admin.listUsers();
-    const existingAuthUser = userList?.users?.find(
-      (u) => u.email?.toLowerCase() === invite.email.toLowerCase()
-    );
+    const normalizedInviteEmail = invite.email.toLowerCase();
+    const perPage = 1_000;
+    let page = 1;
+    let existingAuthUser = null;
+    while (!existingAuthUser) {
+      const { data: userPage, error: userListError } =
+        await supabase.auth.admin.listUsers({ page, perPage });
+      if (userListError) {
+        return NextResponse.json(
+          {
+            error: `Unable to check the existing account: ${userListError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+      existingAuthUser =
+        userPage.users.find(
+          (user) =>
+            user.email?.toLowerCase() === normalizedInviteEmail
+        ) ?? null;
+      if (existingAuthUser || userPage.users.length < perPage) break;
+      page += 1;
+    }
 
     let authUserId: string;
 
     if (existingAuthUser) {
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("users")
+        .select("role, client_id")
+        .eq("id", existingAuthUser.id)
+        .maybeSingle();
+      if (profileError) {
+        return NextResponse.json(
+          {
+            error: `Unable to verify the existing account profile: ${profileError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+      if (
+        existingProfile &&
+        (existingProfile.role !== "client_user" ||
+          existingProfile.client_id !== null)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "This email already belongs to a linked SafeScore account. Use password recovery or contact a GEIA administrator instead of reusing this invite.",
+            code: "ACCOUNT_CONFLICT",
+          },
+          { status: 409 }
+        );
+      }
+
       const { error: updateError } = await supabase.auth.admin.updateUserById(
         existingAuthUser.id,
         {
@@ -174,24 +248,21 @@ export async function POST(request: Request) {
     }
 
     // Send welcome email — non-fatal if it fails
-    const { data: clientRecord } = await supabase
-      .from("clients")
-      .select("name, dot_number")
-      .eq("id", invite.client_id)
-      .single();
+    const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal`;
+    await sendWelcomeEmail({
+      to: invite.email,
+      companyName: clientRecord.name,
+      dotNumber: clientRecord.dot_number,
+      userFullName: fullName || undefined,
+      portalUrl,
+    });
 
-    if (clientRecord) {
-      const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal`;
-      await sendWelcomeEmail({
-        to: invite.email,
-        companyName: clientRecord.name,
-        dotNumber: clientRecord.dot_number,
-        userFullName: fullName || undefined,
-        portalUrl,
-      });
-    }
-
-    return NextResponse.json({ success: true, email: invite.email });
+    return NextResponse.json({
+      success: true,
+      email: invite.email,
+      nextPath,
+      onboardingRequired: nextPath === "/onboarding",
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

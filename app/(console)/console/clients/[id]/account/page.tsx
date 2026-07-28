@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { PortalAccessCard } from "@/components/console/portal-access-card";
 import { createClient } from "@/lib/supabase/server";
 import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
@@ -112,6 +113,8 @@ export default async function AccountPage({
           )}
         </section>
       </div>
+
+      <PortalAccessCard clientId={id} defaultEmail={account.email} />
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2 className="font-semibold text-[#1E1C1A] text-sm">Authorizations</h2>

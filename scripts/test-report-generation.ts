@@ -17,9 +17,11 @@ import {
   type ReportCoachingItemRow,
   type ReportComplianceInput,
   type ReportGenerationData,
+  type ReportPriorityViolationRow,
   type ReportSnapshotRow,
   type ReportViolationRow,
 } from "../lib/reports/report-generation";
+import { formatViolationScopeFact } from "../lib/analysis/violation-scope-presentation";
 
 const latest: ReportSnapshotRow = {
   id: "latest",
@@ -29,12 +31,12 @@ const latest: ReportSnapshotRow = {
   per_basic: [
     {
       basic_category: "unsafe_driving",
-      violation_count: 9,
+      violation_count: 8,
       weighted_points: 113,
     },
     {
       basic_category: "vehicle_maintenance",
-      violation_count: 44,
+      violation_count: 42,
       weighted_points: 402,
     },
     {
@@ -44,11 +46,11 @@ const latest: ReportSnapshotRow = {
     },
     {
       basic_category: "hos_compliance",
-      violation_count: 20,
+      violation_count: 17,
       weighted_points: 80,
     },
   ],
-  violation_count: 74,
+  violation_count: 71,
   inspection_count: 76,
   crash_count: 4,
   oos_count: 10,
@@ -67,21 +69,21 @@ const previous: ReportSnapshotRow = {
     },
     {
       basic_category: "vehicle_maintenance",
-      violation_count: 42,
+      violation_count: 40,
       weighted_points: 375,
     },
     {
       basic_category: "hos_compliance",
-      violation_count: 20,
+      violation_count: 17,
       weighted_points: 80,
     },
     {
       basic_category: "unsafe_driving",
-      violation_count: 9,
+      violation_count: 8,
       weighted_points: 123,
     },
   ],
-  violation_count: 72,
+  violation_count: 69,
   inspection_count: 73,
   crash_count: 4,
   oos_count: 9,
@@ -103,6 +105,51 @@ const newViolations: ReportViolationRow[] = [
     severity_weight: 2,
     oos_violation: true,
     inspection_date: "2026-06-19",
+  },
+];
+
+const priorityViolations: ReportPriorityViolationRow[] = [
+  {
+    id: "investigate-citation",
+    violation_code: "3922C",
+    violation_description: "Failure to obey traffic control device",
+    basic_category: "unsafe_driving",
+    severity_weight: 7,
+    oos_violation: false,
+    convicted: true,
+    citation_number: "DA251770",
+    citation_result: null,
+    challenge_reason: "Court disposition is not yet recorded.",
+    challenge_tier: "investigate",
+    inspection_date: "2026-06-19",
+  },
+  {
+    id: "operational-tire",
+    violation_code: "39375A3TAOLTIS",
+    violation_description: "Tire load/condition issue",
+    basic_category: "vehicle_maintenance",
+    severity_weight: 8,
+    oos_violation: false,
+    convicted: false,
+    citation_number: null,
+    citation_result: null,
+    challenge_reason: "Operational tire control",
+    challenge_tier: "operational",
+    inspection_date: "2026-06-19",
+  },
+  {
+    id: "operational-lamp",
+    violation_code: "3939ALHLI",
+    violation_description: "Required lamp inoperative",
+    basic_category: "vehicle_maintenance",
+    severity_weight: 6,
+    oos_violation: false,
+    convicted: false,
+    citation_number: null,
+    citation_result: null,
+    challenge_reason: "Operational lighting control",
+    challenge_tier: "operational",
+    inspection_date: "2026-05-20",
   },
 ];
 
@@ -185,6 +232,9 @@ function buildTierData(
     },
     snapshots: overrides.snapshots ?? [latest, previous],
     newViolations: overrides.newViolations ?? newViolations,
+    onFileViolationCount: 71,
+    priorityViolations,
+    priorityAsOf: new Date("2026-07-21T12:00:00Z"),
     cases: overrides.cases ?? cases,
     coachingItems: overrides.coachingItems ?? coachingItems,
     compliance: overrides.compliance ?? compliance,
@@ -204,7 +254,29 @@ function validModelBody(data: ReportGenerationData): string {
     ? "Weighted violation burden is documented. CPDP crash preventability work is documented."
     : "Weighted violation burden is documented.";
   return modelSections
-    .map((section, index) => `${section.heading}\n${index === 0 ? grounding : "Documented data only."}`)
+    .map((section, index) => {
+      let sectionBody =
+        index === 0 ? grounding : "Documented data only.";
+      if (section.key === "diagnosticSnapshot") {
+        sectionBody =
+          `${data.diagnosticSnapshot.requiredViolationScopeSentence}` +
+          (index === 0 ? ` ${grounding}` : "");
+      }
+      if (
+        section.key === "priorityFindings" &&
+        data.comparison?.newViolations.length === 0
+      ) {
+        sectionBody = [
+          data.priorityFindings.requiredFallbackFacts.investigateSentence,
+          ...data.priorityFindings.requiredFallbackFacts.evidenceSentences,
+          ...data.priorityFindings.requiredFallbackFacts
+            .operationalFamilySentences,
+        ]
+          .filter((sentence): sentence is string => Boolean(sentence))
+          .join("\n");
+      }
+      return `${section.heading}\n${sectionBody}`;
+    })
     .join("\n\n");
 }
 
@@ -287,6 +359,12 @@ async function main() {
   assert.equal(monitor.comparison?.crashCountDelta, 0);
   assert.equal(monitor.comparison?.oosCountDelta, 1);
   assert.equal(monitor.comparison?.newViolations.length, 2);
+  assert.deepEqual(monitor.diagnosticSnapshot, {
+    violationsInScoringWindow: 68,
+    violationsOnFile: 71,
+    requiredViolationScopeSentence:
+      "68 violations in the 24-month scoring window (71 on file).",
+  });
   assert.deepEqual(monitor.cases, []);
   assert.deepEqual(monitor.coachingProgram, []);
   assert.equal(monitor.complianceSweep, null);
@@ -318,6 +396,20 @@ async function main() {
   assert.equal(totalSafety.complianceSweep?.activeDriverCount, 1);
   assert.equal(totalSafety.complianceSweep?.driversMissingQualificationData, 1);
   assert.equal(totalSafety.complianceSweep?.activeVehicleCount, 1);
+  assert.deepEqual(totalSafety.priorityFindings.investigateQueue, {
+    violationCount: 1,
+    weightedPoints: 21,
+  });
+  assert.equal(
+    totalSafety.priorityFindings.evidenceAsks[0]?.requests[0]?.label,
+    "Court disposition for citation #DA251770"
+  );
+  assert.deepEqual(
+    totalSafety.priorityFindings.topOperationalFamilies.map(
+      (family) => family.familyName
+    ),
+    ["Tires & Wheels", "Lighting & Electrical"]
+  );
 
   const noOptionalRemediation = buildTierData("remediate", {
     cases: [],
@@ -361,10 +453,54 @@ async function main() {
   assert.ok(totalSafetyPrompts.user.includes(JSON.stringify(PREPARER_BLOCK)));
   assert.ok(totalSafetyPrompts.user.includes('"totalPointsDelta": 17'));
   assert.ok(totalSafetyPrompts.user.includes('"case_number": "6103911"'));
+  assert.ok(
+    totalSafetyPrompts.user.includes(
+      'Exact mandatory sentence: "CPDP case 6123719 is filed for crash preventability."'
+    )
+  );
+  assert.ok(
+    totalSafetyPrompts.user.includes(
+      "real stored description=Stored crash preventability description"
+    )
+  );
+  assert.ok(
+    totalSafetyPrompts.user.includes(
+      '"requiredViolationScopeSentence": "68 violations in the 24-month scoring window (71 on file)."'
+    )
+  );
   assert.ok(!assessmentPrompts.user.includes("6103911"));
   assert.ok(!assessmentPrompts.user.includes("Coach tire inspections"));
   assert.ok(!monitorPrompts.user.includes("6103911"));
   assert.ok(!monitorPrompts.user.includes("Coach tire inspections"));
+  assert.equal(
+    formatViolationScopeFact(68, 71),
+    "68 violations in the 24-month scoring window (71 on file)."
+  );
+  const noNewViolationData = buildTierData("total_safety", {
+    newViolations: [],
+  });
+  const noNewViolationPrompts = buildReportPrompts(noNewViolationData);
+  assert.ok(
+    noNewViolationPrompts.system.includes(
+      "never substitute a generic \"no new violations\" sentence"
+    )
+  );
+  assert.ok(
+    noNewViolationPrompts.user.includes('"violationCount": 1')
+  );
+  assert.ok(
+    noNewViolationPrompts.user.includes(
+      '"label": "Court disposition for citation #DA251770"'
+    )
+  );
+  assert.ok(
+    noNewViolationPrompts.user.includes('"familyName": "Tires & Wheels"')
+  );
+  assert.ok(
+    noNewViolationPrompts.user.includes(
+      'Exact mandatory sentence: "Under investigation: 21 weighted points across 1 violation — evidence pending."'
+    )
+  );
   for (const forbidden of [
     "[Insert Date]",
     "changed by [X] points",
@@ -408,6 +544,41 @@ async function main() {
   );
   const validReport = assembleGeneratedReport(validBody, totalSafety);
   assert.deepEqual(validateGeneratedReport(validReport, totalSafety), []);
+  assert.ok(
+    validateGeneratedReport(
+      validReport.replace(
+        totalSafety.diagnosticSnapshot.requiredViolationScopeSentence,
+        "There are violations in the current window."
+      ),
+      totalSafety
+    ).includes(
+      `missing the required diagnostic violation-scope sentence: ${totalSafety.diagnosticSnapshot.requiredViolationScopeSentence}`
+    )
+  );
+  const genericNoNewReport = assembleGeneratedReport(
+    validModelBody(noNewViolationData).replace(
+      [
+        noNewViolationData.priorityFindings.requiredFallbackFacts
+          .investigateSentence,
+        ...noNewViolationData.priorityFindings.requiredFallbackFacts
+          .evidenceSentences,
+        ...noNewViolationData.priorityFindings.requiredFallbackFacts
+          .operationalFamilySentences,
+      ]
+        .filter((sentence): sentence is string => Boolean(sentence))
+        .join("\n"),
+      "No new violations occurred."
+    ),
+    noNewViolationData
+  );
+  assert.ok(
+    validateGeneratedReport(genericNoNewReport, noNewViolationData).some(
+      (issue) =>
+        issue.startsWith(
+          "missing required no-new-violation priority fact:"
+        )
+    )
+  );
   assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
   assert.ok(validReport.endsWith(PREPARER_BLOCK));
   assert.ok(

@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 interface TokenInfo {
   companyName: string | null;
   email: string;
   primaryContact: string | null;
+  onboardingRequired: boolean;
 }
 
 function SetupForm() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get("token");
 
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
@@ -28,14 +28,24 @@ function SetupForm() {
       return;
     }
     fetch(`/api/auth/setup?token=${encodeURIComponent(token)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: TokenInfo | null) => {
-        if (data) {
-          setTokenInfo(data);
-          if (data.primaryContact) setFullName(data.primaryContact);
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error ?? "Unable to validate the setup link");
         }
+        return data as TokenInfo;
       })
-      .catch(() => {})
+      .then((data) => {
+        setTokenInfo(data);
+        if (data.primaryContact) setFullName(data.primaryContact);
+      })
+      .catch((tokenError) =>
+        setError(
+          tokenError instanceof Error
+            ? tokenError.message
+            : "Unable to validate the setup link"
+        )
+      )
       .finally(() => setTokenLoading(false));
   }, [token]);
 
@@ -91,7 +101,9 @@ function SetupForm() {
         return;
       }
 
-      router.push("/portal/onboarding");
+      window.location.replace(
+        typeof data.nextPath === "string" ? data.nextPath : "/portal"
+      );
     } catch {
       setError("Network error — please try again.");
       setLoading(false);

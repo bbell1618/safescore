@@ -1,4 +1,14 @@
-import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import {
+  BASIC_LABELS,
+  timeWeightFor,
+} from "@/lib/analysis/basic-measure";
+import {
+  scoreChallenge,
+  type ChallengeTier,
+} from "@/lib/analysis/challengeability-v2";
+import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requirements";
+import { formatViolationScopeFact } from "@/lib/analysis/violation-scope-presentation";
+import { buildLaneCFamilyGroups } from "@/lib/playbooks/families";
 import type { ClientTier } from "@/lib/supabase/types";
 import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 
@@ -42,6 +52,21 @@ export interface ReportViolationRow {
   violation_description: string;
   severity_weight: number | null;
   oos_violation: boolean;
+  inspection_date: string | null;
+}
+
+export interface ReportPriorityViolationRow {
+  id: string;
+  violation_code: string;
+  violation_description: string;
+  basic_category: string | null;
+  severity_weight: number | null;
+  oos_violation: boolean;
+  convicted: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
+  challenge_reason: string | null;
+  challenge_tier: ChallengeTier | null;
   inspection_date: string | null;
 }
 
@@ -176,6 +201,37 @@ interface StructuredComplianceSweep {
   clearinghouseRecords: ReportComplianceInput["clearinghouseRecords"];
 }
 
+interface StructuredPriorityFindings {
+  investigateQueue: {
+    violationCount: number;
+    weightedPoints: number;
+  };
+  evidenceAsks: Array<{
+    violationCode: string;
+    violationDescription: string;
+    inspectionDate: string | null;
+    citationNumber: string | null;
+    requests: Array<{
+      label: string;
+      neededReason: string;
+      acquisitionMethod: "auto" | "client" | "manual";
+    }>;
+  }>;
+  topOperationalFamilies: Array<{
+    familyKey: string;
+    familyName: string;
+    violationCount: number;
+    weightedPoints: number;
+    inflowRatePerMonth: number;
+    latestViolationDate: string | null;
+  }>;
+  requiredFallbackFacts: {
+    investigateSentence: string | null;
+    evidenceSentences: string[];
+    operationalFamilySentences: string[];
+  };
+}
+
 export interface ReportGenerationData {
   reportDate: string;
   reportType: ReportType;
@@ -189,6 +245,12 @@ export interface ReportGenerationData {
   latestSnapshot: StructuredSnapshot;
   previousSnapshot: StructuredSnapshot | null;
   comparison: ReportComparison | null;
+  diagnosticSnapshot: {
+    violationsInScoringWindow: number;
+    violationsOnFile: number;
+    requiredViolationScopeSentence: string;
+  };
+  priorityFindings: StructuredPriorityFindings;
   cases: ReportCaseRow[];
   coachingProgram: StructuredCoachingItem[];
   complianceSweep: StructuredComplianceSweep | null;
@@ -347,6 +409,137 @@ function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+export function buildReportPriorityFindings(
+  violations: ReportPriorityViolationRow[],
+  asOf: Date = new Date()
+): StructuredPriorityFindings {
+  const investigateRows: Array<{
+    row: ReportPriorityViolationRow;
+    points: number;
+    requests: StructuredPriorityFindings["evidenceAsks"][number]["requests"];
+  }> = [];
+
+  for (const row of violations) {
+    const timeWeight = timeWeightFor(row.inspection_date, asOf);
+    if (
+      timeWeight === 0 ||
+      row.severity_weight == null ||
+      row.basic_category == null
+    ) {
+      continue;
+    }
+
+    const challenge = scoreChallenge({
+      violationCode: row.violation_code,
+      basicCategory: row.basic_category,
+      severityWeight: row.severity_weight,
+      timeWeight,
+      challengeReason: row.challenge_reason,
+      oosViolation: row.oos_violation,
+      convicted: row.convicted,
+      citationNumber: row.citation_number,
+      citationResult: row.citation_result,
+      challengeTier: row.challenge_tier,
+      basicPercentile: null,
+    });
+    if (challenge.label !== "investigate") continue;
+
+    const requests = evidenceRequirementsForViolation(
+      {
+        violationCode: row.violation_code,
+        violationDescription: row.violation_description,
+        basicCategory: row.basic_category,
+        citationNumber: row.citation_number,
+        citationResult: row.citation_result,
+        challengeReason: row.challenge_reason,
+      },
+      challenge
+    ).map(({ label, neededReason, acquisitionMethod }) => ({
+      label,
+      neededReason,
+      acquisitionMethod,
+    }));
+
+    investigateRows.push({
+      row,
+      points:
+        timeWeight *
+        (row.severity_weight + (row.oos_violation ? 2 : 0)),
+      requests,
+    });
+  }
+
+  investigateRows.sort(
+    (left, right) =>
+      right.points - left.points ||
+      (right.row.inspection_date ?? "").localeCompare(
+        left.row.inspection_date ?? ""
+      ) ||
+      left.row.violation_code.localeCompare(right.row.violation_code) ||
+      left.row.id.localeCompare(right.row.id)
+  );
+
+  const topOperationalFamilies = buildLaneCFamilyGroups(violations, {
+    asOf,
+    trailingWindowDays: 90,
+  })
+    .sort(
+      (left, right) =>
+        right.points - left.points ||
+        right.count - left.count ||
+        left.familyName.localeCompare(right.familyName)
+    )
+    .slice(0, 3)
+    .map((group) => ({
+      familyKey: group.familyKey,
+      familyName: group.familyName,
+      violationCount: group.count,
+      weightedPoints: group.points,
+      inflowRatePerMonth: group.inflowRatePerMonth,
+      latestViolationDate: group.latestViolationDate,
+    }));
+  const weightedInvestigationPoints = investigateRows.reduce(
+    (sum, item) => sum + item.points,
+    0
+  );
+  const evidenceSentences = [
+    ...new Set(
+      investigateRows.flatMap(({ row, requests }) =>
+        requests.map(
+          (request) =>
+            `Evidence request for ${row.violation_code}: ${request.label}.`
+        )
+      )
+    ),
+  ].slice(0, 3);
+
+  return {
+    investigateQueue: {
+      violationCount: investigateRows.length,
+      weightedPoints: weightedInvestigationPoints,
+    },
+    evidenceAsks: investigateRows.map(({ row, requests }) => ({
+      violationCode: row.violation_code,
+      violationDescription: row.violation_description,
+      inspectionDate: row.inspection_date,
+      citationNumber: row.citation_number,
+      requests,
+    })),
+    topOperationalFamilies,
+    requiredFallbackFacts: {
+      investigateSentence:
+        investigateRows.length > 0
+          ? `Under investigation: ${weightedInvestigationPoints} weighted points across ${investigateRows.length} ${investigateRows.length === 1 ? "violation" : "violations"} — evidence pending.`
+          : null,
+      evidenceSentences,
+      operationalFamilySentences: topOperationalFamilies.map(
+        (family) =>
+          `Operational priority: ${family.familyName} — ${family.violationCount} ${family.violationCount === 1 ? "violation" : "violations"}, ${family.weightedPoints} weighted points.`
+      ),
+    },
+  };
+}
+
 function snapshotTimestamp(snapshot: ReportSnapshotRow): number {
   const value = Date.parse(snapshot.captured_at);
   if (!Number.isFinite(value)) {
@@ -466,6 +659,9 @@ export function buildReportGenerationData(params: {
   carrier: { name: string; dotNumber: string; mcNumber: string | null };
   snapshots: ReportSnapshotRow[];
   newViolations: ReportViolationRow[];
+  onFileViolationCount?: number;
+  priorityViolations?: ReportPriorityViolationRow[];
+  priorityAsOf?: Date;
   cases: ReportCaseRow[];
   coachingItems?: ReportCoachingItemRow[];
   compliance?: ReportComplianceInput;
@@ -581,6 +777,12 @@ export function buildReportGenerationData(params: {
     coachingItemCount: coachingProgram.length,
     hasComplianceData: complianceSweep !== null,
   });
+  const violationsOnFile =
+    params.onFileViolationCount ?? latestSnapshot.violationCount;
+  const violationsInScoringWindow = latestSnapshot.perBasic.reduce(
+    (total, basic) => total + basic.violationCount,
+    0
+  );
 
   return {
     reportDate: params.reportDate,
@@ -591,6 +793,18 @@ export function buildReportGenerationData(params: {
     latestSnapshot,
     previousSnapshot,
     comparison,
+    diagnosticSnapshot: {
+      violationsInScoringWindow,
+      violationsOnFile,
+      requiredViolationScopeSentence: formatViolationScopeFact(
+        violationsInScoringWindow,
+        violationsOnFile
+      ),
+    },
+    priorityFindings: buildReportPriorityFindings(
+      params.priorityViolations ?? [],
+      params.priorityAsOf
+    ),
     cases,
     coachingProgram,
     complianceSweep,
@@ -605,6 +819,32 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
     (section) => !(serverOwnsFirstTrend && section.key === "burdenTrend")
   );
   const exactHeadings = modelSections.map((section) => section.heading);
+  const cpdpInstructions = data.cases
+    .filter((reportCase) => reportCase.case_type === "CPDP")
+    .map((reportCase) => {
+      const caseReference = reportCase.case_number
+        ? `case ${reportCase.case_number}`
+        : "case with no stored case number";
+      const exactSentence = `CPDP ${caseReference} is ${reportCase.status} for crash preventability.`;
+      return [
+        `- Exact mandatory sentence: "${exactSentence}"`,
+        `  Stored CPDP facts: case_number=${reportCase.case_number ?? "null"}; status=${reportCase.status}; real stored description=${reportCase.description ?? "null"}`,
+        "  After the mandatory sentence, summarize the real stored description when it is present; never reframe it as an inspection dispute.",
+      ].join("\n");
+    })
+    .join("\n");
+  const priorityFallbackInstructions =
+    data.comparison?.newViolations.length === 0
+      ? [
+          data.priorityFindings.requiredFallbackFacts.investigateSentence,
+          ...data.priorityFindings.requiredFallbackFacts.evidenceSentences,
+          ...data.priorityFindings.requiredFallbackFacts
+            .operationalFamilySentences,
+        ]
+          .filter((sentence): sentence is string => Boolean(sentence))
+          .map((sentence) => `- Exact mandatory sentence: "${sentence}"`)
+          .join("\n")
+      : "";
   const system = `You are a trucking safety consultant writing a client-facing report for Golden Era SafeScore.
 
 Hard rules:
@@ -618,6 +858,8 @@ Hard rules:
 - The totalPoints and weightedPoints values are SafeScore weighted violation burden, not FMCSA SMS points or an SMS score. Use the exact phrase weighted violation burden for the total and never call it SMS points.
 - If comparison.firstReportingPeriod is true, do not write the Burden Trend heading or invent a comparison; the server adds that section and its fixed statement.
 - If previousSnapshot exists, state previous total, latest total, signed total change, and every non-zero per-BASIC change in Burden Trend.
+- In Diagnostic Snapshot, reproduce diagnosticSnapshot.requiredViolationScopeSentence exactly once. This is the authoritative distinction between current-window and on-file violations.
+- If comparison.newViolations is empty, Priority Findings must reproduce every mandatory fallback sentence supplied below exactly once. You may add concise grounded context, but never substitute a generic "no new violations" sentence.
 - In New Violations, include every provided violation's code, real description, the words severity weight followed by its value, OOS yes or OOS no, and inspection date.
 - In Open Challenges, include every provided case with its available case type, case number, status, and a concise summary grounded only in its stored description. For every CPDP case, use the exact phrase crash preventability and never call it an inspection dispute.
 - Coaching Program and Compliance Sweep may be written only when those exact sections and their real rows are present in the structured data. Do not imply a compliance certification or invent missing records.`;
@@ -629,7 +871,7 @@ Report-specific instruction: ${REPORT_TYPE_INSTRUCTIONS[data.reportType]}
 Required model-written section headings:
 ${exactHeadings.join("\n")}
 
-Structured report data:
+${cpdpInstructions ? `Mandatory CPDP facts and sentences:\n${cpdpInstructions}\n\n` : ""}${priorityFallbackInstructions ? `Mandatory no-new-violation Priority Findings sentences:\n${priorityFallbackInstructions}\n\n` : ""}Structured report data:
 ${JSON.stringify(data, null, 2)}`;
 
   return { system, user };
@@ -679,6 +921,24 @@ function headingLineIndexes(content: string, heading: string): number[] {
   return indexes;
 }
 
+function sectionBody(
+  content: string,
+  heading: string,
+  plannedHeadings: string[]
+): string {
+  const lines = content.split(/\r?\n/);
+  const start = lines.indexOf(heading);
+  if (start < 0) return "";
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (plannedHeadings.includes(lines[index]!)) {
+      end = index;
+      break;
+    }
+  }
+  return lines.slice(start + 1, end).join("\n");
+}
+
 export function validateGeneratedReport(
   content: string,
   data: ReportGenerationData
@@ -711,8 +971,45 @@ export function validateGeneratedReport(
   ) {
     issues.push("contains an unexpected first-reporting-period statement");
   }
+  const requiredViolationScopeSentence =
+    data.diagnosticSnapshot.requiredViolationScopeSentence;
+  const violationScopeSentenceCount =
+    content.split(requiredViolationScopeSentence).length - 1;
+  if (violationScopeSentenceCount === 0) {
+    issues.push(
+      `missing the required diagnostic violation-scope sentence: ${requiredViolationScopeSentence}`
+    );
+  } else if (violationScopeSentenceCount > 1) {
+    issues.push(
+      "the required diagnostic violation-scope sentence appeared more than once"
+    );
+  }
 
   const plannedHeadings = new Set(data.sections.map((section) => section.heading));
+  if (data.comparison?.newViolations.length === 0) {
+    const priorityBody = sectionBody(
+      content,
+      REPORT_SECTION_HEADINGS.priorityFindings,
+      [...plannedHeadings]
+    );
+    const requiredFallbackSentences = [
+      data.priorityFindings.requiredFallbackFacts.investigateSentence,
+      ...data.priorityFindings.requiredFallbackFacts.evidenceSentences,
+      ...data.priorityFindings.requiredFallbackFacts.operationalFamilySentences,
+    ].filter((sentence): sentence is string => Boolean(sentence));
+    for (const sentence of requiredFallbackSentences) {
+      const count = priorityBody.split(sentence).length - 1;
+      if (count === 0) {
+        issues.push(
+          `missing required no-new-violation priority fact: ${sentence}`
+        );
+      } else if (count > 1) {
+        issues.push(
+          `no-new-violation priority fact appeared more than once: ${sentence}`
+        );
+      }
+    }
+  }
   const plannedHeadingIndexes: number[] = [];
   for (const section of data.sections) {
     const indexes = headingLineIndexes(content, section.heading);

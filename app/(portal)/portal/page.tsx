@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { formatViolationScopeFact } from "@/lib/analysis/violation-scope-presentation";
 import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, priorityVariant } from "@/lib/utils";
@@ -156,6 +157,14 @@ export default async function PortalDashboardPage() {
   const activeDataqCount = dataqCases?.length ?? 0;
   const activeCpdpCount = cpdpCases?.length ?? 0;
   const openCaseCount = activeDataqCount + activeCpdpCount;
+  const inWindowViolationCount = burden.perBasic.reduce(
+    (total, basic) => total + basic.violationCount,
+    0
+  );
+  const violationScopeFact = formatViolationScopeFact(
+    inWindowViolationCount,
+    violationCount ?? 0
+  );
 
   return (
     <div className="space-y-6">
@@ -176,8 +185,8 @@ export default async function PortalDashboardPage() {
       <div className={`grid gap-4 ${canSeeCases ? "grid-cols-3" : "grid-cols-2"}`}>
         {[
           {
-            label: "Violations on file",
-            value: violationCount ?? 0,
+            label: `Violations in 24-month scoring window (${violationCount ?? 0} on file)`,
+            value: inWindowViolationCount,
             icon: AlertTriangle,
             iconBg: "bg-[#FDF4E7]",
             iconColor: "text-[#C67A1E]",
@@ -292,7 +301,7 @@ export default async function PortalDashboardPage() {
           <div>
             <h2 className="font-semibold text-[#1E1C1A] text-sm">Where you stand</h2>
             <p className="text-xs text-gray-500 mt-1">
-              FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
+              {violationScopeFact} FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
             </p>
           </div>
           <div className="text-right shrink-0">

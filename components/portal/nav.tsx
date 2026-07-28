@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, LogOut, Menu, X, LockKeyhole } from "lucide-react";
@@ -35,13 +35,21 @@ interface PortalNavProps {
 
 export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
+    setSigningOut(true);
+    setSignOutError(null);
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) {
+      setSignOutError(`Unable to sign out: ${error.message}`);
+      setSigningOut(false);
+      return;
+    }
+    window.location.replace("/login");
   }
 
   return (
@@ -107,10 +115,11 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
             )}
             <button
               onClick={handleSignOut}
+              disabled={signingOut}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0] transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Sign out
+              {signingOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
 
@@ -163,15 +172,24 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
               )}
               <button
                 onClick={handleSignOut}
+                disabled={signingOut}
                 className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-[#1E1C1A] hover:bg-[#FBF7F0] transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                Sign out
+                {signingOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
           </div>
         )}
       </div>
+      {signOutError && (
+        <div
+          role="alert"
+          className="border-t border-[#B83B32]/20 bg-[#FAECEB] px-4 py-2 text-center text-sm text-[#B83B32]"
+        >
+          {signOutError}
+        </div>
+      )}
     </header>
   );
 }
