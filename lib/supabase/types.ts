@@ -116,6 +116,43 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["carrier_profiles"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["carrier_profiles"]["Insert"]>;
       };
+      carrier_profile_enrichments: {
+        Row: {
+          id: string;
+          client_id: string;
+          source:
+            | "safer_company_snapshot"
+            | "fmcsa_motus"
+            | "fmcsa_sms_inspections";
+          source_url: string;
+          source_as_of: string | null;
+          fetched_at: string;
+          currentness: "current" | "historical_only" | "no_data";
+          data: Record<string, unknown>;
+          parser_version: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          source:
+            | "safer_company_snapshot"
+            | "fmcsa_motus"
+            | "fmcsa_sms_inspections";
+          source_url: string;
+          source_as_of?: string | null;
+          fetched_at: string;
+          currentness?: "current" | "historical_only" | "no_data";
+          data: Record<string, unknown>;
+          parser_version: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["carrier_profile_enrichments"]["Insert"]
+        >;
+      };
       client_attested_profiles: {
         Row: {
           id: string;

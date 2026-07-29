@@ -55,6 +55,20 @@ export const AUTHENTICATED_SCORE_COLUMNS = [
   "source",
 ] as const;
 
+/**
+ * Authoritative carrier facts are stored in one source-scoped child row. A
+ * successful refresh may replace only these fields for that exact source; it
+ * never writes carrier_profiles census fields or another source's data.
+ */
+export const CARRIER_PROFILE_ENRICHMENT_WRITE_COLUMNS = [
+  "source_url",
+  "source_as_of",
+  "fetched_at",
+  "currentness",
+  "data",
+  "parser_version",
+] as const;
+
 export type PublicViolationSource = {
   violation_description: string;
   basic_category: string | null;
@@ -165,6 +179,37 @@ export function buildSourceUpdate<T extends Record<string, unknown>>(
   source: T
 ): Partial<T> {
   return compactSourceFields(source);
+}
+
+export function buildCarrierProfileEnrichmentUpdate(input: {
+  source_url: string;
+  source_as_of: string | null;
+  fetched_at: string;
+  currentness: "current" | "historical_only" | "no_data";
+  data: Record<string, unknown>;
+  parser_version: string;
+}): Record<string, unknown> {
+  if (!input.source_url.trim()) {
+    throw new Error("Carrier enrichment source_url is required");
+  }
+  if (Number.isNaN(Date.parse(input.fetched_at))) {
+    throw new Error("Carrier enrichment fetched_at must be an ISO timestamp");
+  }
+  if (!input.data || Array.isArray(input.data)) {
+    throw new Error("Carrier enrichment data must be a JSON object");
+  }
+  if (!input.parser_version.trim()) {
+    throw new Error("Carrier enrichment parser_version is required");
+  }
+
+  return {
+    source_url: input.source_url,
+    source_as_of: input.source_as_of,
+    fetched_at: input.fetched_at,
+    currentness: input.currentness,
+    data: input.data,
+    parser_version: input.parser_version,
+  };
 }
 
 const PUBLIC_OOS_SCORE_COLUMNS = [

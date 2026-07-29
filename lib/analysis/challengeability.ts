@@ -38,6 +38,63 @@ export interface AssessmentFailure {
   error: string;
 }
 
+export type VehicleOosPriorityContext = {
+  carrierVehicleOosRate: number | null;
+  nationalVehicleOosRate: number | null;
+};
+
+/**
+ * SAFER OOS performance may rank an already-valid challenge; it can never
+ * create a challenge basis. When the carrier vehicle OOS rate exceeds the
+ * published national comparison, move challengeable Vehicle Maintenance
+ * results up one priority band and preserve the evidence-only tier decision.
+ */
+export function applyVehicleOosPriorityContext(
+  results: AssessmentResult[],
+  violations: ViolationInput[],
+  context: VehicleOosPriorityContext,
+): AssessmentResult[] {
+  const carrierRate = context.carrierVehicleOosRate;
+  const nationalRate = context.nationalVehicleOosRate;
+  if (
+    carrierRate === null ||
+    nationalRate === null ||
+    !Number.isFinite(carrierRate) ||
+    !Number.isFinite(nationalRate) ||
+    carrierRate <= nationalRate
+  ) {
+    return results;
+  }
+
+  const violationsById = new Map(
+    violations.map((violation) => [violation.id, violation]),
+  );
+  const elevatedPriority = {
+    low: "medium",
+    medium: "high",
+    high: "high",
+  } as const;
+
+  return results.map((result) => {
+    const violation = violationsById.get(result.violationId);
+    if (
+      !result.challengeable ||
+      violation?.basicCategory !== "vehicle_maintenance" ||
+      result.priority === "high"
+    ) {
+      return result;
+    }
+    return {
+      ...result,
+      priority: elevatedPriority[result.priority],
+      reason:
+        `${result.reason} Priority elevated because the carrier's SAFER ` +
+        `vehicle out-of-service rate (${carrierRate}%) exceeds the ` +
+        `published national comparison (${nationalRate}%).`,
+    };
+  });
+}
+
 export async function assessViolationsBatch(
   violations: ViolationInput[],
   onProgress?: (completed: number, total: number) => void

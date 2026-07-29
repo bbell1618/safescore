@@ -103,7 +103,7 @@ export async function runClientRefresh(
   if (saferSnapshot) {
     const censusPayload = {
       dot_number: dotNumber,
-      mc_number: null as string | null,
+      mc_number: saferSnapshot.mcNumber,
       legal_name: saferSnapshot.legalName,
       dba_name: saferSnapshot.dbaName,
       address: saferSnapshot.physicalAddress,
@@ -122,7 +122,9 @@ export async function runClientRefresh(
       review_type: saferSnapshot.reviewType,
       review_date: saferSnapshot.reviewDate,
       entity_type: saferSnapshot.entityType,
-      carrier_operation: saferSnapshot.operatingStatus,
+      // USDOT Status (for example ACTIVE) and Carrier Operation (for
+      // example Interstate) are distinct SAFER fields.
+      carrier_operation: saferSnapshot.carrierOperation,
       safer_as_of: saferSnapshot.saferAsOf,
       national_vehicle_oos_rate: saferSnapshot.nationalVehicleOosRate,
       national_driver_oos_rate: saferSnapshot.nationalDriverOosRate,

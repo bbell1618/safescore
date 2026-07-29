@@ -41,6 +41,11 @@ export interface SAFERSnapshot {
   operatingStatus: string | null;
   operatingAuthority: string | null;
   operationClassification: string | null;
+  operationClassifications: string[];
+  carrierOperation: string | null;
+  carrierOperations: string[];
+  docketNumbers: string[];
+  mcNumber: string | null;
   physicalAddress: string | null;
   mailingAddress: string | null;
   mcs150Date: string | null;       // YYYY-MM-DD normalized
@@ -337,14 +342,9 @@ function parseCargoTypes(html: string): string[] {
     return [];
   }
 
-  const cargo: string[] = [];
-  // Pattern: <TD class="queryfield">X</TD> immediately followed by the cargo name cell
-  const xCellRegex = /<TD[^>]*class="queryfield"[^>]*>\s*X\s*<\/TD>\s*<TD[^>]*class="queryfield"[^>]*>([\s\S]*?)<\/TD>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = xCellRegex.exec(tableHtml)) !== null) {
-    const name = stripTags(m[1]).trim();
-    if (name) cargo.push(name);
-  }
+  // The label TD intentionally has no queryfield class in SAFER's current
+  // markup. Reuse the generic checked-option parser rather than assuming it.
+  const cargo = parseCheckedOptions(html, "Cargo Carried");
 
   console.log("[safer] Cargo types found:", cargo);
   return cargo;
@@ -407,12 +407,23 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
   const url = `${SAFER_BASE}${encodeURIComponent(dot)}`;
   console.log(`[safer] Fetching ${url}`);
 
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!res.ok) {
     throw new Error(`SAFER HTTP error: ${res.status} ${res.statusText} for DOT ${dot}`);
   }
 
   const html = await res.text();
+  return parseSAFERSnapshotHtml(html, dot);
+}
+
+export function parseSAFERSnapshotHtml(
+  html: string,
+  dot: string,
+  parsedAt = new Date().toISOString(),
+): SAFERSnapshot {
 
   // Detect "not found" — SAFER returns a page with no carrier name in the title
   if (
@@ -421,6 +432,28 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     !html.includes("queryCarrierSnapshot")
   ) {
     throw new Error(`SAFER: carrier not found for DOT ${dot}`);
+  }
+
+  const requiredAnchors = [
+    "Legal Name:",
+    "Power Units:",
+    "Drivers:",
+    'summary="Operation Classification"',
+    'summary="Carrier Operation"',
+    'summary="Cargo Carried"',
+    'summary="Inspections"',
+    "Operating Authority Status:",
+    "MC/MX/FF Number(s):",
+  ];
+  const missingAnchors = requiredAnchors.filter(
+    (anchor) => !html.includes(anchor),
+  );
+  if (missingAnchors.length > 0) {
+    throw new Error(
+      `[safer] Layout drift for DOT ${dot}: missing ${missingAnchors.join(
+        ", ",
+      )}`,
+    );
   }
 
   // ── Identity fields ────────────────────────────────────────────────────────
@@ -451,6 +484,29 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     operationClassifications.length > 0
       ? operationClassifications.join(" | ")
       : null;
+  const carrierOperations = parseCheckedOptions(html, "Carrier Operation");
+  const carrierOperation =
+    carrierOperations.length > 0 ? carrierOperations.join(" | ") : null;
+  const docketCell = extractAfterLabel(html, "MC/MX/FF Number(s):") ?? "";
+  const docketNumbers = Array.from(
+    new Set(
+      docketCell
+        .split(/\s+/)
+        .map((value) => value.replace(/[^A-Za-z0-9-]/g, ""))
+        .filter((value) => /^(?:MC|MX|FF)-?\d+$/i.test(value))
+        .map((value) =>
+          value.replace(
+            /^([A-Za-z]+)-?(\d+)$/,
+            (_, prefix: string, number: string) =>
+              `${prefix.toUpperCase()}-${number}`,
+          ),
+        ),
+    ),
+  );
+  const mcNumber =
+    docketNumbers
+      .find((value) => value.startsWith("MC-"))
+      ?.replace(/^MC-/, "") ?? null;
 
   // USDOT Status — cell may contain HTML comments like <!--ACTIVE-->
   let operatingStatus: string | null = null;
@@ -576,6 +632,11 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     operatingStatus,
     operatingAuthority,
     operationClassification,
+    operationClassifications,
+    carrierOperation,
+    carrierOperations,
+    docketNumbers,
+    mcNumber,
     physicalAddress,
     mailingAddress,
     powerUnits,
@@ -600,6 +661,11 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     operatingStatus,
     operatingAuthority,
     operationClassification,
+    operationClassifications,
+    carrierOperation,
+    carrierOperations,
+    docketNumbers,
+    mcNumber,
     physicalAddress,
     mailingAddress,
     mcs150Date,
@@ -630,7 +696,7 @@ export async function getSAFERSnapshot(dot: string): Promise<SAFERSnapshot> {
     crashTow: crashData.crashTow,
     crashTotal: crashData.crashTotal,
     saferAsOf,
-    parsedAt: new Date().toISOString(),
+    parsedAt,
   };
 }
 

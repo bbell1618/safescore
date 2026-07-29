@@ -11,6 +11,10 @@ import {
   runMcs150TruthUp,
   type Mcs150TruthUpRunResult,
 } from "@/lib/mcs150/truth-up-server";
+import {
+  refreshCarrierProfileEnrichment,
+  type CarrierProfileEnrichmentResult,
+} from "@/lib/fmcsa/carrier-profile-enrichment-server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { ClientTier } from "@/lib/supabase/types";
 import { SUBSCRIPTION_TIERS, tierHasFeature } from "@/lib/tiers";
@@ -36,11 +40,19 @@ type CronSummary = {
   mcs150_checks_succeeded: number;
   mcs150_requests_created: number;
   mcs150_updates_confirmed: number;
+  carrier_enrichment_sources_attempted: number;
+  carrier_enrichment_sources_succeeded: number;
+  carrier_enrichment_sources_failed: number;
 };
 
 type Mcs150CronResult = {
   client_id: string;
   result: Mcs150TruthUpRunResult;
+};
+
+type CarrierEnrichmentCronResult = {
+  client_id: string;
+  result: CarrierProfileEnrichmentResult;
 };
 
 function errorMessage(error: unknown) {
@@ -92,9 +104,13 @@ export async function GET(request: Request) {
     mcs150_checks_succeeded: 0,
     mcs150_requests_created: 0,
     mcs150_updates_confirmed: 0,
+    carrier_enrichment_sources_attempted: 0,
+    carrier_enrichment_sources_succeeded: 0,
+    carrier_enrichment_sources_failed: 0,
   };
   const errors: Array<{ client_id: string; error: string }> = [];
   const mcs150Results: Mcs150CronResult[] = [];
+  const carrierEnrichmentResults: CarrierEnrichmentCronResult[] = [];
 
   for (const client of (data ?? []) as ActiveClient[]) {
     try {
@@ -108,6 +124,7 @@ export async function GET(request: Request) {
       );
       let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
       let mcs150TruthUpError: string | null = null;
+      let carrierEnrichment: CarrierProfileEnrichmentResult | null = null;
       const refresh = await runClientRefresh(
         { clientId: client.id, dotNumber: client.dot_number },
         supabase
@@ -116,6 +133,47 @@ export async function GET(request: Request) {
       summary.new_violations += refresh.newViolationIds.length;
       summary.new_crashes += refresh.newCrashIds.length;
       summary.oos_changes += refresh.oosRateChange ? 1 : 0;
+      try {
+        carrierEnrichment = await refreshCarrierProfileEnrichment(
+          {
+            clientId: client.id,
+            dotNumber: client.dot_number,
+            trigger: "scheduled",
+            freshSafer: refresh.saferSnapshot,
+          },
+          supabase,
+        );
+        carrierEnrichmentResults.push({
+          client_id: client.id,
+          result: carrierEnrichment,
+        });
+        const attempted = carrierEnrichment.sources.filter(
+          (source) => source.status !== "skipped",
+        );
+        summary.carrier_enrichment_sources_attempted += attempted.length;
+        summary.carrier_enrichment_sources_succeeded += attempted.filter(
+          (source) => source.status === "succeeded",
+        ).length;
+        summary.carrier_enrichment_sources_failed += attempted.filter(
+          (source) => source.status === "failed",
+        ).length;
+        for (const source of attempted.filter(
+          (item) => item.status === "failed",
+        )) {
+          errors.push({
+            client_id: client.id,
+            error: `Carrier-profile ${source.source} enrichment failed: ${source.reason}`,
+          });
+        }
+      } catch (enrichmentError) {
+        summary.carrier_enrichment_sources_failed += 1;
+        errors.push({
+          client_id: client.id,
+          error: `Carrier-profile enrichment failed: ${errorMessage(
+            enrichmentError,
+          )}`,
+        });
+      }
       if (hasComplianceLayer) {
         try {
           mcs150TruthUp = await runMcs150TruthUp(
@@ -220,6 +278,13 @@ export async function GET(request: Request) {
             ? "run"
             : "not_included",
           assessment_errors: assessmentErrors,
+          carrier_profile_enrichment:
+            carrierEnrichment?.sources.map((source) => ({
+              source: source.source,
+              status: source.status,
+              reason: source.reason,
+              row_id: source.row?.id ?? null,
+            })) ?? null,
         },
       });
       if (activityError) {
@@ -241,7 +306,16 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     errors.length > 0
-      ? { ...summary, mcs150_results: mcs150Results, errors }
-      : { ...summary, mcs150_results: mcs150Results }
+      ? {
+          ...summary,
+          mcs150_results: mcs150Results,
+          carrier_enrichment_results: carrierEnrichmentResults,
+          errors,
+        }
+      : {
+          ...summary,
+          mcs150_results: mcs150Results,
+          carrier_enrichment_results: carrierEnrichmentResults,
+        }
   );
 }

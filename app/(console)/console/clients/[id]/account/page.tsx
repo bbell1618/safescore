@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import {
+  AuthorityInsuranceSection,
+  type CarrierProfileEnrichmentRow,
+} from "@/components/console/authority-insurance-section";
 import { PortalAccessCard } from "@/components/console/portal-access-card";
 import { createClient } from "@/lib/supabase/server";
 import { tierDisplayLabel } from "@/lib/tiers";
@@ -59,11 +63,18 @@ export default async function AccountPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: client }, { data: subscriptions }, { data: credentials }] = await Promise.all([
+  const [
+    { data: client },
+    { data: subscriptions },
+    { data: credentials },
+    { data: enrichmentRows, error: enrichmentError },
+  ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
       .from("subscriptions")
-      .select("id, tier, status, mrr, billing_cycle, current_period_end, trial_end, created_at")
+      .select(
+        "id, tier, status, mrr, billing_cycle, current_period_end, trial_end, created_at"
+      )
       .eq("client_id", id)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -72,13 +83,27 @@ export default async function AccountPage({
       .select("id, fmcsa_dot_number, last_used_at, updated_at")
       .eq("client_id", id)
       .limit(1),
+    supabase
+      .from("carrier_profile_enrichments")
+      .select(
+        "id, client_id, source, source_url, source_as_of, fetched_at, currentness, data, parser_version, created_at, updated_at"
+      )
+      .eq("client_id", id)
+      .order("source", { ascending: true }),
   ]);
 
   if (!client) notFound();
+  if (enrichmentError) {
+    throw new Error(
+      `Unable to load authority and insurance data: ${enrichmentError.message}`
+    );
+  }
 
   const account = client as AccountClient;
   const subscription = ((subscriptions ?? []) as SubscriptionRow[])[0] ?? null;
   const credential = ((credentials ?? []) as CredentialRow[])[0] ?? null;
+  const authorityInsuranceRows =
+    (enrichmentRows ?? []) as unknown as CarrierProfileEnrichmentRow[];
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">
@@ -115,6 +140,16 @@ export default async function AccountPage({
       </div>
 
       <PortalAccessCard clientId={id} defaultEmail={account.email} />
+
+      <AuthorityInsuranceSection
+        clientId={id}
+        billingDriverCount={
+          typeof account.driver_count === "number"
+            ? account.driver_count
+            : null
+        }
+        rows={authorityInsuranceRows}
+      />
 
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2 className="font-semibold text-[#1E1C1A] text-sm">Authorizations</h2>

@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assessViolationsBatch, type AssessmentFailure } from "./challengeability";
+import {
+  applyVehicleOosPriorityContext,
+  assessViolationsBatch,
+  type AssessmentFailure,
+} from "./challengeability";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 
 type InspectionContext = { inspection_date: string | null; state: string | null; level: string | number | null };
@@ -64,7 +68,7 @@ export async function runChallengeabilityAssessment(
     return { requested: 0, assessed: 0, challengeable: 0, failures: [], hasMore: false, nextCursor: null };
   }
 
-  const { results, failures } = await assessViolationsBatch(rows.map((row) => {
+  const assessmentInputs = rows.map((row) => {
     const inspection = inspectionFor(row);
     return {
       id: row.id,
@@ -80,7 +84,52 @@ export async function runChallengeabilityAssessment(
       state: inspection?.state ?? "Unknown",
       inspectionLevel: String(inspection?.level ?? "Unknown"),
     };
-  }));
+  });
+  const [{ results: rawResults, failures }, scoreResult, profileResult] =
+    await Promise.all([
+      assessViolationsBatch(assessmentInputs),
+      supabase
+        .from("score_snapshots")
+        .select("oos_vehicle_rate")
+        .eq("client_id", clientId)
+        .order("snapshot_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("carrier_profiles")
+        .select("national_vehicle_oos_rate")
+        .eq("client_id", clientId)
+        .maybeSingle(),
+    ]);
+  if (scoreResult.error) {
+    throw new Error(
+      `Unable to load carrier OOS priority context: ${scoreResult.error.message}`,
+    );
+  }
+  if (profileResult.error) {
+    throw new Error(
+      `Unable to load national OOS priority context: ${profileResult.error.message}`,
+    );
+  }
+  const oosPriorityContext = {
+    carrierVehicleOosRate:
+      typeof scoreResult.data?.oos_vehicle_rate === "number"
+        ? scoreResult.data.oos_vehicle_rate
+        : null,
+    nationalVehicleOosRate:
+      typeof profileResult.data?.national_vehicle_oos_rate === "number"
+        ? profileResult.data.national_vehicle_oos_rate
+        : null,
+  };
+  const results = applyVehicleOosPriorityContext(
+    rawResults,
+    assessmentInputs,
+    oosPriorityContext,
+  );
+  const priorityElevations = results.filter(
+    (result, index) => result.priority !== rawResults[index]?.priority,
+  ).length;
 
   const writeFailures: AssessmentFailure[] = [];
   const assessedAt = new Date().toISOString();
@@ -111,6 +160,11 @@ export async function runChallengeabilityAssessment(
       action_type: "violation_assessed",
       entity_type: "violations",
       description: `AI assessed ${persisted.length} violations - ${persisted.filter((result) => result.challengeable).length} flagged as challengeable`,
+      metadata: {
+        oos_priority_context: oosPriorityContext,
+        priority_elevations: priorityElevations,
+        rule: "vehicle_oos_above_national_bumps_existing_challenge_one_band",
+      },
     });
     if (activityError) throw new Error(`Challengeability results were saved, but activity logging failed: ${activityError.message}`);
   }
