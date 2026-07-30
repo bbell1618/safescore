@@ -8,6 +8,36 @@ const nextConfig: NextConfig = {
         destination: "/portal",
         permanent: false,
       },
+      {
+        source: "/portal/plan",
+        destination: "/portal/playbook",
+        permanent: false,
+      },
+      {
+        source: "/portal/monitoring",
+        destination: "/portal/activity",
+        permanent: false,
+      },
+      {
+        source: "/portal/cases",
+        destination: "/portal/activity",
+        permanent: false,
+      },
+      {
+        source: "/portal/requests",
+        destination: "/portal/documents",
+        permanent: false,
+      },
+      {
+        source: "/portal/reports",
+        destination: "/portal/documents",
+        permanent: false,
+      },
+      {
+        source: "/portal/profile",
+        destination: "/portal/account",
+        permanent: false,
+      },
     ];
   },
 };

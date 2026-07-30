@@ -17,21 +17,21 @@ const navItems: Array<{
 }> = [
   { href: "/portal", label: "Home", exact: true },
   {
-    href: "/portal/plan",
+    href: "/portal/playbook",
     label: "Playbook",
     feature: "playbook_coach",
   },
   {
-    href: "/portal/monitoring",
+    href: "/portal/activity",
     label: "Activity",
     feature: "trend_history",
   },
   {
     href: "/portal/documents",
     label: "Documents",
-    feature: "compliance_layer",
+    feature: "monthly_reports",
   },
-  { href: "/portal/profile", label: "Account" },
+  { href: "/portal/account", label: "Account" },
 ];
 
 interface PortalNavProps {

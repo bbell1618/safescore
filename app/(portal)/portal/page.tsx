@@ -172,7 +172,7 @@ async function HandlingSection({
         {canSeeCases && handling.cases.length > 0 ? (
           <Link
             className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-amber-dark transition-colors hover:bg-amber-subtle hover:text-amber-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-            href="/portal/cases"
+            href="/portal/activity#cases"
           >
             View case activity
             <ArrowRight className="h-4 w-4" />
@@ -305,7 +305,7 @@ async function RequestsSection({
                 </div>
                 <Link
                   className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-semibold text-warm-white transition-colors hover:bg-amber-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
-                  href="/portal/requests"
+                  href="/portal/documents#needed-from-you"
                 >
                   Review request
                   <ArrowRight className="h-4 w-4" />

@@ -131,7 +131,7 @@ function ActivitySkeleton() {
       </Surface>
       <Surface className="space-y-4">
         <Bone className="h-6 w-32" />
-        {[0, 1, 2, 3].map((row) => (
+        {[0, 1, 2].map((row) => (
           <div
             key={row}
             className="flex items-center justify-between gap-4 border-t border-sand pt-4 first:border-0 first:pt-0"
@@ -141,6 +141,25 @@ function ActivitySkeleton() {
               <Bone className="h-3 w-2/5" />
             </div>
             <Bone className="h-6 w-24 rounded-full" />
+          </div>
+        ))}
+      </Surface>
+      <Surface className="space-y-4">
+        <div className="space-y-2">
+          <Bone className="h-6 w-40" />
+          <Bone className="h-4 w-full max-w-xl" />
+        </div>
+        {[0, 1, 2].map((row) => (
+          <div
+            key={row}
+            className="flex items-center justify-between gap-4 border-t border-sand pt-4 first:border-0 first:pt-0"
+          >
+            <div className="flex-1 space-y-2">
+              <Bone className="h-4 w-2/5" />
+              <Bone className="h-3 w-3/5" />
+              <Bone className="h-3 w-1/3" />
+            </div>
+            <Bone className="h-6 w-28 rounded-full" />
           </div>
         ))}
       </Surface>
@@ -157,22 +176,74 @@ function PlaybookSkeleton() {
         <Bone className="h-4 w-full" />
         <Bone className="h-4 w-5/6" />
       </Surface>
-      <div className="grid gap-6 lg:grid-cols-2">
-        {[0, 1, 2, 3].map((card) => (
-          <Surface key={card} className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <Bone className="h-6 w-36" />
-              <Bone className="h-7 w-24 rounded-full" />
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Bone className="h-3 w-28" />
+          <Bone className="h-7 w-52" />
+          <Bone className="h-4 w-full max-w-2xl" />
+        </div>
+        {[0, 1].map((card) => (
+          <Surface key={card} className="overflow-hidden p-0">
+            <div className="border-b border-sand bg-cream p-6">
+              <div className="flex flex-col justify-between gap-5 xl:flex-row">
+                <div className="space-y-3">
+                  <Bone className="h-3 w-20" />
+                  <Bone className="h-7 w-48" />
+                  <Bone className="h-4 w-full max-w-2xl" />
+                </div>
+                <div className="grid shrink-0 grid-cols-3 gap-3">
+                  <Bone className="h-16 w-20" />
+                  <Bone className="h-16 w-20" />
+                  <Bone className="h-16 w-20" />
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Bone className="h-14 w-full" />
-              <Bone className="h-14 w-full" />
-              <Bone className="h-14 w-full" />
+            <div className="grid gap-6 p-6 lg:grid-cols-2">
+              <div className="space-y-3">
+                <Bone className="h-5 w-36" />
+                <Bone className="h-4 w-full" />
+                <Bone className="h-4 w-5/6" />
+                <Bone className="h-24 w-full" />
+              </div>
+              <div className="space-y-4">
+                <Bone className="h-28 w-full" />
+                <Bone className="h-28 w-full" />
+              </div>
             </div>
-            <Bone className="h-4 w-full" />
-            <Bone className="h-4 w-4/5" />
           </Surface>
         ))}
+      </div>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Bone className="h-3 w-28" />
+          <Bone className="h-7 w-72" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((card) => (
+            <Surface key={card} className="space-y-4">
+              <Bone className="h-10 w-10" />
+              <Bone className="h-5 w-36" />
+              <Bone className="h-4 w-full" />
+              <Bone className="h-4 w-4/5" />
+            </Surface>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Bone className="h-3 w-28" />
+          <Bone className="h-7 w-80" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[0, 1].map((card) => (
+            <Surface key={card} className="space-y-4">
+              <Bone className="h-6 w-44" />
+              <Bone className="h-4 w-full" />
+              <Bone className="h-4 w-5/6" />
+              <Bone className="h-16 w-full" />
+            </Surface>
+          ))}
+        </div>
       </div>
     </>
   );

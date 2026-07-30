@@ -68,7 +68,7 @@ const sharedTierLabelRenderers = {
   "app/onboarding/page.tsx": "TIER_LABELS[assignedTierData.value]",
   "app/(console)/console/page.tsx": "TIER_LABELS[clientTier]",
   "app/(console)/console/clients/[id]/layout.tsx": "TIER_LABELS[clientTier]",
-  "app/(portal)/portal/profile/page.tsx": "TIER_LABELS[clientTier]",
+  "app/(portal)/portal/account/page.tsx": "tierDisplayLabel(context.tier)",
   "components/console/client-intake-fields.tsx": "TIER_LABELS[tier]",
   "components/console/service-tier-chip.tsx": "TIER_LABELS[minimumTier]",
   "components/portal/tier-upgrade-note.tsx": "TIER_LABELS[currentTier]",
@@ -125,12 +125,8 @@ for (const tier of CLIENT_TIERS) {
 }
 
 const pageGuards = {
-  "app/(portal)/portal/monitoring/page.tsx": "trend_history",
-  "app/(portal)/portal/reports/page.tsx": "monthly_reports",
-  "app/(portal)/portal/cases/page.tsx": "case_visibility",
-  "app/(portal)/portal/requests/page.tsx": "evidence_requests",
-  "app/(portal)/portal/plan/page.tsx": "playbook_coach",
-  "app/(portal)/portal/documents/page.tsx": "compliance_layer",
+  "app/(portal)/portal/activity/page.tsx": "trend_history",
+  "app/(portal)/portal/playbook/page.tsx": "playbook_coach",
   "app/(portal)/portal/compliance/page.tsx": "compliance_layer",
 } as const;
 
@@ -139,12 +135,45 @@ for (const [file, feature] of Object.entries(pageGuards)) {
   const guardCall = `getPortalPageAccess("${feature}")`;
   const guardIndex = source.indexOf(guardCall);
   assert.ok(guardIndex >= 0, `${file} must invoke ${guardCall}`);
-  const queryIndex = source.indexOf(".from(");
+  const queryIndex = source.indexOf('.from("');
   if (queryIndex >= 0) {
     assert.ok(guardIndex < queryIndex, `${file} must gate before its first query`);
   }
   assert.ok(source.includes("TierUpgradeNote"), `${file} must render an upgrade note`);
 }
+
+const activitySource = readFileSync(
+  resolve(process.cwd(), "app/(portal)/portal/activity/page.tsx"),
+  "utf8"
+);
+assert.ok(
+  activitySource.includes(
+    'tierHasFeature(access.tier, "case_visibility")'
+  )
+);
+assert.ok(
+  activitySource.includes(
+    "canSeeCases\n    ? loadPortalActivityCases(access.clientId)"
+  )
+);
+
+const documentsSource = readFileSync(
+  resolve(process.cwd(), "app/(portal)/portal/documents/page.tsx"),
+  "utf8"
+);
+for (const feature of [
+  "evidence_requests",
+  "compliance_layer",
+  "monthly_reports",
+] as const) {
+  assert.ok(
+    documentsSource.includes(`tierHasFeature(context.tier, "${feature}")`),
+    `Documents must enforce ${feature} before loading that zone`
+  );
+}
+assert.match(documentsSource, /canSeeRequests\s*\?\s*loadOpenRequests/);
+assert.match(documentsSource, /canSeeVault\s*\?\s*loadDocuments/);
+assert.match(documentsSource, /canSeeReports\s*\?\s*loadSentReports/);
 
 const apiGuards = {
   "app/api/portal/requests/route.ts": "evidence_requests",

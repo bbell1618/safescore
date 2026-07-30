@@ -34,7 +34,7 @@ export async function POST() {
         companyName: clientRelation?.name ?? "Your company",
         requestTitle: row.title,
         reminderNumber: nextCount,
-        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/requests`,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/documents#needed-from-you`,
       });
     }
     const log = { mode: "dry-run", trigger: "request_queue_reminder", recipient: recipient?.email ?? "NO_CLIENT_EMAIL", subject: `SafeScore request reminder: ${row.title}`, template: "request_queue_reminder", requestId: row.id, reminderCount: nextCount, escalated };

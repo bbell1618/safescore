@@ -146,7 +146,7 @@ export async function PATCH(
         caseNumber: beforeCase.case_number ?? undefined,
         oldStatus: beforeCase.status,
         newStatus: afterCase.status,
-        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/cases`,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/activity#cases`,
       });
     }
 

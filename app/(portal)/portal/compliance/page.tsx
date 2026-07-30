@@ -18,17 +18,28 @@ export default async function PortalCompliancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-[#1E1C1A]">Compliance</h1>
-        <p className="mt-1 text-sm text-gray-500">Your Total Safety compliance workspace.</p>
-      </div>
-      <div className="rounded-xl border border-[#F0E8DA] bg-[#FBF7F0] px-6 py-12 text-center">
-        <ClipboardCheck className="mx-auto mb-3 h-8 w-8 text-[#C67A1E]" />
-        <p className="text-sm font-medium text-[#1E1C1A]">Compliance sweep coming next</p>
-        <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-gray-500">
-          Your team can continue using the document vault while the dedicated compliance sweep is being prepared. No compliance conclusion is shown until the required data is available.
+      <header>
+        <p className="mono-label text-amber">Compliance workspace</p>
+        <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight text-warm-dark">
+          Compliance
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-warm-mid">
+          Your Total Safety compliance workspace.
         </p>
-      </div>
+      </header>
+      <section className="rounded-xl border border-sand bg-warm-white px-6 py-12 text-center shadow-sm">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-subtle text-amber-dark">
+          <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <h2 className="mt-4 font-heading text-lg font-semibold text-warm-dark">
+          The dedicated compliance sweep is being prepared
+        </h2>
+        <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-warm-mid">
+          You can keep using the document vault while GEIA prepares this
+          workspace. No compliance conclusion appears until the required data
+          is available.
+        </p>
+      </section>
     </div>
   );
 }

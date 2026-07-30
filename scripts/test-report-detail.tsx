@@ -185,8 +185,16 @@ assert.match(pdfGenerator, /JSON\.stringify\(\{ error: "Forbidden" \}\)/);
 assert.match(pdfGenerator, /client_id is required for staff users/);
 assert.doesNotMatch(pdfGenerator, /userRecord\?\.client_id/);
 
-const portalReports = source("app/(portal)/portal/reports/page.tsx");
-assert.doesNotMatch(portalReports, /PortalDownloadReportButton/);
+const portalDocuments = source("app/(portal)/portal/documents/page.tsx");
+const portalPrint = source(
+  "app/(report-print)/portal/documents/reports/[reportId]/print/page.tsx"
+);
+assert.doesNotMatch(portalDocuments, /PortalDownloadReportButton/);
+assert.match(portalDocuments, /\.eq\("status", "sent"\)/);
+assert.match(portalPrint, /\.eq\("client_id", access\.clientId\)/);
+assert.match(portalPrint, /\.eq\("status", "sent"\)/);
+assert.match(portalPrint, /report\.final_content \?\? ""/);
+assert.doesNotMatch(portalPrint, /ai_content/);
 assert.equal(
   existsSync(
     resolve(process.cwd(), "components/portal/download-report-button.tsx")
@@ -209,6 +217,7 @@ console.log(
       generatorExposesSend: false,
       portalPdfGenerationStaffOnly: true,
       portalPdfButtonRemoved: true,
+      sentReportPrintGuarded: true,
     },
     null,
     2

@@ -143,10 +143,10 @@ async function main() {
     const nav = portalNav(homeHtml);
     const expectedNav = [
       { href: "/portal", label: "Home" },
-      { href: "/portal/plan", label: "Playbook" },
-      { href: "/portal/monitoring", label: "Activity" },
+      { href: "/portal/playbook", label: "Playbook" },
+      { href: "/portal/activity", label: "Activity" },
       { href: "/portal/documents", label: "Documents" },
-      { href: "/portal/profile", label: "Account" },
+      { href: "/portal/account", label: "Account" },
     ];
 
     assert(homeResponse.status === 200, `Portal Home returned ${homeResponse.status}`);

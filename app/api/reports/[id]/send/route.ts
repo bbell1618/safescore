@@ -107,7 +107,7 @@ export async function POST(
       month: "long",
       day: "numeric",
     });
-    const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/reports`;
+    const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal/documents#from-geia`;
     const result = await sendReportReady({
       to: clientEmail,
       companyName: clientRecord.name,
