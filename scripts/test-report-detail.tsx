@@ -175,8 +175,24 @@ assert.equal(
   ),
   true
 );
-assert.equal(isStaffReportActionPath("/api/reports/generate"), false);
-assert.equal(isStaffReportActionPath("/api/reports/generate-text"), false);
+assert.equal(isStaffReportActionPath("/api/reports/generate"), true);
+assert.equal(isStaffReportActionPath("/api/reports/generate-text"), true);
+
+const pdfGenerator = source("app/api/reports/generate/route.ts");
+assert.match(pdfGenerator, /role !== "geia_admin"/);
+assert.match(pdfGenerator, /role !== "geia_staff"/);
+assert.match(pdfGenerator, /JSON\.stringify\(\{ error: "Forbidden" \}\)/);
+assert.match(pdfGenerator, /client_id is required for staff users/);
+assert.doesNotMatch(pdfGenerator, /userRecord\?\.client_id/);
+
+const portalReports = source("app/(portal)/portal/reports/page.tsx");
+assert.doesNotMatch(portalReports, /PortalDownloadReportButton/);
+assert.equal(
+  existsSync(
+    resolve(process.cwd(), "components/portal/download-report-button.tsx")
+  ),
+  false
+);
 
 console.log(
   JSON.stringify(
@@ -191,6 +207,8 @@ console.log(
       guardedMutations: ["save", "review", "delete"],
       generatorCreatesDuplicateRow: false,
       generatorExposesSend: false,
+      portalPdfGenerationStaffOnly: true,
+      portalPdfButtonRemoved: true,
     },
     null,
     2

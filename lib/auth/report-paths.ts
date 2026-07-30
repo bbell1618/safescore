@@ -6,6 +6,14 @@ const STAFF_REPORT_ACTION_PATH = new RegExp(
   "i"
 );
 
+const STAFF_REPORT_GENERATION_PATHS = new Set([
+  "/api/reports/generate",
+  "/api/reports/generate-text",
+]);
+
 export function isStaffReportActionPath(path: string): boolean {
-  return STAFF_REPORT_ACTION_PATH.test(path);
+  return (
+    STAFF_REPORT_GENERATION_PATHS.has(path) ||
+    STAFF_REPORT_ACTION_PATH.test(path)
+  );
 }

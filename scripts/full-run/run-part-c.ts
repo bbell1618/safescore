@@ -280,9 +280,9 @@ async function main() {
     if (cpdpReady.data.status !== "draft" || dataqReady.data.status !== "investigating") throw new Error("A case crossed the ready-to-file hard stop");
 
     const portalMarkers: Record<string, string> = {
-      "/portal": "Welcome back", "/portal/cases": "Cases", "/portal/documents": "Document vault", "/portal/onboarding": "SafeScore",
+      "/portal": "Where you stand", "/portal/cases": "Cases", "/portal/documents": "Document vault", "/portal/onboarding": "SafeScore",
       "/portal/onboarding/success": "Activating your account", "/portal/plan": "Your Safety Plan", "/portal/profile": "Settings",
-      "/portal/reports": "Reports", "/portal/requests": "Your requests", "/portal/safety": "Safety profile",
+      "/portal/reports": "Reports", "/portal/requests": "Your requests", "/portal/safety": "Where you stand",
     };
     const portalPages = [];
     for (const [path, marker] of Object.entries(portalMarkers)) {
@@ -311,7 +311,7 @@ async function main() {
 
     const directEmails = await Promise.all([
       sendWelcomeEmail({ to: clientEmail, companyName: clientName, dotNumber, userFullName: "Acme Safety Tester", portalUrl: `${baseUrl}/portal` }),
-      sendNewViolationAlert({ to: clientEmail, companyName: clientName, dotNumber, violationCode: violation.data.violation_code, description: violation.data.violation_description, inspectionDate: inspection.data.inspection_date, basicCategory: violation.data.basic_category, severityWeight: violation.data.severity_weight, portalUrl: `${baseUrl}/portal/safety` }),
+      sendNewViolationAlert({ to: clientEmail, companyName: clientName, dotNumber, violationCode: violation.data.violation_code, description: violation.data.violation_description, inspectionDate: inspection.data.inspection_date, basicCategory: violation.data.basic_category, severityWeight: violation.data.severity_weight, portalUrl: `${baseUrl}/portal` }),
       sendCaseStatusChange({ to: clientEmail, companyName: clientName, caseType: "DataQ", caseNumber: "TEST-DATAQ-READY", oldStatus: "draft", newStatus: "investigating", portalUrl: `${baseUrl}/portal/cases` }),
       sendReportReady({ to: clientEmail, companyName: clientName, reportTitle: "Synthetic safety report", reportDate: "2026-07-13", portalUrl: `${baseUrl}/portal/reports` }),
     ]);

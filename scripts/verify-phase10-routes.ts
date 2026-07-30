@@ -23,7 +23,7 @@ function expectedMarker(route: string) {
     "/console": "Client overview",
     "/console/activity": "Activity log",
     "/console/assess/2533650": "Assessment",
-    "/portal": "Welcome back",
+    "/portal": "Where you stand",
     "/portal/cases": "Cases",
     "/portal/documents": "Document vault",
     "/portal/onboarding": "SafeScore",
@@ -32,7 +32,7 @@ function expectedMarker(route: string) {
     "/portal/profile": "Settings",
     "/portal/reports": "Reports",
     "/portal/requests": "Your requests",
-    "/portal/safety": "Safety profile",
+    "/portal/safety": "Where you stand",
     "/onboarding": "SafeScore",
     "/onboarding/success": "Activating your account",
   };

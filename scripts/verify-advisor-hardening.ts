@@ -95,7 +95,7 @@ async function main() {
       portal: {
         status: portalPage.status,
         rendered:
-          portalPage.body.includes("Welcome back") &&
+          portalPage.body.includes("Where you stand") &&
           portalPage.body.includes("Nationwide Carrier") &&
           !portalPage.body.includes("Internal Server Error"),
       },

@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
-import { getBasics } from "@/lib/fmcsa/client";
 import { diffSnapshots, getRecentSnapshots } from "@/lib/monitoring/diff";
 import {
   monitoringWatchStatusText,
@@ -22,22 +21,6 @@ function movementClass(value: number) {
   return "text-gray-500";
 }
 
-function formatFmcsaDate(value: string | null) {
-  if (!value) return null;
-  const dateOnly = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-  return formatDate(dateOnly ?? value);
-}
-
-const OFFICIAL_BASICS = [
-  { label: "Unsafe Driving", source: "unsafeDriving", measure: "unsafe_driving_measure", percentile: "unsafe_driving_pct", alert: "unsafe_driving_alert" },
-  { label: "HOS Compliance", source: "hosCompliance", measure: "hos_compliance_measure", percentile: "hos_compliance_pct", alert: "hos_compliance_alert" },
-  { label: "Driver Fitness", source: "driverFitness", measure: "driver_fitness_measure", percentile: "driver_fitness_pct", alert: "driver_fitness_alert" },
-  { label: "Controlled Substances/Alcohol", source: "controlledSubstances", measure: "controlled_substance_measure", percentile: "controlled_substance_pct", alert: "controlled_substance_alert" },
-  { label: "Vehicle Maintenance", source: "vehicleMaintenance", measure: "vehicle_maint_measure", percentile: "vehicle_maint_pct", alert: "vehicle_maint_alert" },
-  { label: "HM Compliance", source: "hmCompliance", measure: "hm_compliance_measure", percentile: "hm_compliance_pct", alert: "hm_compliance_alert" },
-  { label: "Crash Indicator", source: "crashIndicator", measure: "crash_indicator_measure", percentile: "crash_indicator_pct", alert: "crash_indicator_alert" },
-] as const;
-
 export default async function MonitoringPage({
   params,
 }: {
@@ -48,7 +31,7 @@ export default async function MonitoringPage({
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, dot_number")
+    .select("id")
     .eq("id", id)
     .maybeSingle();
 
@@ -56,30 +39,6 @@ export default async function MonitoringPage({
     throw new Error(`Unable to load client monitoring record: ${clientError.message}`);
   }
   if (!client) notFound();
-
-  const { data: officialSnapshot, error: officialSnapshotError } = await supabase
-    .from("score_snapshots")
-    .select("*")
-    .eq("client_id", id)
-    .order("snapshot_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (officialSnapshotError) {
-    throw new Error(
-      `Unable to load the official FMCSA snapshot: ${officialSnapshotError.message}`
-    );
-  }
-
-  let publicBasics: Awaited<ReturnType<typeof getBasics>> | null = null;
-  let publicBasicsError: string | null = null;
-  if (!officialSnapshot || officialSnapshot.source !== "authenticated") {
-    try {
-      publicBasics = await getBasics(client.dot_number, { throwOnError: true });
-    } catch (error) {
-      publicBasicsError =
-        error instanceof Error ? error.message : "Unknown FMCSA API error";
-    }
-  }
 
   const snapshots = await getRecentSnapshots(id, 12);
   const latest = snapshots[0] ?? null;
@@ -153,47 +112,6 @@ export default async function MonitoringPage({
         <p className="text-sm font-medium leading-6 text-[#315E3E]">
           {watchStatus}
         </p>
-      </section>
-
-      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <div>
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">FMCSA official measures</h2>
-          <p className="mt-1 text-xs text-gray-500">
-            {publicBasics
-              ? `Public FMCSA API · FMCSA SMS snapshot ${formatFmcsaDate(publicBasics.smsSnapshotDate) ?? "date not provided"} · fetched ${formatFmcsaDate(publicBasics.retrievedAt) ?? "date not provided"}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.`
-              : officialSnapshot
-                ? `${officialSnapshot.source === "authenticated" ? "Authenticated FMCSA Portal export" : "Public FMCSA API"} · FMCSA SMS snapshot ${officialSnapshot.source === "authenticated" ? formatDate(officialSnapshot.snapshot_date) : "date unavailable on stored snapshot"} · fetched ${formatDate(officialSnapshot.created_at)}. These measures and percentiles are reported by FMCSA; they are not SafeScore burden points.${publicBasicsError ? ` Live source check failed: ${publicBasicsError}` : ""}`
-                : publicBasicsError
-                  ? `Unable to load FMCSA official measures: ${publicBasicsError}`
-                  : "No FMCSA measure snapshot has been imported yet."}
-          </p>
-        </div>
-        {(publicBasics || officialSnapshot) && (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {OFFICIAL_BASICS.map((basic) => {
-              const sourceBasic = publicBasics?.[basic.source] ?? null;
-              const measure = publicBasics
-                ? sourceBasic?.measureValue ?? null
-                : officialSnapshot?.[basic.measure] ?? null;
-              const percentile = publicBasics
-                ? sourceBasic?.percentile ?? null
-                : officialSnapshot?.[basic.percentile] ?? null;
-              const alert = publicBasics
-                ? sourceBasic?.alert ?? false
-                : officialSnapshot?.[basic.alert] ?? false;
-              return (
-                <div key={basic.label} className="rounded-lg border border-[#F0E8DA] bg-white/60 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-medium text-[#1E1C1A]">{basic.label}</p>
-                    {alert && <span className="rounded-full bg-[#FDECEA] px-2 py-0.5 text-[10px] font-medium text-[#B83B32]">Alert</span>}
-                  </div>
-                  <p className="mt-2 text-sm font-semibold text-[#1E1C1A]">Measure {measure ?? "Unknown"}</p>
-                  <p className="text-xs text-gray-500">Percentile {percentile == null ? "Unknown" : `${percentile}%`}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </section>
 
       <div>

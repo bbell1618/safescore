@@ -1,456 +1,621 @@
-import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCarrier } from "@/lib/fmcsa/client";
-import { getClientBurden } from "@/lib/analysis/basic-measure-server";
-import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
-import { formatViolationScopeFact } from "@/lib/analysis/violation-scope-presentation";
-import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
-import { Badge } from "@/components/ui/badge";
-import { formatDate, priorityVariant } from "@/lib/utils";
+import { Suspense } from "react";
 import {
-  MapPin,
-  Truck,
-  Users2,
+  ArrowRight,
+  CalendarClock,
   CheckCircle2,
-  FileSearch,
-  ShieldAlert,
-  Info,
-  AlertTriangle,
-  Activity,
+  ClipboardList,
+  FileClock,
+  Minus,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
+import { BurdenSparkline } from "@/components/portal/burden-sparkline";
+import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
+import {
+  buildChangeNarrative,
+  inWindowViolationCount,
+  portalCaseStatus,
+  pressureLevel,
+  pressureWidth,
+  snapshotDeltaLabel,
+  type PortalHomeAuthority,
+  type PortalHomeCase,
+  type PortalHomeRequest,
+  type PortalHomeSnapshot,
+} from "@/lib/portal/home";
+import {
+  loadPortalHomeAuthority,
+  loadPortalHomeHandling,
+  loadPortalHomeRequests,
+  loadPortalHomeSnapshots,
+} from "@/lib/portal/home-server";
+import { loadPortalContext } from "@/lib/portal/access";
+import { tierHasFeature } from "@/lib/tiers";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function formatDate(value: string | null): string {
+  if (!value) return "Date pending";
+  const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
-type ActionItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  priority: string;
-  type: string;
-};
+function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+  return `${count.toLocaleString("en-US")} ${
+    count === 1 ? singular : pluralForm
+  }`;
+}
 
-const actionItemTypeLabel: Record<string, string> = {
-  dataq: "DataQ",
-  cpdp: "CPDP",
-  mcs150: "MCS-150",
-  compliance: "Compliance",
-  monitoring: "Monitoring",
-};
-
-export default async function PortalDashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  // Fetch user record to get client_id
-  const { data: userRecord } = await supabase
-    .from("users")
-    .select("client_id")
-    .eq("id", user.id)
-    .single();
-
-  // No client linked yet
-  if (!userRecord?.client_id) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-[#FEFCF8] flex items-center justify-center">
-          <Info className="w-6 h-6 text-gray-400" />
-        </div>
-        <div>
-          <h2
-            className="text-lg font-bold text-[#1E1C1A]"
-          >
-            Your account is being set up
-          </h2>
-          <p className="text-sm text-gray-500 mt-1 max-w-md">
-            Your GEIA account manager is linking your company profile. You will have access to your
-            dashboard within 24 hours.
-          </p>
-        </div>
-      </div>
-    );
+function pressureClasses(level: ReturnType<typeof pressureLevel>) {
+  if (level === "MAJOR") {
+    return {
+      chip: "bg-error-light text-error",
+      bar: "bg-error",
+    };
   }
-
-  const clientId = userRecord.client_id;
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", clientId)
-    .single();
-  if (clientError) throw new Error(`Unable to load portal client: ${clientError.message}`);
-  if (!client) redirect("/portal");
-
-  const clientTier = normalizeClientTier(client.tier);
-  const canSeeCases = tierHasFeature(clientTier, "case_visibility");
-  const canSeePlaybook = tierHasFeature(clientTier, "playbook_coach");
-  const { inspectionIds: canonicalInspectionIds } =
-    await getCanonicalInspectionScope(clientId, supabase);
-  const violationCountQuery = supabase
-    .from("violations")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", clientId);
-
-  // Fetch all dashboard data in parallel
-  const [
-    { data: dataqCases },
-    { data: cpdpCases },
-    { data: actionItems },
-    { count: completedActionCount },
-    { count: violationCount },
-    { count: crashCount },
-  ] = await Promise.all([
-    canSeeCases
-      ? supabase
-          .from("dataq_cases")
-          .select("id, status")
-          .eq("client_id", clientId)
-          .not("status", "in", '("approved","denied","closed")')
-      : Promise.resolve({ data: [], error: null }),
-    canSeeCases
-      ? supabase
-          .from("cpdp_cases")
-          .select("id, status")
-          .eq("client_id", clientId)
-          .not("status", "in", '("determination_made","closed")')
-      : Promise.resolve({ data: [], error: null }),
-    canSeePlaybook
-      ? supabase
-          .from("action_items")
-          .select("*")
-          .eq("client_id", clientId)
-          .in("status", ["pending", "in_progress"])
-          .order("priority", { ascending: true })
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null }),
-    canSeePlaybook
-      ? supabase
-          .from("action_items")
-          .select("*", { count: "exact", head: true })
-          .eq("client_id", clientId)
-          .eq("status", "completed")
-      : Promise.resolve({ count: 0, data: null, error: null }),
-    canonicalInspectionIds.length > 0
-      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
-      : violationCountQuery.in("inspection_id", []),
-    supabase
-      .from("crashes")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", clientId),
-  ]);
-
-  const burden = await getClientBurden(clientId);
-
-  // Fetch FMCSA carrier data/ (non-blocking — fail gracefully)
-  let carrier = null;
-  try {
-    carrier = await getCarrier(client.dot_number);
-  } catch {
-    // carrier stays null — display fallback
+  if (level === "MODERATE") {
+    return {
+      chip: "bg-amber-subtle text-amber-dark",
+      bar: "bg-amber",
+    };
   }
+  return {
+    chip: "bg-info-light text-info",
+    bar: "bg-info",
+  };
+}
 
+function deltaClasses(
+  latest: PortalHomeSnapshot,
+  previous: PortalHomeSnapshot | null
+) {
+  if (!previous || latest.total_points === previous.total_points) {
+    return {
+      className: "bg-info-light text-info",
+      Icon: Minus,
+    };
+  }
+  if (latest.total_points < previous.total_points) {
+    return {
+      className: "bg-success-light text-success",
+      Icon: TrendingDown,
+    };
+  }
+  return {
+    className: "bg-amber-subtle text-amber-dark",
+    Icon: TrendingUp,
+  };
+}
 
-  const activeDataqCount = dataqCases?.length ?? 0;
-  const activeCpdpCount = cpdpCases?.length ?? 0;
-  const openCaseCount = activeDataqCount + activeCpdpCount;
-  const inWindowViolationCount = burden.perBasic.reduce(
-    (total, basic) => total + basic.violationCount,
-    0
-  );
-  const violationScopeFact = formatViolationScopeFact(
-    inWindowViolationCount,
-    violationCount ?? 0
-  );
-
+function UnlinkedPortalHome() {
   return (
-    <div className="space-y-6">
+    <section className="mx-auto flex min-h-96 max-w-xl flex-col items-center justify-center text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-subtle text-amber">
+        <ShieldCheck className="h-6 w-6" />
+      </div>
+      <h1 className="mt-5 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
+        Your account is being set up
+      </h1>
+      <p className="mt-2 text-sm leading-6 text-warm-mid">
+        Your GEIA account manager is linking your company profile. Your Home
+        page will appear here as soon as that connection is complete.
+      </p>
+    </section>
+  );
+}
 
-      {/* Welcome header */}
+function SectionFallback({ label }: { label: string }) {
+  return (
+    <section
+      aria-label={`Loading ${label}`}
+      className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
+      role="status"
+    >
+      <div className="h-6 w-52 rounded-md bg-sand" />
+      <div className="h-16 rounded-lg bg-cream" />
+      <div className="h-16 rounded-lg bg-cream" />
+      <span className="sr-only">Loading {label}…</span>
+    </section>
+  );
+}
+
+function CaseCard({ caseRow }: { caseRow: PortalHomeCase }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sand bg-cream p-4">
       <div>
-        <h1
-          className="text-xl font-bold text-[#1E1C1A]"
-        >
-          Welcome back, {client.name}
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Your SafeScore dashboard — DOT {client.dot_number}
+        <p className="font-heading text-base font-semibold text-warm-dark">
+          {caseRow.caseType}{" "}
+          <span className="font-mono text-sm">
+            {caseRow.caseNumber ?? "number pending"}
+          </span>
+        </p>
+        <p className="mt-1 text-xs text-warm-gray">
+          {caseRow.filedDate
+            ? `Filed ${formatDate(caseRow.filedDate)}`
+            : "GEIA is preparing the next step"}
         </p>
       </div>
+      <span className="rounded-full bg-info-light px-3 py-1 font-mono text-[11px] font-semibold text-info">
+        {portalCaseStatus(caseRow.status)}
+      </span>
+    </li>
+  );
+}
 
-      {/* Quick stats row */}
-      <div className={`grid gap-4 ${canSeeCases ? "grid-cols-3" : "grid-cols-2"}`}>
-        {[
-          {
-            label: `Violations in 24-month scoring window (${violationCount ?? 0} on file)`,
-            value: inWindowViolationCount,
-            icon: AlertTriangle,
-            iconBg: "bg-[#FDF4E7]",
-            iconColor: "text-[#C67A1E]",
-          },
-          {
-            label: "Crashes on file",
-            value: crashCount ?? 0,
-            icon: Activity,
-            iconBg: "bg-orange-50",
-            iconColor: "text-orange-600",
-          },
-          ...(canSeeCases
-            ? [{
-                label: "Open cases",
-                value: openCaseCount,
-                icon: FileSearch,
-                iconBg: "bg-[#FDF4E7]",
-                iconColor: "text-[#C67A1E]",
-              }]
-            : []),
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-3"
+async function HandlingSection({
+  promise,
+  canSeeCases,
+}: {
+  promise: ReturnType<typeof loadPortalHomeHandling>;
+  canSeeCases: boolean;
+}) {
+  const handling = await promise;
+  return (
+    <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="mono-label text-amber">Active service</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
+            What GEIA is handling
+          </h2>
+        </div>
+        {canSeeCases && handling.cases.length > 0 ? (
+          <Link
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-amber-dark transition-colors hover:bg-amber-subtle hover:text-amber-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            href="/portal/cases"
           >
-            <div className={`w-9 h-9 rounded-lg ${stat.iconBg} flex items-center justify-center shrink-0`}>
-              <stat.icon className={`w-4 h-4 ${stat.iconColor}`} />
-            </div>
-            <div>
-              <p
-                className="text-2xl font-bold text-[#1E1C1A]"
-              >
-                {stat.value}
-              </p>
-              <p className="text-xs text-gray-500">{stat.label}</p>
-            </div>
-          </div>
-        ))}
+            View case activity
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        ) : null}
       </div>
 
-      {/* Carrier info card (FMCSA data) */}
-      {carrier && (
-        <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h2
-            className="font-semibold text-[#1E1C1A] text-sm mb-4"
-          >
-            Carrier profile
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Legal name</p>
-              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.legalName}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">DOT number</p>
-              <p className="text-sm font-medium text-[#1E1C1A]">{carrier.dotNumber}</p>
-            </div>
-            {carrier.mcNumber && (
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">MC number</p>
-                <p className="text-sm font-medium text-[#1E1C1A]">{carrier.mcNumber}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Operating status</p>
-              <span
-                className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${
-                  carrier.usdotStatus === "ACTIVE" || carrier.statusCode === "A"
-                    ? "bg-[#E8F3EC] text-[#3D7A52]"
-                    : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                {carrier.usdotStatus ?? carrier.statusCode ?? "Unknown"}
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Power units</p>
-              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5 text-gray-400" />
-                {carrier.totalPowerUnits}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Drivers</p>
-              <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
-                <Users2 className="w-3.5 h-3.5 text-gray-400" />
-                {carrier.totalDrivers}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Safety rating</p>
-              <p className="text-sm font-medium text-[#1E1C1A]">
-                {carrier.safetyRating ?? "Not rated"}
-              </p>
-            </div>
-            {(carrier.phyCity || carrier.phyState) && (
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Location</p>
-                <p className="text-sm font-medium text-[#1E1C1A] flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                  {[carrier.phyCity, carrier.phyState].filter(Boolean).join(", ")}
+      {canSeeCases ? (
+        <div className="mt-6 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+          <div>
+            <h3 className="font-heading text-base font-semibold text-warm-dark">
+              Open filings
+            </h3>
+            {handling.cases.length > 0 ? (
+              <ul className="mt-3 space-y-3">
+                {handling.cases.map((caseRow) => (
+                  <CaseCard caseRow={caseRow} key={caseRow.id} />
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-3 rounded-lg border border-sand bg-cream p-5">
+                <p className="font-heading text-base font-semibold text-warm-dark">
+                  No filing is waiting on FMCSA
+                </p>
+                <p className="mt-1 text-sm text-warm-mid">
+                  We will open a case only when the record supports a genuine
+                  data-error or crash-preventability challenge.
                 </p>
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Your safety burden section */}
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h2 className="font-semibold text-[#1E1C1A] text-sm">Where you stand</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              {violationScopeFact} FMCSA does not publish percentile rankings for low-volume carriers; this is the weighted violation burden that drives the BASIC measures.
+          <div className="rounded-lg border border-amber/25 bg-amber-subtle p-5">
+            <div className="flex items-center gap-2 text-amber-dark">
+              <FileClock className="h-4 w-4" />
+              <h3 className="font-heading font-semibold">
+                Evidence investigation
+              </h3>
+            </div>
+            <p className="mt-4 font-mono text-3xl font-semibold text-warm-dark">
+              {handling.investigateQueue.weightedPoints.toLocaleString("en-US")}
+              <span className="ml-2 text-sm font-medium text-warm-mid">
+                pts
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-warm-mid">
+              Across{" "}
+              {plural(
+                handling.investigateQueue.violationCount,
+                "violation"
+              )}{" "}
+              while evidence is pending.
+            </p>
+            <p className="mt-4 border-t border-amber/20 pt-4 text-xs leading-5 text-warm-mid">
+              Only genuine data errors and crash-preventability are
+              challengeable. Under investigation means evidence is still
+              needed; it does not mean a violation is removable.
             </p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-2xl font-bold text-[#1E1C1A]">{burden.totalPoints}</p>
-            <p className="text-xs text-gray-500">weighted points</p>
-          </div>
         </div>
+      ) : null}
 
-        {burden.perBasic.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {burden.perBasic.slice(0, 3).map((b) => (
-              <div key={b.basicCategory} className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] p-4">
-                <p className="text-xs font-medium text-[#1E1C1A]">{b.label}</p>
-                <p className="text-xl font-bold text-[#C67A1E] mt-1">{b.weightedPoints}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{b.violationCount} violation{b.violationCount === 1 ? "" : "s"}</p>
-              </div>
+      <div className={cn("mt-6", canSeeCases && "border-t border-sand pt-6")}>
+        <h3 className="font-heading text-base font-semibold text-warm-dark">
+          Latest work notes
+        </h3>
+        {handling.workNotes.length > 0 ? (
+          <ul className="mt-3 grid gap-3 md:grid-cols-3">
+            {handling.workNotes.map((note) => (
+              <li
+                className="rounded-lg border border-sand bg-cream p-4"
+                key={note.id}
+              >
+                <p className="text-sm leading-6 text-warm-mid">{note.text}</p>
+                <p className="mt-3 font-mono text-[11px] text-warm-gray">
+                  {formatDate(note.createdAt)}
+                </p>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <div className="rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-6 py-8 text-center">
-            <p className="text-sm font-medium text-[#1E1C1A]">No scored violations in the 24-month window.</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {tierHasFeature(clientTier, "monitoring_alerts")
-                ? "We will keep monitoring as new FMCSA data is refreshed."
-                : "This assessment reflects the FMCSA data currently available."}
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-warm-mid">
+            Your first service update will appear after GEIA completes account
+            work.
+          </p>
         )}
       </div>
+    </section>
+  );
+}
 
-      {/* Cases summary + Action items */}
-      {canSeeCases && canSeePlaybook && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cases summary */}
-        <div className="space-y-3">
-          <h2
-            className="font-semibold text-[#1E1C1A] text-sm"
-          >
-            GEIA work summary
+async function RequestsSection({
+  promise,
+}: {
+  promise: ReturnType<typeof loadPortalHomeRequests>;
+}) {
+  const requests = await promise;
+  if (requests.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warm-white text-amber-dark">
+          <ClipboardList className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <p className="mono-label text-amber-dark">Action requested</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
+            Needed from you
           </h2>
-
-          <div className="grid grid-cols-1 gap-3">
-            {/* DataQs */}
-            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-lg bg-[#F5EDDB] flex items-center justify-center shrink-0">
-                <FileSearch className="w-4 h-4 text-[#8E7340]" />
-              </div>
-              <div>
-                <p
-                  className="text-2xl font-bold text-[#1E1C1A]"
+          <ul className="mt-4 space-y-3">
+            {requests.map((request: PortalHomeRequest) => (
+              <li
+                className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-amber/20 bg-warm-white p-4"
+                key={request.id}
+              >
+                <div className="max-w-2xl">
+                  <p className="font-heading font-semibold text-warm-dark">
+                    {request.title}
+                  </p>
+                  {request.description ? (
+                    <p className="mt-1 text-sm leading-6 text-warm-mid">
+                      {request.description}
+                    </p>
+                  ) : null}
+                  {request.dueAt ? (
+                    <p className="mt-2 font-mono text-[11px] text-warm-gray">
+                      Due {formatDate(request.dueAt)}
+                    </p>
+                  ) : null}
+                </div>
+                <Link
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-semibold text-warm-white transition-colors hover:bg-amber-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
+                  href="/portal/requests"
                 >
-                  {activeDataqCount}
-                </p>
-                <p className="text-xs text-gray-500">Active DataQ challenges</p>
-              </div>
-            </div>
+                  Review request
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-            {/* CPDP */}
-            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
-              </div>
-              <div>
-                <p
-                  className="text-2xl font-bold text-[#1E1C1A]"
-                >
-                  {activeCpdpCount}
-                </p>
-                <p className="text-xs text-gray-500">Active CPDP filings</p>
-              </div>
-            </div>
+async function CarrierIdentityFooter({
+  promise,
+  clientName,
+  dotNumber,
+  mcNumber,
+}: {
+  promise: Promise<PortalHomeAuthority | null>;
+  clientName: string;
+  dotNumber: string;
+  mcNumber: string | null;
+}) {
+  const authority = await promise;
+  return (
+    <footer className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-sand bg-warm-white px-5 py-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <p className="font-heading font-semibold text-warm-dark">{clientName}</p>
+        <p className="font-mono text-xs text-warm-mid">USDOT {dotNumber}</p>
+        <p className="font-mono text-xs text-warm-mid">
+          {mcNumber ? `MC ${mcNumber.replace(/^MC-?/i, "")}` : "MC not recorded"}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={cn(
+            "rounded-full px-3 py-1 font-mono text-[11px] font-semibold",
+            authority?.active
+              ? "bg-success-light text-success"
+              : "bg-amber-subtle text-amber-dark"
+          )}
+        >
+          {authority?.label ?? "Authority status unavailable"}
+        </span>
+        {authority ? (
+          <span className="text-xs text-warm-gray">
+            {authority.sourceLabel} · checked {formatDate(authority.fetchedAt)}
+          </span>
+        ) : null}
+      </div>
+    </footer>
+  );
+}
 
-            {/* Completed action items */}
-            <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <p
-                  className="text-2xl font-bold text-[#1E1C1A]"
-                >
-                  {completedActionCount ?? 0}
-                </p>
-                <p className="text-xs text-gray-500">Completed action items</p>
-              </div>
-            </div>
+export default async function PortalHomePage() {
+  const context = await loadPortalContext();
+  if (context.status === "unauthenticated") redirect("/login");
+  if (context.status === "forbidden") return null;
+  if (context.status === "unlinked") return <UnlinkedPortalHome />;
+
+  const canSeeTrend = tierHasFeature(context.tier, "trend_history");
+  const canSeeServiceActivity = tierHasFeature(
+    context.tier,
+    "monitoring_alerts"
+  );
+  const snapshotPromise = loadPortalHomeSnapshots({
+    clientId: context.clientId,
+    includeHistory: canSeeTrend,
+  });
+  const handlingPromise = canSeeServiceActivity
+    ? loadPortalHomeHandling({
+        clientId: context.clientId,
+        tier: context.tier,
+        snapshotPromise,
+      })
+    : null;
+  const requestsPromise = loadPortalHomeRequests({
+    clientId: context.clientId,
+    tier: context.tier,
+  });
+  const authorityPromise = loadPortalHomeAuthority(context.clientId);
+
+  const snapshots = await snapshotPromise;
+  const latest = snapshots[0] ?? null;
+  const previous = snapshots[1] ?? null;
+  const delta = latest ? deltaClasses(latest, previous) : null;
+  const trendValues = [...snapshots]
+    .reverse()
+    .map((snapshot) => snapshot.total_points);
+  const pressureBasics = latest?.per_basic ?? [];
+  const inWindowCount = latest ? inWindowViolationCount(latest) : 0;
+  const changeNarrative = canSeeTrend
+    ? buildChangeNarrative(latest, previous)
+    : [];
+  const canSeeCases = tierHasFeature(context.tier, "case_visibility");
+
+  return (
+    <div className="space-y-12 pb-8">
+      <section className="grid overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="p-6 sm:p-8 lg:p-10">
+          <p className="mono-label text-amber">Where you stand</p>
+          <div className="mt-4 flex flex-wrap items-end gap-4">
+            <h1 className="font-heading text-7xl font-semibold tracking-tight text-warm-dark sm:text-8xl">
+              <span className="sr-only">Current weighted burden: </span>
+              {latest?.total_points.toLocaleString("en-US") ?? "—"}
+            </h1>
+            <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-gray">
+              weighted points
+            </p>
           </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {canSeeTrend && latest && delta ? (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-xs font-semibold",
+                  delta.className
+                )}
+              >
+                <delta.Icon className="h-3.5 w-3.5" />
+                {snapshotDeltaLabel(latest, previous)}
+              </span>
+            ) : canSeeTrend ? (
+              <span className="rounded-full bg-info-light px-3 py-1.5 font-mono text-xs font-semibold text-info">
+                First snapshot pending
+              </span>
+            ) : (
+              <span className="rounded-full bg-info-light px-3 py-1.5 font-mono text-xs font-semibold text-info">
+                Current diagnostic
+              </span>
+            )}
+            <span className="inline-flex items-center gap-2 text-xs text-warm-gray">
+              <CalendarClock className="h-3.5 w-3.5" />
+              {latest
+                ? `As of ${formatDate(latest.snapshot_date)}`
+                : "As-of date pending"}
+            </span>
+          </div>
+          <p className="mt-6 max-w-2xl text-sm leading-6 text-warm-mid">
+            FMCSA publishes no percentiles for low-volume carriers; this is the
+            weighted burden driving the BASIC measures.
+          </p>
         </div>
 
-        {/* Action items */}
-        <div className="lg:col-span-2 bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#F0E8DA]">
-            <h2
-              className="font-semibold text-[#1E1C1A] text-sm"
-            >
-              Open action items
-            </h2>
-          </div>
-
-          {actionItems && actionItems.length > 0 ? (
-            <div className="divide-y divide-[#F0E8DA]">
-              {(actionItems as ActionItem[]).map((item) => (
-                <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1E1C1A]">{item.title}</p>
-                    {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
-                        {item.description}
-                      </p>
+        <div className="flex flex-col justify-center border-t border-sand bg-cream p-6 sm:p-8 lg:border-l lg:border-t-0">
+          {canSeeTrend ? (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <p className="font-heading font-semibold text-warm-dark">
+                  Burden trend
+                </p>
+                <p className="font-mono text-[11px] text-warm-gray">
+                  {plural(snapshots.length, "snapshot")}
+                </p>
+              </div>
+              <div className="mt-4">
+                <BurdenSparkline
+                  label={`Weighted burden across ${plural(
+                    snapshots.length,
+                    "snapshot"
+                  )}`}
+                  values={trendValues}
+                />
+              </div>
+              {snapshots.length > 1 ? (
+                <div className="mt-2 flex justify-between font-mono text-[10px] text-warm-gray">
+                  <span>
+                    {formatDate(
+                      snapshots[snapshots.length - 1]!.snapshot_date
                     )}
-                    {item.due_date && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        Due {formatDate(item.due_date)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <Badge variant={priorityVariant(item.priority)}>
-                      {item.priority}
-                    </Badge>
-                    <Badge variant="default">
-                      {actionItemTypeLabel[item.type] ?? item.type}
-                    </Badge>
-                  </div>
+                  </span>
+                  <span>{formatDate(snapshots[0]!.snapshot_date)}</span>
                 </div>
-              ))}
-            </div>
+              ) : null}
+            </>
           ) : (
-            <div className="px-5 py-10 text-center">
-              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No open action items</p>
+            <div>
+              <p className="mono-label text-info">Assessment view</p>
+              <h2 className="mt-2 font-heading text-xl font-semibold text-warm-dark">
+                Current diagnostic snapshot
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-warm-mid">
+                This one-time assessment shows the current 24-month record.
+                Ongoing change history begins with Monitor.
+              </p>
             </div>
           )}
         </div>
-        </div>
-      )}
+      </section>
 
-      {/* GEIA team info banner */}
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] px-5 py-4 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0">
-          <Info className="w-4 h-4 text-[#C67A1E]" />
+      <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="mono-label text-amber">24-month scoring window</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
+              BASIC pressure
+            </h2>
+          </div>
+          {latest ? (
+            <p className="text-sm text-warm-mid">
+              {plural(inWindowCount, "violation")} in the 24-month scoring
+              window · {latest.violation_count.toLocaleString("en-US")} on file
+            </p>
+          ) : null}
         </div>
-        <p className="text-sm text-gray-600">
-          Your GEIA team is actively working on your account. Questions?{" "}
-          <span className="font-medium text-[#1E1C1A]">
-            Contact your account manager directly.
-          </span>
-        </p>
-      </div>
+
+        {latest && pressureBasics.length > 0 ? (
+          <div className="mt-7 space-y-5">
+            {pressureBasics.map((basic) => {
+              const level = pressureLevel(
+                basic.weighted_points,
+                latest.total_points
+              );
+              const classes = pressureClasses(level);
+              return (
+                <div key={basic.basic_category}>
+                  <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(12rem,1.6fr)_auto] sm:items-center">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-heading font-semibold text-warm-dark">
+                        {BASIC_LABELS[basic.basic_category] ??
+                          basic.basic_category.replaceAll("_", " ")}
+                      </h3>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold",
+                          classes.chip
+                        )}
+                      >
+                        {level}
+                      </span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-sand">
+                      <div
+                        aria-label={`${pressureWidth(
+                          basic.weighted_points,
+                          latest.total_points
+                        )}% of current weighted burden`}
+                        className={cn("h-full rounded-full", classes.bar)}
+                        style={{
+                          width: `${pressureWidth(
+                            basic.weighted_points,
+                            latest.total_points
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="font-mono text-xs text-warm-mid sm:text-right">
+                      {basic.weighted_points.toLocaleString("en-US")} pts ·{" "}
+                      {plural(basic.violation_count, "violation")}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-lg border border-sand bg-cream px-6 py-10 text-center">
+            <p className="font-heading text-lg font-semibold text-warm-dark">
+              Your first BASIC snapshot is being prepared
+            </p>
+            <p className="mt-1 text-sm text-warm-mid">
+              GEIA will show each active pressure area once the first monitoring
+              snapshot is available.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {canSeeServiceActivity && handlingPromise ? (
+        <Suspense fallback={<SectionFallback label="GEIA work" />}>
+          <HandlingSection
+            canSeeCases={canSeeCases}
+            promise={handlingPromise}
+          />
+        </Suspense>
+      ) : null}
+
+      <Suspense fallback={<SectionFallback label="requests" />}>
+        <RequestsSection promise={requestsPromise} />
+      </Suspense>
+
+      {canSeeTrend ? (
+        <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-light text-success">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="mono-label text-success">Latest snapshot</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-warm-dark">
+                What&apos;s changed
+              </h2>
+            </div>
+          </div>
+          <div className="mt-5 max-w-4xl space-y-3 text-sm leading-7 text-warm-mid">
+            {changeNarrative.map((sentence) => (
+              <p key={sentence}>{sentence}</p>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <Suspense fallback={<SectionFallback label="carrier identity" />}>
+        <CarrierIdentityFooter
+          clientName={context.clientName}
+          dotNumber={context.dotNumber}
+          mcNumber={context.mcNumber}
+          promise={authorityPromise}
+        />
+      </Suspense>
     </div>
   );
 }

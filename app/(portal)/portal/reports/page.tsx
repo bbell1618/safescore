@@ -1,6 +1,5 @@
 ﻿import { getPortalPageAccess } from "@/lib/portal/access";
 import { ReportViewer } from "./report-viewer";
-import { PortalDownloadReportButton } from "@/components/portal/download-report-button";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +27,7 @@ export default async function PortalReportsPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
+      <div>
         <div>
           <h1
             className="text-xl font-bold text-[#1E1C1A]"
@@ -39,7 +38,6 @@ export default async function PortalReportsPage() {
             Assessment and safety reports GEIA has sent to your company.
           </p>
         </div>
-        <PortalDownloadReportButton />
       </div>
 
       {reports && reports.length > 0 ? (

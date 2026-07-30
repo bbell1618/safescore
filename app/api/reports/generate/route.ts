@@ -13,7 +13,6 @@ type CaseKind = "CPDP" | "DataQ";
 
 type UserRow = {
   role: string | null;
-  client_id: string | null;
 };
 
 type ClientRow = {
@@ -86,37 +85,53 @@ export async function POST(request: Request) {
 
   const userResult = await serviceSupabase
     .from("users")
-    .select("role, client_id")
+    .select("role")
     .eq("id", user.id)
     .single();
+
+  if (userResult.error) {
+    return new Response(
+      JSON.stringify({
+        error: `Unable to verify report permissions: ${userResult.error.message}`,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   const userRecord = (userResult as unknown as { data: UserRow | null }).data;
 
   const role: string = userRecord?.role ?? "client_user";
+  if (role !== "geia_admin" && role !== "geia_staff") {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  let clientId: string | null = null;
-
-  if (role === "geia_admin" || role === "geia_staff") {
-    let body: { client_id?: string } = {};
-    try {
-      body = await request.json() as { client_id?: string };
-    } catch {
-      // empty body is fine - treat as missing client_id
+  let body: { client_id?: unknown } = {};
+  try {
+    const input = await request.json();
+    if (input && typeof input === "object" && !Array.isArray(input)) {
+      body = input as { client_id?: unknown };
     }
-    clientId = body?.client_id ?? null;
-    if (!clientId) {
-      return new Response(JSON.stringify({ error: "client_id is required for admin users" }), {
+  } catch {
+    // An empty body is handled as a missing client_id below.
+  }
+  const clientId =
+    typeof body.client_id === "string" && body.client_id.trim()
+      ? body.client_id.trim()
+      : null;
+  if (!clientId) {
+    return new Response(
+      JSON.stringify({ error: "client_id is required for staff users" }),
+      {
         status: 400,
         headers: { "Content-Type": "application/json" },
-      });
-    }
-  } else {
-    clientId = userRecord?.client_id ?? null;
-    if (!clientId) {
-      return new Response(JSON.stringify({ error: "No client associated with this account" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+      }
+    );
   }
 
   const clientResult = await serviceSupabase
@@ -134,12 +149,6 @@ export async function POST(request: Request) {
   }
 
   const serviceTier = normalizeClientTier(client.tier);
-  if (role === "client_user" && !tierHasFeature(serviceTier, "monthly_reports")) {
-    return new Response(
-      JSON.stringify({ error: "Reports are not included in this plan" }),
-      { status: 403, headers: { "Content-Type": "application/json" } }
-    );
-  }
   const includeCaseWork = tierHasFeature(serviceTier, "case_visibility");
 
   let carrier: CarrierSummary = {

@@ -211,7 +211,7 @@ async function sendViolationEmailRows(
       inspectionDate: inspection?.inspection_date ?? "Unknown",
       basicCategory: violation.basic_category ?? "unknown",
       severityWeight: violation.severity_weight ?? 0,
-      portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal/safety`,
+      portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"}/portal`,
     });
     attempted += 1;
   }

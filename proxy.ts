@@ -61,7 +61,6 @@ export async function proxy(request: NextRequest) {
       "/api/requests/",
       "/api/violations/",
       "/api/playbooks/",
-      "/api/reports/generate-text",
     ];
     const staffOnlyExact = isStaffReportActionPath(path);
     if ((staffOnlyExact || staffOnlyPrefixes.some((prefix) => path.startsWith(prefix))) && !isStaff) {

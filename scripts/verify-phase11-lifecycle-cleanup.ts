@@ -90,7 +90,11 @@ async function main() {
     const reportBytes = new Uint8Array(await report.arrayBuffer());
     pages = {
       remediation: { status: remediation.status, actionQueue: remediationHtml.includes("Action queue"), investigate: remediationHtml.includes("Investigate evidence") },
-      monitoring: { status: monitoring.status, snapshot: monitoringHtml.includes("FMCSA official measures") && monitoringHtml.includes("SafeScore computed burden") },
+      monitoring: {
+        status: monitoring.status,
+        computedBurden: monitoringHtml.includes("SafeScore computed burden"),
+        archivalMeasuresHidden: !monitoringHtml.includes("FMCSA official measures"),
+      },
       requestQueue: { status: portalRequests.status, fulfilled: requestsHtml.includes("fulfilled") },
     };
     reportProof = { status: report.status, contentType: report.headers.get("content-type"), bytes: reportBytes.byteLength, pdfMagic: String.fromCharCode(...reportBytes.slice(0, 4)) };

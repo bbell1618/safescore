@@ -220,6 +220,39 @@ assert.ok(proxySource.includes("activeAssignedClient"));
 assert.ok(proxySource.includes("!subscription || subscription.status === \"active\""));
 assert.ok(proxySource.includes("isSubscriptionTier(client.tier)"));
 
+const portalHomeSource = readFileSync(
+  resolve(process.cwd(), "app/(portal)/portal/page.tsx"),
+  "utf8"
+);
+const portalHomeServerSource = readFileSync(
+  resolve(process.cwd(), "lib/portal/home-server.ts"),
+  "utf8"
+);
+assert.ok(
+  portalHomeSource.includes(
+    'const canSeeTrend = tierHasFeature(context.tier, "trend_history")'
+  )
+);
+assert.ok(portalHomeSource.includes("includeHistory: canSeeTrend"));
+assert.ok(
+  portalHomeSource.includes(
+    'const canSeeServiceActivity = tierHasFeature('
+  ) && portalHomeSource.includes('"monitoring_alerts"')
+);
+assert.ok(
+  portalHomeSource.includes(
+    "{canSeeServiceActivity && handlingPromise ? ("
+  )
+);
+assert.ok(
+  portalHomeServerSource.includes(".limit(input.includeHistory ? 8 : 1)")
+);
+assert.ok(
+  portalHomeServerSource.includes(
+    "const activityPromise = canSeeServiceActivity"
+  )
+);
+
 console.log(
   JSON.stringify(
     {
@@ -230,6 +263,11 @@ console.log(
       portalMatrix,
       pageGuards,
       apiGuards,
+      portalHomeGuards: {
+        assessmentHistoryLimit: 1,
+        subscriptionHistoryLimit: 8,
+        serviceActivityMinimum: "monitor",
+      },
       reportSections: richSectionPlan,
       optionalSectionsOmitted,
       cronTiers: SUBSCRIPTION_TIERS,

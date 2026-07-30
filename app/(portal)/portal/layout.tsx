@@ -1,75 +1,53 @@
-﻿import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { PortalNav } from "@/components/portal/nav";
-import Link from "next/link";
-import { normalizeClientTier } from "@/lib/tiers";
 import { SessionCollision } from "@/components/auth/session-collision";
+import { PortalNav } from "@/components/portal/nav";
 import { isClientOnboardingLocked } from "@/lib/auth/access";
+import { loadPortalContext } from "@/lib/portal/access";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function PortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  // Fetch user record with client info
-  const { data: userRecord, error: userRecordError } = await supabase
-    .from("users")
-    .select(
-      "role, client_id, clients(name, fmcsa_authorized, tier, status, service_agreement_accepted)"
-    )
-    .eq("id", user.id)
-    .single();
-
-  if (userRecordError) {
-    throw new Error(`Unable to load portal account: ${userRecordError.message}`);
-  }
-  if (userRecord?.role === "geia_admin" || userRecord?.role === "geia_staff") {
+  const context = await loadPortalContext();
+  if (context.status === "unauthenticated") redirect("/login");
+  if (context.status === "forbidden") {
     return <SessionCollision target="portal" />;
   }
 
-  const clientName =
-    userRecord?.clients && !Array.isArray(userRecord.clients)
-      ? (userRecord.clients as { name: string }).name
-      : Array.isArray(userRecord?.clients) && userRecord.clients.length > 0
-      ? (userRecord.clients as { name: string }[])[0].name
-      : undefined;
-  const clientRelation = Array.isArray(userRecord?.clients) ? userRecord.clients[0] : userRecord?.clients;
-  const fmcsaAuthorized = (clientRelation as { fmcsa_authorized?: boolean } | null)?.fmcsa_authorized === true;
-  const onboardingLocked = clientRelation
-      ? isClientOnboardingLocked(
-        clientRelation as {
-          status: string | null;
-          service_agreement_accepted?: boolean | null;
-        }
-      )
+  const isLinked = context.status === "linked";
+  const fmcsaAuthorized = isLinked && context.fmcsaAuthorized;
+  const onboardingLocked = isLinked
+    ? isClientOnboardingLocked({
+        status: context.clientStatus,
+        service_agreement_accepted: context.serviceAgreementAccepted,
+      })
     : false;
-  const tier = normalizeClientTier(
-    (clientRelation as { tier?: string | null } | null)?.tier
-  );
 
   return (
-    <div className="min-h-screen bg-[#FEFCF8]">
-      <PortalNav userEmail={user.email} companyName={clientName} tier={tier} />
+    <div className="min-h-screen bg-cream text-warm-dark">
+      <PortalNav
+        userEmail={context.userEmail}
+        companyName={isLinked ? context.clientName : undefined}
+        tier={isLinked ? context.tier : "assessment"}
+      />
       {!fmcsaAuthorized && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+        <div className="border-b border-amber/25 bg-amber-subtle px-4 py-2 text-center text-sm text-warm-mid">
           FMCSA access is incomplete.{" "}
           {onboardingLocked ? (
             <span>Contact your GEIA representative to complete access.</span>
           ) : (
-            <Link className="font-semibold underline" href="/onboarding">
+            <Link
+              className="font-semibold text-amber-dark underline decoration-amber/40 underline-offset-2 transition-colors duration-150 hover:text-amber-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              href="/onboarding"
+            >
               Complete FMCSA access
             </Link>
           )}
         </div>
       )}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
         {children}
       </main>
     </div>
