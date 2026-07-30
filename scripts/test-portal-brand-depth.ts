@@ -27,6 +27,8 @@ const documents = source("app/(portal)/portal/documents/page.tsx");
 const account = source("app/(portal)/portal/account/page.tsx");
 const sparkline = source("components/portal/burden-sparkline.tsx");
 const chart = source("components/portal/burden-history-chart.tsx");
+const motion = source("components/portal/motion.tsx");
+const truck = source("components/portal/truck-loader.tsx");
 const requestUpload = source("components/portal/request-upload.tsx");
 const reportPrint = source("components/portal/sent-report-print-button.tsx");
 const vault = source("app/(portal)/portal/documents/document-vault.tsx");
@@ -34,30 +36,37 @@ const tierUpgradeNote = source("components/portal/tier-upgrade-note.tsx");
 
 const expectedAssetHashes = {
   "public/images/wallpaper.png":
-    "8cf91b04dc76166b311deec7520bff7a63fa9c5f2e3977b6f40753d2271a7ecc",
+    "2f12f4dbd4fb4ee13e46dc011b35281c051478a404dd3ebfe7fc2ed1c9d097c8",
   "public/images/navy-wallpaper.png":
-    "1b5c04dd5a3d720ae7237ba472c2ac31bce6e9bf053bdfa7a268ba4db4cfbaf3",
+    "8c3538287dfc2f90cf4e37440e15aff0084376bca5793e1f95aadf6d1c8218fb",
+  "public/images/wallpaper.webp":
+    "349adda5dff1096c6e90e587d6ff06b7b2beea64be144059b7c667757c95bd96",
+  "public/images/navy-wallpaper.webp":
+    "eac470344936815ddec0165469794fff0e870cd99116d1871d9411ac45a8f204",
 };
 
 for (const [path, expected] of Object.entries(expectedAssetHashes)) {
-  assert.equal(sha256(path), expected, `${path} must remain byte-identical to GEIA-Website`);
+  assert.equal(sha256(path), expected, `${path} must match the optimized Run 4 artifact`);
 }
 
 assert.match(globals, /url\("\/images\/wallpaper\.png"\)/);
 assert.match(globals, /url\("\/images\/navy-wallpaper\.png"\)/);
+assert.match(globals, /url\("\/images\/wallpaper\.webp"\) type\("image\/webp"\)/);
+assert.match(globals, /url\("\/images\/navy-wallpaper\.webp"\) type\("image\/webp"\)/);
 assert.match(globals, /background-size:\s*400px 400px/);
 assert.match(globals, /background-size:\s*500px 500px/);
 assert.match(globals, /\.portal-brand-root \.btn-primary/);
 assert.match(globals, /0 8px 24px rgba\(198, 122, 30, 0\.22\)/);
 assert.match(globals, /\.portal-brand-root \.btn-secondary/);
 assert.match(globals, /prefers-reduced-motion:\s*reduce/);
-assert.match(globals, /\.portal-section-enter/);
-assert.match(globals, /\.portal-card-lift/);
+assert.match(globals, /\.portal-motion-reveal/);
+assert.match(globals, /\.portal-motion-pressure-bar/);
 
 assert.match(layout, /portal-brand-root portal-warm-texture/);
 assert.match(nav, /portal-navy-texture sticky top-0/);
 assert.match(nav, /text-warm-white/);
 assert.match(nav, /h-0\.5 origin-left bg-gold/);
+assert.match(nav, /layoutId="portal-active-tab-indicator"/);
 assert.match(nav, /border-amber\/35 bg-amber\/10/);
 assert.match(brand, /PortalHeroBand/);
 assert.match(brand, /PortalFooterBand/);
@@ -84,12 +93,17 @@ assert.match(home, /FMCSA publishes no percentiles for low-volume carriers/);
 assert.match(home, /<PortalPageBody/);
 assert.match(home, /<PortalFooterBand/);
 
-for (const graph of [sparkline, chart]) {
+for (const graph of [sparkline, `${chart}\n${motion}`]) {
   assert.match(graph, /linearGradient/);
-  assert.match(graph, /<polygon/);
+  assert.match(graph, /polygon/);
   assert.match(graph, /var\(--color-amber/);
   assert.match(graph, /var\(--color-gold\)/);
 }
+assert.match(chart, /PortalAnimatedActivitySeries/);
+assert.match(motion, /motion\.polyline/);
+assert.match(motion, /pathLength:\s*0/);
+assert.match(truck, /GoldenEraTruckLoader/);
+assert.match(truck, /useReducedMotion/);
 
 for (const skeleton of [routeSkeleton, accountSkeleton]) {
   assert.match(skeleton, /PortalSectionDivider/);
@@ -119,13 +133,15 @@ for (const portalSource of [
   requestUpload,
   reportPrint,
   vault,
+  motion,
+  truck,
 ]) {
   assert.doesNotMatch(portalSource, /\b(?:bg|text|border)-white(?:\/|\b)/);
   assert.doesNotMatch(portalSource, /#[0-9a-f]{3,8}\b/i);
 }
 
 assert.match(brand, /const NAVY = "var\(--color-navy\)"/);
-assert.match(brand, /const WARM_WHITE = "var\(--color-warm-white\)"/);
+assert.match(brand, /const TEXTURED_WARM = "transparent"/);
 
 console.log(
   JSON.stringify(

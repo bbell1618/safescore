@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { tierHasFeature, type TierFeature } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
+import { motion, useReducedMotion } from "framer-motion";
 import { LockKeyhole, LogOut, Menu, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -65,6 +66,7 @@ function NavLabel({
 export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
   const pathname = usePathname();
   const supabase = createClient();
+  const reduceMotion = useReducedMotion();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -82,7 +84,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
   }
 
   return (
-    <header className="portal-navy-texture sticky top-0 z-50 border-b border-warm-white/10 font-body shadow-[var(--shadow-sm)]">
+    <header className="portal-navy-texture sticky top-0 z-50 border-b border-gold/15 font-body shadow-[var(--shadow-sm)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex h-16 items-center justify-between">
           <Link
@@ -129,11 +131,25 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
                     aria-hidden="true"
                     className={cn(
                       "absolute inset-x-3 bottom-0 h-0.5 origin-left bg-gold transition-transform duration-200",
-                      active
-                        ? "scale-x-100"
-                        : "scale-x-0 group-hover:scale-x-100"
+                      active ? "scale-x-0" : "scale-x-0 group-hover:scale-x-100"
                     )}
                   />
+                  {active ? (
+                    <motion.span
+                      aria-hidden="true"
+                      className="absolute inset-x-3 bottom-0 h-0.5 bg-gold"
+                      layoutId="portal-active-tab-indicator"
+                      transition={
+                        reduceMotion
+                          ? { duration: 0 }
+                          : {
+                              type: "spring",
+                              stiffness: 460,
+                              damping: 38,
+                            }
+                      }
+                    />
+                  ) : null}
                 </Link>
               );
             })}

@@ -1,4 +1,5 @@
 import type { PortalActivitySnapshot } from "@/lib/portal/activity-server";
+import { PortalAnimatedActivitySeries } from "@/components/portal/motion";
 
 const CHART_HEIGHT = 320;
 const TOP = 40;
@@ -206,20 +207,10 @@ export function BurdenHistoryChart({
           })}
 
           {points.length > 1 ? (
-            <>
-              <polygon
-                fill="url(#portal-activity-burden-fill)"
-                points={areaPoints}
-              />
-              <polyline
-                fill="none"
-                points={polyline}
-                stroke="var(--color-amber)"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="3"
-              />
-            </>
+            <PortalAnimatedActivitySeries
+              areaPoints={areaPoints}
+              linePoints={polyline}
+            />
           ) : null}
 
           {points.map((point) => (

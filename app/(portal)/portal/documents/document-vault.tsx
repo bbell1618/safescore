@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle,
@@ -84,6 +85,7 @@ export default function DocumentVault({
   initialDocuments: PortalDocumentRow[];
 }) {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const [uploading, setUploading] = useState(false);
   const [uploadCategory, setUploadCategory] =
     useState<VaultCategory>("dqf");
@@ -181,12 +183,19 @@ export default function DocumentVault({
           ))}
         </select>
 
-        <div
-          className={`portal-card-lift mt-4 w-full rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-150 ${
+        <motion.div
+          className={`mt-4 w-full rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-150 ${
             dragOver
               ? "border-amber bg-amber-subtle"
               : "border-sand bg-warm-white hover:border-gold hover:bg-amber-subtle"
-          }`}
+          } ${uploading ? "cursor-wait" : "cursor-pointer"}`}
+          whileHover={
+            !reduceMotion && !uploading
+              ? { y: -3, boxShadow: "var(--shadow-card-hover)" }
+              : undefined
+          }
+          whileTap={!reduceMotion && !uploading ? { y: -1, scale: 0.995 } : undefined}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
           onDragEnter={() => setDragOver(true)}
           onDragOver={(event) => {
             event.preventDefault();
@@ -214,7 +223,7 @@ export default function DocumentVault({
           <span className="mt-1 block text-xs text-warm-mid">
             PDF, Word, Excel, CSV, PNG, or JPG — up to 25 MB
           </span>
-        </div>
+        </motion.div>
         <input
           ref={fileInputRef}
           type="file"

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 const NAVY = "var(--color-navy)";
-const WARM_WHITE = "var(--color-warm-white)";
+const TEXTURED_WARM = "transparent";
 
 interface PortalHeroBandProps {
   eyebrow: ReactNode;
@@ -25,7 +25,7 @@ export function PortalHeroBand({
   return (
     <header
       className={cn(
-        "portal-navy-texture overflow-hidden border-y border-warm-white/10 text-warm-white shadow-[var(--shadow-md)]",
+        "portal-navy-texture overflow-hidden text-warm-white shadow-[var(--shadow-md)]",
         className
       )}
     >
@@ -65,8 +65,8 @@ export function PortalSectionDivider({
 
   return (
     <SectionDivider
-      fromColor={navyToWarm ? NAVY : WARM_WHITE}
-      toColor={navyToWarm ? WARM_WHITE : NAVY}
+      fromColor={navyToWarm ? NAVY : TEXTURED_WARM}
+      toColor={navyToWarm ? TEXTURED_WARM : NAVY}
       variant={variant}
       className={cn("shrink-0", className)}
     />
@@ -112,7 +112,7 @@ export function PortalFooterBand({
   return (
     <footer
       className={cn(
-        "portal-navy-texture border-y border-warm-white/10 text-warm-white",
+        "portal-navy-texture text-warm-white",
         className
       )}
     >

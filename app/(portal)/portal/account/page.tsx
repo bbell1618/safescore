@@ -15,6 +15,7 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import { PortalMotionSection } from "@/components/portal/motion";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
   fleetSourceLines,
@@ -66,15 +67,15 @@ function Surface({
   labelledBy: string;
 }) {
   return (
-    <section
-      aria-labelledby={labelledBy}
+    <PortalMotionSection
+      ariaLabelledBy={labelledBy}
       className={cn(
-        "portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm",
+        "rounded-xl border border-sand bg-warm-white p-6 shadow-sm",
         className
       )}
     >
       {children}
-    </section>
+    </PortalMotionSection>
   );
 }
 

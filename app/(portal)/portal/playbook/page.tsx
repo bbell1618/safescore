@@ -12,6 +12,14 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import {
+  PortalAnimatedNumber,
+  PortalMotionArticle,
+  PortalMotionListItem,
+  PortalMotionSection,
+  PortalReveal,
+} from "@/components/portal/motion";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { getPortalPageAccess } from "@/lib/portal/access";
 import {
@@ -43,7 +51,7 @@ function rateLabel(value: number): string {
 
 function EmptyPlaybook() {
   return (
-    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white px-6 py-14 text-center shadow-sm">
+    <PortalMotionSection className="rounded-xl border border-sand bg-warm-white px-6 py-14 text-center shadow-sm">
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-subtle text-amber-dark">
         <Sparkles className="h-5 w-5" aria-hidden="true" />
       </div>
@@ -54,7 +62,7 @@ function EmptyPlaybook() {
         GEIA will turn the patterns in your safety record into short operating
         habits and a practical month-by-month plan.
       </p>
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -62,10 +70,11 @@ function PlaybookBodyFallback() {
   return (
     <div
       aria-label="Loading coaching playbook"
-      className="space-y-8 motion-safe:animate-pulse"
+      className="space-y-8"
       role="status"
     >
-      <section className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
+      <GoldenEraTruckLoader compact className="mx-auto" />
+      <section className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse">
         <div className="h-5 w-48 rounded-md bg-sand" />
         <div className="h-4 w-full max-w-3xl rounded-md bg-sand" />
         <div className="h-4 w-4/5 max-w-2xl rounded-md bg-sand" />
@@ -73,7 +82,7 @@ function PlaybookBodyFallback() {
       <div className="grid gap-6 lg:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (
           <section
-            className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
+            className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
             key={index}
           >
             <div className="h-6 w-44 rounded-md bg-sand" />
@@ -100,7 +109,11 @@ function FamilyProgramCard({
   index: number;
 }) {
   return (
-    <li className="portal-card-lift overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
+    <PortalMotionListItem
+      interactive
+      className="overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
+      delay={Math.min(index * 0.04, 0.2)}
+    >
       <article>
         <header className="border-b border-sand bg-cream p-5 sm:p-6">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -225,7 +238,7 @@ function FamilyProgramCard({
           </div>
         </div>
       </article>
-    </li>
+    </PortalMotionListItem>
   );
 }
 
@@ -235,7 +248,7 @@ function InstallmentCalendar({
   playbook: PortalPlaybook;
 }) {
   return (
-    <section>
+    <PortalMotionSection>
       <div>
         <p className="mono-label text-amber">One step at a time</p>
         <h2 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
@@ -247,9 +260,11 @@ function InstallmentCalendar({
         </p>
       </div>
       <ol className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {playbook.installment_calendar.map((installment) => (
-          <li
-            className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm"
+        {playbook.installment_calendar.map((installment, index) => (
+          <PortalMotionListItem
+            interactive
+            className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm"
+            delay={Math.min(index * 0.035, 0.18)}
             key={installment.month}
           >
             <div className="flex items-start gap-3">
@@ -282,16 +297,16 @@ function InstallmentCalendar({
                 </li>
               ))}
             </ul>
-          </li>
+          </PortalMotionListItem>
         ))}
       </ol>
-    </section>
+    </PortalMotionSection>
   );
 }
 
 function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
   return (
-    <section>
+    <PortalMotionSection>
       <div>
         <p className="mono-label text-amber">Owner curriculum</p>
         <h2 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
@@ -303,9 +318,11 @@ function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
         </p>
       </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {playbook.owner_curriculum.map((module) => (
-          <article
-            className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+        {playbook.owner_curriculum.map((module, index) => (
+          <PortalMotionArticle
+            interactive
+            className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+            delay={Math.min(index * 0.06, 0.18)}
             key={module.key}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -338,10 +355,10 @@ function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
                 </li>
               ))}
             </ul>
-          </article>
+          </PortalMotionArticle>
         ))}
       </div>
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -355,7 +372,10 @@ async function PlaybookContent({
 
   return (
     <>
-      <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
+      <PortalMotionSection
+        interactive
+        className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+      >
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-amber-dark">
@@ -390,9 +410,9 @@ async function PlaybookContent({
         <p className="mt-4 border-t border-sand pt-4 font-mono text-[10px] text-warm-gray">
           Updated {formatDate(playbook.generated_at)}
         </p>
-      </section>
+      </PortalMotionSection>
 
-      <section>
+      <PortalMotionSection>
         <div>
           <p className="mono-label text-amber">Your focus areas</p>
           <h2 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
@@ -414,21 +434,45 @@ async function PlaybookContent({
             ))}
           </ol>
         ) : (
-          <div className="portal-card-lift mt-6 rounded-xl border border-sand bg-warm-white p-8 text-center shadow-sm">
-            <p className="font-heading text-lg font-semibold text-warm-dark">
-              No recurring coaching program is needed right now
-            </p>
-            <p className="mt-1 text-sm text-warm-mid">
-              GEIA will add a focused program if a new operating pattern
-              appears.
-            </p>
-          </div>
+          <PortalReveal>
+            <div className="mt-6 rounded-xl border border-sand bg-warm-white p-8 text-center shadow-sm">
+              <p className="font-heading text-lg font-semibold text-warm-dark">
+                No recurring coaching program is needed right now
+              </p>
+              <p className="mt-1 text-sm text-warm-mid">
+                GEIA will add a focused program if a new operating pattern
+                appears.
+              </p>
+            </div>
+          </PortalReveal>
         )}
-      </section>
+      </PortalMotionSection>
 
       <InstallmentCalendar playbook={playbook} />
       <OwnerCurriculum playbook={playbook} />
     </>
+  );
+}
+
+async function PlaybookHeroMetric({
+  promise,
+}: {
+  promise: Promise<PortalPlaybook | null>;
+}) {
+  const playbook = await promise;
+  if (!playbook) return null;
+
+  return (
+    <dl className="mt-7 inline-flex items-end gap-3 rounded-xl border border-gold/20 bg-warm-white/5 px-5 py-4">
+      <div>
+        <dt className="font-mono text-[10px] font-semibold uppercase tracking-wider text-warm-white/70">
+          Programs
+        </dt>
+        <dd className="mt-1 font-mono text-4xl font-semibold text-amber-light">
+          <PortalAnimatedNumber value={playbook.family_programs.length} />
+        </dd>
+      </div>
+    </dl>
   );
 }
 
@@ -444,12 +488,14 @@ export default async function PortalPlaybookPage() {
         />
         <PortalSectionDivider transition="navy-to-warm" />
         <PortalPageBody>
-          <TierUpgradeNote
-            currentTier={access.tier}
-            feature="playbook_coach"
-            headingLevel="h2"
-            title="The coaching playbook is not included in your plan"
-          />
+          <PortalReveal>
+            <TierUpgradeNote
+              currentTier={access.tier}
+              feature="playbook_coach"
+              headingLevel="h2"
+              title="The coaching playbook is not included in your plan"
+            />
+          </PortalReveal>
         </PortalPageBody>
         <PortalSectionDivider transition="warm-to-navy" />
         <PortalFooterBand>
@@ -477,10 +523,24 @@ export default async function PortalPlaybookPage() {
         eyebrow="Coaching system"
         title="Your safety playbook"
         description="Bite-size operating changes, built from your current safety record and arranged in the order that matters most."
-      />
+      >
+        <Suspense
+          fallback={
+            <div
+              aria-label="Loading playbook summary"
+              className="mt-7 flex h-20 w-28 items-center justify-center rounded-xl border border-gold/15 bg-warm-white/5"
+              role="status"
+            >
+              <GoldenEraTruckLoader compact />
+            </div>
+          }
+        >
+          <PlaybookHeroMetric promise={playbookPromise} />
+        </Suspense>
+      </PortalHeroBand>
       <PortalSectionDivider transition="navy-to-warm" />
 
-      <PortalPageBody contentClassName="portal-section-enter py-12 sm:py-16 lg:py-16">
+      <PortalPageBody contentClassName="py-12 sm:py-16 lg:py-16">
         <Suspense fallback={<PlaybookBodyFallback />}>
           <div className="space-y-12">
             <PlaybookContent promise={playbookPromise} />

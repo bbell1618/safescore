@@ -4,9 +4,15 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 
 function Bone({ className }: { className: string }) {
-  return <div aria-hidden="true" className={`rounded-md bg-sand ${className}`} />;
+  return (
+    <div
+      aria-hidden="true"
+      className={`rounded-md bg-sand motion-safe:animate-pulse ${className}`}
+    />
+  );
 }
 
 function CardSkeleton({ rows = 4 }: { rows?: number }) {
@@ -35,9 +41,10 @@ export function AccountCardsSkeleton() {
   return (
     <div
       aria-label="Loading account details"
-      className="space-y-8 motion-safe:animate-pulse"
+      className="space-y-8"
       role="status"
     >
+      <GoldenEraTruckLoader compact className="mx-auto" />
       <div className="grid gap-6 lg:grid-cols-2">
         <CardSkeleton rows={5} />
         <CardSkeleton rows={4} />
@@ -55,7 +62,7 @@ export function PortalAccountSkeleton() {
   return (
     <div
       aria-label="Loading account"
-      className="overflow-hidden motion-safe:animate-pulse"
+      className="overflow-hidden"
       role="status"
     >
       <PortalHeroBand
@@ -78,7 +85,9 @@ export function PortalAccountSkeleton() {
           />
         }
         contentClassName="max-w-5xl"
-      />
+      >
+        <GoldenEraTruckLoader className="mt-6" />
+      </PortalHeroBand>
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody contentClassName="max-w-5xl">
         <AccountCardsSkeleton />

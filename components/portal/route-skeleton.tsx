@@ -1,4 +1,5 @@
 import { PortalSectionDivider } from "@/components/portal/brand";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { cn } from "@/lib/utils";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -24,7 +25,7 @@ function Bone({
     <div
       aria-hidden="true"
       className={cn(
-        "rounded-md",
+        "rounded-md motion-safe:animate-pulse",
         dark ? "bg-warm-white/15" : "bg-sand",
         className
       )}
@@ -65,7 +66,7 @@ function HeadingHeroSkeleton({ wide = false }: { wide?: boolean }) {
 
 function FooterSkeleton() {
   return (
-    <footer className="portal-navy-texture border-y border-warm-white/10">
+    <footer className="portal-navy-texture">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6">
         <div className="space-y-2">
           <Bone dark className="h-5 w-52" />
@@ -81,20 +82,23 @@ function BrandFrame({
   hero,
   children,
   narrow = false,
+  bodyClassName,
 }: {
   hero: ReactNode;
   children: ReactNode;
   narrow?: boolean;
+  bodyClassName?: string;
 }) {
   return (
-    <>
-      <section className="portal-navy-texture border-y border-warm-white/10 shadow-[var(--shadow-md)]">
+    <div className="portal-warm-texture min-h-[calc(100vh-4rem)] overflow-hidden">
+      <section className="portal-navy-texture shadow-[var(--shadow-md)]">
         <div
           className={cn(
             "mx-auto w-full px-4 py-12 sm:px-6 sm:py-14 lg:py-16",
             narrow ? "max-w-5xl" : "max-w-7xl"
           )}
         >
+          <GoldenEraTruckLoader className="mb-6" />
           {hero}
         </div>
       </section>
@@ -102,20 +106,22 @@ function BrandFrame({
       <div
         className={cn(
           "mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:py-10",
-          narrow ? "max-w-5xl" : "max-w-7xl"
+          narrow ? "max-w-5xl" : "max-w-7xl",
+          bodyClassName
         )}
       >
         {children}
       </div>
       <PortalSectionDivider transition="warm-to-navy" />
       <FooterSkeleton />
-    </>
+    </div>
   );
 }
 
 function HomeSkeleton() {
   return (
     <BrandFrame
+      bodyClassName="pt-8 pb-10 sm:pt-10 lg:pb-12"
       hero={
         <div className="grid min-h-56 gap-8 lg:grid-cols-2">
           <div className="space-y-5">
@@ -183,7 +189,10 @@ function HomeSkeleton() {
 
 function ActivitySkeleton() {
   return (
-    <BrandFrame hero={<HeadingHeroSkeleton />}>
+    <BrandFrame
+      bodyClassName="py-12 sm:py-16 lg:py-16"
+      hero={<HeadingHeroSkeleton />}
+    >
       <Surface className="space-y-5">
         <div className="flex items-center justify-between">
           <Bone className="h-6 w-40" />
@@ -214,7 +223,10 @@ function ActivitySkeleton() {
 
 function PlaybookSkeleton() {
   return (
-    <BrandFrame hero={<HeadingHeroSkeleton wide />}>
+    <BrandFrame
+      bodyClassName="py-12 sm:py-16 lg:py-16"
+      hero={<HeadingHeroSkeleton wide />}
+    >
       <Surface className="space-y-4">
         <Bone className="h-6 w-52" />
         <Bone className="h-4 w-full" />
@@ -264,7 +276,10 @@ function PlaybookSkeleton() {
 
 function DocumentsSkeleton() {
   return (
-    <BrandFrame hero={<HeadingHeroSkeleton />}>
+    <BrandFrame
+      bodyClassName="py-10 lg:py-12"
+      hero={<HeadingHeroSkeleton />}
+    >
       {[0, 1, 2].map((section) => (
         <Surface key={section} className="space-y-4">
           <div className="space-y-2">
@@ -358,7 +373,6 @@ export function PortalRouteSkeleton({
 }) {
   return (
     <div
-      className="motion-safe:animate-pulse"
       role="status"
       aria-label="Loading portal content"
     >

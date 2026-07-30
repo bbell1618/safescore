@@ -12,6 +12,13 @@ import {
   PortalSectionDivider,
 } from "@/components/portal/brand";
 import { BurdenHistoryChart } from "@/components/portal/burden-history-chart";
+import {
+  PortalAnimatedNumber,
+  PortalMotionListItem,
+  PortalMotionSection,
+  PortalReveal,
+} from "@/components/portal/motion";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
 import {
@@ -138,13 +145,14 @@ function SectionFallback({
   return (
     <section
       aria-label={`Loading ${label}`}
-      className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
+      className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
       role="status"
     >
-      <div className="h-6 w-44 rounded-md bg-sand" />
+      <GoldenEraTruckLoader compact className="mx-auto" />
+      <div className="h-6 w-44 rounded-md bg-sand motion-safe:animate-pulse" />
       {Array.from({ length: rows }, (_, index) => (
         <div
-          className="h-16 rounded-lg border border-sand bg-cream"
+          className="h-16 rounded-lg border border-sand bg-cream motion-safe:animate-pulse"
           key={index}
         />
       ))}
@@ -162,7 +170,10 @@ async function TrendSection({
   const latest = snapshots[snapshots.length - 1] ?? null;
 
   return (
-    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
+    <PortalMotionSection
+      interactive
+      className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+    >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mono-label text-amber">Complete history</p>
@@ -190,7 +201,7 @@ async function TrendSection({
       <div className="mt-6">
         <BurdenHistoryChart snapshots={snapshots} />
       </div>
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -201,7 +212,10 @@ async function AlertsSection({
 }) {
   const alerts = await promise;
   return (
-    <section className="portal-card-lift overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
+    <PortalMotionSection
+      interactive
+      className="overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
+    >
       <header className="flex items-center gap-2 border-b border-sand px-5 py-4 sm:px-6">
         <Bell className="h-4 w-4 text-amber-dark" aria-hidden="true" />
         <h2 className="font-heading text-xl font-semibold text-warm-dark">
@@ -263,7 +277,7 @@ async function AlertsSection({
           </p>
         </div>
       )}
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -291,9 +305,10 @@ async function CasesSection({
 }) {
   const cases = await promise;
   return (
-    <section
+    <PortalMotionSection
+      interactive
       id="cases"
-      className="portal-card-lift scroll-mt-28 overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
+      className="scroll-mt-28 overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
     >
       <header className="border-b border-sand px-5 py-4 sm:px-6">
         <div className="flex items-center gap-2">
@@ -312,11 +327,16 @@ async function CasesSection({
       </header>
       {cases.length > 0 ? (
         <ul className="divide-y divide-sand">
-          {cases.map((caseRow) => {
+          {cases.map((caseRow, index) => {
             const status = caseStatus(caseRow);
             const outcome = outcomePresentation(caseRow.outcome);
             return (
-              <li className="p-5 sm:p-6" key={`${caseRow.caseType}-${caseRow.id}`}>
+              <PortalMotionListItem
+                interactive
+                className="p-5 sm:p-6"
+                delay={Math.min(index * 0.05, 0.2)}
+                key={`${caseRow.caseType}-${caseRow.id}`}
+              >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2">
@@ -364,7 +384,7 @@ async function CasesSection({
                     ) : null}
                   </div>
                 </div>
-              </li>
+              </PortalMotionListItem>
             );
           })}
         </ul>
@@ -383,14 +403,14 @@ async function CasesSection({
           </p>
         </div>
       )}
-    </section>
+    </PortalMotionSection>
   );
 }
 
 function CasesUpgradeNote() {
   const minimumTier = minimumTierForFeature("case_visibility");
   return (
-    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-6 text-center shadow-sm">
+    <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 text-center shadow-sm">
       <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-subtle text-amber-dark">
         <LockKeyhole className="h-4 w-4" aria-hidden="true" />
       </div>
@@ -401,7 +421,30 @@ function CasesUpgradeNote() {
         Case status and filing progress are included with{" "}
         {TIER_LABELS[minimumTier]} and higher plans.
       </p>
-    </section>
+    </PortalMotionSection>
+  );
+}
+
+async function ActivityHeroMetric({
+  promise,
+}: {
+  promise: Promise<PortalActivitySnapshot[]>;
+}) {
+  const snapshots = await promise;
+  const latest = snapshots[snapshots.length - 1] ?? null;
+  if (!latest) return null;
+
+  return (
+    <dl className="mt-7 inline-flex items-end gap-3 rounded-xl border border-gold/20 bg-warm-white/5 px-5 py-4">
+      <div>
+        <dt className="font-mono text-[10px] font-semibold uppercase tracking-wider text-warm-white/70">
+          Latest
+        </dt>
+        <dd className="mt-1 font-mono text-4xl font-semibold text-amber-light">
+          <PortalAnimatedNumber value={latest.totalPoints} />
+        </dd>
+      </div>
+    </dl>
   );
 }
 
@@ -417,12 +460,14 @@ export default async function PortalActivityPage() {
         />
         <PortalSectionDivider transition="navy-to-warm" />
         <PortalPageBody>
-          <TierUpgradeNote
-            currentTier={access.tier}
-            feature="trend_history"
-            headingLevel="h2"
-            title="Activity history is not included in your plan"
-          />
+          <PortalReveal>
+            <TierUpgradeNote
+              currentTier={access.tier}
+              feature="trend_history"
+              headingLevel="h2"
+              title="Activity history is not included in your plan"
+            />
+          </PortalReveal>
         </PortalPageBody>
         <PortalSectionDivider transition="warm-to-navy" />
         <PortalFooterBand>
@@ -455,10 +500,24 @@ export default async function PortalActivityPage() {
         eyebrow="Monitoring record"
         title="Activity"
         description="See how your weighted burden has moved, what changed, and where each filing stands."
-      />
+      >
+        <Suspense
+          fallback={
+            <div
+              aria-label="Loading latest burden"
+              className="mt-7 flex h-20 w-32 items-center justify-center rounded-xl border border-gold/15 bg-warm-white/5"
+              role="status"
+            >
+              <GoldenEraTruckLoader compact />
+            </div>
+          }
+        >
+          <ActivityHeroMetric promise={snapshotsPromise} />
+        </Suspense>
+      </PortalHeroBand>
       <PortalSectionDivider transition="navy-to-warm" />
 
-      <PortalPageBody contentClassName="portal-section-enter space-y-12 py-12 sm:py-16 lg:py-16">
+      <PortalPageBody contentClassName="space-y-12 py-12 sm:py-16 lg:py-16">
         <Suspense fallback={<SectionFallback label="burden trend" rows={4} />}>
           <TrendSection promise={snapshotsPromise} />
         </Suspense>

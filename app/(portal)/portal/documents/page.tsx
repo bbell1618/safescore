@@ -12,7 +12,12 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import {
+  PortalMotionArticle,
+  PortalMotionSection,
+} from "@/components/portal/motion";
 import { RequestUpload } from "@/components/portal/request-upload";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
   minimumTierForFeature,
@@ -166,9 +171,10 @@ function ZoneFrame({
   children: React.ReactNode;
 }) {
   return (
-    <section
+    <PortalMotionSection
+      interactive
       id={id}
-      className="portal-section-enter scroll-mt-28 rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+      className="scroll-mt-28 rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
     >
       <div className="mb-5">
         <h2 className="font-heading text-xl font-semibold text-warm-dark">
@@ -177,7 +183,7 @@ function ZoneFrame({
         <p className="mt-1 text-sm leading-6 text-warm-mid">{description}</p>
       </div>
       {children}
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -225,10 +231,15 @@ function EmptyZone({
 
 function ZoneSkeleton({ rows = 2 }: { rows?: number }) {
   return (
-    <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
+    <section
+      aria-label="Loading documents"
+      className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+      role="status"
+    >
+      <GoldenEraTruckLoader compact className="mx-auto mb-5" />
       <div className="space-y-2">
-        <div className="h-6 w-44 animate-pulse rounded bg-sand" />
-        <div className="h-4 w-full max-w-lg animate-pulse rounded bg-cream" />
+        <div className="h-6 w-44 rounded bg-sand motion-safe:animate-pulse" />
+        <div className="h-4 w-full max-w-lg rounded bg-cream motion-safe:animate-pulse" />
       </div>
       <div className="mt-5 space-y-3">
         {Array.from({ length: rows }, (_, index) => (
@@ -236,15 +247,16 @@ function ZoneSkeleton({ rows = 2 }: { rows?: number }) {
             key={index}
             className="flex items-center gap-4 rounded-lg border border-sand bg-cream p-4"
           >
-            <div className="h-10 w-10 animate-pulse rounded bg-sand" />
+            <div className="h-10 w-10 rounded bg-sand motion-safe:animate-pulse" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-2/5 animate-pulse rounded bg-sand" />
-              <div className="h-3 w-3/5 animate-pulse rounded bg-sand" />
+              <div className="h-4 w-2/5 rounded bg-sand motion-safe:animate-pulse" />
+              <div className="h-3 w-3/5 rounded bg-sand motion-safe:animate-pulse" />
             </div>
-            <div className="h-8 w-24 animate-pulse rounded bg-sand" />
+            <div className="h-8 w-24 rounded bg-sand motion-safe:animate-pulse" />
           </div>
         ))}
       </div>
+      <span className="sr-only">Loading documents…</span>
     </section>
   );
 }
@@ -284,12 +296,14 @@ async function NeededFromYouSection({
         />
       ) : (
         <div className="space-y-4">
-          {requests.map((request) => {
+          {requests.map((request, index) => {
             const items = requestedEvidenceItems(request.requested_items);
             return (
-              <article
+              <PortalMotionArticle
+                interactive
                 key={request.id}
-                className="rounded-lg border border-sand bg-cream p-4 sm:p-5"
+                className="rounded-lg border border-sand bg-cream p-4 shadow-sm sm:p-5"
+                delay={Math.min(index * 0.06, 0.18)}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -338,7 +352,7 @@ async function NeededFromYouSection({
                 ) : (
                   <RequestUpload requestId={request.id} />
                 )}
-              </article>
+              </PortalMotionArticle>
             );
           })}
         </div>
@@ -414,10 +428,12 @@ async function FromGeiaSection({
         />
       ) : (
         <div className="divide-y divide-sand overflow-hidden rounded-lg border border-sand bg-cream">
-          {reports.map((report) => (
-            <article
+          {reports.map((report, index) => (
+            <PortalMotionArticle
+              interactive
               key={report.id}
               className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+              delay={Math.min(index * 0.06, 0.18)}
             >
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy-subtle">
@@ -444,7 +460,7 @@ async function FromGeiaSection({
               >
                 Open print view
               </Link>
-            </article>
+            </PortalMotionArticle>
           ))}
         </div>
       )}

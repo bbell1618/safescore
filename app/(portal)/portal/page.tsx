@@ -19,6 +19,13 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import {
+  PortalAnimatedNumber,
+  PortalAnimatedPressureBar,
+  PortalMotionListItem,
+  PortalMotionSection,
+} from "@/components/portal/motion";
+import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import {
   buildChangeNarrative,
@@ -112,7 +119,7 @@ function UnlinkedPortalHome() {
       />
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody>
-        <section className="portal-section-enter mx-auto flex min-h-72 max-w-xl flex-col items-center justify-center text-center">
+        <PortalMotionSection className="mx-auto flex min-h-72 max-w-xl flex-col items-center justify-center text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-subtle text-amber">
             <ShieldCheck className="h-6 w-6" />
           </div>
@@ -120,7 +127,7 @@ function UnlinkedPortalHome() {
             Your GEIA account manager is linking your company profile. Your Home
             page will appear here as soon as that connection is complete.
           </p>
-        </section>
+        </PortalMotionSection>
       </PortalPageBody>
       <PortalSectionDivider transition="warm-to-navy" />
       <PortalFooterBand>
@@ -136,9 +143,10 @@ function SectionFallback({ label }: { label: string }) {
   return (
     <section
       aria-label={`Loading ${label}`}
-      className="portal-section-enter space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
+      className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
       role="status"
     >
+      <GoldenEraTruckLoader compact className="mx-auto" />
       <div className="h-6 w-52 rounded-md bg-sand" />
       <div className="h-16 rounded-lg bg-cream" />
       <div className="h-16 rounded-lg bg-cream" />
@@ -154,9 +162,10 @@ function CarrierFooterFallback() {
       <PortalFooterBand>
         <div
           aria-label="Loading carrier identity"
-          className="flex w-full flex-wrap items-center justify-between gap-4 motion-safe:animate-pulse"
+          className="flex w-full flex-wrap items-center justify-between gap-4"
           role="status"
         >
+          <GoldenEraTruckLoader compact className="shrink-0" />
           <div className="h-5 w-56 rounded bg-warm-white/15" />
           <div className="h-7 w-40 rounded-full bg-warm-white/10" />
           <span className="sr-only">Loading carrier identity…</span>
@@ -168,7 +177,10 @@ function CarrierFooterFallback() {
 
 function CaseCard({ caseRow }: { caseRow: PortalHomeCase }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sand bg-cream p-4">
+    <PortalMotionListItem
+      interactive
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sand bg-cream p-4 shadow-sm"
+    >
       <div>
         <p className="font-heading text-base font-semibold text-warm-dark">
           {caseRow.caseType}{" "}
@@ -185,7 +197,7 @@ function CaseCard({ caseRow }: { caseRow: PortalHomeCase }) {
       <span className="rounded-full bg-info-light px-3 py-1 font-mono text-[11px] font-semibold text-info">
         {portalCaseStatus(caseRow.status)}
       </span>
-    </li>
+    </PortalMotionListItem>
   );
 }
 
@@ -198,7 +210,10 @@ async function HandlingSection({
 }) {
   const handling = await promise;
   return (
-    <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
+    <PortalMotionSection
+      interactive
+      className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="mono-label text-amber">Active service</p>
@@ -278,16 +293,18 @@ async function HandlingSection({
         </h3>
         {handling.workNotes.length > 0 ? (
           <ul className="mt-3 grid gap-3 md:grid-cols-3">
-            {handling.workNotes.map((note) => (
-              <li
-                className="rounded-lg border border-sand bg-cream p-4"
+            {handling.workNotes.map((note, index) => (
+              <PortalMotionListItem
+                interactive
+                className="rounded-lg border border-sand bg-cream p-4 shadow-sm"
+                delay={Math.min(index * 0.06, 0.18)}
                 key={note.id}
               >
                 <p className="text-sm leading-6 text-warm-mid">{note.text}</p>
                 <p className="mt-3 font-mono text-[11px] text-warm-gray">
                   {formatDate(note.createdAt)}
                 </p>
-              </li>
+              </PortalMotionListItem>
             ))}
           </ul>
         ) : (
@@ -297,7 +314,7 @@ async function HandlingSection({
           </p>
         )}
       </div>
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -309,7 +326,10 @@ async function RequestsSection({
   const requests = await promise;
   if (requests.length === 0) return null;
   return (
-    <section className="portal-section-enter rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm">
+    <PortalMotionSection
+      interactive
+      className="rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm"
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warm-white text-amber-dark">
           <ClipboardList className="h-5 w-5" />
@@ -320,9 +340,11 @@ async function RequestsSection({
             Needed from you
           </h2>
           <ul className="mt-4 space-y-3">
-            {requests.map((request: PortalHomeRequest) => (
-              <li
-                className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-amber/20 bg-warm-white p-4"
+            {requests.map((request: PortalHomeRequest, index) => (
+              <PortalMotionListItem
+                interactive
+                className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-amber/20 bg-warm-white p-4 shadow-sm"
+                delay={Math.min(index * 0.06, 0.18)}
                 key={request.id}
               >
                 <div className="max-w-2xl">
@@ -347,12 +369,12 @@ async function RequestsSection({
                   Review request
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-              </li>
+              </PortalMotionListItem>
             ))}
           </ul>
         </div>
       </div>
-    </section>
+    </PortalMotionSection>
   );
 }
 
@@ -449,14 +471,18 @@ export default async function PortalHomePage() {
 
   return (
     <div>
-      <section className="portal-navy-texture overflow-hidden border-y border-warm-white/10 text-warm-white shadow-[var(--shadow-md)]">
+      <section className="portal-navy-texture overflow-hidden text-warm-white shadow-[var(--shadow-md)]">
         <div className="mx-auto grid w-full max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
         <div className="p-6 sm:p-8 lg:p-10">
           <p className="mono-label text-gold-light">Where you stand</p>
           <div className="mt-4 flex flex-wrap items-end gap-4">
             <h1 className="font-heading text-7xl font-semibold tracking-tight text-amber-light sm:text-8xl">
               <span className="sr-only">Current weighted burden: </span>
-              {latest?.total_points.toLocaleString("en-US") ?? "—"}
+              {latest ? (
+                <PortalAnimatedNumber value={latest.total_points} />
+              ) : (
+                "—"
+              )}
             </h1>
             <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
               weighted points
@@ -544,7 +570,7 @@ export default async function PortalHomePage() {
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody contentClassName="space-y-12 pt-8 sm:pt-10">
 
-      <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+      <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mono-label text-amber">24-month scoring window</p>
@@ -562,12 +588,16 @@ export default async function PortalHomePage() {
 
         {latest && pressureBasics.length > 0 ? (
           <div className="mt-7 space-y-5">
-            {pressureBasics.map((basic) => {
+            {pressureBasics.map((basic, index) => {
               const level = pressureLevel(
                 basic.weighted_points,
                 latest.total_points
               );
               const classes = pressureClasses(level);
+              const width = pressureWidth(
+                basic.weighted_points,
+                latest.total_points
+              );
               return (
                 <div key={basic.basic_category}>
                   <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(12rem,1.6fr)_auto] sm:items-center">
@@ -586,18 +616,11 @@ export default async function PortalHomePage() {
                       </span>
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-sand">
-                      <div
-                        aria-label={`${pressureWidth(
-                          basic.weighted_points,
-                          latest.total_points
-                        )}% of current weighted burden`}
-                        className={cn("h-full rounded-full", classes.bar)}
-                        style={{
-                          width: `${pressureWidth(
-                            basic.weighted_points,
-                            latest.total_points
-                          )}%`,
-                        }}
+                      <PortalAnimatedPressureBar
+                        ariaLabel={`${width}% of current weighted burden`}
+                        className={classes.bar}
+                        delay={Math.min(index * 0.06, 0.3)}
+                        percentage={width}
                       />
                     </div>
                     <p className="font-mono text-xs text-warm-mid sm:text-right">
@@ -620,7 +643,7 @@ export default async function PortalHomePage() {
             </p>
           </div>
         )}
-      </section>
+      </PortalMotionSection>
 
       {canSeeServiceActivity && handlingPromise ? (
         <Suspense fallback={<SectionFallback label="GEIA work" />}>
@@ -636,7 +659,7 @@ export default async function PortalHomePage() {
       </Suspense>
 
       {canSeeTrend ? (
-        <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+        <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-light text-success">
               <CheckCircle2 className="h-5 w-5" />
@@ -653,7 +676,7 @@ export default async function PortalHomePage() {
               <p key={sentence}>{sentence}</p>
             ))}
           </div>
-        </section>
+        </PortalMotionSection>
       ) : null}
       </PortalPageBody>
 

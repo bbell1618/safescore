@@ -13,10 +13,12 @@ export interface SectionDividerProps {
  *
  * This remains presentational and decorative; colors are supplied by callers
  * so the same geometry can connect either direction of the portal surfaces.
+ * Complementary paths keep a transparent side genuinely transparent instead
+ * of painting it over a full-size rectangle.
  */
 export function SectionDivider({
-  fromColor = "#FEFCF8",
-  toColor = "#1B2D4F",
+  fromColor = "transparent",
+  toColor = "var(--color-navy)",
   variant = "curve",
   flip = false,
   className,
@@ -27,7 +29,10 @@ export function SectionDivider({
     return (
       <div
         aria-hidden="true"
-        className={cn("relative w-full overflow-hidden leading-none", className)}
+        className={cn(
+          "pointer-events-none relative w-full overflow-hidden leading-none",
+          className
+        )}
         style={{ transform }}
       >
         <svg
@@ -36,7 +41,10 @@ export function SectionDivider({
           className="block w-full"
           style={{ height: "60px" }}
         >
-          <rect width="1440" height="80" fill={fromColor} />
+          <path
+            d="M0,0 H1440 V40 C1200,0 960,80 720,40 C480,0 240,80 0,40 Z"
+            fill={fromColor}
+          />
           <path
             d="M0,40 C240,80 480,0 720,40 C960,80 1200,0 1440,40 L1440,80 L0,80 Z"
             fill={toColor}
@@ -50,7 +58,10 @@ export function SectionDivider({
     return (
       <div
         aria-hidden="true"
-        className={cn("relative w-full overflow-hidden leading-none", className)}
+        className={cn(
+          "pointer-events-none relative w-full overflow-hidden leading-none",
+          className
+        )}
         style={{ transform }}
       >
         <svg
@@ -59,7 +70,7 @@ export function SectionDivider({
           className="block w-full"
           style={{ height: "50px" }}
         >
-          <rect width="1440" height="60" fill={fromColor} />
+          <path d="M0,0 H1440 L0,60 Z" fill={fromColor} />
           <path d="M0,60 L1440,0 L1440,60 Z" fill={toColor} />
         </svg>
       </div>
@@ -69,7 +80,10 @@ export function SectionDivider({
   return (
     <div
       aria-hidden="true"
-      className={cn("relative w-full overflow-hidden leading-none", className)}
+      className={cn(
+        "pointer-events-none relative w-full overflow-hidden leading-none",
+        className
+      )}
       style={{ transform }}
     >
       <svg
@@ -78,7 +92,10 @@ export function SectionDivider({
         className="block w-full"
         style={{ height: "60px" }}
       >
-        <rect width="1440" height="80" fill={fromColor} />
+        <path
+          d="M0,0 H1440 V60 C1080,0 360,100 0,60 Z"
+          fill={fromColor}
+        />
         <path
           d="M0,60 C360,100 1080,0 1440,60 L1440,80 L0,80 Z"
           fill={toColor}
