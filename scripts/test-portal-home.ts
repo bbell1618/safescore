@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   buildChangeNarrative,
   buildSparklinePoints,
@@ -165,6 +167,14 @@ assert.ok(!points.includes("NaN"));
 assert.equal(buildSparklinePoints([]), "");
 assert.equal(buildSparklinePoints([549]), "120,36");
 
+const nextConfig = readFileSync(
+  resolve(process.cwd(), "next.config.ts"),
+  "utf8"
+);
+assert.ok(nextConfig.includes('source: "/portal/safety"'));
+assert.ok(nextConfig.includes('destination: "/portal"'));
+assert.ok(nextConfig.includes("permanent: false"));
+
 console.log(
   JSON.stringify(
     {
@@ -178,6 +188,7 @@ console.log(
       },
       boundaryCopy: "passed",
       sparkline: "passed",
+      retiredSafetyRedirect: "temporary redirect to /portal",
     },
     null,
     2
