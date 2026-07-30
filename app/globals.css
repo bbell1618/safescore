@@ -45,6 +45,26 @@
   --foreground: #1E1C1A;
 }
 
+/*
+ * Portal-only aliases used by the Brand v3 interaction layer.
+ *
+ * The website's amber hover and active names differ from SafeScore's existing
+ * Tailwind token names. Keep these values scoped to the portal so the console
+ * palette is not changed while the ported buttons retain the website behavior.
+ */
+.portal-brand-root {
+  --color-button-amber-hover: var(--color-amber-dark);
+  --color-button-amber-active: var(--color-amber-hover);
+  --color-button-navy: var(--color-navy);
+  --color-button-gold: var(--color-gold);
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 3px rgba(198, 122, 30, 0.08);
+  --shadow-md: 0 4px 12px rgba(198, 122, 30, 0.12);
+  --duration-fast: 180ms;
+  --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -79,4 +99,173 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+/*
+ * Portal Brand v3 surfaces. The tiled artwork is ported byte-for-byte from
+ * GEIA-Website. The low-opacity CSS gradients remain underneath it as a
+ * resilient texture fallback instead of ever degrading to a flat surface.
+ */
+.portal-warm-texture,
+.portal-navy-texture {
+  position: relative;
+  isolation: isolate;
+}
+
+.portal-warm-texture {
+  background-color: var(--color-cream);
+}
+
+.portal-navy-texture {
+  background-color: var(--color-navy);
+}
+
+.portal-warm-texture::before,
+.portal-navy-texture::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.portal-warm-texture::before {
+  background-image:
+    url("/images/wallpaper.png"),
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--color-amber) 3.5%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 68%, color-mix(in srgb, var(--color-navy) 2.5%, transparent) 0 1px, transparent 1.5px);
+  background-repeat: repeat;
+  background-size: 400px 400px, 31px 31px, 37px 37px;
+  opacity: 0.6;
+}
+
+.portal-navy-texture::before {
+  background-image:
+    url("/images/navy-wallpaper.png"),
+    radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--color-gold) 8%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 66%, color-mix(in srgb, var(--color-warm-white) 5%, transparent) 0 1px, transparent 1.5px);
+  background-repeat: repeat;
+  background-size: 500px 500px, 35px 35px, 43px 43px;
+  opacity: 0.2;
+}
+
+/*
+ * Ported from GEIA-Website/src/index.css. Values intentionally preserve the
+ * website's amber hover/active ramp and glow, while selectors are portal
+ * scoped so console controls are untouched.
+ */
+.portal-brand-root .btn-primary {
+  background: var(--color-amber);
+  color: white;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  border: none;
+  box-shadow: var(--shadow-md);
+  transition: all var(--duration-fast) var(--ease-smooth);
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.portal-brand-root .btn-primary:hover {
+  background: var(--color-button-amber-hover);
+  box-shadow: 0 8px 24px rgba(198, 122, 30, 0.22);
+  color: white;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .portal-brand-root .btn-primary:hover {
+    transform: translateY(-2px);
+  }
+
+  .portal-brand-root .btn-primary:active {
+    transform: translateY(-1px);
+  }
+}
+
+.portal-brand-root .btn-primary:active {
+  background: var(--color-button-amber-active);
+  box-shadow: var(--shadow-sm);
+}
+
+.portal-brand-root .btn-secondary {
+  background: transparent;
+  color: var(--color-button-navy);
+  border: 2px solid var(--color-button-navy);
+  padding: 10px 22px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.portal-brand-root .btn-secondary:hover {
+  background: var(--color-button-navy);
+  color: var(--color-button-gold);
+}
+
+.portal-brand-root .btn-primary.inline-flex,
+.portal-brand-root .btn-secondary.inline-flex {
+  display: inline-flex;
+}
+
+.portal-brand-root .btn-primary:focus-visible,
+.portal-brand-root .btn-secondary:focus-visible {
+  outline: 3px solid rgba(218, 165, 32, 0.42);
+  outline-offset: 3px;
+}
+
+/*
+ * Portal motion is CSS-only. Entry animation is intentionally subtle, while
+ * card lift follows the website's coverage-card treatment.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes portal-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .portal-section-enter {
+    animation: portal-fade-up 0.55s var(--ease-smooth) both;
+  }
+
+  .portal-card-lift {
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .portal-card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 6px 20px color-mix(in srgb, var(--color-navy) 10%, transparent),
+      0 2px 6px color-mix(in srgb, var(--color-navy) 6%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-section-enter,
+  .portal-card-lift,
+  .portal-brand-root .btn-primary,
+  .portal-brand-root .btn-secondary {
+    animation: none;
+    transform: none;
+    transition: none;
+  }
 }

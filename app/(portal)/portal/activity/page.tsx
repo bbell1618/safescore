@@ -5,6 +5,12 @@ import {
   FileCheck2,
   LockKeyhole,
 } from "lucide-react";
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
 import { BurdenHistoryChart } from "@/components/portal/burden-history-chart";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
@@ -132,7 +138,7 @@ function SectionFallback({
   return (
     <section
       aria-label={`Loading ${label}`}
-      className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
+      className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
       role="status"
     >
       <div className="h-6 w-44 rounded-md bg-sand" />
@@ -156,7 +162,7 @@ async function TrendSection({
   const latest = snapshots[snapshots.length - 1] ?? null;
 
   return (
-    <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
+    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mono-label text-amber">Complete history</p>
@@ -195,7 +201,7 @@ async function AlertsSection({
 }) {
   const alerts = await promise;
   return (
-    <section className="overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
+    <section className="portal-card-lift overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
       <header className="flex items-center gap-2 border-b border-sand px-5 py-4 sm:px-6">
         <Bell className="h-4 w-4 text-amber-dark" aria-hidden="true" />
         <h2 className="font-heading text-xl font-semibold text-warm-dark">
@@ -287,7 +293,7 @@ async function CasesSection({
   return (
     <section
       id="cases"
-      className="scroll-mt-28 overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
+      className="portal-card-lift scroll-mt-28 overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
     >
       <header className="border-b border-sand px-5 py-4 sm:px-6">
         <div className="flex items-center gap-2">
@@ -384,7 +390,7 @@ async function CasesSection({
 function CasesUpgradeNote() {
   const minimumTier = minimumTierForFeature("case_visibility");
   return (
-    <section className="rounded-xl border border-sand bg-warm-white p-6 text-center shadow-sm">
+    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-6 text-center shadow-sm">
       <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-subtle text-amber-dark">
         <LockKeyhole className="h-4 w-4" aria-hidden="true" />
       </div>
@@ -403,11 +409,36 @@ export default async function PortalActivityPage() {
   const access = await getPortalPageAccess("trend_history");
   if (!access.allowed) {
     return (
-      <TierUpgradeNote
-        currentTier={access.tier}
-        feature="trend_history"
-        title="Activity history is not included in your plan"
-      />
+      <div className="overflow-hidden">
+        <PortalHeroBand
+          eyebrow="Monitoring record"
+          title="Activity"
+          description="See how your weighted burden has moved, what changed, and where each filing stands."
+        />
+        <PortalSectionDivider transition="navy-to-warm" />
+        <PortalPageBody>
+          <TierUpgradeNote
+            currentTier={access.tier}
+            feature="trend_history"
+            headingLevel="h2"
+            title="Activity history is not included in your plan"
+          />
+        </PortalPageBody>
+        <PortalSectionDivider transition="warm-to-navy" />
+        <PortalFooterBand>
+          <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+            {access.clientName}
+          </p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+            <span>USDOT {access.dotNumber}</span>
+            <span>
+              {access.mcNumber
+                ? `MC ${access.mcNumber.replace(/^MC-?/i, "")}`
+                : "MC not recorded"}
+            </span>
+          </div>
+        </PortalFooterBand>
+      </div>
     );
   }
 
@@ -419,35 +450,52 @@ export default async function PortalActivityPage() {
     : null;
 
   return (
-    <div className="space-y-12 pb-8">
-      <header>
-        <p className="mono-label text-amber">Monitoring record</p>
-        <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight text-warm-dark sm:text-5xl">
-          Activity
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-warm-mid">
-          See how your weighted burden has moved, what changed, and where each
-          filing stands.
-        </p>
-      </header>
+    <div className="overflow-hidden">
+      <PortalHeroBand
+        eyebrow="Monitoring record"
+        title="Activity"
+        description="See how your weighted burden has moved, what changed, and where each filing stands."
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
 
-      <Suspense fallback={<SectionFallback label="burden trend" rows={4} />}>
-        <TrendSection promise={snapshotsPromise} />
-      </Suspense>
+      <PortalPageBody contentClassName="portal-section-enter space-y-12 py-12 sm:py-16 lg:py-16">
+        <Suspense fallback={<SectionFallback label="burden trend" rows={4} />}>
+          <TrendSection promise={snapshotsPromise} />
+        </Suspense>
 
-      <div className="space-y-12">
         <Suspense fallback={<SectionFallback label="alerts" />}>
           <AlertsSection promise={alertsPromise} />
         </Suspense>
 
         {casesPromise ? (
-          <Suspense fallback={<SectionFallback label="case activity" rows={4} />}>
+          <Suspense
+            fallback={<SectionFallback label="case activity" rows={4} />}
+          >
             <CasesSection promise={casesPromise} />
           </Suspense>
         ) : (
           <CasesUpgradeNote />
         )}
-      </div>
+      </PortalPageBody>
+
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+              {access.clientName}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+            <span>USDOT {access.dotNumber}</span>
+            <span>
+              {access.mcNumber
+                ? `MC ${access.mcNumber.replace(/^MC-?/i, "")}`
+                : "MC not recorded"}
+            </span>
+          </div>
+        </div>
+      </PortalFooterBand>
     </div>
   );
 }

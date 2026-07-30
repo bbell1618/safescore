@@ -6,6 +6,12 @@ import {
   Gauge,
   Sparkles,
 } from "lucide-react";
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { getPortalPageAccess } from "@/lib/portal/access";
 import {
@@ -37,7 +43,7 @@ function rateLabel(value: number): string {
 
 function EmptyPlaybook() {
   return (
-    <section className="rounded-xl border border-sand bg-warm-white px-6 py-14 text-center shadow-sm">
+    <section className="portal-card-lift rounded-xl border border-sand bg-warm-white px-6 py-14 text-center shadow-sm">
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-subtle text-amber-dark">
         <Sparkles className="h-5 w-5" aria-hidden="true" />
       </div>
@@ -59,7 +65,7 @@ function PlaybookBodyFallback() {
       className="space-y-8 motion-safe:animate-pulse"
       role="status"
     >
-      <section className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
+      <section className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
         <div className="h-5 w-48 rounded-md bg-sand" />
         <div className="h-4 w-full max-w-3xl rounded-md bg-sand" />
         <div className="h-4 w-4/5 max-w-2xl rounded-md bg-sand" />
@@ -67,7 +73,7 @@ function PlaybookBodyFallback() {
       <div className="grid gap-6 lg:grid-cols-2">
         {Array.from({ length: 4 }, (_, index) => (
           <section
-            className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
+            className="portal-card-lift space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm"
             key={index}
           >
             <div className="h-6 w-44 rounded-md bg-sand" />
@@ -94,7 +100,7 @@ function FamilyProgramCard({
   index: number;
 }) {
   return (
-    <li className="overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
+    <li className="portal-card-lift overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm">
       <article>
         <header className="border-b border-sand bg-cream p-5 sm:p-6">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -243,7 +249,7 @@ function InstallmentCalendar({
       <ol className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {playbook.installment_calendar.map((installment) => (
           <li
-            className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm"
+            className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm"
             key={installment.month}
           >
             <div className="flex items-start gap-3">
@@ -299,7 +305,7 @@ function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {playbook.owner_curriculum.map((module) => (
           <article
-            className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+            className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
             key={module.key}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -349,7 +355,7 @@ async function PlaybookContent({
 
   return (
     <>
-      <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
+      <section className="portal-card-lift rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-amber-dark">
@@ -408,7 +414,7 @@ async function PlaybookContent({
             ))}
           </ol>
         ) : (
-          <div className="mt-6 rounded-xl border border-sand bg-warm-white p-8 text-center shadow-sm">
+          <div className="portal-card-lift mt-6 rounded-xl border border-sand bg-warm-white p-8 text-center shadow-sm">
             <p className="font-heading text-lg font-semibold text-warm-dark">
               No recurring coaching program is needed right now
             </p>
@@ -430,32 +436,76 @@ export default async function PortalPlaybookPage() {
   const access = await getPortalPageAccess("playbook_coach");
   if (!access.allowed) {
     return (
-      <TierUpgradeNote
-        currentTier={access.tier}
-        feature="playbook_coach"
-        title="The coaching playbook is not included in your plan"
-      />
+      <div className="overflow-hidden">
+        <PortalHeroBand
+          eyebrow="Coaching system"
+          title="Your safety playbook"
+          description="Bite-size operating changes, built from your current safety record and arranged in the order that matters most."
+        />
+        <PortalSectionDivider transition="navy-to-warm" />
+        <PortalPageBody>
+          <TierUpgradeNote
+            currentTier={access.tier}
+            feature="playbook_coach"
+            headingLevel="h2"
+            title="The coaching playbook is not included in your plan"
+          />
+        </PortalPageBody>
+        <PortalSectionDivider transition="warm-to-navy" />
+        <PortalFooterBand>
+          <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+            {access.clientName}
+          </p>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+            <span>USDOT {access.dotNumber}</span>
+            <span>
+              {access.mcNumber
+                ? `MC ${access.mcNumber.replace(/^MC-?/i, "")}`
+                : "MC not recorded"}
+            </span>
+          </div>
+        </PortalFooterBand>
+      </div>
     );
   }
 
   const playbookPromise = loadLatestPortalPlaybook(access.clientId);
 
   return (
-    <div className="space-y-12 pb-8">
-      <header>
-        <p className="mono-label text-amber">Coaching system</p>
-        <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight text-warm-dark sm:text-5xl">
-          Your safety playbook
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-warm-mid">
-          Bite-size operating changes, built from your current safety record
-          and arranged in the order that matters most.
-        </p>
-      </header>
+    <div className="overflow-hidden">
+      <PortalHeroBand
+        eyebrow="Coaching system"
+        title="Your safety playbook"
+        description="Bite-size operating changes, built from your current safety record and arranged in the order that matters most."
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
 
-      <Suspense fallback={<PlaybookBodyFallback />}>
-        <PlaybookContent promise={playbookPromise} />
-      </Suspense>
+      <PortalPageBody contentClassName="portal-section-enter py-12 sm:py-16 lg:py-16">
+        <Suspense fallback={<PlaybookBodyFallback />}>
+          <div className="space-y-12">
+            <PlaybookContent promise={playbookPromise} />
+          </div>
+        </Suspense>
+      </PortalPageBody>
+
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+              {access.clientName}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+            <span>USDOT {access.dotNumber}</span>
+            <span>
+              {access.mcNumber
+                ? `MC ${access.mcNumber.replace(/^MC-?/i, "")}`
+                : "MC not recorded"}
+            </span>
+          </div>
+        </div>
+      </PortalFooterBand>
     </div>
   );
 }

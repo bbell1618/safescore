@@ -2,11 +2,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 import {
   CalendarClock,
-  Download,
   FileCheck2,
   FolderOpen,
   LockKeyhole,
 } from "lucide-react";
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
 import { RequestUpload } from "@/components/portal/request-upload";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
@@ -163,7 +168,7 @@ function ZoneFrame({
   return (
     <section
       id={id}
-      className="scroll-mt-28 rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
+      className="portal-section-enter scroll-mt-28 rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-6"
     >
       <div className="mb-5">
         <h2 className="font-heading text-xl font-semibold text-warm-dark">
@@ -435,9 +440,8 @@ async function FromGeiaSection({
               </div>
               <Link
                 href={`/portal/documents/reports/${report.id}/print`}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-navy px-3 py-2 text-xs font-semibold text-navy transition-colors duration-150 hover:bg-navy hover:text-warm-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
+                className="btn-secondary shrink-0"
               >
-                <Download className="h-4 w-4" aria-hidden="true" />
                 Open print view
               </Link>
             </article>
@@ -469,29 +473,42 @@ export default async function PortalDocumentsPage() {
     : null;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-amber-dark">
-          Your shared workspace
-        </p>
-        <h1 className="mt-1 font-heading text-3xl font-bold text-warm-dark">
-          Documents
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-warm-mid">
-          Send what GEIA needs, keep your records organized, and open reports
-          we have sent to your company.
-        </p>
-      </header>
+    <div className="overflow-hidden">
+      <PortalHeroBand
+        eyebrow="Your shared workspace"
+        title="Documents"
+        description="Send what GEIA needs, keep your records organized, and open reports we have sent to your company."
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
 
-      <Suspense fallback={<ZoneSkeleton rows={2} />}>
-        <NeededFromYouSection requestPromise={requestPromise} />
-      </Suspense>
-      <Suspense fallback={<ZoneSkeleton rows={3} />}>
-        <VaultSection documentPromise={documentPromise} />
-      </Suspense>
-      <Suspense fallback={<ZoneSkeleton rows={2} />}>
-        <FromGeiaSection reportPromise={reportPromise} />
-      </Suspense>
+      <PortalPageBody contentClassName="space-y-12">
+        <Suspense fallback={<ZoneSkeleton rows={2} />}>
+          <NeededFromYouSection requestPromise={requestPromise} />
+        </Suspense>
+        <Suspense fallback={<ZoneSkeleton rows={3} />}>
+          <VaultSection documentPromise={documentPromise} />
+        </Suspense>
+        <Suspense fallback={<ZoneSkeleton rows={2} />}>
+          <FromGeiaSection reportPromise={reportPromise} />
+        </Suspense>
+      </PortalPageBody>
+
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
+        <div>
+          <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+            {context.clientName}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+          <span>USDOT {context.dotNumber}</span>
+          <span>
+            {context.mcNumber
+              ? `MC ${context.mcNumber.replace(/^MC-?/i, "")}`
+              : "MC not recorded"}
+          </span>
+        </div>
+      </PortalFooterBand>
     </div>
   );
 }

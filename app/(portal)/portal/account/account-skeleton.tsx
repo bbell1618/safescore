@@ -1,3 +1,10 @@
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
+
 function Bone({ className }: { className: string }) {
   return <div aria-hidden="true" className={`rounded-md bg-sand ${className}`} />;
 }
@@ -48,15 +55,51 @@ export function PortalAccountSkeleton() {
   return (
     <div
       aria-label="Loading account"
-      className="mx-auto max-w-5xl space-y-8 motion-safe:animate-pulse"
+      className="overflow-hidden motion-safe:animate-pulse"
       role="status"
     >
-      <header className="space-y-2">
-        <Bone className="h-3 w-24" />
-        <Bone className="h-10 w-full max-w-md" />
-        <Bone className="h-4 w-full max-w-2xl" />
-      </header>
-      <AccountCardsSkeleton />
+      <PortalHeroBand
+        eyebrow={
+          <span
+            aria-hidden="true"
+            className="block h-3 w-24 rounded bg-gold/30"
+          />
+        }
+        title={
+          <span
+            aria-hidden="true"
+            className="block h-12 w-full max-w-lg rounded bg-warm-white/15"
+          />
+        }
+        description={
+          <span
+            aria-hidden="true"
+            className="block h-4 w-full max-w-2xl rounded bg-warm-white/10"
+          />
+        }
+        contentClassName="max-w-5xl"
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
+      <PortalPageBody contentClassName="max-w-5xl">
+        <AccountCardsSkeleton />
+      </PortalPageBody>
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand contentClassName="max-w-5xl">
+        <div className="space-y-2">
+          <span
+            aria-hidden="true"
+            className="block h-5 w-48 rounded bg-warm-white/15"
+          />
+          <span
+            aria-hidden="true"
+            className="block h-3 w-56 rounded bg-warm-white/10"
+          />
+        </div>
+        <span
+          aria-hidden="true"
+          className="block h-4 w-52 rounded bg-warm-white/10"
+        />
+      </PortalFooterBand>
       <span className="sr-only">Loading account…</span>
     </div>
   );

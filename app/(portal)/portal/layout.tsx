@@ -26,7 +26,7 @@ export default async function PortalLayout({
     : false;
 
   return (
-    <div className="min-h-screen bg-cream text-warm-dark">
+    <div className="portal-brand-root portal-warm-texture min-h-screen text-warm-dark">
       <PortalNav
         userEmail={context.userEmail}
         companyName={isLinked ? context.clientName : undefined}
@@ -39,7 +39,7 @@ export default async function PortalLayout({
             <span>Contact your GEIA representative to complete access.</span>
           ) : (
             <Link
-              className="font-semibold text-amber-dark underline decoration-amber/40 underline-offset-2 transition-colors duration-150 hover:text-amber-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className="btn-secondary ml-2 inline-flex align-middle"
               href="/onboarding"
             >
               Complete FMCSA access
@@ -47,9 +47,7 @@ export default async function PortalLayout({
           )}
         </div>
       )}
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
-        {children}
-      </main>
+      <main className="w-full">{children}</main>
     </div>
   );
 }

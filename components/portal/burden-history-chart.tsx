@@ -134,6 +134,10 @@ export function BurdenHistoryChart({
   const polyline = points
     .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
     .join(" ");
+  const chartBottom = CHART_HEIGHT - BOTTOM;
+  const areaPoints = `${LEFT},${chartBottom} ${polyline} ${
+    width - RIGHT
+  },${chartBottom}`;
   const gridValues = Array.from({ length: 5 }, (_, index) =>
     Math.round(upper - ((upper - lower) * index) / 4)
   );
@@ -150,6 +154,26 @@ export function BurdenHistoryChart({
           style={{ width: `${width}px`, minWidth: "100%" }}
           viewBox={`0 0 ${width} ${CHART_HEIGHT}`}
         >
+          <defs>
+            <linearGradient
+              id="portal-activity-burden-fill"
+              x1="0"
+              x2="0"
+              y1="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor="var(--color-amber)"
+                stopOpacity="0.24"
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--color-amber)"
+                stopOpacity="0.02"
+              />
+            </linearGradient>
+          </defs>
           {gridValues.map((value, index) => {
             const y =
               TOP +
@@ -158,7 +182,8 @@ export function BurdenHistoryChart({
             return (
               <g key={`${value}-${index}`}>
                 <line
-                  stroke="var(--color-sand)"
+                  opacity="0.28"
+                  stroke="var(--color-gold)"
                   strokeDasharray={index === gridValues.length - 1 ? "0" : "4 6"}
                   x1={LEFT}
                   x2={width - RIGHT}
@@ -181,14 +206,20 @@ export function BurdenHistoryChart({
           })}
 
           {points.length > 1 ? (
-            <polyline
-              fill="none"
-              points={polyline}
-              stroke="var(--color-amber)"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="3"
-            />
+            <>
+              <polygon
+                fill="url(#portal-activity-burden-fill)"
+                points={areaPoints}
+              />
+              <polyline
+                fill="none"
+                points={polyline}
+                stroke="var(--color-amber)"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="3"
+              />
+            </>
           ) : null}
 
           {points.map((point) => (

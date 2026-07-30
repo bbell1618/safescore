@@ -13,6 +13,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { BurdenSparkline } from "@/components/portal/burden-sparkline";
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
 import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import {
   buildChangeNarrative,
@@ -99,18 +105,30 @@ function deltaClasses(
 
 function UnlinkedPortalHome() {
   return (
-    <section className="mx-auto flex min-h-96 max-w-xl flex-col items-center justify-center text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-subtle text-amber">
-        <ShieldCheck className="h-6 w-6" />
-      </div>
-      <h1 className="mt-5 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
-        Your account is being set up
-      </h1>
-      <p className="mt-2 text-sm leading-6 text-warm-mid">
-        Your GEIA account manager is linking your company profile. Your Home
-        page will appear here as soon as that connection is complete.
-      </p>
-    </section>
+    <div>
+      <PortalHeroBand
+        eyebrow="Golden Era SafeScore"
+        title="Your account is being set up"
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
+      <PortalPageBody>
+        <section className="portal-section-enter mx-auto flex min-h-72 max-w-xl flex-col items-center justify-center text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-subtle text-amber">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+          <p className="mt-5 text-sm leading-6 text-warm-mid">
+            Your GEIA account manager is linking your company profile. Your Home
+            page will appear here as soon as that connection is complete.
+          </p>
+        </section>
+      </PortalPageBody>
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
+        <p className="font-heading font-semibold text-warm-white">
+          Golden Era SafeScore
+        </p>
+      </PortalFooterBand>
+    </div>
   );
 }
 
@@ -118,7 +136,7 @@ function SectionFallback({ label }: { label: string }) {
   return (
     <section
       aria-label={`Loading ${label}`}
-      className="space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
+      className="portal-section-enter space-y-4 rounded-xl border border-sand bg-warm-white p-6 shadow-sm motion-safe:animate-pulse"
       role="status"
     >
       <div className="h-6 w-52 rounded-md bg-sand" />
@@ -126,6 +144,25 @@ function SectionFallback({ label }: { label: string }) {
       <div className="h-16 rounded-lg bg-cream" />
       <span className="sr-only">Loading {label}…</span>
     </section>
+  );
+}
+
+function CarrierFooterFallback() {
+  return (
+    <>
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
+        <div
+          aria-label="Loading carrier identity"
+          className="flex w-full flex-wrap items-center justify-between gap-4 motion-safe:animate-pulse"
+          role="status"
+        >
+          <div className="h-5 w-56 rounded bg-warm-white/15" />
+          <div className="h-7 w-40 rounded-full bg-warm-white/10" />
+          <span className="sr-only">Loading carrier identity…</span>
+        </div>
+      </PortalFooterBand>
+    </>
   );
 }
 
@@ -161,7 +198,7 @@ async function HandlingSection({
 }) {
   const handling = await promise;
   return (
-    <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
+    <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="mono-label text-amber">Active service</p>
@@ -171,7 +208,7 @@ async function HandlingSection({
         </div>
         {canSeeCases && handling.cases.length > 0 ? (
           <Link
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-amber-dark transition-colors hover:bg-amber-subtle hover:text-amber-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            className="btn-secondary inline-flex items-center gap-2"
             href="/portal/activity#cases"
           >
             View case activity
@@ -272,7 +309,7 @@ async function RequestsSection({
   const requests = await promise;
   if (requests.length === 0) return null;
   return (
-    <section className="rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm">
+    <section className="portal-section-enter rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warm-white text-amber-dark">
           <ClipboardList className="h-5 w-5" />
@@ -304,7 +341,7 @@ async function RequestsSection({
                   ) : null}
                 </div>
                 <Link
-                  className="inline-flex items-center gap-2 rounded-lg bg-amber px-4 py-2 text-sm font-semibold text-warm-white transition-colors hover:bg-amber-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2"
+                  className="btn-primary inline-flex items-center gap-2"
                   href="/portal/documents#needed-from-you"
                 >
                   Review request
@@ -332,11 +369,17 @@ async function CarrierIdentityFooter({
 }) {
   const authority = await promise;
   return (
-    <footer className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-sand bg-warm-white px-5 py-4 shadow-sm">
+    <>
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <p className="font-heading font-semibold text-warm-dark">{clientName}</p>
-        <p className="font-mono text-xs text-warm-mid">USDOT {dotNumber}</p>
-        <p className="font-mono text-xs text-warm-mid">
+        <p className="font-heading font-semibold text-warm-white">
+          {clientName}
+        </p>
+        <p className="font-mono text-xs text-warm-white/75">
+          USDOT {dotNumber}
+        </p>
+        <p className="font-mono text-xs text-warm-white/75">
           {mcNumber ? `MC ${mcNumber.replace(/^MC-?/i, "")}` : "MC not recorded"}
         </p>
       </div>
@@ -352,12 +395,13 @@ async function CarrierIdentityFooter({
           {authority?.label ?? "Authority status unavailable"}
         </span>
         {authority ? (
-          <span className="text-xs text-warm-gray">
+          <span className="text-xs text-warm-white/65">
             {authority.sourceLabel} · checked {formatDate(authority.fetchedAt)}
           </span>
         ) : null}
       </div>
-    </footer>
+      </PortalFooterBand>
+    </>
   );
 }
 
@@ -404,16 +448,17 @@ export default async function PortalHomePage() {
   const canSeeCases = tierHasFeature(context.tier, "case_visibility");
 
   return (
-    <div className="space-y-12 pb-8">
-      <section className="grid overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm lg:grid-cols-[1.05fr_0.95fr]">
+    <div>
+      <section className="portal-navy-texture overflow-hidden border-y border-warm-white/10 text-warm-white shadow-[var(--shadow-md)]">
+        <div className="mx-auto grid w-full max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
         <div className="p-6 sm:p-8 lg:p-10">
-          <p className="mono-label text-amber">Where you stand</p>
+          <p className="mono-label text-gold-light">Where you stand</p>
           <div className="mt-4 flex flex-wrap items-end gap-4">
-            <h1 className="font-heading text-7xl font-semibold tracking-tight text-warm-dark sm:text-8xl">
+            <h1 className="font-heading text-7xl font-semibold tracking-tight text-amber-light sm:text-8xl">
               <span className="sr-only">Current weighted burden: </span>
               {latest?.total_points.toLocaleString("en-US") ?? "—"}
             </h1>
-            <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-gray">
+            <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
               weighted points
             </p>
           </div>
@@ -437,27 +482,27 @@ export default async function PortalHomePage() {
                 Current diagnostic
               </span>
             )}
-            <span className="inline-flex items-center gap-2 text-xs text-warm-gray">
+            <span className="inline-flex items-center gap-2 text-xs text-warm-white/70">
               <CalendarClock className="h-3.5 w-3.5" />
               {latest
                 ? `As of ${formatDate(latest.snapshot_date)}`
                 : "As-of date pending"}
             </span>
           </div>
-          <p className="mt-6 max-w-2xl text-sm leading-6 text-warm-mid">
+          <p className="mt-6 max-w-2xl text-sm leading-6 text-warm-white/80">
             FMCSA publishes no percentiles for low-volume carriers; this is the
             weighted burden driving the BASIC measures.
           </p>
         </div>
 
-        <div className="flex flex-col justify-center border-t border-sand bg-cream p-6 sm:p-8 lg:border-l lg:border-t-0">
+        <div className="flex flex-col justify-center border-t border-warm-white/10 bg-navy-light/35 p-6 sm:p-8 lg:border-l lg:border-t-0">
           {canSeeTrend ? (
             <>
               <div className="flex items-center justify-between gap-4">
-                <p className="font-heading font-semibold text-warm-dark">
+                <p className="font-heading font-semibold text-warm-white">
                   Burden trend
                 </p>
-                <p className="font-mono text-[11px] text-warm-gray">
+                <p className="font-mono text-[11px] text-warm-white/60">
                   {plural(snapshots.length, "snapshot")}
                 </p>
               </div>
@@ -471,7 +516,7 @@ export default async function PortalHomePage() {
                 />
               </div>
               {snapshots.length > 1 ? (
-                <div className="mt-2 flex justify-between font-mono text-[10px] text-warm-gray">
+                <div className="mt-2 flex justify-between font-mono text-[10px] text-warm-white/60">
                   <span>
                     {formatDate(
                       snapshots[snapshots.length - 1]!.snapshot_date
@@ -483,20 +528,23 @@ export default async function PortalHomePage() {
             </>
           ) : (
             <div>
-              <p className="mono-label text-info">Assessment view</p>
-              <h2 className="mt-2 font-heading text-xl font-semibold text-warm-dark">
+              <p className="mono-label text-gold-light">Assessment view</p>
+              <h2 className="mt-2 font-heading text-xl font-semibold text-warm-white">
                 Current diagnostic snapshot
               </h2>
-              <p className="mt-3 text-sm leading-6 text-warm-mid">
+              <p className="mt-3 text-sm leading-6 text-warm-white/75">
                 This one-time assessment shows the current 24-month record.
                 Ongoing change history begins with Monitor.
               </p>
             </div>
           )}
         </div>
+        </div>
       </section>
+      <PortalSectionDivider transition="navy-to-warm" />
+      <PortalPageBody contentClassName="space-y-12 pt-8 sm:pt-10">
 
-      <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+      <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mono-label text-amber">24-month scoring window</p>
@@ -588,7 +636,7 @@ export default async function PortalHomePage() {
       </Suspense>
 
       {canSeeTrend ? (
-        <section className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+        <section className="portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-light text-success">
               <CheckCircle2 className="h-5 w-5" />
@@ -607,8 +655,9 @@ export default async function PortalHomePage() {
           </div>
         </section>
       ) : null}
+      </PortalPageBody>
 
-      <Suspense fallback={<SectionFallback label="carrier identity" />}>
+      <Suspense fallback={<CarrierFooterFallback />}>
         <CarrierIdentityFooter
           clientName={context.clientName}
           dotNumber={context.dotNumber}

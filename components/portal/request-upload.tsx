@@ -29,7 +29,7 @@ export function RequestUpload({ requestId, evidenceId }: { requestId: string; ev
 
   return (
     <div className="mt-2">
-      <label className="inline-flex cursor-pointer items-center rounded-lg bg-amber px-3 py-2 text-xs font-semibold text-warm-white transition-colors duration-150 hover:bg-amber-dark focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+      <label className="btn-primary inline-flex cursor-pointer text-xs focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
         {busy ? "Uploading\u2026" : "Upload file"}
         <input className="sr-only" type="file" disabled={busy} accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void submit(file); }} />
       </label>

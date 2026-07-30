@@ -132,7 +132,7 @@ export default function DocumentVault({
     event.target.value = "";
   }
 
-  function handleDrop(event: React.DragEvent<HTMLButtonElement>) {
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragOver(false);
     const file = event.dataTransfer.files?.[0];
@@ -181,10 +181,8 @@ export default function DocumentVault({
           ))}
         </select>
 
-        <button
-          type="button"
-          disabled={uploading}
-          className={`mt-4 w-full cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
+        <div
+          className={`portal-card-lift mt-4 w-full rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-150 ${
             dragOver
               ? "border-amber bg-amber-subtle"
               : "border-sand bg-warm-white hover:border-gold hover:bg-amber-subtle"
@@ -196,21 +194,27 @@ export default function DocumentVault({
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (!uploading) fileInputRef.current?.click();
+          }}
         >
           <Upload
             className="mx-auto h-8 w-8 text-amber"
             aria-hidden="true"
           />
-          <span className="mt-3 block text-sm font-semibold text-warm-dark">
+          <button
+            type="button"
+            className="btn-primary mt-3 disabled:pointer-events-none disabled:opacity-60"
+            disabled={uploading}
+          >
             {uploading
               ? "Uploading your document…"
               : "Drop a file here or choose a file"}
-          </span>
+          </button>
           <span className="mt-1 block text-xs text-warm-mid">
             PDF, Word, Excel, CSV, PNG, or JPG — up to 25 MB
           </span>
-        </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"

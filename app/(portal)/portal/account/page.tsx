@@ -9,6 +9,12 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Suspense } from "react";
+import {
+  PortalFooterBand,
+  PortalHeroBand,
+  PortalPageBody,
+  PortalSectionDivider,
+} from "@/components/portal/brand";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
   fleetSourceLines,
@@ -63,7 +69,7 @@ function Surface({
     <section
       aria-labelledby={labelledBy}
       className={cn(
-        "rounded-xl border border-sand bg-warm-white p-6 shadow-sm",
+        "portal-section-enter rounded-xl border border-sand bg-warm-white p-6 shadow-sm",
         className
       )}
     >
@@ -410,30 +416,46 @@ export default async function PortalAccountPage() {
   const accountPromise = loadPortalAccountData({ clientId: context.clientId });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <header>
-        <p className="mono-label text-amber">Your account</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-warm-dark sm:text-4xl">
-          Company and service details
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-warm-mid">
-          See the company facts, FMCSA fleet record, service plan, and people
-          who can access your SafeScore portal.
-        </p>
-      </header>
+    <div className="overflow-hidden">
+      <PortalHeroBand
+        eyebrow="Your account"
+        title="Company and service details"
+        description="See the company facts, FMCSA fleet record, service plan, and people who can access your SafeScore portal."
+        contentClassName="max-w-5xl"
+      />
+      <PortalSectionDivider transition="navy-to-warm" />
 
-      <Suspense fallback={<AccountCardsSkeleton />}>
-        <AccountCards
-          accountPromise={accountPromise}
-          context={{
-            clientName: context.clientName,
-            dotNumber: context.dotNumber,
-            mcNumber: context.mcNumber,
-            tier: context.tier,
-            userId: context.userId,
-          }}
-        />
-      </Suspense>
+      <PortalPageBody contentClassName="max-w-5xl">
+        <Suspense fallback={<AccountCardsSkeleton />}>
+          <AccountCards
+            accountPromise={accountPromise}
+            context={{
+              clientName: context.clientName,
+              dotNumber: context.dotNumber,
+              mcNumber: context.mcNumber,
+              tier: context.tier,
+              userId: context.userId,
+            }}
+          />
+        </Suspense>
+      </PortalPageBody>
+
+      <PortalSectionDivider transition="warm-to-navy" />
+      <PortalFooterBand contentClassName="max-w-5xl">
+        <div>
+          <p className="font-heading text-xl font-semibold tracking-tight text-warm-white">
+            {context.clientName}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+          <span>USDOT {context.dotNumber}</span>
+          <span>
+            {context.mcNumber
+              ? `MC ${context.mcNumber.replace(/^MC-?/i, "")}`
+              : "MC not recorded"}
+          </span>
+        </div>
+      </PortalFooterBand>
     </div>
   );
 }
