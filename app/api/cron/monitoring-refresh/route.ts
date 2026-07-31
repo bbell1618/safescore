@@ -18,6 +18,8 @@ import {
 import { createServiceClient } from "@/lib/supabase/server";
 import type { ClientTier } from "@/lib/supabase/types";
 import { SUBSCRIPTION_TIERS, tierHasFeature } from "@/lib/tiers";
+import { reconcileLaneBEvidenceLoopForClient } from "@/lib/evidence-loop/server";
+import { retrySubmittedLaneBEvidenceRequests } from "@/lib/challengeability/reassess-on-change";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -43,6 +45,10 @@ type CronSummary = {
   carrier_enrichment_sources_attempted: number;
   carrier_enrichment_sources_succeeded: number;
   carrier_enrichment_sources_failed: number;
+  lane_b_requests_created: number;
+  lane_b_intake_questions_created: number;
+  lane_b_evidence_retries_attempted: number;
+  lane_b_evidence_retries_completed: number;
 };
 
 type Mcs150CronResult = {
@@ -107,6 +113,10 @@ export async function GET(request: Request) {
     carrier_enrichment_sources_attempted: 0,
     carrier_enrichment_sources_succeeded: 0,
     carrier_enrichment_sources_failed: 0,
+    lane_b_requests_created: 0,
+    lane_b_intake_questions_created: 0,
+    lane_b_evidence_retries_attempted: 0,
+    lane_b_evidence_retries_completed: 0,
   };
   const errors: Array<{ client_id: string; error: string }> = [];
   const mcs150Results: Mcs150CronResult[] = [];
@@ -121,6 +131,10 @@ export async function GET(request: Request) {
       const hasComplianceLayer = tierHasFeature(
         client.tier,
         "compliance_layer"
+      );
+      const hasEvidenceRequests = tierHasFeature(
+        client.tier,
+        "evidence_requests"
       );
       let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
       let mcs150TruthUpError: string | null = null;
@@ -251,6 +265,48 @@ export async function GET(request: Request) {
         }
       }
 
+      let laneBEvidenceLoop: Awaited<
+        ReturnType<typeof reconcileLaneBEvidenceLoopForClient>
+      > | null = null;
+      let laneBEvidenceRetry: Awaited<
+        ReturnType<typeof retrySubmittedLaneBEvidenceRequests>
+      > | null = null;
+      if (hasEvidenceRequests) {
+        try {
+          laneBEvidenceLoop = await reconcileLaneBEvidenceLoopForClient(
+            supabase,
+            { clientId: client.id, trigger: "monitoring_cron" }
+          );
+          summary.lane_b_requests_created +=
+            laneBEvidenceLoop.createdRequestIds.length;
+          summary.lane_b_intake_questions_created +=
+            laneBEvidenceLoop.intakeQuestionCreated ? 1 : 0;
+          if (laneBEvidenceLoop.errors.length > 0) {
+            assessmentErrors.push(
+              `evidence requests: ${laneBEvidenceLoop.errors.join(" | ")}`
+            );
+          }
+          laneBEvidenceRetry = await retrySubmittedLaneBEvidenceRequests(
+            supabase,
+            client.id,
+            5
+          );
+          summary.lane_b_evidence_retries_attempted +=
+            laneBEvidenceRetry.attempted;
+          summary.lane_b_evidence_retries_completed +=
+            laneBEvidenceRetry.completedRequestIds.length;
+          if (laneBEvidenceRetry.errors.length > 0) {
+            assessmentErrors.push(
+              `evidence retries: ${laneBEvidenceRetry.errors.join(" | ")}`
+            );
+          }
+        } catch (laneBError) {
+          assessmentErrors.push(
+            `evidence loop: ${errorMessage(laneBError)}`
+          );
+        }
+      }
+
       await sendRefreshViolationEmails(supabase, {
         ...emittedAlerts,
         companyName: client.name,
@@ -278,6 +334,20 @@ export async function GET(request: Request) {
             ? "run"
             : "not_included",
           assessment_errors: assessmentErrors,
+          lane_b_evidence_loop: hasEvidenceRequests
+            ? {
+                requests_created:
+                  laneBEvidenceLoop?.createdRequestIds.length ?? 0,
+                requests_existing:
+                  laneBEvidenceLoop?.existingRequestIds.length ?? 0,
+                intake_question_created:
+                  laneBEvidenceLoop?.intakeQuestionCreated ?? false,
+                evidence_retries_attempted:
+                  laneBEvidenceRetry?.attempted ?? 0,
+                evidence_retries_completed:
+                  laneBEvidenceRetry?.completedRequestIds.length ?? 0,
+              }
+            : "not_included",
           carrier_profile_enrichment:
             carrierEnrichment?.sources.map((source) => ({
               source: source.source,

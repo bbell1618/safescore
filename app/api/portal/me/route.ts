@@ -17,7 +17,7 @@ export async function GET() {
     .from("users")
     .select("client_id")
     .eq("id", user.id)
-    .single() as any;
+    .single();
 
   if (!userRecord?.client_id) {
     return NextResponse.json({ client: null });
@@ -26,9 +26,9 @@ export async function GET() {
   // Look up client details
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, dot_number, status, tier, email, primary_contact, phone, driver_count, fmcsa_authorized, eld_provider, safety_contact_name, safety_contact_email, standing_authorization, service_agreement_accepted")
+    .select("id, name, dot_number, status, tier, email, primary_contact, phone, driver_count, fmcsa_authorized, eld_provider, safety_contact_name, safety_contact_email, standing_authorization, service_agreement_accepted, citation_dismissed_last_24_months")
     .eq("id", userRecord.client_id)
-    .single() as any;
+    .single();
 
   return NextResponse.json({ client: client ?? null });
 }

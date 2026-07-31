@@ -18,7 +18,7 @@ export async function GET(
   // Fetch evidence row and verify it belongs to this case
   const { data: ev, error: evErr } = await supabase
     .from("dataq_evidence")
-    .select("id, case_id, storage_path, status")
+    .select("id, case_id, storage_path, storage_bucket, status")
     .eq("id", evidId)
     .eq("case_id", id)
     .single();
@@ -37,9 +37,17 @@ export async function GET(
     );
   }
 
+  const storageBucket = ev.storage_bucket ?? "dataq-evidence";
+  if (!new Set(["documents", "dataq-evidence"]).has(storageBucket)) {
+    return NextResponse.json(
+      { error: "Evidence item references an unsupported storage bucket." },
+      { status: 500 }
+    );
+  }
+
   // Generate a signed URL valid for 60 minutes
   const { data: signed, error: signErr } = await supabase.storage
-    .from("dataq-evidence")
+    .from(storageBucket)
     .createSignedUrl(ev.storage_path as string, 3600);
 
   if (signErr || !signed?.signedUrl) {

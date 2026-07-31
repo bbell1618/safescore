@@ -5,6 +5,7 @@ import { evidenceRequirementsForViolation } from "@/lib/analysis/evidence-requir
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { syncClientEvidenceRequest } from "@/lib/request-queue/sync";
+import { reconcileLaneBEvidenceRequests } from "@/lib/evidence-loop/server";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,32 @@ export async function POST(
     if (!evidenceResult.ok) {
       return NextResponse.json({ error: evidenceResult.error }, { status: 500 });
     }
+    const typedRequests = await reconcileLaneBEvidenceRequests(
+      serviceSupabase,
+      {
+        clientId: parsedBody.data.clientId,
+        violationIds: [violationId],
+        trigger: "case_open",
+      }
+    );
+    if (typedRequests.errors.length > 0) {
+      return NextResponse.json(
+        { error: `Case exists, but evidence request sync failed: ${typedRequests.errors.join(" | ")}` },
+        { status: 500 }
+      );
+    }
+    try {
+      await syncClientEvidenceRequest(serviceSupabase, parsedBody.data.clientId);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: `Case exists, but consolidated evidence sync failed: ${
+            error instanceof Error ? error.message : "unknown sync failure"
+          }`,
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({
       caseId: existingCase.id,
       existing: true,
@@ -163,15 +190,51 @@ export async function POST(
     return NextResponse.json({ error: evidenceResult.error }, { status: 500 });
   }
 
-  await syncClientEvidenceRequest(serviceSupabase, parsedBody.data.clientId);
-
-  await serviceSupabase.from("activity_log").insert({
-    client_id: parsedBody.data.clientId,
-    action_type: "case_created",
-    entity_type: "dataq_cases",
-    entity_id: newCaseRow.id,
-    description: `DataQs investigation opened for violation ${violationId}`,
+  const typedRequests = await reconcileLaneBEvidenceRequests(serviceSupabase, {
+    clientId: parsedBody.data.clientId,
+    violationIds: [violationId],
+    trigger: "case_open",
   });
+  if (typedRequests.errors.length > 0) {
+    return NextResponse.json(
+      { error: `Case was created, but evidence request sync failed: ${typedRequests.errors.join(" | ")}` },
+      { status: 500 }
+    );
+  }
+  try {
+    await syncClientEvidenceRequest(serviceSupabase, parsedBody.data.clientId);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: `Case was created, but consolidated evidence sync failed: ${
+          error instanceof Error ? error.message : "unknown sync failure"
+        }`,
+      },
+      { status: 500 }
+    );
+  }
+
+  const { data: activity, error: activityError } = await serviceSupabase
+    .from("activity_log")
+    .insert({
+      client_id: parsedBody.data.clientId,
+      action_type: "case_created",
+      entity_type: "dataq_cases",
+      entity_id: newCaseRow.id,
+      description: `DataQs investigation opened for violation ${violationId}`,
+    })
+    .select("id")
+    .maybeSingle();
+  if (activityError || !activity) {
+    return NextResponse.json(
+      {
+        error: `Case was created, but activity logging failed: ${
+          activityError?.message ?? "row not inserted"
+        }`,
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     caseId: newCaseRow.id,

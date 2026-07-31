@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function RequestUpload({ requestId, evidenceId }: { requestId: string; evidenceId?: string }) {
+export function RequestUpload({
+  requestId,
+  evidenceId,
+  laneBEvidence = false,
+}: {
+  requestId: string;
+  evidenceId?: string;
+  laneBEvidence?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -16,9 +24,21 @@ export function RequestUpload({ requestId, evidenceId }: { requestId: string; ev
     if (evidenceId) form.set("evidenceId", evidenceId);
     try {
       const response = await fetch(`/api/portal/requests/${requestId}/upload`, { method: "POST", body: form });
-      const body = await response.json() as { error?: string };
+      const body = await response.json() as {
+        error?: string;
+        requestStatus?: string;
+        evidenceStatus?: string;
+        statusCopy?: string;
+        status_copy?: string;
+      };
       if (!response.ok) throw new Error(body.error ?? "Upload failed");
-      setMessage("Received. GEIA will review this file.");
+      setMessage(
+        body.statusCopy ??
+          body.status_copy ??
+          ((body.evidenceStatus ?? body.requestStatus) === "applied"
+            ? "Evidence received — this strengthened your challenge."
+            : "Evidence received. SafeScore is reassessing this challenge now.")
+      );
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Upload failed");
@@ -31,7 +51,7 @@ export function RequestUpload({ requestId, evidenceId }: { requestId: string; ev
     <div className="mt-2">
       <label className="btn-primary inline-flex cursor-pointer text-xs focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
         {busy ? "Uploading\u2026" : "Upload file"}
-        <input className="sr-only" type="file" disabled={busy} accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void submit(file); }} />
+        <input className="sr-only" type="file" disabled={busy} accept={laneBEvidence ? ".pdf,.jpg,.jpeg,.png,.webp,.txt" : ".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.xls,.xlsx"} onChange={(event) => { const file = event.target.files?.[0]; if (file) void submit(file); }} />
       </label>
       {message && <p className="mt-1 text-xs text-warm-mid" role="status">{message}</p>}
     </div>

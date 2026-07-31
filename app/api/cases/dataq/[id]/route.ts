@@ -1,5 +1,8 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { draftDataqNarrative } from "@/lib/ai/openrouter";
+import {
+  detectEvidenceMimeType,
+  draftDataqNarrative,
+} from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
@@ -192,7 +195,7 @@ export async function POST(
 
     const { data: evidenceRows } = await supabase
       .from("dataq_evidence")
-      .select("label, fmcsa_category, status, storage_path")
+      .select("label, fmcsa_category, status, storage_path, storage_bucket")
       .eq("case_id", id);
 
     if (!c) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -267,28 +270,48 @@ export async function POST(
     for (const row of receivedRows) {
       const storagePath = (row as Record<string, unknown>).storage_path as string;
       const label = (row as Record<string, unknown>).label as string;
+      const storageBucket =
+        ((row as Record<string, unknown>).storage_bucket as string | null) ??
+        "dataq-evidence";
+      if (!new Set(["documents", "dataq-evidence"]).has(storageBucket)) {
+        return NextResponse.json(
+          { error: `Evidence ${label} references an unsupported storage bucket.` },
+          { status: 500 }
+        );
+      }
       try {
         const { data: fileData, error: dlErr } = await supabase.storage
-          .from('dataq-evidence')
+          .from(storageBucket)
           .download(storagePath);
         if (dlErr || !fileData) {
-          console.warn('[narrative POST] Could not download evidence:', storagePath, dlErr?.message);
-          continue;
+          return NextResponse.json(
+            {
+              error: `Received evidence ${label} could not be downloaded: ${
+                dlErr?.message ?? "empty storage response"
+              }`,
+            },
+            { status: 500 }
+          );
         }
         const arrayBuf = await fileData.arrayBuffer();
         const sizeBytes = arrayBuf.byteLength;
         if (sizeBytes > 20971520) { // 20MB hard cap
-          console.warn('[narrative POST] Skipping oversized evidence file:', storagePath, sizeBytes);
-          continue;
+          return NextResponse.json(
+            { error: `Received evidence ${label} exceeds the 20 MB narrative limit.` },
+            { status: 422 }
+          );
         }
-        const base64Data = Buffer.from(arrayBuf).toString('base64');
-        // Infer MIME type from path extension
-        const ext = storagePath.split('.').pop()?.toLowerCase() ?? '';
-        const mimeMap: Record<string, string> = {
-          pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-          png: 'image/png', gif: 'image/gif', tif: 'image/tiff', tiff: 'image/tiff',
-        };
-        const mimeType = mimeMap[ext] ?? 'application/octet-stream';
+        const bytes = Buffer.from(arrayBuf);
+        const mimeType = detectEvidenceMimeType(bytes);
+        if (!mimeType) {
+          return NextResponse.json(
+            {
+              error: `Received evidence ${label} has unsupported or corrupt file contents.`,
+            },
+            { status: 422 }
+          );
+        }
+        const base64Data = bytes.toString("base64");
         evidenceFiles.push({ label, mimeType, base64Data, sizeBytes });
         console.log('[narrative POST] Evidence file loaded:', {
           label,
@@ -297,7 +320,14 @@ export async function POST(
           storagePath,
         });
       } catch (err) {
-        console.warn('[narrative POST] Evidence download exception:', storagePath, err instanceof Error ? err.message : err);
+        return NextResponse.json(
+          {
+            error: `Received evidence ${label} could not be read: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          },
+          { status: 500 }
+        );
       }
     }
 

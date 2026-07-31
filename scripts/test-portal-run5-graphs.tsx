@@ -76,6 +76,20 @@ const sparklineHtml = renderToStaticMarkup(
 );
 assert.equal((sparklineHtml.match(/tabindex="0"/g) ?? []).length, 5);
 assert.equal((sparklineHtml.match(/r="20"/g) ?? []).length, 5);
+assert.equal(
+  (sparklineHtml.match(/data-sparkline-marker="endpoint"/g) ?? []).length,
+  1
+);
+assert.doesNotMatch(sparklineHtml, /data-sparkline-marker="active"/);
+assert.doesNotMatch(sparklineHtml, /stroke-dasharray/);
+assert.match(
+  sparklineHtml,
+  /<polyline[^>]*stroke="var\(--color-amber-light\)"[^>]*stroke-width="2"/
+);
+assert.match(
+  sparklineHtml,
+  /<stop offset="0%" stop-color="var\(--color-amber-light\)" stop-opacity="0\.18"/
+);
 assert.match(sparklineHtml, /Re-analysis/);
 assert.match(sparklineHtml, /Scheduled check/);
 assert.match(sparklineHtml, /Weighted burden across five snapshots/);
@@ -135,6 +149,7 @@ assert.match(
   /MINIMUM_POINT_SPACING = POINT_TARGET_RADIUS \* 2/
 );
 assert.match(sparklineSource, /preserveAspectRatio="none"/);
+assert.doesNotMatch(sparklineSource, /\{\[16, 40, 64\]\.map/);
 
 console.log(
   JSON.stringify(

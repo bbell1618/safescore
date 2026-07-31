@@ -25,7 +25,7 @@ export interface ScoreImpactResult {
  * FMCSA methodology: (severity_weight + 2 if OOS) * time_weight - the OOS
  * penalty is additive to the severity weight, not a multiplier.
  */
-function calcViolationScore(v: ViolationForCalc): number {
+export function computeViolationWeightedPoints(v: ViolationForCalc): number {
   const oosBump = v.oosViolation ? 2 : 0;
   return (v.severityWeight + oosBump) * v.timeWeight;
 }
@@ -61,8 +61,14 @@ export function simulateScoreImpact(
     const snapshot = currentSnapshots[cat];
     if (!snapshot) continue;
 
-    const currentTotal = all.reduce((sum, v) => sum + calcViolationScore(v), 0);
-    const keptTotal = kept.reduce((sum, v) => sum + calcViolationScore(v), 0);
+    const currentTotal = all.reduce(
+      (sum, v) => sum + computeViolationWeightedPoints(v),
+      0
+    );
+    const keptTotal = kept.reduce(
+      (sum, v) => sum + computeViolationWeightedPoints(v),
+      0
+    );
 
     // If current total is 0, no change
     if (currentTotal === 0) {

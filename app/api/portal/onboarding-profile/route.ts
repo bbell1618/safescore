@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { isClientOnboardingLocked } from "@/lib/auth/access";
+import { ensureCitationDispositionFollowup } from "@/lib/evidence-loop/server";
+import { tierHasFeature } from "@/lib/tiers";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
   const { data: clientRecord, error: clientError } = await admin
     .from("clients")
     .select(
-      "primary_contact, primary_contact_title, status, service_agreement_accepted"
+      "primary_contact, primary_contact_title, status, service_agreement_accepted, tier"
     )
     .eq("id", clientId)
     .single();
@@ -90,6 +92,20 @@ export async function POST(request: Request) {
     );
   }
 
+  if (
+    typeof body.citationDismissedLast24Months === "boolean" &&
+    !tierHasFeature(clientRecord.tier, "evidence_requests")
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "The roadside-ticket evidence question is not included in this service tier.",
+        code: "FEATURE_NOT_IN_TIER",
+      },
+      { status: 403 }
+    );
+  }
+
   // Build update — only include fields that are present in the request body.
   // Columns added by migration: primary_contact_title, vehicle_types,
   // operating_states, operating_radius, service_agreement_accepted,
@@ -113,6 +129,10 @@ export async function POST(request: Request) {
   if (typeof body.safetyContactEmail === "string") update.safety_contact_email = body.safetyContactEmail.trim() || null;
   if (typeof body.driverCount === "number" && Number.isInteger(body.driverCount) && body.driverCount >= 0 && body.driverCount <= 10000) {
     update.driver_count = body.driverCount;
+  }
+  if (typeof body.citationDismissedLast24Months === "boolean") {
+    update.citation_dismissed_last_24_months =
+      body.citationDismissedLast24Months;
   }
 
   if (body.serviceAgreementAccepted === true) {
@@ -152,20 +172,94 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, skipped: true });
   }
 
-  const { error: updateError } = await admin
-    .from("clients")
-    .update(update)
-    .eq("id", clientId);
+  const profileUpdate = { ...update };
+  delete profileUpdate.citation_dismissed_last_24_months;
 
-  if (updateError) {
-    console.error(
-      "onboarding-profile: clients update failed:",
-      updateError.code,
-      updateError.message,
-      updateError.details,
-      updateError.hint
-    );
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  // Persist only the client's answer before creating its derived request. The
+  // remaining onboarding write can lock this route, so it must wait until the
+  // follow-up exists. A side-effect failure leaves the answer authoritative and
+  // the onboarding route retryable; scheduled reconciliation is a second repair.
+  let followupRequestId: string | null = null;
+  if (typeof body.citationDismissedLast24Months === "boolean") {
+    const { data: answerClient, error: answerError } = await admin
+      .from("clients")
+      .update({
+        citation_dismissed_last_24_months:
+          body.citationDismissedLast24Months,
+      })
+      .eq("id", clientId)
+      .select("id")
+      .maybeSingle();
+    if (answerError || !answerClient) {
+      return NextResponse.json(
+        {
+          error:
+            answerError?.message ??
+            "The roadside-ticket answer was not saved",
+        },
+        { status: answerError ? 500 : 404 }
+      );
+    }
+  }
+
+  if (body.citationDismissedLast24Months === true) {
+    try {
+      const followup = await ensureCitationDispositionFollowup(admin, {
+        clientId,
+        trigger: "onboarding",
+      });
+      followupRequestId = followup.requestId;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unknown court-disposition request failure";
+      const { error: failureActivityError } = await admin.from("activity_log").insert({
+        client_id: clientId,
+        user_id: user.id,
+        action_type: "citation_disposition_followup_failed",
+        entity_type: "clients",
+        entity_id: clientId,
+        description:
+          "The onboarding answer was saved, but its evidence request could not be prepared",
+        metadata: { reason: message, recovery: "scheduled_reconciliation" },
+      });
+      return NextResponse.json(
+        {
+          error: `Your answer was saved, but the court-disposition request could not be prepared: ${message}${
+            failureActivityError
+              ? `. Failure logging also failed: ${failureActivityError.message}`
+              : ""
+          }`,
+          profileSaved: true,
+          recovery: "The next scheduled check will retry the request automatically.",
+        },
+        { status: 502 }
+      );
+    }
+  }
+
+  if (Object.keys(profileUpdate).length > 0) {
+    const { data: updatedClient, error: updateError } = await admin
+      .from("clients")
+      .update(profileUpdate)
+      .eq("id", clientId)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError || !updatedClient) {
+      console.error(
+        "onboarding-profile: clients update failed:",
+        updateError?.code,
+        updateError?.message,
+        updateError?.details,
+        updateError?.hint
+      );
+      return NextResponse.json(
+        { error: updateError?.message ?? "Client profile was not updated" },
+        { status: updateError ? 500 : 404 }
+      );
+    }
   }
 
   // ── Activity log (non-fatal) ─────────────────────────────────────────────────
@@ -180,9 +274,11 @@ export async function POST(request: Request) {
         vehicle_types: body.vehicleTypes,
         operating_states: body.operatingStates,
         operating_radius: body.operatingRadius,
+        citation_dismissed_last_24_months:
+          body.citationDismissedLast24Months,
       },
     });
   } catch { /* non-fatal */ }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, followupRequestId });
 }

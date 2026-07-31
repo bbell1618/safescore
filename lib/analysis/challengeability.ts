@@ -5,7 +5,10 @@
  * unassessed instead of stamping ai_assessed_at with a different engine's result.
  */
 
-import { assessViolationChallengeability } from "@/lib/ai/openrouter";
+import {
+  assessViolationChallengeability,
+  type EvidenceFile,
+} from "@/lib/ai/openrouter";
 import { challengeableForTier, type ChallengeTier } from "./challengeability-rubric";
 
 export interface ViolationInput {
@@ -28,10 +31,23 @@ export interface AssessmentResult {
   tier: ChallengeTier;
   challengeable: boolean;
   reason: string;
+  specificDefect?: string | null;
+  evidence?: string | null;
+  evidenceSource?: string | null;
   priority: "high" | "medium" | "low";
   confidence: number;
   suggestedApproach: string | null;
+  evidenceDecision?: "supported" | "insufficient" | null;
+  evidenceDecisionReason?: string | null;
 }
+
+export type EvidenceAssessmentContext = {
+  violationId: string;
+  files: EvidenceFile[];
+  requestId: string;
+  evidenceClass: string;
+  requestedItemKeys: string[];
+};
 
 export interface AssessmentFailure {
   violationId: string;
@@ -97,7 +113,8 @@ export function applyVehicleOosPriorityContext(
 
 export async function assessViolationsBatch(
   violations: ViolationInput[],
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
+  evidenceContext?: EvidenceAssessmentContext
 ): Promise<{ results: AssessmentResult[]; failures: AssessmentFailure[] }> {
   if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not configured");
 
@@ -108,19 +125,32 @@ export async function assessViolationsBatch(
   for (let i = 0; i < violations.length; i += batchSize) {
     const batch = violations.slice(i, i + batchSize);
     const settled = await Promise.allSettled(batch.map(async (violation) => {
-      const result = await assessViolationChallengeability({
-        violationCode: violation.violationCode,
-        description: violation.description,
-        basicCategory: violation.basicCategory,
-        severityWeight: violation.severityWeight,
-        oosViolation: violation.oosViolation,
-        convicted: violation.convicted,
-        citationNumber: violation.citationNumber,
-        citationResult: violation.citationResult,
-        inspectionDate: violation.inspectionDate,
-        state: violation.state,
-        inspectionLevel: violation.inspectionLevel,
-      });
+      const result = await assessViolationChallengeability(
+        {
+          violationCode: violation.violationCode,
+          description: violation.description,
+          basicCategory: violation.basicCategory,
+          severityWeight: violation.severityWeight,
+          oosViolation: violation.oosViolation,
+          convicted: violation.convicted,
+          citationNumber: violation.citationNumber,
+          citationResult: violation.citationResult,
+          inspectionDate: violation.inspectionDate,
+          state: violation.state,
+          inspectionLevel: violation.inspectionLevel,
+        },
+        new Date().toISOString().slice(0, 10),
+        evidenceContext?.violationId === violation.id
+          ? evidenceContext.files
+          : [],
+        evidenceContext?.violationId === violation.id
+          ? {
+              requestId: evidenceContext.requestId,
+              evidenceClass: evidenceContext.evidenceClass,
+              requestedItemKeys: evidenceContext.requestedItemKeys,
+            }
+          : undefined
+      );
       return {
         violationId: violation.id,
         ...result,

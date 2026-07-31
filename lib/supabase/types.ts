@@ -60,10 +60,20 @@ export interface Database {
           tier: ClientTier | null;
           status: ClientStatus;
           geia_client: boolean;
+          citation_dismissed_last_24_months: boolean | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["clients"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["clients"]["Row"],
+          "id" | "created_at" | "updated_at" | "citation_dismissed_last_24_months"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["clients"]["Row"],
+              "citation_dismissed_last_24_months"
+            >
+          >;
         Update: Partial<Database["public"]["Tables"]["clients"]["Insert"]>;
       };
       users: {
@@ -206,6 +216,26 @@ export interface Database {
           responsibility: "client" | "geia";
           case_type: "dataq" | "cpdp" | null;
           case_id: string | null;
+          request_type: "evidence" | "question" | null;
+          evidence_class:
+            | "wrong-attribution"
+            | "duplicate"
+            | "citation-dismissed"
+            | "report-factual-error"
+            | null;
+          evidence_status:
+            | "open"
+            | "submitted"
+            | "applied"
+            | "insufficient"
+            | null;
+          violation_id: string | null;
+          why_copy: string | null;
+          potential_points: number | null;
+          response: Record<string, unknown> | null;
+          submitted_at: string | null;
+          applied_at: string | null;
+          status_copy: string | null;
           requested_items: unknown[];
           status: "open" | "fulfilled" | "cancelled";
           due_at: string | null;
@@ -232,6 +262,26 @@ export interface Database {
           responsibility?: "client" | "geia";
           case_type?: "dataq" | "cpdp" | null;
           case_id?: string | null;
+          request_type?: "evidence" | "question" | null;
+          evidence_class?:
+            | "wrong-attribution"
+            | "duplicate"
+            | "citation-dismissed"
+            | "report-factual-error"
+            | null;
+          evidence_status?:
+            | "open"
+            | "submitted"
+            | "applied"
+            | "insufficient"
+            | null;
+          violation_id?: string | null;
+          why_copy?: string | null;
+          potential_points?: number | null;
+          response?: Record<string, unknown> | null;
+          submitted_at?: string | null;
+          applied_at?: string | null;
+          status_copy?: string | null;
           requested_items?: unknown[];
           status?: "open" | "fulfilled" | "cancelled";
           due_at?: string | null;
@@ -603,10 +653,92 @@ export interface Database {
           mime_type: string | null;
           category: DocumentCategory;
           uploaded_by: string | null;
+          client_request_id: string | null;
+          violation_id: string | null;
+          case_type: "dataq" | "cpdp" | null;
+          case_id: string | null;
+          evidence_class:
+            | "wrong-attribution"
+            | "duplicate"
+            | "citation-dismissed"
+            | "report-factual-error"
+            | null;
+          evidence_item_key: string | null;
+          evidence_analysis: Record<string, unknown> | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["documents"]["Row"], "id" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["documents"]["Row"],
+          | "id"
+          | "created_at"
+          | "client_request_id"
+          | "violation_id"
+          | "case_type"
+          | "case_id"
+          | "evidence_class"
+          | "evidence_item_key"
+          | "evidence_analysis"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["documents"]["Row"],
+              | "client_request_id"
+              | "violation_id"
+              | "case_type"
+              | "case_id"
+              | "evidence_class"
+              | "evidence_item_key"
+              | "evidence_analysis"
+            >
+          >;
         Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>;
+      };
+      dataq_evidence: {
+        Row: {
+          id: string;
+          case_id: string;
+          doc_type: string;
+          label: string;
+          context_note: string | null;
+          fmcsa_category: string | null;
+          required: boolean;
+          status: "requested" | "received";
+          storage_path: string | null;
+          uploaded_at: string | null;
+          uploaded_by: "client" | "geia" | null;
+          acquisition_method: "auto" | "client" | "manual" | null;
+          auto_source: string | null;
+          needed_reason: string | null;
+          client_request_id: string | null;
+          document_id: string | null;
+          evidence_item_key: string | null;
+          storage_bucket: "documents" | "dataq-evidence" | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          case_id: string;
+          doc_type: string;
+          label: string;
+          context_note?: string | null;
+          fmcsa_category?: string | null;
+          required?: boolean;
+          status?: "requested" | "received";
+          storage_path?: string | null;
+          uploaded_at?: string | null;
+          uploaded_by?: "client" | "geia" | null;
+          acquisition_method?: "auto" | "client" | "manual" | null;
+          auto_source?: string | null;
+          needed_reason?: string | null;
+          client_request_id?: string | null;
+          document_id?: string | null;
+          evidence_item_key?: string | null;
+          storage_bucket?: "documents" | "dataq-evidence" | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["dataq_evidence"]["Insert"]>;
       };
       drivers: {
         Row: {

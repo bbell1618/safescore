@@ -169,27 +169,15 @@ export function BurdenSparkline({
             <stop
               offset="0%"
               stopColor="var(--color-amber-light)"
-              stopOpacity="0.34"
+              stopOpacity="0.18"
             />
             <stop
               offset="100%"
               stopColor="var(--color-amber)"
-              stopOpacity="0.02"
+              stopOpacity="0.01"
             />
           </linearGradient>
         </defs>
-        {[16, 40, 64].map((y) => (
-          <line
-            key={y}
-            opacity="0.24"
-            stroke="var(--color-gold)"
-            strokeDasharray="3 5"
-            x1={HORIZONTAL_PADDING}
-            x2={width - HORIZONTAL_PADDING}
-            y1={y}
-            y2={y}
-          />
-        ))}
         <polygon fill="url(#portal-home-burden-fill)" points={areaPoints} />
         <polyline
           fill="none"
@@ -197,7 +185,7 @@ export function BurdenSparkline({
           stroke="var(--color-amber-light)"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="3"
+          strokeWidth="2"
         />
 
         {activePoint ? (
@@ -249,15 +237,18 @@ export function BurdenSparkline({
                 fill="transparent"
                 r={POINT_TARGET_RADIUS}
               />
-              <circle
-                cx={point.x}
-                cy={point.y}
-                fill="var(--color-navy)"
-                pointerEvents="none"
-                r={active || index === interactivePoints.length - 1 ? 4 : 2.5}
-                stroke="var(--color-amber-light)"
-                strokeWidth={active ? 3 : 2}
-              />
+              {active || index === interactivePoints.length - 1 ? (
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  data-sparkline-marker={active ? "active" : "endpoint"}
+                  fill="var(--color-navy)"
+                  pointerEvents="none"
+                  r="4"
+                  stroke="var(--color-amber-light)"
+                  strokeWidth={active ? 3 : 2}
+                />
+              ) : null}
             </g>
           );
         })}

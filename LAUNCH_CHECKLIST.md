@@ -4,13 +4,13 @@ Every item below requires a human credential, external-service action, productio
 
 ## Required before beta walkthrough
 
-- [ ] Reset production `CRON_SECRET` to a strong non-empty value, then redeploy and invoke `/api/cron/monitoring-refresh` with that value. The key created during the monitoring-engine build is empty, and Vercel does not permit updating a sensitive variable in place; the route intentionally returns 401 until this is corrected.
+- [ ] BLOCKER-INPUT: set a strong non-empty production `CRON_SECRET`, then redeploy and invoke `/api/cron/monitoring-refresh` with that value. The key created during the monitoring-engine build is empty, and Vercel does not permit updating a sensitive variable in place; the route intentionally returns 401 until this is corrected.
 - [ ] Approve a scoped remediation for historical public-import misassignments caused by the old date-only join: Nationwide reports `NCNK009958`/`NEUU000588` on 2026-02-20 share two copied violation codes, and `6286Q0KL6C`/`NBAA009479` on 2026-01-20 share one. The monitoring engine now joins on FMCSA `unique_id` and preserves existing rows under the additive-only rule; no historical violation was silently deleted.
 - [ ] Create or select a beta client account with a client-portal login for Daven’s walkthrough. The Phase 11 synthetic client was intentionally deleted after verification.
 - [ ] Perform Brandon’s interactive beta walkthrough of the deployed authenticated analysis/import path and confirm the selected real carrier may be shown.
 - [ ] In that authenticated walkthrough, open Nationwide’s Violations tab, apply a code/description filter, expand one row, and confirm the evidence checklist renders without browser-console errors. Programmatic route/data verification passed; the automated browser session could not accept the deployed staff cookie.
 - [ ] Confirm production `NEXT_PUBLIC_APP_URL` points to the intended public hostname before invitations or Stripe redirects are used.
-- [ ] Keep `EMAIL_DRY_RUN=true` for the walkthrough. Verify the dry-run log contains recipient, subject, template, and trigger only.
+- [ ] BLOCKER-INPUT: set the existing production `EMAIL_DRY_RUN` variable to `true`, then redeploy before any evidence-loop or walkthrough notification is exercised. The 2026-07-31 production pull showed it disabled; U10 therefore skips its notification sender rather than risk a live email. Verify the eventual dry-run log contains recipient, subject, template, and trigger only.
 - [ ] Do not submit a real DataQ or CPDP during the walkthrough. Real filings and determination updates require Daven/Brandon’s human workflow and actual evidence.
 
 ## Email activation

@@ -171,6 +171,21 @@ export interface RequestQueueReminderData {
   portalUrl: string;
 }
 
+export interface EvidenceRequestCreatedData {
+  to: string;
+  companyName: string;
+  requestTitle: string;
+  whyCopy: string;
+  portalUrl: string;
+}
+
+export interface EvidenceIntakeQuestionData {
+  to: string;
+  companyName: string;
+  question: string;
+  portalUrl: string;
+}
+
 // ── Send functions ─────────────────────────────────────────────────────────
 
 export async function sendNewViolationAlert(
@@ -371,4 +386,57 @@ export async function sendRequestQueueReminder(
     template: "request_queue_reminder",
   });
   return { success: result.success };
+}
+
+export async function sendEvidenceRequestCreated(
+  data: EvidenceRequestCreatedData
+): Promise<{
+  success: boolean;
+  dryRun?: boolean;
+  messageId?: string;
+  error?: string;
+}> {
+  const html = emailWrapper(`
+    <h2>SafeScore needs one item from you</h2>
+    <p>A new evidence request is ready for <strong>${data.companyName}</strong>.</p>
+    <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <div class="detail-row"><div class="label">Request</div><div class="value">${data.requestTitle}</div></div>
+      <div class="detail-row"><div class="label">Why it matters</div><div class="value">${data.whyCopy}</div></div>
+    </div>
+    <p>Open Documents in your SafeScore portal to review the request and upload the records.</p>
+    <a href="${data.portalUrl}" class="cta">Review request</a>
+  `);
+  return sendEmail({
+    to: data.to,
+    subject: `SafeScore evidence request: ${data.requestTitle}`,
+    htmlBody: html,
+    trigger: "lane_b_evidence_request_created",
+    template: "lane_b_evidence_request",
+  });
+}
+
+export async function sendEvidenceIntakeQuestion(
+  data: EvidenceIntakeQuestionData
+): Promise<{
+  success: boolean;
+  dryRun?: boolean;
+  messageId?: string;
+  error?: string;
+}> {
+  const html = emailWrapper(`
+    <h2>SafeScore has one question for you</h2>
+    <p>Please answer this question for <strong>${data.companyName}</strong>:</p>
+    <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <div class="value">${data.question}</div>
+    </div>
+    <p>Your answer helps SafeScore identify whether a court record could support a challenge.</p>
+    <a href="${data.portalUrl}" class="cta">Answer in Documents</a>
+  `);
+  return sendEmail({
+    to: data.to,
+    subject: "One SafeScore intake question",
+    htmlBody: html,
+    trigger: "lane_b_intake_question_created",
+    template: "lane_b_intake_question",
+  });
 }

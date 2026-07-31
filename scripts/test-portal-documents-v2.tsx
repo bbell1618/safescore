@@ -43,7 +43,10 @@ assert.match(documentsPage, /canSeeRequests\s*\?\s*loadOpenRequests/);
 assert.match(documentsPage, /canSeeVault\s*\?\s*loadDocuments/);
 assert.match(documentsPage, /canSeeReports\s*\?\s*loadSentReports/);
 assert.match(documentsPage, /\.eq\("responsibility", "client"\)/);
-assert.match(documentsPage, /\.eq\("status", "open"\)/);
+assert.match(
+  documentsPage,
+  /status\.eq\.open,evidence_status\.in\.\(submitted,applied,insufficient\)/
+);
 assert.match(documentsPage, /\.eq\("status", "sent"\)/);
 assert.match(documentsPage, /<Suspense fallback=/);
 

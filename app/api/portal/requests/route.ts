@@ -11,7 +11,9 @@ export async function GET() {
   const service = await createServiceClient();
   let query = service
     .from("client_requests")
-    .select("id, category, title, description, source, requested_items, status, due_at, reminder_count, created_at")
+    .select(
+      "id, category, title, description, source, requested_items, request_type, evidence_class, why_copy, potential_points, violation_id, status, evidence_status, status_copy, response, submitted_at, applied_at, due_at, reminder_count, created_at"
+    )
     .eq("client_id", access.clientId)
     .eq("responsibility", "client");
   if (!tierHasFeature(access.tier, "compliance_layer")) {

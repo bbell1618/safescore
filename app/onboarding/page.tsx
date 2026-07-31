@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { normalizeClientTier, tierHasFeature, TIER_LABELS } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
+import { CITATION_DISMISSED_INTAKE_QUESTION } from "@/lib/evidence-loop/taxonomy";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface ClientData {
   safety_contact_email?: string | null;
   standing_authorization?: boolean;
   service_agreement_accepted?: boolean;
+  citation_dismissed_last_24_months?: boolean | null;
 }
 
 interface CarrierData {
@@ -138,6 +140,8 @@ export default function OnboardingPage() {
   const [eldProvider, setEldProvider] = useState("");
   const [safetyContactName, setSafetyContactName] = useState("");
   const [safetyContactEmail, setSafetyContactEmail] = useState("");
+  const [citationDismissedLast24Months, setCitationDismissedLast24Months] =
+    useState<boolean | null>(null);
 
   // Step 3 — Authorization checkboxes
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -160,6 +164,10 @@ export default function OnboardingPage() {
   const assignedTier = normalizeClientTier(client?.tier);
   const assignedTierData = TIERS.find((t) => t.value === assignedTier) ?? TIERS[0];
   const hasCaseServices = tierHasFeature(assignedTier, "case_visibility");
+  const hasEvidenceRequests = tierHasFeature(
+    assignedTier,
+    "evidence_requests"
+  );
   const hasRecurringSubscription = tierHasFeature(assignedTier, "monitoring_alerts");
   const hasDriverBilling = tierHasFeature(assignedTier, "compliance_layer");
 
@@ -184,6 +192,11 @@ export default function OnboardingPage() {
           setSafetyContactEmail(data.client.safety_contact_email ?? data.client.email ?? "");
           setDataAccessChecked(data.client.fmcsa_authorized === true);
           setDataqChecked(data.client.standing_authorization === true);
+          setCitationDismissedLast24Months(
+            typeof data.client.citation_dismissed_last_24_months === "boolean"
+              ? data.client.citation_dismissed_last_24_months
+              : null
+          );
         } else {
           throw new Error("No client is linked to this portal account");
         }
@@ -256,6 +269,9 @@ export default function OnboardingPage() {
       eldProvider,
       safetyContactName,
       safetyContactEmail,
+      citationDismissedLast24Months: hasEvidenceRequests
+        ? citationDismissedLast24Months
+        : undefined,
     });
   }
 
@@ -340,7 +356,10 @@ export default function OnboardingPage() {
     !loadingClient && !!client && contactName.trim().length > 0 && contactPhone.trim().length > 0;
 
   const canProceedStep2 =
-    vehicleTypes.length > 0 && operatingStates.length > 0 && operatingRadius !== "";
+    vehicleTypes.length > 0 &&
+    operatingStates.length > 0 &&
+    operatingRadius !== "" &&
+    (!hasEvidenceRequests || citationDismissedLast24Months !== null);
 
   const canProceedStep3 =
     agreementChecked &&
@@ -675,6 +694,38 @@ export default function OnboardingPage() {
                     <input type="email" value={safetyContactEmail} onChange={(e) => setSafetyContactEmail(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
                   </div>
                 </div>
+
+                {hasEvidenceRequests ? (
+                  <fieldset className="rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] p-4">
+                    <legend className="px-1 text-sm font-semibold leading-6 text-[#1E1C1A]">
+                      {CITATION_DISMISSED_INTAKE_QUESTION}
+                    </legend>
+                    <p className="mt-1 text-xs leading-5 text-[#5C554E]">
+                      A dismissed citation may support an FMCSA challenge. If you answer yes,
+                      we will ask for the certified court disposition in your portal.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      {([true, false] as const).map((answer) => {
+                        const selected = citationDismissedLast24Months === answer;
+                        return (
+                          <button
+                            key={String(answer)}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setCitationDismissedLast24Months(answer)}
+                            className={`min-h-10 min-w-20 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E] ${
+                              selected
+                                ? "border-[#C67A1E] bg-[#FDF4E7] text-[#C67A1E]"
+                                : "border-[#F0E8DA] bg-white text-[#5C554E] hover:border-[#C67A1E]/40"
+                            }`}
+                          >
+                            {answer ? "Yes" : "No"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ) : null}
               </div>
 
               {onboardingError && (

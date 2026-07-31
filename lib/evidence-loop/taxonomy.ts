@@ -1,0 +1,222 @@
+export const LANE_B_EVIDENCE_CLASSES = [
+  "wrong-attribution",
+  "duplicate",
+  "citation-dismissed",
+  "report-factual-error",
+] as const;
+
+export type LaneBEvidenceClass = (typeof LANE_B_EVIDENCE_CLASSES)[number];
+
+export type LaneBEvidenceItem = {
+  itemKey: string;
+  label: string;
+  contextNote: string;
+};
+
+export type LaneBEvidenceClassDefinition = {
+  title: string;
+  trigger: string;
+  items: readonly Omit<LaneBEvidenceItem, "contextNote">[];
+  ask: string;
+};
+
+export const LANE_B_EVIDENCE_TAXONOMY: Record<
+  LaneBEvidenceClass,
+  LaneBEvidenceClassDefinition
+> = {
+  "wrong-attribution": {
+    title: "Records showing this violation belongs to someone else",
+    trigger:
+      "The review identifies the wrong carrier, driver, or vehicle as the likely record defect.",
+    items: [
+      { itemKey: "registration", label: "Vehicle registration" },
+      { itemKey: "lease", label: "Lease or interchange agreement" },
+      { itemKey: "driver-roster", label: "Driver roster for the inspection date" },
+      { itemKey: "eld-gps", label: "ELD or GPS location records" },
+    ],
+    ask:
+      "Please upload the records that show which carrier, driver, and vehicle were operating at the inspection time.",
+  },
+  duplicate: {
+    title: "Records needed to confirm a duplicate",
+    trigger:
+      "The review identifies a duplicate inspection or violation as the specific defect.",
+    items: [
+      { itemKey: "vin", label: "VIN or unit record" },
+      { itemKey: "inspection-time", label: "Inspection date and time record" },
+      { itemKey: "authenticated-trip-data", label: "Authenticated ELD, GPS, or dispatch record" },
+    ],
+    ask:
+      "Please upload the VIN and time-stamped carrier records that let us compare the two entries precisely.",
+  },
+  "citation-dismissed": {
+    title: "Certified court disposition needed",
+    trigger:
+      "A citation exists and its final court disposition is favorable or still unknown.",
+    items: [
+      { itemKey: "certified-court-disposition", label: "Certified court disposition" },
+    ],
+    ask:
+      "Please upload the certified court disposition showing the ticket's final result.",
+  },
+  "report-factual-error": {
+    title: "Records needed to prove a report error",
+    trigger:
+      "The review identifies a specific factual, clerical, or recording error in the inspection report.",
+    items: [
+      { itemKey: "driver-copy", label: "Driver's copy of the inspection report" },
+      { itemKey: "photos", label: "Dated photos from the inspection or repair" },
+      { itemKey: "repair-invoices", label: "Repair invoices or work orders" },
+    ],
+    ask:
+      "Please upload the driver's report copy and any dated photos or repair records that show the factual error.",
+  },
+};
+
+export const CITATION_DISMISSED_INTAKE_QUESTION =
+  "Has any driver fought and beaten a roadside ticket in the last 24 months?";
+
+export type LaneBViolationClassificationInput = {
+  challengeTier: string | null;
+  challengeReason: string | null;
+  violationCode: string | null;
+  violationDescription: string | null;
+  citationNumber: string | null;
+  citationResult: string | null;
+};
+
+const ACTIONABLE_TIERS = new Set(["strong", "moderate", "investigate"]);
+
+function normalized(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function hasAny(text: string, needles: readonly string[]) {
+  return needles.some((needle) => text.includes(needle));
+}
+
+function citationDispositionNeedsEvidence(
+  citationNumber: string | null,
+  citationResult: string | null
+) {
+  const result = normalized(citationResult);
+  const favorable = hasAny(result, [
+    "dismiss",
+    "not guilty",
+    "no conviction",
+    "reduced",
+    "withdrawn",
+  ]);
+  const unknown =
+    !result || ["unknown", "pending", "not provided", "n/a"].includes(result);
+  return favorable || (Boolean(citationNumber?.trim()) && unknown);
+}
+
+/**
+ * Deterministic routing only. The classifier still owns the challenge tier;
+ * this function maps its record-specific reason to the locked evidence class.
+ */
+export function evidenceClassesForViolation(
+  violation: LaneBViolationClassificationInput,
+  options: { caseOpen?: boolean } = {}
+): LaneBEvidenceClass[] {
+  if (
+    !options.caseOpen &&
+    (!violation.challengeTier || !ACTIONABLE_TIERS.has(violation.challengeTier))
+  ) {
+    return [];
+  }
+
+  const text = [
+    violation.challengeReason,
+    violation.violationCode,
+    violation.violationDescription,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const reasonText = normalized(violation.challengeReason);
+  const classes = new Set<LaneBEvidenceClass>();
+
+  if (
+    citationDispositionNeedsEvidence(
+      violation.citationNumber,
+      violation.citationResult
+    ) ||
+    hasAny(reasonText, [
+      "court disposition",
+      "citation result",
+      "citation-based",
+      "citation backed",
+      "ticket disposition",
+      "ticket's final result",
+    ])
+  ) {
+    classes.add("citation-dismissed");
+  }
+  if (hasAny(text, ["duplicate", "duplicated", "same inspection twice"])) {
+    classes.add("duplicate");
+  }
+  if (
+    hasAny(text, [
+      "wrong carrier",
+      "wrong driver",
+      "wrong vehicle",
+      "wrong unit",
+      "not our carrier",
+      "not our driver",
+      "not our vehicle",
+      "not attributed",
+      "misattributed",
+      "attribution",
+    ])
+  ) {
+    classes.add("wrong-attribution");
+  }
+  if (
+    hasAny(text, [
+      "factual error",
+      "recording error",
+      "clerical",
+      "mismatch",
+      "incorrect",
+      "wrong description",
+      "wrong code",
+    ])
+  ) {
+    classes.add("report-factual-error");
+  }
+
+  // An actionable assessment or deliberately opened case must never disappear
+  // into an untyped generic ask. A case-open fallback asks for factual proof;
+  // it does not relabel the underlying challengeability assessment.
+  if (classes.size === 0) classes.add("report-factual-error");
+
+  return [...classes];
+}
+
+export function buildLaneBEvidenceRequestCopy(
+  evidenceClass: LaneBEvidenceClass,
+  potentialPoints: number,
+  options: { citationNumber?: string | null } = {}
+) {
+  const definition = LANE_B_EVIDENCE_TAXONOMY[evidenceClass];
+  const pointLabel = `${potentialPoints} ${
+    potentialPoints === 1 ? "point" : "points"
+  }`;
+  const citationSuffix =
+    evidenceClass === "citation-dismissed" && options.citationNumber?.trim()
+      ? ` for citation ${options.citationNumber.trim()}`
+      : "";
+  const contextNote = `${definition.ask} If the records confirm the error, this could remove ${pointLabel}.`;
+
+  return {
+    title: `${definition.title}${citationSuffix}`,
+    whyCopy: `This could remove ${pointLabel} if the evidence confirms the issue.`,
+    statusCopy: definition.ask,
+    requestedItems: definition.items.map((item) => ({
+      ...item,
+      contextNote,
+    })),
+  };
+}
