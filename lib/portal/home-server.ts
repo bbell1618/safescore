@@ -1,6 +1,9 @@
 import "server-only";
 
-import { timeWeightFor } from "@/lib/analysis/basic-measure";
+import {
+  timeWeightFor,
+  type ViolationRow,
+} from "@/lib/analysis/basic-measure";
 import {
   getCanonicalInspectionScope,
   type CanonicalInspectionScope,
@@ -14,6 +17,11 @@ import {
   type PortalHomeSnapshot,
   type PortalHomeWorkNote,
 } from "@/lib/portal/home";
+import {
+  buildPortalHomePressureDetails,
+  type PortalHomePressureDetail,
+} from "@/lib/portal/home-pressure";
+import { loadLatestPortalPlaybook } from "@/lib/portal/playbook-server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { ClientTier } from "@/lib/supabase/types";
 import { tierHasFeature } from "@/lib/tiers";
@@ -68,6 +76,25 @@ type InvestigationRow = {
     | null;
 };
 
+type PressureViolationQueryRow = {
+  id: string;
+  violation_code: string;
+  violation_description: string | null;
+  basic_category: string | null;
+  severity_weight: number | null;
+  oos_violation: boolean | null;
+  inspections:
+    | {
+        inspection_date: string | null;
+        mcmis_inspection_id: string | null;
+      }
+    | Array<{
+        inspection_date: string | null;
+        mcmis_inspection_id: string | null;
+      }>
+    | null;
+};
+
 function queryError(label: string, error: { message: string } | null) {
   if (error) throw new Error(`${label}: ${error.message}`);
 }
@@ -107,6 +134,12 @@ function normalizeSnapshots(rows: SnapshotQueryRow[]): PortalHomeSnapshot[] {
 }
 
 function flattenInspection(row: InvestigationRow) {
+  return Array.isArray(row.inspections)
+    ? row.inspections[0] ?? null
+    : row.inspections;
+}
+
+function flattenPressureInspection(row: PressureViolationQueryRow) {
   return Array.isArray(row.inspections)
     ? row.inspections[0] ?? null
     : row.inspections;
@@ -203,6 +236,75 @@ export async function loadPortalHomeSnapshots(
     .limit(input.includeHistory ? 8 : 1);
   queryError("Unable to load portal burden history", result.error);
   return normalizeSnapshots((result.data ?? []) as SnapshotQueryRow[]);
+}
+
+export async function loadPortalHomePressureDetails(input: {
+  clientId: string;
+  tier: ClientTier;
+  snapshotCapturedAt: string;
+}): Promise<PortalHomePressureDetail[]> {
+  const asOf = new Date(input.snapshotCapturedAt);
+  if (Number.isNaN(asOf.getTime())) {
+    throw new Error(
+      "Unable to load portal BASIC details: snapshot capture time is invalid."
+    );
+  }
+
+  const service = await createServiceClient();
+  const canSeePlaybook = tierHasFeature(input.tier, "playbook_coach");
+  const [scope, playbook] = await Promise.all([
+    getCanonicalInspectionScope(input.clientId, service),
+    canSeePlaybook
+      ? loadLatestPortalPlaybook(input.clientId)
+      : Promise.resolve(null),
+  ]);
+  const presentPlaybookFamilies = new Set(
+    playbook?.family_programs.map((program) => program.familyKey) ?? []
+  );
+
+  // One client-scoped violations+inspections query shape supplies every BASIC.
+  // It is paged only when the canonical result exceeds PostgREST's row limit.
+  const queryRows: PressureViolationQueryRow[] = [];
+  const pageSize = 1_000;
+  while (true) {
+    let query = service
+      .from("violations")
+      .select(
+        "id, violation_code, violation_description, basic_category, severity_weight, oos_violation, inspections!inner(inspection_date, mcmis_inspection_id)"
+      )
+      .eq("client_id", input.clientId)
+      .not("basic_category", "is", null)
+      .not("severity_weight", "is", null);
+    query =
+      scope.source === "authenticated"
+        ? query.not("inspections.mcmis_inspection_id", "is", null)
+        : query.is("inspections.mcmis_inspection_id", null);
+    const result = await query
+      .order("id", { ascending: true })
+      .range(queryRows.length, queryRows.length + pageSize - 1);
+    queryError("Unable to load portal BASIC violation details", result.error);
+    const page = (result.data ?? []) as PressureViolationQueryRow[];
+    queryRows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  const violationRows: ViolationRow[] = queryRows.map((row) => {
+    const inspection = flattenPressureInspection(row);
+    return {
+      id: row.id,
+      violationCode: row.violation_code,
+      violationDescription: row.violation_description,
+      basicCategory: row.basic_category,
+      severityWeight: row.severity_weight,
+      oosViolation: row.oos_violation === true,
+      inspectionDate: inspection?.inspection_date ?? null,
+    };
+  });
+
+  return buildPortalHomePressureDetails(violationRows, {
+    asOf,
+    presentPlaybookFamilies,
+  });
 }
 
 export async function loadPortalHomeHandling(input: {

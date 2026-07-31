@@ -12,6 +12,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { BasicPressureList } from "@/components/portal/basic-pressure-list";
 import { BurdenSparkline } from "@/components/portal/burden-sparkline";
 import {
   PortalFooterBand,
@@ -21,18 +22,14 @@ import {
 } from "@/components/portal/brand";
 import {
   PortalAnimatedNumber,
-  PortalAnimatedPressureBar,
   PortalMotionListItem,
   PortalMotionSection,
 } from "@/components/portal/motion";
 import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
-import { BASIC_LABELS } from "@/lib/analysis/basic-measure";
 import {
   buildChangeNarrative,
   inWindowViolationCount,
   portalCaseStatus,
-  pressureLevel,
-  pressureWidth,
   snapshotDeltaLabel,
   type PortalHomeAuthority,
   type PortalHomeCase,
@@ -42,6 +39,7 @@ import {
 import {
   loadPortalHomeAuthority,
   loadPortalHomeHandling,
+  loadPortalHomePressureDetails,
   loadPortalHomeRequests,
   loadPortalHomeSnapshots,
 } from "@/lib/portal/home-server";
@@ -69,25 +67,6 @@ function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   }`;
 }
 
-function pressureClasses(level: ReturnType<typeof pressureLevel>) {
-  if (level === "MAJOR") {
-    return {
-      chip: "bg-error-light text-error",
-      bar: "bg-error",
-    };
-  }
-  if (level === "MODERATE") {
-    return {
-      chip: "bg-amber-subtle text-amber-dark",
-      bar: "bg-amber",
-    };
-  }
-  return {
-    chip: "bg-info-light text-info",
-    bar: "bg-info",
-  };
-}
-
 function deltaClasses(
   latest: PortalHomeSnapshot,
   previous: PortalHomeSnapshot | null
@@ -108,6 +87,55 @@ function deltaClasses(
     className: "bg-amber-subtle text-amber-dark",
     Icon: TrendingUp,
   };
+}
+
+async function BasicPressureSection({
+  latest,
+  promise,
+}: {
+  latest: PortalHomeSnapshot | null;
+  promise: ReturnType<typeof loadPortalHomePressureDetails>;
+}) {
+  const details = await promise;
+  const pressureBasics = latest?.per_basic ?? [];
+  const inWindowCount = latest ? inWindowViolationCount(latest) : 0;
+
+  return (
+    <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mono-label text-amber">24-month scoring window</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
+            BASIC pressure
+          </h2>
+        </div>
+        {latest ? (
+          <p className="text-sm text-warm-mid">
+            {plural(inWindowCount, "violation")} in the 24-month scoring window
+            · {latest.violation_count.toLocaleString("en-US")} on file
+          </p>
+        ) : null}
+      </div>
+
+      {latest && pressureBasics.length > 0 ? (
+        <BasicPressureList
+          basics={pressureBasics}
+          details={details}
+          totalPoints={latest.total_points}
+        />
+      ) : (
+        <div className="mt-6 rounded-lg border border-sand bg-cream px-6 py-10 text-center">
+          <p className="font-heading text-lg font-semibold text-warm-dark">
+            Your first BASIC snapshot is being prepared
+          </p>
+          <p className="mt-1 text-sm text-warm-mid">
+            GEIA will show each active pressure area once the first monitoring
+            snapshot is available.
+          </p>
+        </div>
+      )}
+    </PortalMotionSection>
+  );
 }
 
 function UnlinkedPortalHome() {
@@ -459,11 +487,20 @@ export default async function PortalHomePage() {
   const latest = snapshots[0] ?? null;
   const previous = snapshots[1] ?? null;
   const delta = latest ? deltaClasses(latest, previous) : null;
-  const trendValues = [...snapshots]
-    .reverse()
-    .map((snapshot) => snapshot.total_points);
-  const pressureBasics = latest?.per_basic ?? [];
-  const inWindowCount = latest ? inWindowViolationCount(latest) : 0;
+  const sparklineSnapshots = [...snapshots].reverse().map((snapshot) => ({
+    id: snapshot.id,
+    snapshotDate: snapshot.snapshot_date,
+    capturedAt: snapshot.captured_at,
+    source: snapshot.source,
+    totalPoints: snapshot.total_points,
+  }));
+  const pressureDetailsPromise = latest
+    ? loadPortalHomePressureDetails({
+        clientId: context.clientId,
+        tier: context.tier,
+        snapshotCapturedAt: latest.captured_at,
+      })
+    : Promise.resolve([]);
   const changeNarrative = canSeeTrend
     ? buildChangeNarrative(latest, previous)
     : [];
@@ -532,13 +569,13 @@ export default async function PortalHomePage() {
                   {plural(snapshots.length, "snapshot")}
                 </p>
               </div>
-              <div className="mt-4">
+              <div className="mt-4 overflow-x-auto pb-1">
                 <BurdenSparkline
                   label={`Weighted burden across ${plural(
                     snapshots.length,
                     "snapshot"
                   )}`}
-                  values={trendValues}
+                  snapshots={sparklineSnapshots}
                 />
               </div>
               {snapshots.length > 1 ? (
@@ -570,80 +607,12 @@ export default async function PortalHomePage() {
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody contentClassName="space-y-12 pt-8 sm:pt-10">
 
-      <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mono-label text-amber">24-month scoring window</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
-              BASIC pressure
-            </h2>
-          </div>
-          {latest ? (
-            <p className="text-sm text-warm-mid">
-              {plural(inWindowCount, "violation")} in the 24-month scoring
-              window · {latest.violation_count.toLocaleString("en-US")} on file
-            </p>
-          ) : null}
-        </div>
-
-        {latest && pressureBasics.length > 0 ? (
-          <div className="mt-7 space-y-5">
-            {pressureBasics.map((basic, index) => {
-              const level = pressureLevel(
-                basic.weighted_points,
-                latest.total_points
-              );
-              const classes = pressureClasses(level);
-              const width = pressureWidth(
-                basic.weighted_points,
-                latest.total_points
-              );
-              return (
-                <div key={basic.basic_category}>
-                  <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(12rem,0.8fr)_minmax(12rem,1.6fr)_auto] sm:items-center">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-heading font-semibold text-warm-dark">
-                        {BASIC_LABELS[basic.basic_category] ??
-                          basic.basic_category.replaceAll("_", " ")}
-                      </h3>
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold",
-                          classes.chip
-                        )}
-                      >
-                        {level}
-                      </span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-sand">
-                      <PortalAnimatedPressureBar
-                        ariaLabel={`${width}% of current weighted burden`}
-                        className={classes.bar}
-                        delay={Math.min(index * 0.06, 0.3)}
-                        percentage={width}
-                      />
-                    </div>
-                    <p className="font-mono text-xs text-warm-mid sm:text-right">
-                      {basic.weighted_points.toLocaleString("en-US")} pts ·{" "}
-                      {plural(basic.violation_count, "violation")}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-lg border border-sand bg-cream px-6 py-10 text-center">
-            <p className="font-heading text-lg font-semibold text-warm-dark">
-              Your first BASIC snapshot is being prepared
-            </p>
-            <p className="mt-1 text-sm text-warm-mid">
-              GEIA will show each active pressure area once the first monitoring
-              snapshot is available.
-            </p>
-          </div>
-        )}
-      </PortalMotionSection>
+      <Suspense fallback={<SectionFallback label="BASIC pressure" />}>
+        <BasicPressureSection
+          latest={latest}
+          promise={pressureDetailsPromise}
+        />
+      </Suspense>
 
       {canSeeServiceActivity && handlingPromise ? (
         <Suspense fallback={<SectionFallback label="GEIA work" />}>

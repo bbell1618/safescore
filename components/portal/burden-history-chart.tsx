@@ -1,5 +1,5 @@
+import { InteractiveBurdenHistoryChart } from "@/components/portal/interactive-burden-history-chart";
 import type { PortalActivitySnapshot } from "@/lib/portal/activity-server";
-import { PortalAnimatedActivitySeries } from "@/components/portal/motion";
 
 const CHART_HEIGHT = 320;
 const TOP = 40;
@@ -14,7 +14,7 @@ type ChartPoint = PortalActivitySnapshot & {
   y: number;
   dateLabel: string;
   timeLabel: string | null;
-  accessibleLabel: string;
+  delta: number | null;
 };
 
 function timestamp(value: string): Date | null {
@@ -31,20 +31,6 @@ function shortDate(value: string): string {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
-  });
-}
-
-function fullTimestamp(value: string): string {
-  const parsed = timestamp(value);
-  if (!parsed) return value;
-  return parsed.toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/Los_Angeles",
-    timeZoneName: "short",
   });
 }
 
@@ -101,9 +87,10 @@ function chartPoints(
       y,
       dateLabel: shortDate(snapshot.snapshotDate),
       timeLabel: duplicate ? shortTime(snapshot.capturedAt) : null,
-      accessibleLabel: `${fullTimestamp(snapshot.capturedAt)}: ${snapshot.totalPoints.toLocaleString(
-        "en-US"
-      )} weighted points`,
+      delta:
+        index === 0
+          ? null
+          : snapshot.totalPoints - snapshots[index - 1]!.totalPoints,
     };
   });
 }
@@ -132,139 +119,33 @@ export function BurdenHistoryChart({
   const values = snapshots.map((snapshot) => snapshot.totalPoints);
   const { lower, upper } = roundedDomain(values);
   const points = chartPoints(snapshots, width, lower, upper);
-  const polyline = points
+  const linePoints = points
     .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
     .join(" ");
   const chartBottom = CHART_HEIGHT - BOTTOM;
-  const areaPoints = `${LEFT},${chartBottom} ${polyline} ${
+  const areaPoints = `${LEFT},${chartBottom} ${linePoints} ${
     width - RIGHT
   },${chartBottom}`;
-  const gridValues = Array.from({ length: 5 }, (_, index) =>
-    Math.round(upper - ((upper - lower) * index) / 4)
-  );
+  const gridValues = Array.from({ length: 5 }, (_, index) => ({
+    value: Math.round(upper - ((upper - lower) * index) / 4),
+    y:
+      TOP +
+      ((CHART_HEIGHT - TOP - BOTTOM) * index) /
+        4,
+  }));
 
   return (
-    <figure>
-      <div className="overflow-x-auto rounded-lg border border-sand bg-cream">
-        <svg
-          aria-label={`Weighted burden across ${snapshots.length} stored ${
-            snapshots.length === 1 ? "snapshot" : "snapshots"
-          }`}
-          className="block h-80"
-          role="img"
-          style={{ width: `${width}px`, minWidth: "100%" }}
-          viewBox={`0 0 ${width} ${CHART_HEIGHT}`}
-        >
-          <defs>
-            <linearGradient
-              id="portal-activity-burden-fill"
-              x1="0"
-              x2="0"
-              y1="0"
-              y2="1"
-            >
-              <stop
-                offset="0%"
-                stopColor="var(--color-amber)"
-                stopOpacity="0.24"
-              />
-              <stop
-                offset="100%"
-                stopColor="var(--color-amber)"
-                stopOpacity="0.02"
-              />
-            </linearGradient>
-          </defs>
-          {gridValues.map((value, index) => {
-            const y =
-              TOP +
-              ((CHART_HEIGHT - TOP - BOTTOM) * index) /
-                (gridValues.length - 1);
-            return (
-              <g key={`${value}-${index}`}>
-                <line
-                  opacity="0.28"
-                  stroke="var(--color-gold)"
-                  strokeDasharray={index === gridValues.length - 1 ? "0" : "4 6"}
-                  x1={LEFT}
-                  x2={width - RIGHT}
-                  y1={y}
-                  y2={y}
-                />
-                <text
-                  dominantBaseline="middle"
-                  fontFamily="var(--font-dm-mono)"
-                  fontSize="10"
-                  textAnchor="end"
-                  x={LEFT - 10}
-                  y={y}
-                  style={{ fill: "var(--color-warm-gray)" }}
-                >
-                  {value}
-                </text>
-              </g>
-            );
-          })}
-
-          {points.length > 1 ? (
-            <PortalAnimatedActivitySeries
-              areaPoints={areaPoints}
-              linePoints={polyline}
-            />
-          ) : null}
-
-          {points.map((point) => (
-            <g key={point.id}>
-              <title>{point.accessibleLabel}</title>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                fill="var(--color-warm-white)"
-                r="5"
-                stroke="var(--color-amber)"
-                strokeWidth="3"
-              />
-              <text
-                fontFamily="var(--font-dm-mono)"
-                fontSize="12"
-                fontWeight="600"
-                textAnchor="middle"
-                x={point.x}
-                y={Math.max(18, point.y - 14)}
-                style={{ fill: "var(--color-warm-dark)" }}
-              >
-                {point.totalPoints.toLocaleString("en-US")}
-              </text>
-              <text
-                fontFamily="var(--font-dm-mono)"
-                fontSize="10"
-                textAnchor="middle"
-                x={point.x}
-                y={CHART_HEIGHT - 44}
-                style={{ fill: "var(--color-warm-mid)" }}
-              >
-                {point.dateLabel}
-              </text>
-              {point.timeLabel ? (
-                <text
-                  fontFamily="var(--font-dm-mono)"
-                  fontSize="9"
-                  textAnchor="middle"
-                  x={point.x}
-                  y={CHART_HEIGHT - 27}
-                  style={{ fill: "var(--color-warm-gray)" }}
-                >
-                  {point.timeLabel}
-                </text>
-              ) : null}
-            </g>
-          ))}
-        </svg>
-      </div>
-      <figcaption className="mt-3 text-xs leading-5 text-warm-gray">
-        Every stored monitoring snapshot is shown. Multiple checks on the same
-        date include their capture time.
-      </figcaption>
-    </figure>
+    <InteractiveBurdenHistoryChart
+      areaPoints={areaPoints}
+      chartBottom={chartBottom}
+      chartHeight={CHART_HEIGHT}
+      gridValues={gridValues}
+      left={LEFT}
+      linePoints={linePoints}
+      points={points}
+      right={RIGHT}
+      top={TOP}
+      width={width}
+    />
   );
 }

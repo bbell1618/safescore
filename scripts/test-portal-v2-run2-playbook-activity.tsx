@@ -73,7 +73,9 @@ const chartHtml = renderToStaticMarkup(
   createElement(BurdenHistoryChart, { snapshots })
 );
 assert.match(chartHtml, />599</);
-assert.equal((chartHtml.match(/Jul 22/g) ?? []).length, 2);
+assert.ok((chartHtml.match(/Jul 22/g) ?? []).length >= 2);
+assert.match(chartHtml, /data-snapshot-point="two"/);
+assert.match(chartHtml, /data-snapshot-point="three"/);
 assert.match(chartHtml, /12:00 AM/);
 assert.match(chartHtml, /1:30 AM/);
 assert.match(chartHtml, /Every stored monitoring snapshot is shown/);

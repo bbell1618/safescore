@@ -26,7 +26,10 @@ const complianceLoading = source(
 const home = source("app/(portal)/portal/page.tsx");
 const playbook = source("app/(portal)/portal/playbook/page.tsx");
 const activity = source("app/(portal)/portal/activity/page.tsx");
-const chart = source("components/portal/burden-history-chart.tsx");
+const interactiveChart = source(
+  "components/portal/interactive-burden-history-chart.tsx"
+);
+const pressureBars = source("components/portal/basic-pressure-list.tsx");
 const documents = source("app/(portal)/portal/documents/page.tsx");
 const vault = source("app/(portal)/portal/documents/document-vault.tsx");
 const account = source("app/(portal)/portal/account/page.tsx");
@@ -77,7 +80,7 @@ assert.match(motion, /PortalAnimatedPressureBar/);
 assert.match(motion, /PortalAnimatedActivitySeries/);
 assert.match(motion, /useInView/);
 assert.match(motion, /useReducedMotion/);
-assert.match(motion, /useState\(value\)/);
+assert.match(motion, /useState\(0\)/);
 assert.match(motion, /Math\.round\(visibleValue\)/);
 assert.doesNotMatch(motion, /started\.current/);
 assert.match(motion, /whileHover/);
@@ -95,7 +98,8 @@ assert.match(groupLoading, /PortalRouteSkeleton/);
 assert.match(groupLoading, /portal-brand-root portal-warm-texture/);
 
 assert.match(home, /PortalAnimatedNumber value=\{latest\.total_points\}/);
-assert.match(home, /PortalAnimatedPressureBar/);
+assert.match(pressureBars, /portal-motion-pressure-bar/);
+assert.match(pressureBars, /whileInView/);
 assert.match(home, /PortalMotionListItem/);
 assert.match(home, /GoldenEraTruckLoader compact/);
 
@@ -113,7 +117,7 @@ assert.match(activity, /PortalAnimatedNumber value=\{latest\.totalPoints\}/);
 assert.match(activity, /PortalMotionSection/);
 assert.match(activity, /PortalMotionListItem/);
 assert.match(activity, /GoldenEraTruckLoader compact/);
-assert.match(chart, /PortalAnimatedActivitySeries/);
+assert.match(interactiveChart, /PortalAnimatedActivitySeries/);
 
 assert.match(documents, /<PortalMotionSection/);
 assert.match(documents, /interactive/);

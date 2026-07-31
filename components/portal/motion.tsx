@@ -177,9 +177,8 @@ export function PortalAnimatedNumber({
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const reduceMotion = useReducedMotion();
-  const hasAnimated = useRef(false);
-  const currentValue = useRef(value);
-  const [animatedValue, setAnimatedValue] = useState(value);
+  const currentValue = useRef(0);
+  const [animatedValue, setAnimatedValue] = useState(0);
   const formatted = value.toLocaleString("en-US");
 
   useEffect(() => {
@@ -187,14 +186,10 @@ export function PortalAnimatedNumber({
 
     if (reduceMotion) {
       currentValue.current = value;
-      hasAnimated.current = true;
       return;
     }
 
-    const from = hasAnimated.current ? currentValue.current : 0;
-    hasAnimated.current = true;
-
-    const controls = animate(from, value, {
+    const controls = animate(currentValue.current, value, {
       duration,
       ease: REVEAL_EASE,
       onUpdate: (latest) => {
@@ -208,10 +203,7 @@ export function PortalAnimatedNumber({
     };
   }, [duration, isInView, reduceMotion, value]);
 
-  const visibleValue =
-    reduceMotion || (!hasAnimated.current && !isInView)
-      ? value
-      : animatedValue;
+  const visibleValue = reduceMotion || !isInView ? value : animatedValue;
 
   return (
     <span className={cn("tabular-nums", className)}>

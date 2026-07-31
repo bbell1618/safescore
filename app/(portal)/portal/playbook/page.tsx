@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import {
-  CalendarDays,
   CheckCircle2,
-  ClipboardCheck,
   Gauge,
   Sparkles,
 } from "lucide-react";
@@ -20,6 +18,7 @@ import {
   PortalReveal,
 } from "@/components/portal/motion";
 import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
+import { PlaybookPrograms } from "@/components/portal/playbook-programs";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { getPortalPageAccess } from "@/lib/portal/access";
 import {
@@ -39,13 +38,6 @@ function formatDate(value: string): string {
     day: "numeric",
     year: "numeric",
     timeZone: value.includes("T") ? "America/Los_Angeles" : "UTC",
-  });
-}
-
-function rateLabel(value: number): string {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
   });
 }
 
@@ -98,147 +90,6 @@ function PlaybookBodyFallback() {
       </div>
       <span className="sr-only">Loading coaching playbook…</span>
     </div>
-  );
-}
-
-function FamilyProgramCard({
-  program,
-  index,
-}: {
-  program: PortalPlaybook["family_programs"][number];
-  index: number;
-}) {
-  return (
-    <PortalMotionListItem
-      interactive
-      className="overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
-      delay={Math.min(index * 0.04, 0.2)}
-    >
-      <article>
-        <header className="border-b border-sand bg-cream p-5 sm:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl">
-              <p className="mono-label text-amber-dark">Focus {index + 1}</p>
-              <h3 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
-                {program.familyName}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-warm-mid">
-                {program.introduction}
-              </p>
-            </div>
-            <dl className="grid shrink-0 grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-lg border border-sand bg-warm-white px-3 py-3 text-center">
-                <dt className="font-mono text-[10px] uppercase tracking-wider text-warm-gray">
-                  Violations
-                </dt>
-                <dd className="mt-1 font-mono text-xl font-semibold text-warm-dark">
-                  {program.count.toLocaleString("en-US")}
-                </dd>
-              </div>
-              <div className="rounded-lg border border-sand bg-warm-white px-3 py-3 text-center">
-                <dt className="font-mono text-[10px] uppercase tracking-wider text-warm-gray">
-                  Points
-                </dt>
-                <dd className="mt-1 font-mono text-xl font-semibold text-warm-dark">
-                  {program.points.toLocaleString("en-US")}
-                </dd>
-              </div>
-              <div className="rounded-lg border border-sand bg-warm-white px-3 py-3 text-center">
-                <dt className="font-mono text-[10px] uppercase tracking-wider text-warm-gray">
-                  New / month
-                </dt>
-                <dd className="mt-1 font-mono text-xl font-semibold text-warm-dark">
-                  {rateLabel(program.inflowRatePerMonth)}
-                </dd>
-              </div>
-            </dl>
-          </div>
-          <p className="mt-3 font-mono text-[10px] text-warm-gray">
-            New-violation rate uses the latest {program.trailingWindowDays}-day
-            window.
-          </p>
-        </header>
-
-        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-heading text-lg font-semibold text-warm-dark">
-                Why this matters
-              </h4>
-              <p className="mt-2 text-sm leading-6 text-warm-mid">
-                {program.riskContext}
-              </p>
-            </div>
-            <div className="rounded-lg border border-amber/25 bg-amber-subtle p-4">
-              <h4 className="font-heading font-semibold text-warm-dark">
-                Coaching note
-              </h4>
-              <p className="mt-2 text-sm leading-6 text-warm-mid">
-                {program.coachingLanguage}
-              </p>
-            </div>
-            <div>
-              <h4 className="font-heading text-lg font-semibold text-warm-dark">
-                What to do
-              </h4>
-              <ul className="mt-3 space-y-2.5">
-                {program.program.map((step) => (
-                  <li
-                    className="flex gap-2.5 text-sm leading-6 text-warm-mid"
-                    key={step}
-                  >
-                    <ClipboardCheck
-                      className="mt-1 h-4 w-4 shrink-0 text-amber-dark"
-                      aria-hidden="true"
-                    />
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <div className="rounded-lg border border-success/20 bg-success-light p-4">
-              <div className="flex items-center gap-2 text-success">
-                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                <h4 className="font-heading font-semibold">
-                  You&apos;ll know it&apos;s working when
-                </h4>
-              </div>
-              <ul className="mt-3 space-y-2">
-                {program.workingWhen.map((signal) => (
-                  <li
-                    className="text-sm leading-6 text-warm-mid"
-                    key={signal}
-                  >
-                    {signal}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-lg border border-sand bg-cream p-4">
-              <div className="flex items-center gap-2 text-amber-dark">
-                <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                <h4 className="font-heading font-semibold">
-                  Included installments
-                </h4>
-              </div>
-              <ul className="mt-3 space-y-2">
-                {program.installments.map((installment) => (
-                  <li
-                    className="text-sm leading-6 text-warm-mid"
-                    key={installment}
-                  >
-                    {installment}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </article>
-    </PortalMotionListItem>
   );
 }
 
@@ -424,15 +275,22 @@ async function PlaybookContent({
           </p>
         </div>
         {playbook.family_programs.length > 0 ? (
-          <ol className="mt-6 space-y-6">
-            {playbook.family_programs.map((program, index) => (
-              <FamilyProgramCard
-                index={index}
-                key={program.familyKey}
-                program={program}
-              />
-            ))}
-          </ol>
+          <PlaybookPrograms
+            programs={playbook.family_programs.map((program, index) => ({
+              id: `playbook-program-${index + 1}`,
+              familyName: program.familyName,
+              count: program.count,
+              points: program.points,
+              inflowRatePerMonth: program.inflowRatePerMonth,
+              trailingWindowDays: program.trailingWindowDays,
+              riskContext: program.riskContext,
+              program: program.program,
+              workingWhen: program.workingWhen,
+              installments: program.installments,
+              introduction: program.introduction,
+              coachingLanguage: program.coachingLanguage,
+            }))}
+          />
         ) : (
           <PortalReveal>
             <div className="mt-6 rounded-xl border border-sand bg-warm-white p-8 text-center shadow-sm">

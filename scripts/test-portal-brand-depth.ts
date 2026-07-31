@@ -27,6 +27,9 @@ const documents = source("app/(portal)/portal/documents/page.tsx");
 const account = source("app/(portal)/portal/account/page.tsx");
 const sparkline = source("components/portal/burden-sparkline.tsx");
 const chart = source("components/portal/burden-history-chart.tsx");
+const interactiveChart = source(
+  "components/portal/interactive-burden-history-chart.tsx"
+);
 const motion = source("components/portal/motion.tsx");
 const truck = source("components/portal/truck-loader.tsx");
 const requestUpload = source("components/portal/request-upload.tsx");
@@ -93,13 +96,13 @@ assert.match(home, /FMCSA publishes no percentiles for low-volume carriers/);
 assert.match(home, /<PortalPageBody/);
 assert.match(home, /<PortalFooterBand/);
 
-for (const graph of [sparkline, `${chart}\n${motion}`]) {
+for (const graph of [sparkline, `${chart}\n${interactiveChart}\n${motion}`]) {
   assert.match(graph, /linearGradient/);
   assert.match(graph, /polygon/);
   assert.match(graph, /var\(--color-amber/);
   assert.match(graph, /var\(--color-gold\)/);
 }
-assert.match(chart, /PortalAnimatedActivitySeries/);
+assert.match(interactiveChart, /PortalAnimatedActivitySeries/);
 assert.match(motion, /motion\.polyline/);
 assert.match(motion, /pathLength:\s*0/);
 assert.match(truck, /GoldenEraTruckLoader/);

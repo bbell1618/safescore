@@ -15,6 +15,10 @@ import {
   PortalPageBody,
   PortalSectionDivider,
 } from "@/components/portal/brand";
+import {
+  AccountSourceInfo,
+  CopyableAccountValue,
+} from "@/components/portal/account-interactions";
 import { PortalMotionSection } from "@/components/portal/motion";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
@@ -69,8 +73,9 @@ function Surface({
   return (
     <PortalMotionSection
       ariaLabelledBy={labelledBy}
+      interactive
       className={cn(
-        "rounded-xl border border-sand bg-warm-white p-6 shadow-sm",
+        "rounded-xl border border-sand bg-warm-white p-6 shadow-sm transition-colors hover:border-amber/30",
         className
       )}
     >
@@ -197,6 +202,7 @@ async function AccountCards({
   const subscriptionNeedsReview =
     subscription !== null &&
     (subscriptionTier === null || subscriptionTier !== context.tier);
+  const mcNumber = context.mcNumber?.replace(/^MC-?/i, "") ?? null;
 
   return (
     <div className="space-y-8">
@@ -212,33 +218,43 @@ async function AccountCards({
           <dl className="mt-6 grid gap-x-6 gap-y-5 sm:grid-cols-2">
             <Fact label="Company">{context.clientName}</Fact>
             <Fact label="USDOT" mono>
-              {context.dotNumber}
+              <CopyableAccountValue
+                label="USDOT number"
+                value={context.dotNumber}
+                mono
+              />
             </Fact>
             <Fact label="MC number" mono>
-              {context.mcNumber
-                ? context.mcNumber.replace(/^MC-?/i, "")
-                : "Not recorded"}
+              {mcNumber ? (
+                <CopyableAccountValue
+                  label="MC number"
+                  value={mcNumber}
+                  mono
+                />
+              ) : (
+                "Not recorded"
+              )}
             </Fact>
             <Fact label="Phone">
               {account.company.phone ? (
-                <a
-                  className="rounded-sm text-amber-dark underline decoration-amber/30 underline-offset-2 transition-colors duration-150 hover:text-amber-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-                  href={`tel:${account.company.phone.replace(/\D/g, "")}`}
+                <CopyableAccountValue
+                  label="phone number"
+                  value={account.company.phone}
                 >
                   {formatPhone(account.company.phone)}
-                </a>
+                </CopyableAccountValue>
               ) : (
                 "Not recorded"
               )}
             </Fact>
             <Fact label="Email">
               {account.company.email ? (
-                <a
-                  className="rounded-sm text-amber-dark underline decoration-amber/30 underline-offset-2 transition-colors duration-150 hover:text-amber-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-                  href={`mailto:${account.company.email}`}
+                <CopyableAccountValue
+                  label="email address"
+                  value={account.company.email}
                 >
                   {account.company.email}
-                </a>
+                </CopyableAccountValue>
               ) : (
                 "Not recorded"
               )}
@@ -257,10 +273,11 @@ async function AccountCards({
                   {address.value ?? "No company address is available yet."}
                 </p>
                 {address.source ? (
-                  <p className="mt-1 text-xs leading-5 text-warm-gray">
-                    Source: {address.source.label}
-                    {sourceAsOf ? ` · as of ${sourceAsOf}` : ""}
-                  </p>
+                  <AccountSourceInfo
+                    className="mt-1"
+                    label={`${address.source.label}${sourceAsOf ? ` · as of ${sourceAsOf}` : ""}`}
+                    explanation="FMCSA SAFER is the public carrier snapshot used when your SafeScore company record does not include an address."
+                  />
                 ) : null}
               </div>
             </div>
@@ -276,22 +293,21 @@ async function AccountCards({
           />
 
           <div className="mt-6 space-y-4">
-            <div className="rounded-lg border border-sand bg-cream p-5">
+            <div className="rounded-lg border border-sand bg-cream p-5 shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-amber/30 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none">
               <p className="mono-label text-warm-gray">Public census</p>
               <p className="mt-2 font-mono text-lg font-medium leading-7 text-warm-dark">
                 {fleet.fmcsa}
               </p>
               {account.safer ? (
-                <p className="mt-2 text-xs text-warm-gray">
-                  FMCSA SAFER
-                  {formatDate(account.safer.saferAsOf)
-                    ? ` · as of ${formatDate(account.safer.saferAsOf)}`
-                    : ""}
-                </p>
+                <AccountSourceInfo
+                  className="mt-2"
+                  label={`FMCSA SAFER${formatDate(account.safer.saferAsOf) ? ` · as of ${formatDate(account.safer.saferAsOf)}` : ""}`}
+                  explanation="FMCSA SAFER is the public company snapshot used for power-unit and driver census figures."
+                />
               ) : null}
             </div>
 
-            <div className="rounded-lg border border-amber/25 bg-amber-subtle p-5">
+            <div className="rounded-lg border border-amber/25 bg-amber-subtle p-5 shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-amber/50 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none">
               <p className="mono-label text-amber-dark">Service plan</p>
               <p className="mt-2 font-mono text-lg font-medium leading-7 text-warm-dark">
                 {fleet.servicePlan}
@@ -363,7 +379,7 @@ async function AccountCards({
                 const isCurrentUser = portalUser.id === context.userId;
                 return (
                   <li
-                    className="flex items-start gap-3 px-4 py-4"
+                    className="flex items-start gap-3 px-4 py-4 transition-colors hover:bg-warm-white focus-within:bg-warm-white"
                     key={portalUser.id}
                   >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warm-white text-warm-gray shadow-sm">
