@@ -15,7 +15,8 @@ export async function GET() {
       "id, category, title, description, source, requested_items, request_type, evidence_class, why_copy, potential_points, violation_id, status, evidence_status, status_copy, response, submitted_at, applied_at, due_at, reminder_count, created_at"
     )
     .eq("client_id", access.clientId)
-    .eq("responsibility", "client");
+    .eq("responsibility", "client")
+    .neq("status", "cancelled");
   if (!tierHasFeature(access.tier, "compliance_layer")) {
     query = query.neq("category", "mcs150_truth_up");
   }

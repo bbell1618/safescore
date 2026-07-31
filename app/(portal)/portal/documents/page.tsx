@@ -189,6 +189,7 @@ async function loadOpenRequests(
     )
     .eq("client_id", clientId)
     .eq("responsibility", "client")
+    .neq("status", "cancelled")
     .or(
       "status.eq.open,evidence_status.in.(submitted,applied,insufficient)"
     );

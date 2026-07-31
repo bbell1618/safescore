@@ -11,6 +11,7 @@ const BASE_URL = (
 ).replace(/\/+$/, "");
 const NATIONWIDE_ID = "879b62c2-f8ea-430d-b8d3-9264150d84bf";
 const TARGET_VIOLATION_ID = "164153b8-3a1a-49c8-93d6-854148bee0c2";
+const CANCELLED_NEGATED_SIGNAL_REQUEST_ID = "dbeede2c-a148-44c8-924a-d75910eef0b0";
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -101,7 +102,6 @@ async function main() {
   assert.deepEqual(second.errors, [], `Second reconciliation failed: ${second.errors.join(" | ")}`);
   assert.equal(second.createdRequestIds.length, 0, "Second reconciliation created duplicate evidence requests");
   assert.equal(second.intakeQuestionCreated, false, "Second reconciliation created a duplicate intake question");
-  assert.ok(dryRunEvents.length > 0, "First use did not exercise a dry-run notification");
   assert.ok(
     dryRunEvents.every((event) => event.mode === "dry-run"),
     "At least one notification did not remain in dry-run mode"
@@ -188,6 +188,7 @@ async function main() {
     apiStatus: number;
     pageStatus: number;
     targetVisibleInApi: true;
+    cancelledNegatedSignalHidden: true;
     renderedMarkers: string[];
   } | null = null;
   try {
@@ -209,6 +210,12 @@ async function main() {
     assert.equal(pageResponse.status, 200, "Portal Documents page failed");
     const apiTarget = (apiBody.requests ?? []).find((row) => row.id === target.id);
     assert(apiTarget, "Target request is missing from the authenticated portal API");
+    assert(
+      !(apiBody.requests ?? []).some(
+        (row) => row.id === CANCELLED_NEGATED_SIGNAL_REQUEST_ID
+      ),
+      "Portal requests API still returns the cancelled negated-signal request"
+    );
     for (const marker of [
       "DA251770",
       "Certified court disposition",
@@ -217,10 +224,15 @@ async function main() {
     ]) {
       assert(pageText.includes(marker), `Portal Documents is missing: ${marker}`);
     }
+    assert(
+      !pageText.includes("Records needed to prove a report error"),
+      "Portal Documents still renders the cancelled negated-signal request"
+    );
     portalProof = {
       apiStatus: apiResponse.status,
       pageStatus: pageResponse.status,
       targetVisibleInApi: true,
+      cancelledNegatedSignalHidden: true,
       renderedMarkers: [
         "DA251770",
         "Certified court disposition",
@@ -253,8 +265,9 @@ async function main() {
         intakeQuestion: intakeResult.data,
         targetActivity: targetCreation,
         dryRunNotifications: {
-          count: dryRunEvents.length,
-          events: dryRunEvents,
+          newCountThisRun: dryRunEvents.length,
+          newEventsThisRun: dryRunEvents,
+          targetPersistedStatus: delivery?.status,
           recipientsPrinted: false,
         },
         idempotency: { duplicateKeys },

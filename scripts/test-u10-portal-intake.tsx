@@ -77,6 +77,7 @@ assert.match(
   documentsPage,
   /status\.eq\.open,evidence_status\.in\.\(submitted,applied,insufficient\)/
 );
+assert.match(documentsPage, /\.neq\("status", "cancelled"\)/);
 assert.match(documentsPage, /submitted/);
 assert.match(documentsPage, /applied/);
 assert.match(documentsPage, /insufficient/);
@@ -99,6 +100,7 @@ for (const field of [
 ]) {
   assert.match(requestsApi, new RegExp(field));
 }
+assert.match(requestsApi, /\.neq\("status", "cancelled"\)/);
 
 console.log(
   JSON.stringify(
