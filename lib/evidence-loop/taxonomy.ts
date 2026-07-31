@@ -95,6 +95,31 @@ function hasAny(text: string, needles: readonly string[]) {
   return needles.some((needle) => text.includes(needle));
 }
 
+function hasAffirmativeSignal(text: string, signals: readonly string[]) {
+  return signals.some((signal) => {
+    let searchFrom = 0;
+    while (searchFrom < text.length) {
+      const index = text.indexOf(signal, searchFrom);
+      if (index < 0) return false;
+      const clauseStart = Math.max(
+        text.lastIndexOf(".", index - 1),
+        text.lastIndexOf(";", index - 1),
+        text.lastIndexOf("!", index - 1),
+        text.lastIndexOf("?", index - 1),
+        index - 96
+      );
+      const prefix = text.slice(clauseStart + 1, index);
+      const negated =
+        /\b(?:no|not|without|lacks?|absent|neither)\b[^.;!?]{0,96}$/i.test(
+          prefix
+        );
+      if (!negated) return true;
+      searchFrom = index + signal.length;
+    }
+    return false;
+  });
+}
+
 function citationDispositionNeedsEvidence(
   citationNumber: string | null,
   citationResult: string | null
@@ -127,14 +152,6 @@ export function evidenceClassesForViolation(
     return [];
   }
 
-  const text = [
-    violation.challengeReason,
-    violation.violationCode,
-    violation.violationDescription,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
   const reasonText = normalized(violation.challengeReason);
   const classes = new Set<LaneBEvidenceClass>();
 
@@ -154,11 +171,17 @@ export function evidenceClassesForViolation(
   ) {
     classes.add("citation-dismissed");
   }
-  if (hasAny(text, ["duplicate", "duplicated", "same inspection twice"])) {
+  if (
+    hasAffirmativeSignal(reasonText, [
+      "duplicate",
+      "duplicated",
+      "same inspection twice",
+    ])
+  ) {
     classes.add("duplicate");
   }
   if (
-    hasAny(text, [
+    hasAffirmativeSignal(reasonText, [
       "wrong carrier",
       "wrong driver",
       "wrong vehicle",
@@ -174,7 +197,7 @@ export function evidenceClassesForViolation(
     classes.add("wrong-attribution");
   }
   if (
-    hasAny(text, [
+    hasAffirmativeSignal(reasonText, [
       "factual error",
       "recording error",
       "clerical",

@@ -98,11 +98,21 @@ const classificationMatrix = {
     ...classificationBase,
     challengeReason: "The inspection report contains a factual error.",
   }),
+  negatedFactualSignal: evidenceClassesForViolation({
+    ...classificationBase,
+    challengeReason:
+      "A court disposition is required. The violation is otherwise plausible with no internal code/description mismatch or impossible date.",
+    citationNumber: "DA251770",
+    citationResult: null,
+  }),
 };
 assert.deepEqual(classificationMatrix.wrongAttribution, ["wrong-attribution"]);
 assert.deepEqual(classificationMatrix.duplicate, ["duplicate"]);
 assert.deepEqual(classificationMatrix.citationDismissed, ["citation-dismissed"]);
 assert.deepEqual(classificationMatrix.factualError, ["report-factual-error"]);
+assert.deepEqual(classificationMatrix.negatedFactualSignal, [
+  "citation-dismissed",
+]);
 
 assert.ok(
   !evidenceClassesForViolation({
