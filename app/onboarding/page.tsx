@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
-import { normalizeClientTier, tierHasFeature, TIER_LABELS } from "@/lib/tiers";
+import { isClientTier, tierHasFeature, TIER_LABELS } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
 import { CITATION_DISMISSED_INTAKE_QUESTION } from "@/lib/evidence-loop/taxonomy";
+import {
+  humanEnteredNameOrEmpty,
+  parseRequiredDriverCount,
+  validateOnboardingStep1,
+  validateOnboardingStep2,
+  validateOnboardingStep3,
+  type OnboardingField,
+} from "@/lib/onboarding/validation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -125,6 +133,8 @@ export default function OnboardingPage() {
   const [carrier, setCarrier] = useState<CarrierData | null>(null);
   const [loadingClient, setLoadingClient] = useState(true);
   const [loadingCarrier, setLoadingCarrier] = useState(false);
+  const [carrierLookupSettled, setCarrierLookupSettled] = useState(false);
+  const [carrierLookupFailed, setCarrierLookupFailed] = useState(false);
 
   // Step 1 — Contact info (merged with company confirm)
   const [contactName, setContactName] = useState("");
@@ -136,7 +146,7 @@ export default function OnboardingPage() {
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [operatingStates, setOperatingStates] = useState<string[]>([]);
   const [operatingRadius, setOperatingRadius] = useState<"local" | "regional" | "otr" | "">("");
-  const [driverCount, setDriverCount] = useState(0);
+  const [driverCount, setDriverCount] = useState("");
   const [eldProvider, setEldProvider] = useState("");
   const [safetyContactName, setSafetyContactName] = useState("");
   const [safetyContactEmail, setSafetyContactEmail] = useState("");
@@ -155,21 +165,41 @@ export default function OnboardingPage() {
   // Step 4 — Checkout
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [showTierOptions, setShowTierOptions] = useState(false);
+  const [pendingTier, setPendingTier] = useState<ClientTier | null>(null);
+  const [staffAssignedTier, setStaffAssignedTier] =
+    useState<ClientTier | null>(null);
+  const [tierChangeLoading, setTierChangeLoading] = useState(false);
+  const [tierChangeError, setTierChangeError] = useState<string | null>(null);
 
   // Saving state
   const [savingProfile, setSavingProfile] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [touchedFields, setTouchedFields] = useState<
+    Partial<Record<OnboardingField, boolean>>
+  >({});
 
   // Assigned tier from client record (GEIA sets this)
-  const assignedTier = normalizeClientTier(client?.tier);
-  const assignedTierData = TIERS.find((t) => t.value === assignedTier) ?? TIERS[0];
-  const hasCaseServices = tierHasFeature(assignedTier, "case_visibility");
-  const hasEvidenceRequests = tierHasFeature(
-    assignedTier,
-    "evidence_requests"
-  );
-  const hasRecurringSubscription = tierHasFeature(assignedTier, "monitoring_alerts");
-  const hasDriverBilling = tierHasFeature(assignedTier, "compliance_layer");
+  const assignedTier = isClientTier(client?.tier) ? client.tier : null;
+  const assignedTierData = assignedTier
+    ? TIERS.find((tier) => tier.value === assignedTier) ?? null
+    : null;
+  const hasCaseServices = assignedTier
+    ? tierHasFeature(assignedTier, "case_visibility")
+    : false;
+  const hasEvidenceRequests = assignedTier
+    ? tierHasFeature(assignedTier, "evidence_requests")
+    : false;
+  const hasRecurringSubscription = assignedTier
+    ? tierHasFeature(assignedTier, "monitoring_alerts")
+    : false;
+  const hasDriverBilling = assignedTier
+    ? tierHasFeature(assignedTier, "compliance_layer")
+    : false;
+  const profileWritesLocked =
+    client?.service_agreement_accepted === true &&
+    (client.status === "onboarding" || client.status === "prospect");
 
   // ── Fetch client on mount ────────────────────────────────────────────────────
 
@@ -183,13 +213,27 @@ export default function OnboardingPage() {
         }
         if (data.client) {
           setClient(data.client);
-          setContactName(data.client.primary_contact ?? "");
+          const primaryContact = humanEnteredNameOrEmpty(
+            data.client.primary_contact
+          );
+          setContactName(primaryContact);
           setContactPhone(data.client.phone ?? "");
           setContactEmail(data.client.email ?? "");
-          setDriverCount(data.client.driver_count ?? 0);
+          setDriverCount(
+            Number.isInteger(data.client.driver_count) &&
+              data.client.driver_count >= 1
+              ? String(data.client.driver_count)
+              : ""
+          );
           setEldProvider(data.client.eld_provider ?? "");
-          setSafetyContactName(data.client.safety_contact_name ?? data.client.primary_contact ?? "");
+          setSafetyContactName(
+            humanEnteredNameOrEmpty(data.client.safety_contact_name) ||
+              primaryContact
+          );
           setSafetyContactEmail(data.client.safety_contact_email ?? data.client.email ?? "");
+          setStaffAssignedTier(
+            isClientTier(data.client.tier) ? data.client.tier : null
+          );
           setDataAccessChecked(data.client.fmcsa_authorized === true);
           setDataqChecked(data.client.standing_authorization === true);
           setCitationDismissedLast24Months(
@@ -197,6 +241,14 @@ export default function OnboardingPage() {
               ? data.client.citation_dismissed_last_24_months
               : null
           );
+          if (
+            data.client.service_agreement_accepted === true &&
+            (data.client.status === "onboarding" ||
+              data.client.status === "prospect")
+          ) {
+            setAgreementChecked(true);
+            setStep(4);
+          }
         } else {
           throw new Error("No client is linked to this portal account");
         }
@@ -207,7 +259,9 @@ export default function OnboardingPage() {
             : "Unable to load the onboarding account"
         );
       }
-      finally { setLoadingClient(false); }
+      finally {
+        setLoadingClient(false);
+      }
     }
     fetchClient();
   }, []);
@@ -215,25 +269,68 @@ export default function OnboardingPage() {
   // ── Fetch carrier from FMCSA when client is loaded ───────────────────────────
 
   useEffect(() => {
-    if (client?.dot_number && !carrier && !loadingCarrier) {
-      setLoadingCarrier(true);
-      fetch(`/api/fmcsa/carrier/${client.dot_number}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => setCarrier(data?.carrier ?? null))
-        .catch(() => setCarrier(null))
-        .finally(() => setLoadingCarrier(false));
+    const dotNumber = client?.dot_number;
+    if (!dotNumber) {
+      setCarrier(null);
+      setCarrierLookupFailed(true);
+      setCarrierLookupSettled(true);
+      return;
     }
-  }, [client, carrier, loadingCarrier]);
+
+    const controller = new AbortController();
+    let active = true;
+    setCarrier(null);
+    setLoadingCarrier(true);
+    setCarrierLookupFailed(false);
+    setCarrierLookupSettled(false);
+
+    void fetch(`/api/fmcsa/carrier/${dotNumber}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof data.error === "string"
+              ? data.error
+              : `FMCSA lookup failed with status ${response.status}`
+          );
+        }
+        if (!data.carrier) {
+          throw new Error("FMCSA returned no carrier record");
+        }
+        if (active) setCarrier(data.carrier as CarrierData);
+      })
+      .catch((error: unknown) => {
+        if (!active || (error instanceof DOMException && error.name === "AbortError")) {
+          return;
+        }
+        setCarrier(null);
+        setCarrierLookupFailed(true);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingCarrier(false);
+        setCarrierLookupSettled(true);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [client?.dot_number]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   function toggleVehicleType(v: string) {
+    touchField("vehicleTypes");
     setVehicleTypes((prev) =>
       prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
     );
   }
 
   function toggleState(s: string) {
+    touchField("operatingStates");
     setOperatingStates((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
     );
@@ -256,7 +353,22 @@ export default function OnboardingPage() {
     return result;
   }
 
+  function touchField(field: OnboardingField) {
+    setTouchedFields((current) => ({ ...current, [field]: true }));
+  }
+
+  function visibleFieldError(
+    field: OnboardingField,
+    error: string | undefined
+  ) {
+    return touchedFields[field] ? error : undefined;
+  }
+
   async function saveProfile() {
+    const parsedDriverCount = parseRequiredDriverCount(driverCount);
+    if (parsedDriverCount === null) {
+      throw new Error("Enter a whole-number driver count of at least 1.");
+    }
     await postOnboarding("/api/portal/onboarding-profile", {
       contactName,
       contactTitle,
@@ -265,13 +377,11 @@ export default function OnboardingPage() {
       vehicleTypes,
       operatingStates,
       operatingRadius: operatingRadius || undefined,
-      driverCount,
+      driverCount: parsedDriverCount,
       eldProvider,
       safetyContactName,
       safetyContactEmail,
-      citationDismissedLast24Months: hasEvidenceRequests
-        ? citationDismissedLast24Months
-        : undefined,
+      citationDismissedLast24Months,
     });
   }
 
@@ -323,6 +433,12 @@ export default function OnboardingPage() {
   }
 
   async function handleSubscribe() {
+    if (!assignedTier) {
+      setCheckoutError(
+        "No service tier is assigned to this account. Contact your GEIA account manager."
+      );
+      return;
+    }
     if (!hasRecurringSubscription) {
       setCheckoutError(
         "Assessment is a one-time diagnostic and does not use recurring subscription checkout."
@@ -350,30 +466,154 @@ export default function OnboardingPage() {
     }
   }
 
+  async function confirmTierChange() {
+    if (!pendingTier || pendingTier === assignedTier) {
+      setShowTierOptions(false);
+      setPendingTier(null);
+      return;
+    }
+
+    setTierChangeLoading(true);
+    setTierChangeError(null);
+    try {
+      const response = await fetch("/api/portal/onboarding-tier", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: pendingTier }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof result.error === "string"
+            ? result.error
+            : `Unable to change service tier (${response.status})`
+        );
+      }
+
+      const selectedTier = isClientTier(result.tier) ? result.tier : pendingTier;
+      if (isClientTier(result.assignedTier)) {
+        setStaffAssignedTier(result.assignedTier);
+      }
+      setClient((current) =>
+        current ? { ...current, tier: selectedTier } : current
+      );
+      setPendingTier(null);
+      setShowTierOptions(false);
+      setCheckoutError(null);
+    } catch (error) {
+      setTierChangeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to change the selected service tier"
+      );
+    } finally {
+      setTierChangeLoading(false);
+    }
+  }
+
+  async function handleAssessmentActivation() {
+    if (assignedTier !== "assessment") {
+      setCheckoutError(
+        "Assessment activation is available only for Assessment service."
+      );
+      return;
+    }
+
+    setActivationLoading(true);
+    setCheckoutError(null);
+    try {
+      const result = await postOnboarding(
+        "/api/portal/onboarding-activation",
+        {}
+      );
+      setClient((current) =>
+        current
+          ? {
+              ...current,
+              status:
+                typeof result.status === "string"
+                  ? result.status
+                  : "awaiting_activation",
+              tier: isClientTier(result.tier) ? result.tier : current.tier,
+              service_agreement_accepted: true,
+            }
+          : current
+      );
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit the assessment for activation"
+      );
+    } finally {
+      setActivationLoading(false);
+    }
+  }
+
   // ── Can-proceed guards ────────────────────────────────────────────────────────
 
-  const canProceedStep1 =
-    !loadingClient && !!client && contactName.trim().length > 0 && contactPhone.trim().length > 0;
+  const step1Validation = validateOnboardingStep1({
+    clientReady: !loadingClient && Boolean(client),
+    contactName,
+    contactPhone,
+  });
+  const step2Validation = validateOnboardingStep2({
+    vehicleTypes,
+    operatingStates,
+    operatingRadius,
+    driverCount,
+    citationDismissedLast24Months,
+  });
+  const step3Validation = validateOnboardingStep3({
+    agreementChecked,
+    dataAccessChecked,
+    dataqChecked,
+    tier: assignedTier,
+  });
+  const canProceedStep1 = step1Validation.valid;
+  const canProceedStep2 = step2Validation.valid;
+  const canProceedStep3 = step3Validation.valid;
 
-  const canProceedStep2 =
-    vehicleTypes.length > 0 &&
-    operatingStates.length > 0 &&
-    operatingRadius !== "" &&
-    (!hasEvidenceRequests || citationDismissedLast24Months !== null);
+  function attemptStep1() {
+    setTouchedFields((current) => ({
+      ...current,
+      client: true,
+      contactName: true,
+      contactPhone: true,
+    }));
+    if (!canProceedStep1) return;
 
-  const canProceedStep3 =
-    agreementChecked &&
-    dataAccessChecked &&
-    (hasCaseServices ? dataqChecked : true);
+    setStep(2);
+  }
 
-  const profileLockedAwaitingActivation =
-    client?.service_agreement_accepted === true &&
-    (client.status === "onboarding" || client.status === "prospect");
+  function attemptStep2() {
+    setTouchedFields((current) => ({
+      ...current,
+      vehicleTypes: true,
+      operatingRadius: true,
+      operatingStates: true,
+      driverCount: true,
+      citationDismissedLast24Months: true,
+    }));
+    if (!canProceedStep2) return;
+    setStep(3);
+  }
 
-  if (profileLockedAwaitingActivation) {
+  function attemptStep3() {
+    setTouchedFields((current) => ({
+      ...current,
+      agreementChecked: true,
+      dataAccessChecked: true,
+      dataqChecked: true,
+    }));
+    if (!canProceedStep3) return;
+    void finishAuthorization(true);
+  }
+
+  if (client?.status === "awaiting_activation") {
     return (
       <div className="min-h-screen bg-[#FEFCF8] flex items-center justify-center p-6">
-        <div className="w-full max-w-lg rounded-2xl border border-[#F0E8DA] bg-[#FBF7F0] p-8 shadow-sm">
+        <div className="w-full max-w-2xl rounded-2xl border border-[#F0E8DA] bg-[#FBF7F0] p-8 shadow-sm">
           <div className="flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-[#3D7A52]" />
             <div>
@@ -381,46 +621,63 @@ export default function OnboardingPage() {
                 Profile received
               </p>
               <h1 className="mt-1 text-2xl font-bold text-[#1E1C1A]">
-                Onboarding details are read-only
+                Your assessment is awaiting activation
               </h1>
             </div>
           </div>
           <p className="mt-5 text-sm leading-6 text-[#5C554E]">
-            Your carrier profile and authorizations are already recorded.
-            They cannot be overwritten from onboarding.
+            GEIA has your carrier profile and authorizations. There is nothing
+            else you need to submit here while we confirm the one-time payment.
           </p>
-          <div className="mt-5 rounded-xl border border-[#F0E8DA] bg-white/70 p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">
-              Assigned service
-            </p>
-            <p className="mt-1 font-semibold text-[#1E1C1A]">
-              {TIER_LABELS[assignedTier]}
-            </p>
-          </div>
-          {checkoutError ? (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg border border-[#B83B32]/20 bg-[#FAECEB] px-3 py-2 text-sm text-[#B83B32]"
+          <ol className="mt-6 grid gap-3 sm:grid-cols-2">
+            {[
+              ["1", "Profile received", "Your company details are recorded."],
+              [
+                "2",
+                "GEIA confirms payment",
+                "We confirm the one-time assessment payment.",
+              ],
+              [
+                "3",
+                "Assessment activates",
+                "Your safety record analysis begins.",
+              ],
+              [
+                "4",
+                "Portal opens",
+                "Your completed diagnostic becomes available.",
+              ],
+            ].map(([number, title, detail]) => (
+              <li
+                className="rounded-xl border border-[#F0E8DA] bg-white/70 p-4"
+                key={number}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FDF4E7] text-xs font-bold text-[#C67A1E]">
+                    {number}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-[#1E1C1A]">
+                      {title}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#5C554E]">
+                      {detail}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-6 rounded-lg border border-[#F0E8DA] bg-[#FEFCF8] px-4 py-3 text-sm text-[#5C554E]">
+            Questions? Contact GEIA at{" "}
+            <a
+              className="font-semibold text-[#C67A1E] underline underline-offset-2"
+              href="mailto:info@goldenerainsurance.com"
             >
-              {checkoutError}
-            </p>
-          ) : null}
-          {hasRecurringSubscription ? (
-            <button
-              type="button"
-              onClick={() => void handleSubscribe()}
-              disabled={checkoutLoading}
-              className="mt-6 w-full rounded-xl bg-[#C67A1E] px-4 py-3 text-sm font-semibold text-white hover:bg-[#B86E18] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {checkoutLoading
-                ? "Opening secure checkout..."
-                : "Continue to secure checkout"}
-            </button>
-          ) : (
-            <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Contact your GEIA representative to activate this assessment.
-            </p>
-          )}
+              info@goldenerainsurance.com
+            </a>
+            .
+          </p>
         </div>
       </div>
     );
@@ -471,7 +728,8 @@ export default function OnboardingPage() {
               </p>
 
               {/* Carrier card */}
-              {loadingClient || loadingCarrier ? (
+              {loadingClient ||
+              (!!client && (loadingCarrier || !carrierLookupSettled)) ? (
                 <div className="rounded-xl bg-[#FEFCF8] border border-[#F0E8DA] p-5 mb-6 space-y-3 animate-pulse">
                   <div className="h-4 bg-[#F0E8DA] rounded w-2/3" />
                   <div className="h-3 bg-[#F0E8DA] rounded w-1/3" />
@@ -519,6 +777,12 @@ export default function OnboardingPage() {
                   <p className="mono-label text-[#8B8178] mb-1">Company</p>
                   <p className="font-bold text-[#1E1C1A]">{client.name}</p>
                   <p className="text-sm text-[#8B8178] mt-1">DOT {client.dot_number}</p>
+                  {carrierLookupFailed ? (
+                    <p className="mt-3 rounded-lg border border-[#C67A1E]/20 bg-[#FDF4E7] px-3 py-2 text-sm leading-5 text-[#5C554E]">
+                      We couldn&apos;t verify this DOT with FMCSA. Confirm the
+                      company name and USDOT number below.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="rounded-xl bg-[#FDF4E7] border border-[#C67A1E]/20 p-4 mb-6">
@@ -538,9 +802,29 @@ export default function OnboardingPage() {
                       type="text"
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
+                      onBlur={() => touchField("contactName")}
+                      aria-invalid={Boolean(
+                        visibleFieldError(
+                          "contactName",
+                          step1Validation.errors.contactName
+                        )
+                      )}
+                      aria-describedby="contact-name-error"
                       placeholder="Jane Smith"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
                     />
+                    {visibleFieldError(
+                      "contactName",
+                      step1Validation.errors.contactName
+                    ) ? (
+                      <p
+                        id="contact-name-error"
+                        role="alert"
+                        className="mt-1 text-xs text-[#B83B32]"
+                      >
+                        {step1Validation.errors.contactName}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label className="block mono-label text-[#5C554E] mb-1.5">Title / role</label>
@@ -559,9 +843,29 @@ export default function OnboardingPage() {
                     type="tel"
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
+                    onBlur={() => touchField("contactPhone")}
+                    aria-invalid={Boolean(
+                      visibleFieldError(
+                        "contactPhone",
+                        step1Validation.errors.contactPhone
+                      )
+                    )}
+                    aria-describedby="contact-phone-error"
                     placeholder="(555) 555-5555"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm text-[#1E1C1A] focus:outline-none focus:ring-2 focus:ring-[#C67A1E]/30 focus:border-[#C67A1E] transition-colors placeholder:text-[#8B8178]"
                   />
+                  {visibleFieldError(
+                    "contactPhone",
+                    step1Validation.errors.contactPhone
+                  ) ? (
+                    <p
+                      id="contact-phone-error"
+                      role="alert"
+                      className="mt-1 text-xs text-[#B83B32]"
+                    >
+                      {step1Validation.errors.contactPhone}
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block mono-label text-[#5C554E] mb-1.5">Email address</label>
@@ -576,16 +880,21 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {!canProceedStep1 && step1Validation.summary ? (
+                <p
+                  id="step-1-missing"
+                  role="status"
+                  className="mb-3 text-sm text-[#8B5A16]"
+                >
+                  {step1Validation.summary}
+                </p>
+              ) : null}
+
               <button
-                onClick={() => {
-                  // Bug 3 fix: persist carrier profile to DB on confirmation (fire-and-forget)
-                  if (client?.id) {
-                    void fetch(`/api/clients/${client.id}/carrier-profile`, { method: "POST" })
-                      .catch(() => {}); // non-fatal — auto-fetch on creation is the primary path
-                  }
-                  setStep(2);
-                }}
-                disabled={!canProceedStep1}
+                type="button"
+                onClick={attemptStep1}
+                disabled={loadingClient}
+                aria-describedby={!canProceedStep1 ? "step-1-missing" : undefined}
                 className="w-full py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 This is correct — continue
@@ -623,6 +932,14 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+                  {visibleFieldError(
+                    "vehicleTypes",
+                    step2Validation.errors.vehicleTypes
+                  ) ? (
+                    <p role="alert" className="mt-2 text-xs text-[#B83B32]">
+                      {step2Validation.errors.vehicleTypes}
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Operating radius */}
@@ -633,7 +950,10 @@ export default function OnboardingPage() {
                       <button
                         key={r}
                         type="button"
-                        onClick={() => setOperatingRadius(r)}
+                        onClick={() => {
+                          touchField("operatingRadius");
+                          setOperatingRadius(r);
+                        }}
                         className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
                           operatingRadius === r
                             ? "border-[#C67A1E] bg-[#FDF4E7] text-[#C67A1E]"
@@ -647,6 +967,14 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+                  {visibleFieldError(
+                    "operatingRadius",
+                    step2Validation.errors.operatingRadius
+                  ) ? (
+                    <p role="alert" className="mt-2 text-xs text-[#B83B32]">
+                      {step2Validation.errors.operatingRadius}
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Operating states */}
@@ -673,13 +1001,50 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+                  {visibleFieldError(
+                    "operatingStates",
+                    step2Validation.errors.operatingStates
+                  ) ? (
+                    <p role="alert" className="mt-2 text-xs text-[#B83B32]">
+                      {step2Validation.errors.operatingStates}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block mono-label text-[#5C554E] mb-2">Billing driver count *</label>
-                    <input type="number" min={0} max={10000} value={driverCount} onChange={(e) => setDriverCount(Math.max(0, Number.parseInt(e.target.value || "0", 10)))} className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm" />
-                    <p className="mt-1 text-xs text-[#8B8178]">Your editable count drives billing. FMCSA&apos;s MCS-150 count is reference only.</p>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      step={1}
+                      required
+                      value={driverCount}
+                      onChange={(event) => setDriverCount(event.target.value)}
+                      onBlur={() => touchField("driverCount")}
+                      aria-invalid={Boolean(
+                        visibleFieldError(
+                          "driverCount",
+                          step2Validation.errors.driverCount
+                        )
+                      )}
+                      aria-describedby="driver-count-help driver-count-error"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm"
+                    />
+                    <p id="driver-count-help" className="mt-1 text-xs text-[#8B8178]">Your editable count drives billing. FMCSA&apos;s MCS-150 count is reference only.</p>
+                    {visibleFieldError(
+                      "driverCount",
+                      step2Validation.errors.driverCount
+                    ) ? (
+                      <p
+                        id="driver-count-error"
+                        role="alert"
+                        className="mt-1 text-xs text-[#B83B32]"
+                      >
+                        {step2Validation.errors.driverCount}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label className="block mono-label text-[#5C554E] mb-2">ELD provider</label>
@@ -695,14 +1060,14 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {hasEvidenceRequests ? (
-                  <fieldset className="rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] p-4">
+                <fieldset className="rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] p-4">
                     <legend className="px-1 text-sm font-semibold leading-6 text-[#1E1C1A]">
                       {CITATION_DISMISSED_INTAKE_QUESTION}
                     </legend>
                     <p className="mt-1 text-xs leading-5 text-[#5C554E]">
-                      A dismissed citation may support an FMCSA challenge. If you answer yes,
-                      we will ask for the certified court disposition in your portal.
+                      {hasEvidenceRequests
+                        ? "A dismissed citation may support an FMCSA challenge. If you answer yes, we will ask for the certified court disposition in your portal."
+                        : "Your answer is saved with your carrier profile. GEIA will use it when reviewing your safety history."}
                     </p>
                     <div className="mt-3 flex gap-2">
                       {([true, false] as const).map((answer) => {
@@ -712,7 +1077,10 @@ export default function OnboardingPage() {
                             key={String(answer)}
                             type="button"
                             aria-pressed={selected}
-                            onClick={() => setCitationDismissedLast24Months(answer)}
+                            onClick={() => {
+                              touchField("citationDismissedLast24Months");
+                              setCitationDismissedLast24Months(answer);
+                            }}
                             className={`min-h-10 min-w-20 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E] ${
                               selected
                                 ? "border-[#C67A1E] bg-[#FDF4E7] text-[#C67A1E]"
@@ -724,8 +1092,15 @@ export default function OnboardingPage() {
                         );
                       })}
                     </div>
+                    {visibleFieldError(
+                      "citationDismissedLast24Months",
+                      step2Validation.errors.citationDismissedLast24Months
+                    ) ? (
+                      <p role="alert" className="mt-2 text-xs text-[#B83B32]">
+                        {step2Validation.errors.citationDismissedLast24Months}
+                      </p>
+                    ) : null}
                   </fieldset>
-                ) : null}
               </div>
 
               {onboardingError && (
@@ -737,24 +1112,29 @@ export default function OnboardingPage() {
                 </div>
               )}
 
+              {!canProceedStep2 && step2Validation.summary ? (
+                <p
+                  id="step-2-missing"
+                  role="status"
+                  className="mb-3 text-sm text-[#8B5A16]"
+                >
+                  {step2Validation.summary}
+                </p>
+              ) : null}
+
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
                   Back
                 </button>
                 <button
-                  onClick={() => setStep(3)}
-                  disabled={!canProceedStep2}
+                  type="button"
+                  onClick={attemptStep2}
+                  aria-describedby={!canProceedStep2 ? "step-2-missing" : undefined}
                   className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continue
                 </button>
               </div>
-              <button
-                onClick={() => setStep(3)}
-                className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors"
-              >
-                I&apos;ll do this later →
-              </button>
             </div>
           )}
 
@@ -777,6 +1157,7 @@ export default function OnboardingPage() {
                     type="checkbox"
                     checked={agreementChecked}
                     onChange={(e) => setAgreementChecked(e.target.checked)}
+                    onBlur={() => touchField("agreementChecked")}
                     className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                   />
                   <span className="text-sm text-[#1E1C1A] leading-snug">
@@ -785,18 +1166,35 @@ export default function OnboardingPage() {
                     and authorize GEIA to provide SafeScore services to my carrier.
                   </span>
                 </label>
+                {visibleFieldError(
+                  "agreementChecked",
+                  step3Validation.errors.agreementChecked
+                ) ? (
+                  <p role="alert" className="px-1 text-xs text-[#B83B32]">
+                    {step3Validation.errors.agreementChecked}
+                  </p>
+                ) : null}
 
                 <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
                   <input
                     type="checkbox"
                     checked={dataAccessChecked}
                     onChange={(e) => setDataAccessChecked(e.target.checked)}
+                    onBlur={() => touchField("dataAccessChecked")}
                     className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                   />
                   <span className="text-sm text-[#1E1C1A] leading-snug">
                     <strong>FMCSA data access</strong> — I authorize Golden Era Insurance Agency to access my carrier&apos;s FMCSA safety data, including BASIC scores, violations, inspections, and crash records.
                   </span>
                 </label>
+                {visibleFieldError(
+                  "dataAccessChecked",
+                  step3Validation.errors.dataAccessChecked
+                ) ? (
+                  <p role="alert" className="px-1 text-xs text-[#B83B32]">
+                    {step3Validation.errors.dataAccessChecked}
+                  </p>
+                ) : null}
 
                 {hasCaseServices && (
                   <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
@@ -804,6 +1202,7 @@ export default function OnboardingPage() {
                       type="checkbox"
                       checked={dataqChecked}
                       onChange={(e) => setDataqChecked(e.target.checked)}
+                      onBlur={() => touchField("dataqChecked")}
                       className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                     />
                     <span className="text-sm text-[#1E1C1A] leading-snug">
@@ -814,6 +1213,15 @@ export default function OnboardingPage() {
                     </span>
                   </label>
                 )}
+                {hasCaseServices &&
+                visibleFieldError(
+                  "dataqChecked",
+                  step3Validation.errors.dataqChecked
+                ) ? (
+                  <p role="alert" className="px-1 text-xs text-[#B83B32]">
+                    {step3Validation.errors.dataqChecked}
+                  </p>
+                ) : null}
               </div>
 
               {/* FMCSA PIN */}
@@ -855,13 +1263,25 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {!canProceedStep3 && step3Validation.summary ? (
+                <p
+                  id="step-3-missing"
+                  role="status"
+                  className="mb-3 text-sm text-[#8B5A16]"
+                >
+                  {step3Validation.summary}
+                </p>
+              ) : null}
+
               <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
+                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 border border-[#F0E8DA] text-[#5C554E] font-medium rounded-xl hover:border-[#C67A1E]/40 transition-colors">
                   Back
                 </button>
                 <button
-                  onClick={() => finishAuthorization(true)}
-                  disabled={!canProceedStep3 || savingProfile}
+                  type="button"
+                  onClick={attemptStep3}
+                  disabled={savingProfile}
+                  aria-describedby={!canProceedStep3 ? "step-3-missing" : undefined}
                   className="flex-1 py-3 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {savingProfile ? "Saving..." : "I agree — continue"}
@@ -871,10 +1291,20 @@ export default function OnboardingPage() {
                 type="button"
                 onClick={() => finishAuthorization(false)}
                 disabled={!agreementChecked || savingProfile}
+                aria-describedby={!agreementChecked ? "fmcsa-skip-reason" : undefined}
                 className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors disabled:opacity-40"
               >
-                Complete FMCSA access later
+                Skip FMCSA access for now — requires the service agreement above
               </button>
+              {!agreementChecked ? (
+                <p
+                  id="fmcsa-skip-reason"
+                  role="status"
+                  className="mt-1 text-center text-xs text-[#8B5A16]"
+                >
+                  Accept the service agreement above before skipping FMCSA access.
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -890,13 +1320,27 @@ export default function OnboardingPage() {
               )}
               <h1 className="text-2xl font-bold text-[#1E1C1A] mb-2">Confirm and activate</h1>
               <p className="text-[#5C554E] mb-6">
-                Your GEIA account manager has selected the{" "}
-                <strong>{TIER_LABELS[assignedTierData.value]}</strong> service for your carrier.
+                {assignedTier ? (
+                  staffAssignedTier && assignedTier !== staffAssignedTier ? (
+                    <>
+                      You selected the <strong>{TIER_LABELS[assignedTier]}</strong>{" "}
+                      service. Your GEIA account manager originally selected{" "}
+                      {TIER_LABELS[staffAssignedTier]}.
+                    </>
+                  ) : (
+                    <>
+                      Your GEIA account manager has selected the{" "}
+                      <strong>{TIER_LABELS[assignedTier]}</strong> service for your carrier.
+                    </>
+                  )
+                ) : (
+                  <>No service tier is assigned to this carrier yet.</>
+                )}
               </p>
 
               {/* Plan summary */}
-              {(() => {
-                const billingDriverCount = driverCount;
+              {assignedTierData ? (() => {
+                const billingDriverCount = parseRequiredDriverCount(driverCount) ?? 0;
                 const estimatedMonthly =
                   hasDriverBilling
                     ? 999 + billingDriverCount * 29
@@ -954,7 +1398,169 @@ export default function OnboardingPage() {
                     )}
                   </div>
                 );
-              })()}
+              })() : (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-xl border border-[#B83B32]/20 bg-[#FAECEB] p-4 text-sm text-[#B83B32]"
+                >
+                  No service tier is assigned. Contact your GEIA account manager before
+                  activation can continue.
+                </div>
+              )}
+
+              {assignedTierData ? (
+                <div className="mb-6 text-center">
+                  <a
+                    href="#service-options"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setPendingTier(assignedTier);
+                      setTierChangeError(null);
+                      setShowTierOptions(true);
+                    }}
+                    className="inline-block min-h-10 py-3 text-xs text-[#8B8178] underline decoration-[#8B8178]/50 underline-offset-4 transition-colors hover:text-[#5C554E] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A1E] focus-visible:ring-offset-2"
+                  >
+                    view other service options
+                  </a>
+                </div>
+              ) : null}
+
+              {showTierOptions ? (
+                <section
+                  id="service-options"
+                  aria-labelledby="service-options-heading"
+                  className="mb-6 scroll-mt-6 rounded-xl border border-[#D9CCB8] bg-[#FEFCF8] p-5"
+                >
+                  <div className="mb-4">
+                    <p className="mono-label text-[#8B8178]">Service options</p>
+                    <h2
+                      id="service-options-heading"
+                      className="mt-1 text-lg font-bold text-[#1E1C1A]"
+                    >
+                      Compare before making a change
+                    </h2>
+                    <p className="mt-1 text-xs leading-relaxed text-[#5C554E]">
+                      Your assigned service remains selected unless you choose another
+                      option and confirm the switch below.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {TIERS.map((tier) => {
+                      const selected = pendingTier === tier.value;
+                      const current = assignedTier === tier.value;
+                      return (
+                        <label
+                          key={tier.value}
+                          className={`block cursor-pointer rounded-xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-[#C67A1E] focus-within:ring-offset-2 ${
+                            selected
+                              ? "border-[#C67A1E] bg-[#FDF4E7]"
+                              : "border-[#F0E8DA] bg-white hover:border-[#D9CCB8]"
+                          }`}
+                        >
+                          <span className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="service-tier"
+                              value={tier.value}
+                              checked={selected}
+                              onChange={() => {
+                                setPendingTier(tier.value);
+                                setTierChangeError(null);
+                              }}
+                              className="mt-1 h-4 w-4 accent-[#C67A1E]"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                                <span className="font-semibold text-[#1E1C1A]">
+                                  {TIER_LABELS[tier.value]}
+                                  {current ? (
+                                    <span className="ml-2 rounded-full bg-[#E8F1EB] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#3D7A52]">
+                                      Current
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="text-sm font-bold text-[#1E1C1A]">
+                                  {tier.price}
+                                </span>
+                              </span>
+                              {tier.priceNote ? (
+                                <span className="mt-0.5 block text-[11px] text-[#8B8178]">
+                                  {tier.priceNote}
+                                </span>
+                              ) : null}
+                              <span className="mt-3 block space-y-1.5">
+                                {tier.features.map((feature) => (
+                                  <span
+                                    key={feature}
+                                    className="flex items-start gap-2 text-xs leading-relaxed text-[#5C554E]"
+                                  >
+                                    <Check className="mt-0.5 h-3 w-3 shrink-0 text-[#C67A1E]" />
+                                    {feature}
+                                  </span>
+                                ))}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {tierChangeError ? (
+                    <p
+                      role="alert"
+                      className="mt-4 rounded-lg border border-[#B83B32]/20 bg-[#FAECEB] px-3 py-2 text-sm text-[#B83B32]"
+                    >
+                      {tierChangeError}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingTier(null);
+                        setTierChangeError(null);
+                        setShowTierOptions(false);
+                      }}
+                      disabled={tierChangeLoading}
+                      className="min-h-10 flex-1 rounded-xl border border-[#D9CCB8] px-4 py-2.5 text-sm font-semibold text-[#5C554E] transition-colors hover:bg-[#F8F1E7] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Keep current service
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void confirmTierChange()}
+                      disabled={
+                        tierChangeLoading ||
+                        !pendingTier ||
+                        pendingTier === assignedTier
+                      }
+                      aria-describedby={
+                        !pendingTier || pendingTier === assignedTier
+                          ? "tier-change-reason"
+                          : undefined
+                      }
+                      className="min-h-10 flex-1 rounded-xl bg-[#C67A1E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#B86E18] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {tierChangeLoading
+                        ? "Saving selection..."
+                        : pendingTier && pendingTier !== assignedTier
+                          ? `Confirm service change to ${TIER_LABELS[pendingTier]}`
+                          : "Choose another service to switch"}
+                    </button>
+                  </div>
+                  {!pendingTier || pendingTier === assignedTier ? (
+                    <p
+                      id="tier-change-reason"
+                      className="mt-2 text-center text-xs text-[#8B8178]"
+                    >
+                      Select a different service above to enable confirmation.
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
 
               {/* Contact summary */}
               {(contactName || contactPhone) && (
@@ -965,9 +1571,11 @@ export default function OnboardingPage() {
                   {vehicleTypes.length > 0 && (
                     <p className="text-[#5C554E] mt-1">{vehicleTypes.slice(0, 3).join(", ")}{vehicleTypes.length > 3 ? ` +${vehicleTypes.length - 3} more` : ""}</p>
                   )}
-                  <button onClick={() => setStep(1)} className="text-[#C67A1E] text-xs hover:underline mt-1">
-                    Edit
-                  </button>
+                  {!profileWritesLocked ? (
+                    <button onClick={() => setStep(1)} className="text-[#C67A1E] text-xs hover:underline mt-1">
+                      Edit
+                    </button>
+                  ) : null}
                 </div>
               )}
 
@@ -977,10 +1585,11 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              {hasRecurringSubscription ? (
+              {!assignedTierData ? null : hasRecurringSubscription ? (
                 <>
                   <button
-                    onClick={handleSubscribe}
+                    type="button"
+                    onClick={() => void handleSubscribe()}
                     disabled={checkoutLoading}
                     className="w-full py-3.5 bg-[#C67A1E] text-white font-semibold rounded-xl hover:bg-[#B86E18] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
                   >
@@ -1000,18 +1609,24 @@ export default function OnboardingPage() {
                     No subscription checkout will be opened. GEIA will confirm the one-time
                     assessment activation and payment separately.
                   </p>
-                  <a
-                    href="/portal"
-                    className="mt-4 block w-full rounded-xl bg-[#C67A1E] py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#B86E18]"
+                  <button
+                    type="button"
+                    onClick={() => void handleAssessmentActivation()}
+                    disabled={activationLoading}
+                    className="mt-4 block w-full rounded-xl bg-[#C67A1E] py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#B86E18] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Continue to portal {"\u2192"}
-                  </a>
+                    {activationLoading
+                      ? "Submitting for activation..."
+                      : "Submit profile for activation"}
+                  </button>
                 </div>
               )}
 
-              <button onClick={() => setStep(3)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
-                Back
-              </button>
+              {!profileWritesLocked ? (
+                <button type="button" onClick={() => setStep(3)} className="w-full mt-3 py-2 text-sm text-[#8B8178] hover:text-[#5C554E] transition-colors">
+                  Back
+                </button>
+              ) : null}
             </div>
           )}
 

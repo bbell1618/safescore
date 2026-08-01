@@ -513,17 +513,24 @@ export default async function PortalHomePage() {
         <div className="p-6 sm:p-8 lg:p-10">
           <p className="mono-label text-gold-light">Where you stand</p>
           <div className="mt-4 flex flex-wrap items-end gap-4">
-            <h1 className="font-heading text-7xl font-semibold tracking-tight text-amber-light sm:text-8xl">
-              <span className="sr-only">Current weighted burden: </span>
-              {latest ? (
-                <PortalAnimatedNumber value={latest.total_points} />
-              ) : (
-                "—"
-              )}
-            </h1>
-            <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
-              weighted points
-            </p>
+            {latest ? (
+              <>
+                <h1 className="font-heading text-7xl font-semibold tracking-tight text-amber-light sm:text-8xl">
+                  <span className="sr-only">Current weighted burden: </span>
+                  <PortalAnimatedNumber value={latest.total_points} />
+                </h1>
+                <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
+                  weighted points
+                </p>
+              </>
+            ) : (
+              <h1 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-heading font-semibold tracking-tight">
+                <span className="text-7xl text-amber-light sm:text-8xl">—</span>
+                <span className="text-xl text-warm-white sm:text-2xl">
+                  pending first analysis
+                </span>
+              </h1>
+            )}
           </div>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {canSeeTrend && latest && delta ? (

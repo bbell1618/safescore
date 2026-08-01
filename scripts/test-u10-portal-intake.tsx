@@ -7,6 +7,8 @@ const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 
 const onboarding = read("app/onboarding/page.tsx");
 const onboardingRoute = read("app/api/portal/onboarding-profile/route.ts");
+const evidenceServer = read("lib/evidence-loop/server.ts");
+const onboardingValidation = read("lib/onboarding/validation.ts");
 const taxonomy = read("lib/evidence-loop/taxonomy.ts");
 const requestAnswer = read("components/portal/request-answer.tsx");
 const requestUpload = read("components/portal/request-upload.tsx");
@@ -29,22 +31,26 @@ assert.match(
 );
 assert.match(
   onboarding,
-  /citationDismissedLast24Months:\s*hasEvidenceRequests\s*\?\s*citationDismissedLast24Months\s*:\s*undefined/
+  /citationDismissedLast24Months,/
 );
 assert.match(
-  onboarding,
-  /\(!hasEvidenceRequests \|\| citationDismissedLast24Months !== null\)/
+  onboardingValidation,
+  /input\.citationDismissedLast24Months !== null/
 );
-assert.match(onboarding, /\{hasEvidenceRequests \? \(\s*<fieldset/);
+assert.doesNotMatch(
+  onboarding,
+  /hasEvidenceRequests\s*&&[\s\S]{0,180}CITATION_DISMISSED_INTAKE_QUESTION/
+);
 
 assert.match(onboardingRoute, /isClientOnboardingLocked\(clientRecord\)/);
 assert.match(onboardingRoute, /ONBOARDING_LOCKED/);
 assert.match(onboardingRoute, /service_agreement_accepted, tier/);
+assert.doesNotMatch(onboardingRoute, /FEATURE_NOT_IN_TIER/);
+assert.match(onboardingRoute, /ensureCitationDispositionFollowup/);
 assert.match(
-  onboardingRoute,
-  /tierHasFeature\(clientRecord\.tier, "evidence_requests"\)/
+  evidenceServer,
+  /tierHasFeature\(client\.tier, "evidence_requests"\)/
 );
-assert.match(onboardingRoute, /FEATURE_NOT_IN_TIER/);
 assert.ok(
   onboardingRoute.indexOf("citation_dismissed_last_24_months:") <
     onboardingRoute.indexOf("ensureCitationDispositionFollowup(admin"),

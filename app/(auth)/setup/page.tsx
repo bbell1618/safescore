@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
 
 interface TokenInfo {
   companyName: string | null;
@@ -37,7 +38,7 @@ function SetupForm() {
       })
       .then((data) => {
         setTokenInfo(data);
-        if (data.primaryContact) setFullName(data.primaryContact);
+        setFullName(humanEnteredNameOrEmpty(data.primaryContact));
       })
       .catch((tokenError) =>
         setError(

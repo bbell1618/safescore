@@ -2,6 +2,7 @@ import { sendInviteEmail } from "@/lib/email/client";
 import {
   isValidInviteEmail,
   normalizeInviteEmail,
+  resolveAssignedInviteTier,
   resolveInviteEmailStatus,
 } from "@/lib/portal/invites";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
@@ -182,7 +183,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     const { data: client, error: clientError } = await serviceClient
       .from("clients")
-      .select("id, name, primary_contact")
+      .select("id, name, primary_contact, tier")
       .eq("id", id)
       .single();
 
@@ -194,6 +195,18 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    const assignedTier = resolveAssignedInviteTier(client.tier);
+    if (!assignedTier) {
+      return NextResponse.json(
+        {
+          error:
+            "Assign a SafeScore service tier to this client before creating a portal invite.",
+          code: "CLIENT_TIER_REQUIRED",
+        },
+        { status: 409 }
+      );
     }
 
     const { data: linkedUsers, error: linkedUserError } =
@@ -294,6 +307,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         email,
         createdAt: invite.created_at,
         expiresAt: invite.expires_at,
+        assignedTier,
       },
       message:
         emailStatus === "sent"

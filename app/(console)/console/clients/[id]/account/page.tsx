@@ -5,6 +5,7 @@ import {
   type CarrierProfileEnrichmentRow,
 } from "@/components/console/authority-insurance-section";
 import { PortalAccessCard } from "@/components/console/portal-access-card";
+import { ClientActivationControl } from "@/components/console/client-activation-control";
 import { createClient } from "@/lib/supabase/server";
 import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
@@ -138,6 +139,12 @@ export default async function AccountPage({
           )}
         </section>
       </div>
+
+      <ClientActivationControl
+        clientId={id}
+        status={account.status}
+        tier={account.tier}
+      />
 
       <PortalAccessCard clientId={id} defaultEmail={account.email} />
 

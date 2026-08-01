@@ -1,3 +1,6 @@
+import { isClientTier } from "@/lib/tiers";
+import type { ClientTier } from "@/lib/supabase/types";
+
 export type InviteEmailStatus = "sent" | "dry_run" | "failed";
 
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,4 +22,9 @@ export function resolveInviteEmailStatus({
 }): InviteEmailStatus {
   if (dryRun) return "dry_run";
   return deliverySucceeded ? "sent" : "failed";
+}
+
+/** Invite creation must preserve the tier GEIA actually assigned. */
+export function resolveAssignedInviteTier(value: unknown): ClientTier | null {
+  return isClientTier(value) ? value : null;
 }

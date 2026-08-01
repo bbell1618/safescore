@@ -9,12 +9,14 @@ import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-sc
 import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
 import {
   normalizeClientTier,
+  isClientTier,
   tierBadgeVariant,
-  TIER_LABELS,
+  tierDisplayLabel,
 } from "@/lib/tiers";
 
 const statusLabel: Record<string, string> = {
   onboarding: "Onboarding",
+  awaiting_activation: "Awaiting activation",
   active: "Active",
   prospect: "Prospect",
   paused: "Paused",
@@ -23,6 +25,7 @@ const statusLabel: Record<string, string> = {
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
+  awaiting_activation: "warning",
   active: "success",
   prospect: "outline",
   paused: "warning",
@@ -59,7 +62,12 @@ export default async function ClientFileLayout({
     .eq("client_id", id)
     .is("ai_assessed_at", null);
 
-  const [{ data: carrierProfile }, { count: violationCount }, { count: unassessedCount }] = await Promise.all([
+  const [
+    { data: carrierProfile },
+    { count: violationCount },
+    { count: unassessedCount },
+    { data: latestTierChange, error: tierChangeError },
+  ] = await Promise.all([
     supabase
       .from("carrier_profiles")
       .select("authority_status, entity_type")
@@ -73,10 +81,29 @@ export default async function ClientFileLayout({
     canonicalInspectionIds.length > 0
       ? unassessedCountQuery.in("inspection_id", canonicalInspectionIds)
       : unassessedCountQuery.in("inspection_id", []),
+    supabase
+      .from("activity_log")
+      .select("id, description, metadata, created_at")
+      .eq("client_id", id)
+      .eq("action_type", "tier_changed_by_client")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
+  if (tierChangeError) {
+    throw new Error(
+      `Unable to load client tier-change follow-up: ${tierChangeError.message}`
+    );
+  }
 
   const cp = carrierProfile as { authority_status?: string | null; entity_type?: string | null } | null;
   const clientTier = normalizeClientTier(client.tier);
+  const clientHasAssignedTier = isClientTier(client.tier);
+  const tierChangeMetadata = latestTierChange?.metadata as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const originalAssignedTier = tierChangeMetadata?.assigned_tier;
 
   return (
     <div className="min-h-screen bg-[#FEFCF8]">
@@ -94,7 +121,15 @@ export default async function ClientFileLayout({
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                   Plan:
-                  <Badge variant={tierBadgeVariant(clientTier)}>{TIER_LABELS[clientTier]}</Badge>
+                  <Badge
+                    variant={
+                      clientHasAssignedTier
+                        ? tierBadgeVariant(clientTier)
+                        : "outline"
+                    }
+                  >
+                    {tierDisplayLabel(client.tier)}
+                  </Badge>
                   <Tooltip content="The SafeScore service tier assigned to this client. Billing and included services are handled from the Account tab." position="bottom" />
                 </span>
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
@@ -123,6 +158,19 @@ export default async function ClientFileLayout({
               <FmcsaExportUpload clientId={id} dotNumber={client.dot_number} />
             </div>
           </div>
+          {latestTierChange ? (
+            <div
+              className="mx-5 mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+              role="status"
+            >
+              <p className="font-semibold">Staff follow-up required: client changed service tier</p>
+              <p className="mt-1">
+                GEIA originally assigned {tierDisplayLabel(originalAssignedTier)}. The client
+                selected {tierDisplayLabel(client.tier)} during onboarding. Review the sale and
+                billing expectation with the carrier.
+              </p>
+            </div>
+          ) : null}
           <ClientTabs clientId={id} tier={clientTier} />
         </div>
       </div>

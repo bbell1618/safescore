@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { isClientOnboardingLocked } from "@/lib/auth/access";
 import { ensureCitationDispositionFollowup } from "@/lib/evidence-loop/server";
-import { tierHasFeature } from "@/lib/tiers";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -93,16 +92,34 @@ export async function POST(request: Request) {
   }
 
   if (
-    typeof body.citationDismissedLast24Months === "boolean" &&
-    !tierHasFeature(clientRecord.tier, "evidence_requests")
+    Object.prototype.hasOwnProperty.call(body, "driverCount") &&
+    (typeof body.driverCount !== "number" ||
+      !Number.isInteger(body.driverCount) ||
+      body.driverCount < 1 ||
+      body.driverCount > 10000)
   ) {
     return NextResponse.json(
       {
-        error:
-          "The roadside-ticket evidence question is not included in this service tier.",
-        code: "FEATURE_NOT_IN_TIER",
+        error: "Billing driver count is required and must be a whole number of at least 1.",
+        code: "DRIVER_COUNT_INVALID",
       },
-      { status: 403 }
+      { status: 400 }
+    );
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      body,
+      "citationDismissedLast24Months"
+    ) &&
+    typeof body.citationDismissedLast24Months !== "boolean"
+  ) {
+    return NextResponse.json(
+      {
+        error: "Choose yes or no for the roadside-ticket question.",
+        code: "CITATION_ANSWER_REQUIRED",
+      },
+      { status: 400 }
     );
   }
 
@@ -127,7 +144,7 @@ export async function POST(request: Request) {
   if (typeof body.eldProvider === "string") update.eld_provider = body.eldProvider.trim() || null;
   if (typeof body.safetyContactName === "string") update.safety_contact_name = body.safetyContactName.trim() || null;
   if (typeof body.safetyContactEmail === "string") update.safety_contact_email = body.safetyContactEmail.trim() || null;
-  if (typeof body.driverCount === "number" && Number.isInteger(body.driverCount) && body.driverCount >= 0 && body.driverCount <= 10000) {
+  if (typeof body.driverCount === "number") {
     update.driver_count = body.driverCount;
   }
   if (typeof body.citationDismissedLast24Months === "boolean") {

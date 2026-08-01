@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Local state for the two-stage synthetic onboarding verifier (contains one-time URLs)
+tmp/onboarding-fix-live-state.json

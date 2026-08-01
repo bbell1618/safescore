@@ -12,6 +12,7 @@ export function isClientOnboardingLocked(
 ): boolean {
   return (
     isClientPostOnboardingLifecycle(client) ||
+    client.status === "awaiting_activation" ||
     client.service_agreement_accepted === true
   );
 }

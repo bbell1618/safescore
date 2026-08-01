@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWelcomeEmail } from "@/lib/email/client";
 import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
+import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
 import { NextResponse } from "next/server";
 
 // GET /api/auth/setup?token=xxx — look up invite to pre-populate setup page
@@ -50,7 +51,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     companyName: clientRecord.name,
     email: invite.email,
-    primaryContact: clientRecord.primary_contact ?? null,
+    primaryContact:
+      humanEnteredNameOrEmpty(clientRecord.primary_contact) || null,
     onboardingRequired:
       !isClientPostOnboardingLifecycle(clientRecord) &&
       clientRecord.service_agreement_accepted !== true,

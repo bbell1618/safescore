@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCarrier } from "@/lib/fmcsa/client";
-import { isClientTier, SUBSCRIPTION_TIERS } from "@/lib/tiers";
+import { isClientTier } from "@/lib/tiers";
 import { NextResponse } from "next/server";
 
 // Normalize FMCSA date strings to ISO YYYY-MM-DD for Postgres date column.
@@ -55,9 +55,14 @@ export async function POST(request: Request) {
     if (!dot_number || typeof dot_number !== "string" || !dot_number.trim()) {
       return NextResponse.json({ error: "DOT number is required" }, { status: 400 });
     }
-    const clientTier = tier ?? SUBSCRIPTION_TIERS[0];
-    if (!isClientTier(clientTier)) {
-      return NextResponse.json({ error: "Invalid service tier" }, { status: 400 });
+    if (!isClientTier(tier)) {
+      return NextResponse.json(
+        {
+          error: tier == null ? "Service tier is required" : "Invalid service tier",
+          code: tier == null ? "CLIENT_TIER_REQUIRED" : "INVALID_CLIENT_TIER",
+        },
+        { status: 400 }
+      );
     }
 
     const supabase = await createServiceClient();
@@ -97,7 +102,7 @@ export async function POST(request: Request) {
         state: state?.trim() || null,
         fleet_size: parsedFleetSize !== null && Number.isFinite(parsedFleetSize) ? parsedFleetSize : null,
         driver_count: parsedDriverCount !== null && Number.isFinite(parsedDriverCount) ? parsedDriverCount : null,
-        tier: clientTier,
+        tier,
         status: clientStatus,
         geia_client: Boolean(geia_client),
       })

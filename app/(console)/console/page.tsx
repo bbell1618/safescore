@@ -7,14 +7,16 @@ import { NewClientButton } from "@/components/console/new-client-button";
 import { AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
 import {
   normalizeClientTier,
+  isClientTier,
   tierBadgeVariant,
-  TIER_LABELS,
+  tierDisplayLabel,
 } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
 
 const statusVariant: Record<string, "success" | "default" | "warning" | "danger" | "outline"> = {
   onboarding: "warning",
+  awaiting_activation: "warning",
   active: "success",
   prospect: "outline",
   paused: "warning",
@@ -23,6 +25,7 @@ const statusVariant: Record<string, "success" | "default" | "warning" | "danger"
 
 const statusLabel: Record<string, string> = {
   onboarding: "Onboarding",
+  awaiting_activation: "Awaiting activation",
   active: "Active",
   prospect: "Prospect",
   paused: "Paused",
@@ -49,7 +52,10 @@ export default async function ConsolePage() {
   }
 
   const activeCount = clients?.filter((c) => c.status === "active").length ?? 0;
-  const onboardingCount = clients?.filter((c) => c.status === "onboarding").length ?? 0;
+  const onboardingCount =
+    clients?.filter((c) =>
+      c.status === "onboarding" || c.status === "awaiting_activation"
+    ).length ?? 0;
   const alertClients = clients?.filter((c) => (alertMap.get(c.id) ?? 0) > 0) ?? [];
   const clientBurdenEntries = await Promise.all(
     (clients ?? []).map(async (client) => {
@@ -74,7 +80,7 @@ export default async function ConsolePage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
           { label: "Active clients", value: activeCount, icon: CheckCircle, color: "text-green-600" },
-          { label: "Onboarding", value: onboardingCount, icon: Clock, color: "text-[#DAA520]" },
+          { label: "Onboarding / activation", value: onboardingCount, icon: Clock, color: "text-[#DAA520]" },
           { label: "Needs attention", value: alertClients.length, icon: AlertTriangle, color: "text-[#C67A1E]" },
           { label: "Total clients", value: clients?.length ?? 0, icon: Users, color: "text-[#1E1C1A]" },
         ].map((stat) => (
@@ -112,6 +118,7 @@ export default async function ConsolePage() {
                   const burden = burdenByClient.get(client.id);
                   const topBasic = burden?.perBasic[0] ?? null;
                   const clientTier = normalizeClientTier(client.tier);
+                  const clientHasAssignedTier = isClientTier(client.tier);
 
                   const locationParts = [client.city, client.state].filter(Boolean);
 
@@ -136,8 +143,14 @@ export default async function ConsolePage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant={tierBadgeVariant(clientTier)}>
-                          {TIER_LABELS[clientTier]}
+                        <Badge
+                          variant={
+                            clientHasAssignedTier
+                              ? tierBadgeVariant(clientTier)
+                              : "outline"
+                          }
+                        >
+                          {tierDisplayLabel(client.tier)}
                         </Badge>
                         <Badge variant={(statusVariant[client.status] ?? "default") as "success" | "default" | "warning" | "danger"}>
                           {statusLabel[client.status] ?? client.status}

@@ -60,13 +60,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  return runAnalysisImport(parsed.data);
+  return runAnalysisImport(parsed.data, user.id);
 }
 
 export async function runAnalysisImport({
   clientId,
   dotNumber,
-}: z.infer<typeof schema>) {
+}: z.infer<typeof schema>, actorUserId?: string) {
   const supabase = getAdmin();
 
   try {
@@ -392,11 +392,34 @@ export async function runAnalysisImport({
     }
 
     // ── 7. Activate client if still in onboarding or prospect status ─────────
-    await supabase
+    const { data: activatedClient, error: activationError } = await supabase
       .from("clients")
       .update({ status: "active" })
       .eq("id", clientId)
-      .in("status", ["onboarding", "prospect"]);
+      .in("status", ["onboarding", "prospect", "awaiting_activation"])
+      .select("id")
+      .maybeSingle();
+    if (activationError) {
+      throw new Error(`Client activation after analysis failed: ${activationError.message}`);
+    }
+    if (activatedClient) {
+      const { error: activationLogError } = await supabase
+        .from("activity_log")
+        .insert({
+          client_id: clientId,
+          user_id: actorUserId ?? null,
+          action_type: "client_activated_by_analysis",
+          entity_type: "clients",
+          entity_id: clientId,
+          description: "GEIA analysis activated the client portal",
+          metadata: { to_status: "active", source: "analysis_import" },
+        });
+      if (activationLogError) {
+        throw new Error(
+          `Client was activated, but activation logging failed: ${activationLogError.message}`
+        );
+      }
+    }
 
     const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun", supabase);
 

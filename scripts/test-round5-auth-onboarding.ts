@@ -156,13 +156,11 @@ assert.match(staffResetRoute, /password_reset_link_generated/);
 const billingSync = read("app/api/billing/sync/route.ts");
 assert.match(billingSync, /authClient\.auth\.getUser/);
 assert.match(billingSync, /metadataClientId !== caller\.client_id/);
-assert.match(billingSync, /client\.status === "active"/);
-assert.match(
-  billingSync,
-  /isClientPostOnboardingLifecycle\(client\)/
-);
-assert.match(billingSync, /\.in\("status", \["onboarding", "prospect"\]\)/);
-assert.match(billingSync, /if \(activationError\)/);
+assert.match(billingSync, /activatePaidSubscription/);
+assert.match(billingSync, /payment_status\s*!==\s*"paid"/);
+assert.match(billingSync, /metadata\?\.tier/);
+const billingActivation = read("lib/billing/activation.ts");
+assert.match(billingActivation, /activate_paid_subscription_v1/);
 
 const confirmationRoute = read("app/(auth)/auth/confirm/route.ts");
 assert.match(confirmationRoute, /verifyOtp/);

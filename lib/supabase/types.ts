@@ -1,6 +1,12 @@
 export type UserRole = "geia_admin" | "geia_staff" | "client_user";
 export type ClientTier = "assessment" | "monitor" | "remediate" | "total_safety";
-export type ClientStatus = "onboarding" | "prospect" | "active" | "paused" | "churned";
+export type ClientStatus =
+  | "onboarding"
+  | "prospect"
+  | "awaiting_activation"
+  | "active"
+  | "paused"
+  | "churned";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
 export type BasicCategory =
   | "unsafe_driving"
@@ -776,6 +782,57 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      change_client_onboarding_tier_v1: {
+        Args: {
+          p_client_id: string;
+          p_user_id: string;
+          p_selected_tier: ClientTier;
+        };
+        Returns: Array<{
+          result_tier: string;
+          original_assigned_tier: string;
+          previous_tier: string;
+          changed: boolean;
+        }>;
+      };
+      submit_assessment_activation_v1: {
+        Args: {
+          p_client_id: string;
+          p_user_id: string;
+        };
+        Returns: Array<{
+          result_status: string;
+          result_tier: string;
+          already_submitted: boolean;
+        }>;
+      };
+      activate_assessment_client_v1: {
+        Args: {
+          p_client_id: string;
+          p_user_id: string;
+        };
+        Returns: Array<{
+          result_status: string;
+          result_tier: string;
+          already_active: boolean;
+        }>;
+      };
+      activate_paid_subscription_v1: {
+        Args: {
+          p_client_id: string;
+          p_tier: ClientTier;
+          p_subscription_id: string;
+          p_customer_id: string;
+          p_mrr: number;
+          p_source: string;
+          p_user_id?: string | null;
+        };
+        Returns: Array<{
+          result_status: string;
+          result_tier: string;
+          already_active: boolean;
+        }>;
+      };
       record_mcs150_submission_v1: {
         Args: {
           p_client_id: string;
