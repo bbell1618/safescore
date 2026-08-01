@@ -25,8 +25,6 @@ type LiveState = {
   recurring: Synthetic;
   checkoutSessionId: string;
   checkoutUrl: string;
-  assessmentBrowserLoginActionLink: string;
-  browserLoginActionLink: string;
 };
 
 type ResponseBody = Record<string, unknown> & {
@@ -431,27 +429,6 @@ async function prepare() {
     assert.equal(checkoutSession.mode, "subscription");
     assert.equal(checkoutSession.metadata?.tier, "monitor");
 
-    const assessmentBrowserLink = await service.auth.admin.generateLink({
-      type: "magiclink",
-      email: assessment.email,
-      options: { redirectTo: `${baseUrl}/onboarding` },
-    });
-    if (
-      assessmentBrowserLink.error ||
-      !assessmentBrowserLink.data.properties?.action_link
-    ) {
-      throw assessmentBrowserLink.error ?? new Error("Could not create assessment browser login link");
-    }
-
-    const browserLink = await service.auth.admin.generateLink({
-      type: "magiclink",
-      email: recurring.email,
-      options: { redirectTo: `${baseUrl}/onboarding` },
-    });
-    if (browserLink.error || !browserLink.data.properties?.action_link) {
-      throw browserLink.error ?? new Error("Could not create browser login link");
-    }
-
     state = {
       version: 1,
       createdAt: new Date().toISOString(),
@@ -459,9 +436,6 @@ async function prepare() {
       recurring,
       checkoutSessionId: checkoutSession.id,
       checkoutUrl,
-      assessmentBrowserLoginActionLink:
-        assessmentBrowserLink.data.properties.action_link,
-      browserLoginActionLink: browserLink.data.properties.action_link,
     };
     await writeFile(statePath, JSON.stringify(state, null, 2), {
       encoding: "utf8",
@@ -475,9 +449,8 @@ async function prepare() {
       recurringClientId: recurring.clientId,
       checkoutSessionId: checkoutSession.id,
       next: [
-        "Open assessmentBrowserLoginActionLink from the state file and verify the four-step awaiting-activation timeline.",
-        "Open browserLoginActionLink from the state file.",
-        "Open checkoutUrl and complete hosted Stripe TEST checkout with an approved test card.",
+        "Use a cookie-authenticated browser session to verify the assessment awaiting-activation timeline.",
+        "Open checkoutUrl from the state file and complete hosted Stripe TEST checkout with an approved test card.",
         "Run: npx tsx scripts/verify-onboarding-fix-round.ts finalize --run-live",
       ],
       noRealEmails: true,
@@ -576,9 +549,13 @@ async function finalize() {
       { headers: { cookie: staff.cookie } }
     );
     const consoleHtml = await consolePage.text();
+    const consoleText = consoleHtml
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     assert.equal(consolePage.status, 200);
-    assert.match(consoleHtml, /selected Assessment/i);
-    assert.match(consoleHtml, /assigned Monitor/i);
+    assert.match(consoleText, /selected Assessment/i);
+    assert.match(consoleText, /assigned Monitor/i);
 
     const waitingPage = await fetch(`${baseUrl}/onboarding`, {
       headers: { cookie: assessmentSession.cookie },
