@@ -1,8 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  isPublicEvidencePagePath,
   isPublicEvidenceUploadPath,
+  isPublicUnauthenticatedPagePath,
 } from "@/lib/auth/public-paths";
 import { isStaffReportActionPath } from "@/lib/auth/report-paths";
 import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
@@ -84,7 +84,7 @@ export async function proxy(request: NextRequest) {
     !path.startsWith("/login") &&
     !path.startsWith("/auth") &&
     !path.startsWith("/setup") &&
-    !isPublicEvidencePagePath(path)
+    !isPublicUnauthenticatedPagePath(path)
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

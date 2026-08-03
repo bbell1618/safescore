@@ -295,6 +295,7 @@ async function prepare() {
       assert.equal(me.response.status, 200);
       assert.equal(me.body.client?.id, candidate.synthetic.clientId);
       assert.equal(me.body.client?.tier, "monitor");
+      assert.equal(me.body.setupFullName, "Synthetic Safety Contact");
     }
 
     const zero = await post(
@@ -304,6 +305,10 @@ async function prepare() {
       "zero driver count"
     );
     assert.equal(zero.response.status, 400);
+    assert.equal(
+      zero.body.error,
+      "Enter your current driver count (at least 1)."
+    );
     const afterZero = await service.from("clients")
       .select("driver_count")
       .eq("id", assessment.clientId)

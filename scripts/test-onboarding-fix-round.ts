@@ -75,7 +75,7 @@ const missingStep2 = validateOnboardingStep2({
 assert.equal(missingStep2.valid, false);
 assert.match(missingStep2.summary ?? "", /^Still needed:/);
 assert.equal(missingStep2.errors.driverCount,
-  "Enter a whole-number driver count of at least 1.");
+  "Enter your current driver count (at least 1).");
 assert.equal(missingStep2.errors.citationDismissedLast24Months,
   "Choose yes or no.");
 

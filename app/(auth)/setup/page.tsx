@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
@@ -234,8 +235,14 @@ export default function SetupPage() {
           </Suspense>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Golden Era Insurance Agency — SafeScore Portal
+        <p className="mt-6 text-center text-xs text-[#5C554E]">
+          Golden Era Insurance Agency {"\u2014"} SafeScore Portal {"\u00b7"}{" "}
+          <Link
+            href="/terms"
+            className="underline decoration-[#5C554E]/40 underline-offset-4 transition-colors hover:text-[#1E1C1A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E]"
+          >
+            Terms of Service
+          </Link>
         </p>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Check, ShieldCheck, ChevronRight, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { isClientTier, tierHasFeature, TIER_LABELS } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
 import { CITATION_DISMISSED_INTAKE_QUESTION } from "@/lib/evidence-loop/taxonomy";
@@ -213,10 +214,11 @@ export default function OnboardingPage() {
         }
         if (data.client) {
           setClient(data.client);
+          const setupFullName = humanEnteredNameOrEmpty(data.setupFullName);
           const primaryContact = humanEnteredNameOrEmpty(
             data.client.primary_contact
           );
-          setContactName(primaryContact);
+          setContactName(setupFullName);
           setContactPhone(data.client.phone ?? "");
           setContactEmail(data.client.email ?? "");
           setDriverCount(
@@ -367,7 +369,7 @@ export default function OnboardingPage() {
   async function saveProfile() {
     const parsedDriverCount = parseRequiredDriverCount(driverCount);
     if (parsedDriverCount === null) {
-      throw new Error("Enter a whole-number driver count of at least 1.");
+      throw new Error("Enter your current driver count (at least 1).");
     }
     await postOnboarding("/api/portal/onboarding-profile", {
       contactName,
@@ -1013,7 +1015,7 @@ export default function OnboardingPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block mono-label text-[#5C554E] mb-2">Billing driver count *</label>
+                    <label className="block mono-label text-[#5C554E] mb-2">CURRENT DRIVER COUNT *</label>
                     <input
                       type="number"
                       min={1}
@@ -1032,7 +1034,9 @@ export default function OnboardingPage() {
                       aria-describedby="driver-count-help driver-count-error"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] text-sm"
                     />
-                    <p id="driver-count-help" className="mt-1 text-xs text-[#8B8178]">Your editable count drives billing. FMCSA&apos;s MCS-150 count is reference only.</p>
+                    <p id="driver-count-help" className="mt-1 text-xs leading-5 text-[#8B8178]">
+                      Count every driver who drives for you today {"\u2014"} company drivers and owner-operators, full or part time. This number becomes your profile&apos;s source of truth: we size your service to it and correct your FMCSA record to match it.
+                    </p>
                     {visibleFieldError(
                       "driverCount",
                       step2Validation.errors.driverCount
@@ -1152,25 +1156,60 @@ export default function OnboardingPage() {
 
               {/* Authorization checkboxes */}
               <div className="space-y-3 mb-6">
-                <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] hover:border-[#C67A1E]/30 transition-colors">
+                <div className="flex items-start gap-3 rounded-xl border border-[#F0E8DA] bg-[#FEFCF8] p-4 transition-colors hover:border-[#C67A1E]/30">
                   <input
+                    id="service-agreement"
                     type="checkbox"
                     checked={agreementChecked}
                     onChange={(e) => setAgreementChecked(e.target.checked)}
                     onBlur={() => touchField("agreementChecked")}
+                    aria-labelledby="service-agreement-copy"
+                    aria-invalid={Boolean(
+                      visibleFieldError(
+                        "agreementChecked",
+                        step3Validation.errors.agreementChecked
+                      )
+                    )}
+                    aria-describedby={
+                      visibleFieldError(
+                        "agreementChecked",
+                        step3Validation.errors.agreementChecked
+                      )
+                        ? "service-agreement-error"
+                        : undefined
+                    }
                     className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                   />
-                  <span className="text-sm text-[#1E1C1A] leading-snug">
-                    <strong>Service agreement</strong> — I agree to Golden Era Insurance Agency&apos;s{" "}
-                    <span className="text-[#C67A1E] underline cursor-pointer">terms of service</span>{" "}
-                    and authorize GEIA to provide SafeScore services to my carrier.
+                  <span
+                    id="service-agreement-copy"
+                    className="text-sm text-[#1E1C1A] leading-snug"
+                  >
+                    <label htmlFor="service-agreement" className="cursor-pointer">
+                      <strong>Service agreement</strong> {"\u2014"} I agree to Golden Era Insurance Agency&apos;s{" "}
+                    </label>
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Terms of Service (opens in a new tab)"
+                      className="text-[#C67A1E] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E]"
+                    >
+                      terms of service
+                    </Link>{" "}
+                    <label htmlFor="service-agreement" className="cursor-pointer">
+                      and authorize GEIA to provide SafeScore services to my carrier.
+                    </label>
                   </span>
-                </label>
+                </div>
                 {visibleFieldError(
                   "agreementChecked",
                   step3Validation.errors.agreementChecked
                 ) ? (
-                  <p role="alert" className="px-1 text-xs text-[#B83B32]">
+                  <p
+                    id="service-agreement-error"
+                    role="alert"
+                    className="px-1 text-xs text-[#B83B32]"
+                  >
                     {step3Validation.errors.agreementChecked}
                   </p>
                 ) : null}
@@ -1206,7 +1245,7 @@ export default function OnboardingPage() {
                       className="mt-0.5 w-4 h-4 rounded border-[#F0E8DA] accent-[#C67A1E] shrink-0"
                     />
                     <span className="text-sm text-[#1E1C1A] leading-snug">
-                      <strong>DataQ filing authorization</strong> - I authorize Golden Era Insurance Agency to access my FMCSA data and to submit Requests for Data Review (DataQs) and Crash Preventability Determination (CPDP) requests to FMCSA on this carrier&apos;s behalf. I understand FMCSA notifies the carrier&apos;s officials of any request filed on its USDOT number.
+                      <strong>DataQ filing authorization (required for your plan)</strong> - I authorize Golden Era Insurance Agency to access my FMCSA data and to submit Requests for Data Review (DataQs) and Crash Preventability Determination (CPDP) requests to FMCSA on this carrier&apos;s behalf. I understand FMCSA notifies the carrier&apos;s officials of any request filed on its USDOT number.
                       <span className="block text-xs text-[#8B8178] mt-2">
                         Authorization wording is subject to GEIA review.
                       </span>

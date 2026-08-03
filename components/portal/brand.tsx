@@ -1,5 +1,6 @@
 import { SectionDivider } from "@/components/ui/section-divider";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 const NAVY = "var(--color-navy)";
@@ -123,6 +124,12 @@ export function PortalFooterBand({
         )}
       >
         {children}
+        <Link
+          href="/terms"
+          className="ml-auto inline-flex min-h-10 shrink-0 items-center text-xs text-warm-white/70 underline decoration-warm-white/35 underline-offset-4 transition-colors hover:text-warm-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        >
+          Terms of Service
+        </Link>
       </div>
     </footer>
   );

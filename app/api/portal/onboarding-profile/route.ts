@@ -100,7 +100,7 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json(
       {
-        error: "Billing driver count is required and must be a whole number of at least 1.",
+        error: "Enter your current driver count (at least 1).",
         code: "DRIVER_COUNT_INVALID",
       },
       { status: 400 }

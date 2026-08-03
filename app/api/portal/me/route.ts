@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
   // Look up user record to get client_id
   const { data: userRecord } = await supabase
     .from("users")
-    .select("client_id")
+    .select("client_id, full_name")
     .eq("id", user.id)
     .single();
 
@@ -30,5 +31,8 @@ export async function GET() {
     .eq("id", userRecord.client_id)
     .single();
 
-  return NextResponse.json({ client: client ?? null });
+  return NextResponse.json({
+    client: client ?? null,
+    setupFullName: humanEnteredNameOrEmpty(userRecord.full_name) || null,
+  });
 }

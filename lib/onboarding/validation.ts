@@ -120,8 +120,8 @@ export function validateOnboardingStep2(input: {
       ? null
       : [
           "driverCount",
-          "Enter a whole-number driver count of at least 1.",
-          "billing driver count of at least 1",
+          "Enter your current driver count (at least 1).",
+          "current driver count (at least 1)",
         ],
     input.citationDismissedLast24Months !== null
       ? null
