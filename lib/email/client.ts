@@ -197,6 +197,7 @@ export interface RequestQueueReminderData {
   companyName: string;
   requestTitle: string;
   reminderNumber: number;
+  reminderLimit?: number;
   portalUrl: string;
 }
 
@@ -534,24 +535,24 @@ export async function sendInviteEmail(
 
 export async function sendRequestQueueReminder(
   data: RequestQueueReminderData
-): Promise<{ success: boolean }> {
+): Promise<EmailDeliveryResult> {
+  const reminderLimit = data.reminderLimit ?? 3;
   const html = emailWrapper(`
     <h2>Document request reminder</h2>
-    <p>${data.companyName} has an open SafeScore request.</p>
+    <p>${escapeHtml(data.companyName)} has an open SafeScore request.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <div class="detail-row"><div class="label">Request</div><div class="value">${data.requestTitle}</div></div>
-      <div class="detail-row"><div class="label">Reminder</div><div class="value">${data.reminderNumber} of 3</div></div>
+      <div class="detail-row"><div class="label">Request</div><div class="value">${escapeHtml(data.requestTitle)}</div></div>
+      <div class="detail-row"><div class="label">Reminder</div><div class="value">${data.reminderNumber} of ${reminderLimit}</div></div>
     </div>
-    <a href="${data.portalUrl}" class="cta">Review request</a>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">Review request</a>
   `);
-  const result = await sendEmail({
+  return sendEmail({
     to: data.to,
     subject: `SafeScore request reminder: ${data.requestTitle}`,
     htmlBody: html,
     trigger: "request_queue_reminder",
     template: "request_queue_reminder",
   });
-  return { success: result.success };
 }
 
 export async function sendEvidenceRequestCreated(

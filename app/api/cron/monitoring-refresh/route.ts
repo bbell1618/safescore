@@ -22,6 +22,8 @@ import { reconcileLaneBEvidenceLoopForClient } from "@/lib/evidence-loop/server"
 import { closeAgedOutEvidenceRequests } from "@/lib/evidence-loop/age-out";
 import { retrySubmittedLaneBEvidenceRequests } from "@/lib/challengeability/reassess-on-change";
 import { notifyOperations } from "@/lib/notifications/operations";
+import { runDueClientRequestReminders } from "@/lib/request-queue/reminders";
+import type { ClientRequestReminderRunResult } from "@/lib/request-queue/reminder-processor";
 import {
   runComplianceExpirationSweep,
   type ComplianceExpirationSweepResult,
@@ -63,6 +65,10 @@ type CronSummary = {
   compliance_alerts_created: number;
   compliance_requests_created: number;
   compliance_digests_logged: number;
+  request_reminders_processed: number;
+  request_reminders_sent: number;
+  request_reminders_dry_run: number;
+  request_reminders_failed: number;
 };
 
 type Mcs150CronResult = {
@@ -144,11 +150,43 @@ export async function GET(request: Request) {
     compliance_alerts_created: 0,
     compliance_requests_created: 0,
     compliance_digests_logged: 0,
+    request_reminders_processed: 0,
+    request_reminders_sent: 0,
+    request_reminders_dry_run: 0,
+    request_reminders_failed: 0,
   };
   const errors: Array<{ client_id: string; error: string }> = [];
   const mcs150Results: Mcs150CronResult[] = [];
   const carrierEnrichmentResults: CarrierEnrichmentCronResult[] = [];
   const complianceResults: ComplianceCronResult[] = [];
+  let requestReminderResults: ClientRequestReminderRunResult | null = null;
+
+  // Process the lightweight request queue before public-source refreshes so a
+  // slow FMCSA client cannot starve reminders at the end of the cron window.
+  try {
+    requestReminderResults = await runDueClientRequestReminders(supabase, {
+      source: "monitoring_cron",
+    });
+    summary.request_reminders_processed = requestReminderResults.processed;
+    summary.request_reminders_sent = requestReminderResults.sent;
+    summary.request_reminders_dry_run = requestReminderResults.dryRun;
+    summary.request_reminders_failed = requestReminderResults.failed;
+    for (const reminder of requestReminderResults.results) {
+      if (reminder.status !== "failed") continue;
+      errors.push({
+        client_id: reminder.clientId,
+        error: `Client request reminder ${reminder.requestId}: ${
+          reminder.reason ?? "failed"
+        }`,
+      });
+    }
+  } catch (reminderError) {
+    summary.request_reminders_failed += 1;
+    errors.push({
+      client_id: "request_reminders",
+      error: `Client request reminders: ${errorMessage(reminderError)}`,
+    });
+  }
 
   for (const client of (data ?? []) as ActiveClient[]) {
     try {
@@ -517,6 +555,7 @@ export async function GET(request: Request) {
           mcs150_results: mcs150Results,
           carrier_enrichment_results: carrierEnrichmentResults,
           compliance_results: complianceResults,
+          request_reminder_results: requestReminderResults,
           errors,
         }
       : {
@@ -524,6 +563,7 @@ export async function GET(request: Request) {
           mcs150_results: mcs150Results,
           carrier_enrichment_results: carrierEnrichmentResults,
           compliance_results: complianceResults,
+          request_reminder_results: requestReminderResults,
         }
   );
 }
