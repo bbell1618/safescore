@@ -23,6 +23,32 @@ type LaneBRequestedItem = {
   contextNote: string;
 };
 
+type ComplianceRenewalRequestedItem = {
+  itemKey: string;
+  label: string;
+  contextNote?: string | null;
+  driverId: string;
+  driverDocumentId: string;
+  docType: "cdl" | "medical_cert";
+};
+
+function complianceRenewalItem(
+  value: unknown
+): ComplianceRenewalRequestedItem | null {
+  if (typeof value !== "object" || value === null) return null;
+  const item = value as Partial<ComplianceRenewalRequestedItem>;
+  if (
+    typeof item.itemKey !== "string" ||
+    typeof item.label !== "string" ||
+    typeof item.driverId !== "string" ||
+    typeof item.driverDocumentId !== "string" ||
+    (item.docType !== "cdl" && item.docType !== "medical_cert")
+  ) {
+    return null;
+  }
+  return item as ComplianceRenewalRequestedItem;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ requestId: string }> }) {
   const { requestId } = await params;
   const access = await getPortalApiAccess("evidence_requests");
@@ -101,11 +127,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
     });
   }
   if (
-    queueItem.category === "mcs150_truth_up" &&
+    (queueItem.category === "mcs150_truth_up" ||
+      queueItem.category === "dqf_roster" ||
+      queueItem.category.startsWith("compliance_")) &&
     !tierHasFeature(access.tier, "compliance_layer")
   ) {
     return NextResponse.json(
-      { error: "MCS-150 truth-up is not included in this plan" },
+      { error: "Compliance document requests are not included in this plan" },
       { status: 403 }
     );
   }
@@ -123,6 +151,217 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   }
 
   const stamp = Date.now();
+  if (queueItem.category === "compliance_renewal") {
+    if (typeof evidenceId !== "string" || !evidenceId.trim()) {
+      return NextResponse.json(
+        { error: "Renewal item is required" },
+        { status: 400 }
+      );
+    }
+    const requestedItems = Array.isArray(queueItem.requested_items)
+      ? (queueItem.requested_items as unknown[])
+      : [];
+    const requestedItem = requestedItems
+      .map(complianceRenewalItem)
+      .find(
+        (
+          item: ComplianceRenewalRequestedItem | null
+        ): item is ComplianceRenewalRequestedItem => item?.itemKey === evidenceId
+      );
+    if (!requestedItem) {
+      return NextResponse.json(
+        { error: "Renewal item is not part of this request" },
+        { status: 403 }
+      );
+    }
+
+    const [{ data: driver, error: driverError }, { data: checklistItem, error: checklistError }] =
+      await Promise.all([
+        service
+          .from("drivers")
+          .select("id")
+          .eq("id", requestedItem.driverId)
+          .eq("client_id", clientId)
+          .maybeSingle(),
+        service
+          .from("driver_documents")
+          .select("id, driver_id, doc_type")
+          .eq("id", requestedItem.driverDocumentId)
+          .eq("client_id", clientId)
+          .maybeSingle(),
+      ]);
+    if (driverError || checklistError) {
+      return NextResponse.json(
+        {
+          error: `Unable to verify the renewal target: ${
+            driverError?.message ?? checklistError?.message
+          }`,
+        },
+        { status: 500 }
+      );
+    }
+    if (
+      !driver ||
+      !checklistItem ||
+      checklistItem.driver_id !== requestedItem.driverId ||
+      checklistItem.doc_type !== requestedItem.docType
+    ) {
+      return NextResponse.json(
+        { error: "The renewal request no longer matches its driver file" },
+        { status: 409 }
+      );
+    }
+
+    const storagePath = `${clientId}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
+    const { error: storageError } = await service.storage
+      .from("documents")
+      .upload(storagePath, await file.arrayBuffer(), {
+        contentType: file.type,
+        upsert: false,
+      });
+    if (storageError) {
+      return NextResponse.json(
+        { error: storageError.message },
+        { status: 500 }
+      );
+    }
+
+    const { data: documentRow, error: documentError } = await service
+      .from("documents")
+      .insert({
+        client_id: clientId,
+        storage_path: storagePath,
+        filename: file.name,
+        file_size: file.size,
+        mime_type: file.type,
+        category: "dqf",
+        status: "pending_review",
+        uploaded_by: actorUserId,
+        client_request_id: requestId,
+        evidence_item_key: requestedItem.itemKey,
+      })
+      .select("id")
+      .maybeSingle();
+    if (documentError || !documentRow) {
+      return NextResponse.json(
+        {
+          error:
+            documentError?.message ?? "Renewal document was not recorded",
+        },
+        { status: 500 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    const { data: linkedChecklistItem, error: linkError } = await service
+      .from("driver_documents")
+      .update({ document_id: documentRow.id, updated_at: now })
+      .eq("id", requestedItem.driverDocumentId)
+      .eq("client_id", clientId)
+      .eq("driver_id", requestedItem.driverId)
+      .eq("doc_type", requestedItem.docType)
+      .select("id")
+      .maybeSingle();
+    if (linkError || !linkedChecklistItem) {
+      return NextResponse.json(
+        {
+          error:
+            linkError?.message ??
+            "Renewal document was stored, but the driver file was not updated",
+          documentId: documentRow.id,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { data: fulfilledRequest, error: closeError } = await service
+      .from("client_requests")
+      .update({
+        status: "fulfilled",
+        status_copy:
+          "Document received — GEIA will review it and confirm the renewed expiration date.",
+        response: {
+          lastDocumentId: documentRow.id,
+          lastEvidenceItemKey: requestedItem.itemKey,
+          lastSubmittedAt: now,
+        },
+        closed_at: now,
+        next_reminder_at: null,
+        updated_at: now,
+      })
+      .eq("id", requestId)
+      .eq("client_id", clientId)
+      .eq("status", "open")
+      .select("id")
+      .maybeSingle();
+    if (closeError || !fulfilledRequest) {
+      return NextResponse.json(
+        {
+          error:
+            closeError?.message ??
+            "Renewal document was linked, but the request was not completed",
+          documentId: documentRow.id,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { error: activityError } = await service.from("activity_log").insert({
+      client_id: clientId,
+      user_id: actorUserId,
+      action_type: "compliance_renewal_uploaded",
+      entity_type: "client_requests",
+      entity_id: requestId,
+      description: `Compliance renewal received for ${requestedItem.label}`,
+      metadata: {
+        document_id: documentRow.id,
+        driver_id: requestedItem.driverId,
+        driver_document_id: requestedItem.driverDocumentId,
+        document_type: requestedItem.docType,
+        expiration_date_changed: false,
+      },
+    });
+    if (activityError) {
+      return NextResponse.json(
+        {
+          error: `Renewal was recorded, but activity logging failed: ${activityError.message}`,
+          documentId: documentRow.id,
+          requestStatus: "fulfilled",
+        },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await notifyStaffForUpload({
+        artifactId: documentRow.id,
+        uploadKind: "requested_document",
+        itemLabel: requestedItem.label,
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `The renewal was saved, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          documentId: documentRow.id,
+          requestStatus: "fulfilled",
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      documentId: documentRow.id,
+      requestStatus: "fulfilled",
+      remaining: 0,
+      expirationDateChanged: false,
+    });
+  }
+
   if (
     isLaneBEvidenceUpload
   ) {

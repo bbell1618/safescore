@@ -21,9 +21,9 @@ const isoDateSchema = z
 const nullableText = (maximum: number) =>
   z.union([z.string().trim().min(1).max(maximum), z.null()]).optional();
 
-const createVehicleSchema = z
+const updateVehicleSchema = z
   .object({
-    unit_number: z.string().trim().min(1).max(80),
+    unit_number: z.string().trim().min(1).max(80).optional(),
     vin: nullableText(80),
     year: z.union([z.number().int().min(1900).max(2100), z.null()]).optional(),
     make: nullableText(80),
@@ -36,9 +36,10 @@ const createVehicleSchema = z
       ])
       .optional(),
     annual_inspection_date: z.union([isoDateSchema, z.null()]).optional(),
-    status: z.enum(["active", "inactive"]).default("active"),
+    status: z.enum(["active", "inactive"]).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required.");
 
 function failure(error: unknown) {
   if (error instanceof OnboardingRouteFailure) {
@@ -52,29 +53,31 @@ function failure(error: unknown) {
       error:
         error instanceof Error
           ? error.message
-          : "Unknown vehicle creation failure",
-      code: "VEHICLE_CREATE_FAILED",
+          : "Unknown vehicle update failure",
+      code: "VEHICLE_UPDATE_FAILED",
     },
     { status: 500 }
   );
 }
 
-export async function POST(
+export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; vehicleId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const clientId = uuidSchema.safeParse(id);
-    if (!clientId.success) {
+    const values = await params;
+    const ids = z
+      .object({ clientId: uuidSchema, vehicleId: uuidSchema })
+      .safeParse({ clientId: values.id, vehicleId: values.vehicleId });
+    if (!ids.success) {
       return NextResponse.json(
-        { error: "A valid client ID is required.", code: "INVALID_CLIENT_ID" },
+        { error: "Valid client and vehicle IDs are required.", code: "INVALID_IDS" },
         { status: 400 }
       );
     }
 
     const { service, userId } = await requireStaffOnboardingUser();
-    const parsed = createVehicleSchema.safeParse(await request.json());
+    const parsed = updateVehicleSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -86,66 +89,73 @@ export async function POST(
       );
     }
 
-    const { data: client, error: clientError } = await service
-      .from("clients")
-      .select("id, tier")
-      .eq("id", clientId.data)
-      .maybeSingle();
-    if (clientError) {
-      throw new Error(`Unable to verify the vehicle client: ${clientError.message}`);
+    const [clientResult, vehicleResult] = await Promise.all([
+      service
+        .from("clients")
+        .select("id, tier")
+        .eq("id", ids.data.clientId)
+        .maybeSingle(),
+      service
+        .from("vehicles")
+        .select("id, unit_number")
+        .eq("id", ids.data.vehicleId)
+        .eq("client_id", ids.data.clientId)
+        .maybeSingle(),
+    ]);
+    if (clientResult.error) {
+      throw new Error(`Unable to verify the vehicle client: ${clientResult.error.message}`);
     }
-    if (!client) {
+    if (vehicleResult.error) {
+      throw new Error(`Unable to verify the vehicle: ${vehicleResult.error.message}`);
+    }
+    if (!clientResult.data) {
       return NextResponse.json(
         { error: "Client not found", code: "CLIENT_NOT_FOUND" },
         { status: 404 }
       );
     }
+    if (!vehicleResult.data) {
+      return NextResponse.json(
+        { error: "Vehicle not found for this client", code: "VEHICLE_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
 
-    const now = new Date().toISOString();
-    const { data: vehicle, error: insertError } = await service
+    const changedFields = Object.keys(parsed.data);
+    const { data: vehicle, error: updateError } = await service
       .from("vehicles")
-      .insert({
-        client_id: clientId.data,
-        unit_number: parsed.data.unit_number,
-        vin: parsed.data.vin ?? null,
-        year: parsed.data.year ?? null,
-        make: parsed.data.make ?? null,
-        model: parsed.data.model ?? null,
-        license_plate: parsed.data.license_plate ?? null,
-        plate_state: parsed.data.plate_state ?? null,
-        annual_inspection_date: parsed.data.annual_inspection_date ?? null,
-        status: parsed.data.status,
-        updated_at: now,
-      })
+      .update({ ...parsed.data, updated_at: new Date().toISOString() })
+      .eq("id", ids.data.vehicleId)
+      .eq("client_id", ids.data.clientId)
       .select(
         "id, client_id, unit_number, vin, year, make, model, license_plate, plate_state, annual_inspection_date, status, created_at, updated_at"
       )
       .single();
-    if (insertError || !vehicle) {
+    if (updateError || !vehicle) {
       throw new Error(
-        `Unable to add the vehicle: ${insertError?.message ?? "row not returned"}`
+        `Unable to update the vehicle: ${updateError?.message ?? "row not returned"}`
       );
     }
 
     const { error: activityError } = await service.from("activity_log").insert({
-      client_id: clientId.data,
+      client_id: ids.data.clientId,
       user_id: userId,
-      action_type: "compliance_vehicle_created",
+      action_type: "compliance_vehicle_updated",
       entity_type: "vehicles",
       entity_id: vehicle.id,
-      description: `Compliance vehicle added: unit ${vehicle.unit_number}`,
+      description: `Compliance vehicle updated: unit ${vehicle.unit_number}`,
       metadata: {
-        status: vehicle.status,
-        client_tier: client.tier,
+        changed_fields: changedFields,
+        client_tier: clientResult.data.tier,
       },
     });
     if (activityError) {
       throw new Error(
-        `Vehicle ${vehicle.id} was saved, but activity logging failed: ${activityError.message}`
+        `Vehicle ${vehicle.id} was updated, but activity logging failed: ${activityError.message}`
       );
     }
 
-    return NextResponse.json({ vehicle }, { status: 201 });
+    return NextResponse.json({ vehicle });
   } catch (error) {
     return failure(error);
   }

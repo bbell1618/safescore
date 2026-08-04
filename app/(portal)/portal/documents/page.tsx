@@ -180,7 +180,7 @@ function requestedEvidenceItems(value: unknown): RequestedEvidenceItem[] {
 async function loadOpenRequests(
   supabase: PortalSupabase,
   clientId: string,
-  includeMcs150: boolean,
+  includeCompliance: boolean,
   includeEvidenceRequests: boolean
 ): Promise<ClientRequestRow[]> {
   let query = supabase
@@ -195,8 +195,12 @@ async function loadOpenRequests(
       "status.eq.open,evidence_status.in.(submitted,applied,insufficient)"
     );
 
-  if (!includeMcs150) {
-    query = query.neq("category", "mcs150_truth_up");
+  if (!includeCompliance) {
+    query = query.not(
+      "category",
+      "in",
+      "(mcs150_truth_up,dqf_roster,compliance_renewal)"
+    );
   }
   if (!includeEvidenceRequests) {
     query = query.eq("category", "fmcsa_portal_pin");

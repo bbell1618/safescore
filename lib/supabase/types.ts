@@ -44,6 +44,52 @@ export type DocumentCategory =
   | "other";
 export type ActionItemType = "dataq" | "cpdp" | "mcs150" | "compliance" | "monitoring";
 export type ActionItemStatus = "pending" | "in_progress" | "completed" | "dismissed";
+export type DriverStatus = "active" | "inactive" | "terminated";
+export type DriverDocumentType =
+  | "cdl"
+  | "medical_cert"
+  | "mvr"
+  | "application"
+  | "road_test"
+  | "training"
+  | "prior_employer_checks"
+  | "annual_mvr_review"
+  | "clearinghouse_pre_employment";
+export type DocumentExpiryStatus =
+  | "current"
+  | "expiring_soon"
+  | "expired"
+  | "missing";
+export type VehicleStatus = "active" | "inactive";
+export type VehicleMaintenanceType =
+  | "pm_service"
+  | "repair"
+  | "annual_inspection";
+export type ClearinghouseResultType = "negative" | "positive";
+export type ClearinghouseRegistrationStatus =
+  | "unknown"
+  | "registered"
+  | "not_registered";
+export type ComplianceExpirationItemType =
+  | "medical_certificate"
+  | "cdl"
+  | "annual_vehicle_inspection"
+  | "annual_mvr_review"
+  | "clearinghouse_annual_query";
+export type ComplianceExpirationSubjectType =
+  | "driver"
+  | "driver_document"
+  | "vehicle";
+export type ComplianceExpirationThreshold =
+  | "60_day"
+  | "30_day"
+  | "7_day"
+  | "expired";
+export type ComplianceWorkStatus =
+  | "pending"
+  | "processing"
+  | "succeeded"
+  | "failed";
 
 export interface Database {
   public: {
@@ -798,14 +844,58 @@ export interface Database {
           full_name: string;
           cdl_number: string | null;
           cdl_state: string | null;
+          cdl_class: string | null;
           cdl_expiry: string | null;
           medical_cert_expiry: string | null;
           hired_date: string | null;
-          status: "active" | "inactive" | "terminated";
+          status: DriverStatus;
           created_at: string;
+          updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["drivers"]["Row"], "id" | "created_at">;
+        Insert: {
+          id?: string;
+          client_id: string;
+          full_name: string;
+          cdl_number?: string | null;
+          cdl_state?: string | null;
+          cdl_class?: string | null;
+          cdl_expiry?: string | null;
+          medical_cert_expiry?: string | null;
+          hired_date?: string | null;
+          status?: DriverStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
         Update: Partial<Database["public"]["Tables"]["drivers"]["Insert"]>;
+      };
+      driver_documents: {
+        Row: {
+          id: string;
+          driver_id: string;
+          client_id: string;
+          document_id: string | null;
+          doc_type: DriverDocumentType;
+          completed_date: string | null;
+          expiry_date: string | null;
+          status: DocumentExpiryStatus;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          driver_id: string;
+          client_id: string;
+          document_id?: string | null;
+          doc_type: DriverDocumentType;
+          completed_date?: string | null;
+          expiry_date?: string | null;
+          status?: DocumentExpiryStatus;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["driver_documents"]["Insert"]>;
       };
       vehicles: {
         Row: {
@@ -818,11 +908,166 @@ export interface Database {
           model: string | null;
           license_plate: string | null;
           plate_state: string | null;
-          status: "active" | "inactive";
+          annual_inspection_date: string | null;
+          status: VehicleStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          unit_number?: string | null;
+          vin?: string | null;
+          year?: number | null;
+          make?: string | null;
+          model?: string | null;
+          license_plate?: string | null;
+          plate_state?: string | null;
+          annual_inspection_date?: string | null;
+          status?: VehicleStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["vehicles"]["Insert"]>;
+      };
+      vehicle_maintenance: {
+        Row: {
+          id: string;
+          vehicle_id: string;
+          client_id: string;
+          maintenance_type: VehicleMaintenanceType;
+          scheduled_date: string | null;
+          completed_date: string | null;
+          notes: string | null;
+          document_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          vehicle_id: string;
+          client_id: string;
+          maintenance_type: VehicleMaintenanceType;
+          scheduled_date?: string | null;
+          completed_date?: string | null;
+          notes?: string | null;
+          document_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["vehicle_maintenance"]["Insert"]>;
+      };
+      clearinghouse_records: {
+        Row: {
+          id: string;
+          client_id: string;
+          driver_id: string | null;
+          query_date: string;
+          result_type: ClearinghouseResultType;
+          document_id: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["vehicles"]["Row"], "id" | "created_at">;
-        Update: Partial<Database["public"]["Tables"]["vehicles"]["Insert"]>;
+        Insert: {
+          id?: string;
+          client_id: string;
+          driver_id?: string | null;
+          query_date: string;
+          result_type: ClearinghouseResultType;
+          document_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["clearinghouse_records"]["Insert"]>;
+      };
+      client_compliance_profiles: {
+        Row: {
+          id: string;
+          client_id: string;
+          clearinghouse_registration_status: ClearinghouseRegistrationStatus;
+          clearinghouse_registration_checked_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          clearinghouse_registration_status?: ClearinghouseRegistrationStatus;
+          clearinghouse_registration_checked_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["client_compliance_profiles"]["Insert"]>;
+      };
+      compliance_expiration_digests: {
+        Row: {
+          id: string;
+          client_id: string;
+          digest_date: string;
+          status: ComplianceWorkStatus;
+          attempts: number;
+          claimed_at: string | null;
+          processed_at: string | null;
+          last_error: string | null;
+          event_count: number;
+          delivery_metadata: Record<string, unknown>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          digest_date: string;
+          status?: ComplianceWorkStatus;
+          attempts?: number;
+          claimed_at?: string | null;
+          processed_at?: string | null;
+          last_error?: string | null;
+          event_count?: number;
+          delivery_metadata?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["compliance_expiration_digests"]["Insert"]>;
+      };
+      compliance_expiration_events: {
+        Row: {
+          id: string;
+          client_id: string;
+          item_type: ComplianceExpirationItemType;
+          subject_type: ComplianceExpirationSubjectType;
+          subject_id: string;
+          due_date: string;
+          threshold: ComplianceExpirationThreshold;
+          status: ComplianceWorkStatus;
+          attempts: number;
+          claimed_at: string | null;
+          processed_at: string | null;
+          last_error: string | null;
+          digest_id: string | null;
+          alert_id: string | null;
+          client_request_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          item_type: ComplianceExpirationItemType;
+          subject_type: ComplianceExpirationSubjectType;
+          subject_id: string;
+          due_date: string;
+          threshold: ComplianceExpirationThreshold;
+          status?: ComplianceWorkStatus;
+          attempts?: number;
+          claimed_at?: string | null;
+          processed_at?: string | null;
+          last_error?: string | null;
+          digest_id?: string | null;
+          alert_id?: string | null;
+          client_request_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["compliance_expiration_events"]["Insert"]>;
       };
     };
     Views: Record<string, never>;

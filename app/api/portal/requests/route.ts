@@ -18,7 +18,11 @@ export async function GET() {
     .eq("responsibility", "client")
     .neq("status", "cancelled");
   if (!tierHasFeature(access.tier, "compliance_layer")) {
-    query = query.neq("category", "mcs150_truth_up");
+    query = query.not(
+      "category",
+      "in",
+      "(mcs150_truth_up,dqf_roster,compliance_renewal)"
+    );
   }
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

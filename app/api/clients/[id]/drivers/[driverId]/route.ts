@@ -22,9 +22,9 @@ const nullableDate = z.union([isoDateSchema, z.null()]).optional();
 const nullableText = (maximum: number) =>
   z.union([z.string().trim().min(1).max(maximum), z.null()]).optional();
 
-const createDriverSchema = z
+const updateDriverSchema = z
   .object({
-    full_name: z.string().trim().min(1).max(160),
+    full_name: z.string().trim().min(1).max(160).optional(),
     cdl_number: nullableText(80),
     cdl_state: z
       .union([
@@ -36,9 +36,10 @@ const createDriverSchema = z
     cdl_expiry: nullableDate,
     medical_cert_expiry: nullableDate,
     hired_date: nullableDate,
-    status: z.enum(["active", "inactive", "terminated"]).default("active"),
+    status: z.enum(["active", "inactive", "terminated"]).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required.");
 
 function failure(error: unknown) {
   if (error instanceof OnboardingRouteFailure) {
@@ -52,29 +53,31 @@ function failure(error: unknown) {
       error:
         error instanceof Error
           ? error.message
-          : "Unknown driver creation failure",
-      code: "DRIVER_CREATE_FAILED",
+          : "Unknown driver update failure",
+      code: "DRIVER_UPDATE_FAILED",
     },
     { status: 500 }
   );
 }
 
-export async function POST(
+export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; driverId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const clientId = uuidSchema.safeParse(id);
-    if (!clientId.success) {
+    const values = await params;
+    const ids = z
+      .object({ clientId: uuidSchema, driverId: uuidSchema })
+      .safeParse({ clientId: values.id, driverId: values.driverId });
+    if (!ids.success) {
       return NextResponse.json(
-        { error: "A valid client ID is required.", code: "INVALID_CLIENT_ID" },
+        { error: "Valid client and driver IDs are required.", code: "INVALID_IDS" },
         { status: 400 }
       );
     }
 
     const { service, userId } = await requireStaffOnboardingUser();
-    const parsed = createDriverSchema.safeParse(await request.json());
+    const parsed = updateDriverSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -86,65 +89,73 @@ export async function POST(
       );
     }
 
-    const { data: client, error: clientError } = await service
-      .from("clients")
-      .select("id, tier")
-      .eq("id", clientId.data)
-      .maybeSingle();
-    if (clientError) {
-      throw new Error(`Unable to verify the driver client: ${clientError.message}`);
+    const [clientResult, driverResult] = await Promise.all([
+      service
+        .from("clients")
+        .select("id, tier")
+        .eq("id", ids.data.clientId)
+        .maybeSingle(),
+      service
+        .from("drivers")
+        .select("id, full_name")
+        .eq("id", ids.data.driverId)
+        .eq("client_id", ids.data.clientId)
+        .maybeSingle(),
+    ]);
+    if (clientResult.error) {
+      throw new Error(`Unable to verify the driver client: ${clientResult.error.message}`);
     }
-    if (!client) {
+    if (driverResult.error) {
+      throw new Error(`Unable to verify the driver: ${driverResult.error.message}`);
+    }
+    if (!clientResult.data) {
       return NextResponse.json(
         { error: "Client not found", code: "CLIENT_NOT_FOUND" },
         { status: 404 }
       );
     }
+    if (!driverResult.data) {
+      return NextResponse.json(
+        { error: "Driver not found for this client", code: "DRIVER_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
 
-    const now = new Date().toISOString();
-    const { data: driver, error: insertError } = await service
+    const changedFields = Object.keys(parsed.data);
+    const { data: driver, error: updateError } = await service
       .from("drivers")
-      .insert({
-        client_id: clientId.data,
-        full_name: parsed.data.full_name,
-        cdl_number: parsed.data.cdl_number ?? null,
-        cdl_state: parsed.data.cdl_state ?? null,
-        cdl_class: parsed.data.cdl_class ?? null,
-        cdl_expiry: parsed.data.cdl_expiry ?? null,
-        medical_cert_expiry: parsed.data.medical_cert_expiry ?? null,
-        hired_date: parsed.data.hired_date ?? null,
-        status: parsed.data.status,
-        updated_at: now,
-      })
+      .update({ ...parsed.data, updated_at: new Date().toISOString() })
+      .eq("id", ids.data.driverId)
+      .eq("client_id", ids.data.clientId)
       .select(
         "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, created_at, updated_at"
       )
       .single();
-    if (insertError || !driver) {
+    if (updateError || !driver) {
       throw new Error(
-        `Unable to add the driver: ${insertError?.message ?? "row not returned"}`
+        `Unable to update the driver: ${updateError?.message ?? "row not returned"}`
       );
     }
 
     const { error: activityError } = await service.from("activity_log").insert({
-      client_id: clientId.data,
+      client_id: ids.data.clientId,
       user_id: userId,
-      action_type: "compliance_driver_created",
+      action_type: "compliance_driver_updated",
       entity_type: "drivers",
       entity_id: driver.id,
-      description: `Compliance driver added: ${driver.full_name}`,
+      description: `Compliance driver updated: ${driver.full_name}`,
       metadata: {
-        status: driver.status,
-        client_tier: client.tier,
+        changed_fields: changedFields,
+        client_tier: clientResult.data.tier,
       },
     });
     if (activityError) {
       throw new Error(
-        `Driver ${driver.id} was saved, but activity logging failed: ${activityError.message}`
+        `Driver ${driver.id} was updated, but activity logging failed: ${activityError.message}`
       );
     }
 
-    return NextResponse.json({ driver }, { status: 201 });
+    return NextResponse.json({ driver });
   } catch (error) {
     return failure(error);
   }

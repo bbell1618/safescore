@@ -15,6 +15,7 @@ const navItems: Array<{
   label: string;
   exact?: boolean;
   feature?: TierFeature;
+  entitledOnly?: boolean;
 }> = [
   { href: "/portal", label: "Home", exact: true },
   {
@@ -31,6 +32,12 @@ const navItems: Array<{
     href: "/portal/documents",
     label: "Documents",
     feature: "monthly_reports",
+  },
+  {
+    href: "/portal/compliance",
+    label: "Compliance",
+    feature: "compliance_layer",
+    entitledOnly: true,
   },
   { href: "/portal/account", label: "Account" },
 ];
@@ -70,6 +77,11 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      !item.entitledOnly ||
+      (item.feature !== undefined && tierHasFeature(tier, item.feature))
+  );
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -109,7 +121,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
             className="hidden items-center gap-1 md:flex"
             aria-label="Portal"
           >
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = item.exact
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
@@ -204,7 +216,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
               </div>
             )}
             <nav aria-label="Portal mobile">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const active = item.exact
                   ? pathname === item.href
                   : pathname.startsWith(item.href);

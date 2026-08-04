@@ -22,6 +22,10 @@ import { reconcileLaneBEvidenceLoopForClient } from "@/lib/evidence-loop/server"
 import { closeAgedOutEvidenceRequests } from "@/lib/evidence-loop/age-out";
 import { retrySubmittedLaneBEvidenceRequests } from "@/lib/challengeability/reassess-on-change";
 import { notifyOperations } from "@/lib/notifications/operations";
+import {
+  runComplianceExpirationSweep,
+  type ComplianceExpirationSweepResult,
+} from "@/lib/compliance/expiration-sweep";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -53,6 +57,12 @@ type CronSummary = {
   lane_b_intake_questions_created: number;
   lane_b_evidence_retries_attempted: number;
   lane_b_evidence_retries_completed: number;
+  compliance_checks_succeeded: number;
+  compliance_checks_skipped: number;
+  compliance_events_created: number;
+  compliance_alerts_created: number;
+  compliance_requests_created: number;
+  compliance_digests_logged: number;
 };
 
 type Mcs150CronResult = {
@@ -63,6 +73,11 @@ type Mcs150CronResult = {
 type CarrierEnrichmentCronResult = {
   client_id: string;
   result: CarrierProfileEnrichmentResult;
+};
+
+type ComplianceCronResult = {
+  client_id: string;
+  result: ComplianceExpirationSweepResult;
 };
 
 function errorMessage(error: unknown) {
@@ -123,10 +138,17 @@ export async function GET(request: Request) {
     lane_b_intake_questions_created: 0,
     lane_b_evidence_retries_attempted: 0,
     lane_b_evidence_retries_completed: 0,
+    compliance_checks_succeeded: 0,
+    compliance_checks_skipped: 0,
+    compliance_events_created: 0,
+    compliance_alerts_created: 0,
+    compliance_requests_created: 0,
+    compliance_digests_logged: 0,
   };
   const errors: Array<{ client_id: string; error: string }> = [];
   const mcs150Results: Mcs150CronResult[] = [];
   const carrierEnrichmentResults: CarrierEnrichmentCronResult[] = [];
+  const complianceResults: ComplianceCronResult[] = [];
 
   for (const client of (data ?? []) as ActiveClient[]) {
     try {
@@ -145,9 +167,48 @@ export async function GET(request: Request) {
       let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
       let mcs150TruthUpError: string | null = null;
       let carrierEnrichment: CarrierProfileEnrichmentResult | null = null;
+      let complianceSweep: ComplianceExpirationSweepResult | null = null;
+      let complianceSweepError: string | null = null;
       let laneBEvidenceAgeOut: Awaited<
         ReturnType<typeof closeAgedOutEvidenceRequests>
       > | null = null;
+
+      // Total Safety expiration tracking is independent of the FMCSA refresh.
+      // Run it first and isolate failures so an external-source outage cannot
+      // suppress credential, inspection, MVR, or Clearinghouse reminders.
+      if (hasComplianceLayer) {
+        try {
+          complianceSweep = await runComplianceExpirationSweep(supabase, {
+            clientId: client.id,
+          });
+          complianceResults.push({
+            client_id: client.id,
+            result: complianceSweep,
+          });
+          if (complianceSweep.status === "succeeded") {
+            summary.compliance_checks_succeeded += 1;
+          } else {
+            summary.compliance_checks_skipped += 1;
+          }
+          summary.compliance_events_created += complianceSweep.eventsCreated;
+          summary.compliance_alerts_created += complianceSweep.alertsCreated;
+          summary.compliance_requests_created += complianceSweep.requestsCreated;
+          if (
+            complianceSweep.operationsNotification === "dry_run" ||
+            complianceSweep.operationsNotification === "sent"
+          ) {
+            summary.compliance_digests_logged += 1;
+            summary.operations_notifications_logged += 1;
+          }
+        } catch (sweepError) {
+          complianceSweepError = errorMessage(sweepError);
+          errors.push({
+            client_id: client.id,
+            error: `Compliance expiration sweep failed: ${complianceSweepError}`,
+          });
+        }
+      }
+
       const refresh = await runClientRefresh(
         { clientId: client.id, dotNumber: client.dot_number },
         supabase
@@ -423,6 +484,12 @@ export async function GET(request: Request) {
               reason: source.reason,
               row_id: source.row?.id ?? null,
             })) ?? null,
+          compliance_expiration_sweep: hasComplianceLayer
+            ? complianceSweep ?? {
+                status: "failed",
+                reason: complianceSweepError,
+              }
+            : "not_included",
         },
       });
       if (activityError) {
@@ -448,12 +515,14 @@ export async function GET(request: Request) {
           ...summary,
           mcs150_results: mcs150Results,
           carrier_enrichment_results: carrierEnrichmentResults,
+          compliance_results: complianceResults,
           errors,
         }
       : {
           ...summary,
           mcs150_results: mcs150Results,
           carrier_enrichment_results: carrierEnrichmentResults,
+          compliance_results: complianceResults,
         }
   );
 }

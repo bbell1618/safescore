@@ -12,7 +12,8 @@ export type OperationsNotificationEvent =
   | "onboarding_tier_changed"
   | "evidence_uploaded"
   | "intake_question_answered"
-  | "monitoring_alert_raised";
+  | "monitoring_alert_raised"
+  | "compliance_expiration_digest";
 
 export function emailDeliveryMetadata(result: EmailDeliveryResult) {
   return {

@@ -13,6 +13,7 @@ const expectedNav = [
   ["/portal/playbook", "Playbook"],
   ["/portal/activity", "Activity"],
   ["/portal/documents", "Documents"],
+  ["/portal/compliance", "Compliance"],
   ["/portal/account", "Account"],
 ] as const;
 let previousIndex = -1;
@@ -25,7 +26,9 @@ for (const [href, label] of expectedNav) {
   );
   previousIndex = index;
 }
-assert.equal((nav.match(/label:\s*"/g) ?? []).length, 5);
+assert.equal((nav.match(/label:\s*"/g) ?? []).length, 6);
+assert.match(nav, /href: "\/portal\/compliance"[\s\S]{0,180}entitledOnly: true/);
+assert.match(nav, /visibleNavItems = navItems\.filter/);
 for (const retiredLabel of [
   "Dashboard",
   "Safety profile",
@@ -33,7 +36,6 @@ for (const retiredLabel of [
   "Reports",
   "Cases",
   "Requests",
-  "Compliance",
   "Settings",
 ]) {
   assert.ok(!nav.includes(`label: "${retiredLabel}"`));

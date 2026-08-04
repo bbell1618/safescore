@@ -222,7 +222,8 @@ export type OperationsNotificationTrigger =
   | "staff_tier_changed"
   | "staff_evidence_uploaded"
   | "staff_intake_answered"
-  | "staff_monitoring_alert";
+  | "staff_monitoring_alert"
+  | "staff_compliance_expiration_digest";
 
 export interface OperationsNotificationData {
   trigger: OperationsNotificationTrigger;
