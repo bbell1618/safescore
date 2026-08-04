@@ -1123,6 +1123,18 @@ export interface Database {
           already_active: boolean;
         }>;
       };
+      activate_staff_confirmed_subscription_v1: {
+        Args: {
+          p_client_id: string;
+          p_user_id: string;
+        };
+        Returns: Array<{
+          result_status: string;
+          result_tier: string;
+          already_active: boolean;
+          result_mrr: number;
+        }>;
+      };
       claim_client_activation_initialization_v1: {
         Args: {
           p_client_id: string;

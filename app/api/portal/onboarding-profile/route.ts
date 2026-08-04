@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { isClientOnboardingLocked } from "@/lib/auth/access";
 import { ensureCitationDispositionFollowup } from "@/lib/evidence-loop/server";
+import { notifyOperations } from "@/lib/notifications/operations";
+import { didCitationDismissedAnswerChange } from "@/lib/onboarding/validation";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.
 function getAdmin() {
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
   const { data: clientRecord, error: clientError } = await admin
     .from("clients")
     .select(
-      "primary_contact, primary_contact_title, status, service_agreement_accepted, tier"
+      "name, dot_number, primary_contact, primary_contact_title, status, service_agreement_accepted, tier, citation_dismissed_last_24_months"
     )
     .eq("id", clientId)
     .single();
@@ -192,30 +194,81 @@ export async function POST(request: Request) {
   const profileUpdate = { ...update };
   delete profileUpdate.citation_dismissed_last_24_months;
 
+  const previousCitationAnswer =
+    typeof clientRecord.citation_dismissed_last_24_months === "boolean"
+      ? clientRecord.citation_dismissed_last_24_months
+      : null;
+  let citationAnswerChanged = didCitationDismissedAnswerChange(
+    previousCitationAnswer,
+    body.citationDismissedLast24Months
+  );
+
   // Persist only the client's answer before creating its derived request. The
   // remaining onboarding write can lock this route, so it must wait until the
   // follow-up exists. A side-effect failure leaves the answer authoritative and
   // the onboarding route retryable; scheduled reconciliation is a second repair.
   let followupRequestId: string | null = null;
-  if (typeof body.citationDismissedLast24Months === "boolean") {
-    const { data: answerClient, error: answerError } = await admin
+  if (
+    typeof body.citationDismissedLast24Months === "boolean" &&
+    citationAnswerChanged
+  ) {
+    const answerUpdate = admin
       .from("clients")
       .update({
         citation_dismissed_last_24_months:
           body.citationDismissedLast24Months,
       })
-      .eq("id", clientId)
+      .eq("id", clientId);
+    const guardedAnswerUpdate =
+      previousCitationAnswer === null
+        ? answerUpdate.is("citation_dismissed_last_24_months", null)
+        : answerUpdate.eq(
+            "citation_dismissed_last_24_months",
+            previousCitationAnswer
+          );
+    const { data: answerClient, error: answerError } = await guardedAnswerUpdate
       .select("id")
       .maybeSingle();
-    if (answerError || !answerClient) {
+    if (answerError) {
       return NextResponse.json(
         {
-          error:
-            answerError?.message ??
-            "The roadside-ticket answer was not saved",
+          error: answerError.message,
         },
-        { status: answerError ? 500 : 404 }
+        { status: 500 }
       );
+    }
+    if (!answerClient) {
+      const { data: currentClient, error: currentClientError } = await admin
+        .from("clients")
+        .select("citation_dismissed_last_24_months")
+        .eq("id", clientId)
+        .maybeSingle();
+      if (currentClientError || !currentClient) {
+        return NextResponse.json(
+          {
+            error:
+              currentClientError?.message ??
+              "The roadside-ticket answer could not be confirmed",
+          },
+          { status: currentClientError ? 500 : 404 }
+        );
+      }
+      if (
+        currentClient.citation_dismissed_last_24_months !==
+        body.citationDismissedLast24Months
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "The roadside-ticket answer changed in another request. Reload onboarding and try again.",
+            code: "CITATION_ANSWER_CONFLICT",
+          },
+          { status: 409 }
+        );
+      }
+      // Another identical request won the guarded update. It owns the one-time
+      // operations notification; this retry must not send a duplicate.
+      citationAnswerChanged = false;
     }
   }
 
@@ -250,6 +303,63 @@ export async function POST(request: Request) {
           }`,
           profileSaved: true,
           recovery: "The next scheduled check will retry the request automatically.",
+        },
+        { status: 502 }
+      );
+    }
+  }
+
+  if (citationAnswerChanged) {
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+    ).replace(/\/+$/, "");
+    try {
+      await notifyOperations(admin, {
+        clientId,
+        actorUserId: user.id,
+        event: "intake_question_answered",
+        entityType: "clients",
+        entityId: clientId,
+        description:
+          "Client answered the roadside-ticket intake question during onboarding",
+        email: {
+          trigger: "staff_intake_answered",
+          subject: `Client answered a SafeScore intake question — ${clientRecord.name}`,
+          heading: "Client answered an onboarding intake question",
+          message:
+            "The client answered whether a driver has fought and beaten a roadside ticket in the last 24 months.",
+          consoleUrl: `${baseUrl}/console/clients/${clientId}/requests`,
+          ctaLabel: "Review client requests",
+          details: [
+            { label: "Company", value: clientRecord.name },
+            { label: "USDOT", value: clientRecord.dot_number },
+            {
+              label: "Answer",
+              value: body.citationDismissedLast24Months ? "Yes" : "No",
+            },
+            {
+              label: "Court-disposition request",
+              value: followupRequestId ? "Created" : "Not required",
+            },
+          ],
+        },
+        metadata: {
+          source: "portal_onboarding_profile",
+          previous_answer: previousCitationAnswer,
+          answer: body.citationDismissedLast24Months,
+          followup_request_id: followupRequestId,
+        },
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `Your answer was saved, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          profileSaved: true,
+          followupRequestId,
         },
         { status: 502 }
       );

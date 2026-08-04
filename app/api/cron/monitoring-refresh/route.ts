@@ -450,6 +450,7 @@ export async function GET(request: Request) {
           `snapshot ${snapshotTaken ? "taken" : "skipped"}; ${emittedAlerts.created.length} alerts created.`,
         metadata: {
           source: "monitoring_cron",
+          source_status: refresh.sourceStatus,
           new_inspections: refresh.newInspectionIds.length,
           oos_rate_changes: refresh.oosRateChange?.changes ?? [],
           snapshot_status: snapshot.status,

@@ -2,26 +2,43 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { isStaffManualActivationCandidate } from "@/lib/activation/staff-manual-activation";
+import { tierDisplayLabel } from "@/lib/tiers";
 
 export function ClientActivationControl({
   clientId,
   status,
   tier,
+  serviceAgreementAccepted,
 }: {
   clientId: string;
   status: string | null;
   tier: string | null;
+  serviceAgreementAccepted: boolean | null;
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (status !== "awaiting_activation" || tier !== "assessment") return null;
+  if (
+    !isStaffManualActivationCandidate({
+      status,
+      tier,
+      serviceAgreementAccepted,
+    })
+  ) {
+    return null;
+  }
+
+  const isAssessment = tier === "assessment";
+  const tierLabel = tierDisplayLabel(tier);
 
   async function activate() {
     if (
       !window.confirm(
-        "Confirm that GEIA received the Assessment payment and activate portal access?"
+        isAssessment
+          ? "Confirm that GEIA received the Assessment payment and activate portal access?"
+          : `Confirm that GEIA received the ${tierLabel} payment and activate portal access?`
       )
     ) {
       return;
@@ -56,14 +73,15 @@ export function ClientActivationControl({
   return (
     <section className="rounded-xl border-2 border-amber-300 bg-amber-50 p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-        Assessment awaiting activation
+        {tierLabel} awaiting activation
       </p>
       <h2 className="mt-1 text-lg font-semibold text-[#1E1C1A]">
         Confirm payment before opening portal access
       </h2>
       <p className="mt-2 text-sm text-amber-900">
-        The carrier submitted its profile. Activate only after GEIA confirms the
-        one-time Assessment payment.
+        {isAssessment
+          ? "The carrier submitted its profile. Activate only after GEIA confirms the one-time Assessment payment."
+          : "The carrier completed onboarding. Activate only after GEIA confirms the subscription payment outside Stripe."}
       </p>
       {error ? (
         <p className="mt-3 text-sm text-[#B83B32]" role="alert">

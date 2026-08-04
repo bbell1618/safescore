@@ -6,11 +6,14 @@ import {
   type ChallengeabilityRunResult,
 } from "@/lib/analysis/challengeability-assessment-server";
 import {
-  sendOperationsNotification,
   sendSafeScoreLiveEmail,
   type EmailDeliveryResult,
 } from "@/lib/email/client";
-import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
+import { notifyOperations } from "@/lib/notifications/operations";
+import {
+  runClientRefresh,
+  type ClientRefreshSourceStatus,
+} from "@/lib/monitoring/run-client-refresh";
 import {
   captureBurdenSnapshot,
   type BurdenSnapshotResult,
@@ -54,6 +57,7 @@ type CompletedInitialization = {
     newInspectionCount: number;
     newViolationCount: number;
     newCrashCount: number;
+    sourceStatus: ClientRefreshSourceStatus;
   };
   challengeability: ChallengeabilitySummary;
   clientEmailDelivery: EmailDeliveryResult;
@@ -302,6 +306,7 @@ export async function runPostActivationInitialization(
       newInspectionCount: refresh.newInspectionIds.length,
       newViolationCount: refresh.newViolationIds.length,
       newCrashCount: refresh.newCrashIds.length,
+      sourceStatus: refresh.sourceStatus,
     };
 
     snapshot = await captureBurdenSnapshot(
@@ -331,29 +336,41 @@ export async function runPostActivationInitialization(
       );
     }
 
-    staffEmailDelivery = await sendOperationsNotification({
-      trigger: "staff_client_activated",
-      subject: `SafeScore activated — ${client.name} (DOT ${client.dot_number})`,
-      heading: "Client activated and first analysis completed",
-      message: `${client.name} is active in SafeScore. Its first public analysis${
-        challengeability.included ? " and challengeability review" : ""
-      } completed successfully.`,
-      consoleUrl: `${baseUrl}/console/clients/${client.id}`,
-      ctaLabel: "Open client file",
-      details: [
-        { label: "Company", value: client.name },
-        { label: "USDOT", value: client.dot_number },
-        { label: "Service", value: tierDisplayLabel(input.tier) },
-        { label: "Activation path", value: input.source.replaceAll("_", " ") },
-      ],
+    const operationsNotification = await notifyOperations(service, {
+      clientId: client.id,
+      actorUserId: input.actorUserId ?? null,
+      event: "client_activated",
+      entityType: "clients",
+      entityId: client.id,
+      description:
+        "Operations was notified that client activation and first analysis completed",
+      email: {
+        trigger: "staff_client_activated",
+        subject: `SafeScore activated — ${client.name} (DOT ${client.dot_number})`,
+        heading: "Client activated and first analysis completed",
+        message: `${client.name} is active in SafeScore. Its first public analysis${
+          challengeability.included ? " and challengeability review" : ""
+        } completed successfully.`,
+        consoleUrl: `${baseUrl}/console/clients/${client.id}`,
+        ctaLabel: "Open client file",
+        details: [
+          { label: "Company", value: client.name },
+          { label: "USDOT", value: client.dot_number },
+          { label: "Service", value: tierDisplayLabel(input.tier) },
+          {
+            label: "Activation path",
+            value: input.source.replaceAll("_", " "),
+          },
+        ],
+      },
+      metadata: {
+        activation_source: input.source,
+        activation_tier: input.tier,
+        public_analysis: publicAnalysis,
+        challengeability,
+      },
     });
-    if (!staffEmailDelivery.success) {
-      throw new Error(
-        `Operations activation notification failed: ${
-          staffEmailDelivery.error ?? "unknown delivery failure"
-        }`
-      );
-    }
+    staffEmailDelivery = operationsNotification.delivery;
 
     const result: CompletedInitialization = {
       status: "succeeded",

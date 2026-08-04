@@ -442,6 +442,7 @@ export async function runAnalysisImport({
         `OOS rates (SAFER): veh ${saferSnap?.vehicleOosRate ?? "n/a"}%, drv ${saferSnap?.driverOosRate ?? "n/a"}%, hm ${saferSnap?.hazmatOosRate ?? "n/a"}%.`,
       metadata: {
         source: "operator_analysis_import",
+        source_status: refresh.sourceStatus,
       },
     });
 
@@ -464,6 +465,7 @@ export async function runAnalysisImport({
       crashes: crashes.length,
       oosChanges: refresh.oosRateChange?.changes ?? [],
       alertsCreated: emittedAlerts.created.length,
+      sourceStatus: refresh.sourceStatus,
       oos: {
         vehicle: saferSnap?.vehicleOosRate ?? null,
         driver: saferSnap?.driverOosRate ?? null,

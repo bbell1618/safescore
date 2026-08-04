@@ -56,6 +56,12 @@ assert.equal(mapped.hmCompliance, null);
 assert.equal(mapped.crashIndicator, null);
 assert.equal(mapped.smsSnapshotDate, "2017-01-27T05:00:00.000+0000");
 assert.equal(mapped.retrievedAt, "2026-07-22T23:47:20.564+0000");
+assert.deepEqual(mapped.sourceStatus, {
+  source: "qcmobile_basics",
+  status: "available",
+  reason: null,
+  httpStatus: null,
+});
 assert.equal(mapped.unsafeDriving?.percentile, null);
 assert.equal(mapped.unsafeDriving?.alert, false);
 

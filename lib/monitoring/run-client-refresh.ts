@@ -7,6 +7,7 @@ import {
   getInspections,
   getOosRates,
   type FMCSABasics,
+  type FMCSABasicsSourceStatus,
 } from "@/lib/fmcsa/client";
 import { getSAFERSnapshot, type SAFERSnapshot } from "@/lib/fmcsa/safer";
 import { normalizeViolationLookupCode } from "@/lib/fmcsa/inspection-detail-xml";
@@ -45,6 +46,26 @@ export type ClientRefreshResult = {
   hadMonitoringBaseline: boolean;
   saferSnapshot: SAFERSnapshot | null;
   basics: FMCSABasics;
+  sourceStatus: ClientRefreshSourceStatus;
+};
+
+export type ClientRefreshSourceStatus = {
+  qcmobileBasics: FMCSABasicsSourceStatus;
+  safer: {
+    source: "safer_company_snapshot";
+    status: "available" | "no_public_data" | "unavailable";
+    reason: "carrier_not_found" | "request_failed" | null;
+  };
+  datahubInspections: {
+    source: "datahub_inspections";
+    status: "available";
+    recordCount: number;
+  };
+  datahubCrashes: {
+    source: "datahub_crashes";
+    status: "available";
+    recordCount: number;
+  };
 };
 
 function dbError(label: string, error: { message: string; details?: string | null; hint?: string | null }) {
@@ -99,6 +120,36 @@ export async function runClientRefresh(
   if (saferResult.error) {
     console.error(`[monitoring-refresh] SAFER failed for DOT ${dotNumber}:`, saferResult.error.message);
   }
+  const saferCarrierNotFound =
+    saferResult.error?.message.includes("carrier not found") === true;
+  const sourceStatus: ClientRefreshSourceStatus = {
+    qcmobileBasics: basics.sourceStatus,
+    safer: saferSnapshot
+      ? {
+          source: "safer_company_snapshot",
+          status: "available",
+          reason: null,
+        }
+      : {
+          source: "safer_company_snapshot",
+          status: saferCarrierNotFound ? "no_public_data" : "unavailable",
+          reason: saferCarrierNotFound ? "carrier_not_found" : "request_failed",
+        },
+    datahubInspections: {
+      source: "datahub_inspections",
+      status: "available",
+      recordCount: inspections.length,
+    },
+    datahubCrashes: {
+      source: "datahub_crashes",
+      status: "available",
+      recordCount: crashes.length,
+    },
+  };
+  console.info(
+    `[monitoring-refresh] Source status for DOT ${dotNumber}:`,
+    sourceStatus
+  );
 
   if (saferSnapshot) {
     const censusPayload = {
@@ -488,5 +539,6 @@ export async function runClientRefresh(
       (existingCrashes?.length ?? 0) > 0,
     saferSnapshot,
     basics,
+    sourceStatus,
   };
 }

@@ -24,6 +24,13 @@ export function parseRequiredDriverCount(value: string | number): number | null 
     : null;
 }
 
+export function didCitationDismissedAnswerChange(
+  previous: boolean | null,
+  next: unknown
+): next is boolean {
+  return typeof next === "boolean" && next !== previous;
+}
+
 export type OnboardingField =
   | "client"
   | "contactName"

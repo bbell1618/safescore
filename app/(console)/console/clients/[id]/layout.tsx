@@ -8,6 +8,7 @@ import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
 import { ClientActivationControl } from "@/components/console/client-activation-control";
+import { isStaffManualActivationCandidate } from "@/lib/activation/staff-manual-activation";
 import {
   normalizeClientTier,
   isClientTier,
@@ -45,7 +46,9 @@ export default async function ClientFileLayout({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, tier, status, dot_number, mc_number")
+    .select(
+      "id, name, tier, status, dot_number, mc_number, service_agreement_accepted"
+    )
     .eq("id", id)
     .single();
 
@@ -105,6 +108,12 @@ export default async function ClientFileLayout({
     | null
     | undefined;
   const originalAssignedTier = tierChangeMetadata?.assigned_tier;
+  const showActivationControl = isStaffManualActivationCandidate({
+    tier: client.tier,
+    status: client.status,
+    serviceAgreementAccepted:
+      client.service_agreement_accepted === true,
+  });
 
   return (
     <div className="min-h-screen bg-[#FEFCF8]">
@@ -175,13 +184,15 @@ export default async function ClientFileLayout({
           <ClientTabs clientId={id} tier={clientTier} />
         </div>
       </div>
-      {client.status === "awaiting_activation" &&
-      client.tier === "assessment" ? (
+      {showActivationControl ? (
         <div className="mx-auto max-w-7xl px-6 pt-5">
           <ClientActivationControl
             clientId={id}
             status={client.status}
             tier={client.tier}
+            serviceAgreementAccepted={
+              client.service_agreement_accepted === true
+            }
           />
         </div>
       ) : null}

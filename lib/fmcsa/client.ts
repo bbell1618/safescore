@@ -53,6 +53,17 @@ export interface FMCSABasic {
   outofservice: boolean;
 }
 
+export type FMCSABasicsSourceStatus = {
+  source: "qcmobile_basics";
+  status: "available" | "no_public_data" | "unavailable";
+  reason:
+    | "carrier_not_found"
+    | "api_key_missing"
+    | "request_failed"
+    | null;
+  httpStatus: number | null;
+};
+
 export interface FMCSABasics {
   unsafeDriving: FMCSABasic | null;
   hosCompliance: FMCSABasic | null;
@@ -63,6 +74,7 @@ export interface FMCSABasics {
   crashIndicator: FMCSABasic | null;
   smsSnapshotDate: string | null;
   retrievedAt: string | null;
+  sourceStatus: FMCSABasicsSourceStatus;
 }
 
 export type FMCSABasicsPayload = {
@@ -102,6 +114,17 @@ export interface FMCSACarrierResponse {
   content: Record<string, unknown>;
 }
 
+export class FMCSAApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly statusText: string,
+    readonly path: string
+  ) {
+    super(`FMCSA API error: ${status} ${statusText}`);
+    this.name = "FMCSAApiError";
+  }
+}
+
 async function fetchFMCSA<T>(path: string, opts?: { revalidate?: number }): Promise<T> {
   const apiKey = process.env.FMCSA_API_KEY?.trim();
   if (!apiKey) {
@@ -116,7 +139,7 @@ async function fetchFMCSA<T>(path: string, opts?: { revalidate?: number }): Prom
       : { cache: "no-store" };
   const res = await fetch(url, fetchOpts);
   if (!res.ok) {
-    throw new Error(`FMCSA API error: ${res.status} ${res.statusText}`);
+    throw new FMCSAApiError(res.status, res.statusText, path);
   }
   return res.json() as Promise<T>;
 }
@@ -206,7 +229,13 @@ export async function getBasics(
 ): Promise<FMCSABasics> {
   if (!process.env.FMCSA_API_KEY?.trim()) {
     if (options.throwOnError) throw new Error("FMCSA_API_KEY not configured");
-    console.warn("FMCSA_API_KEY not set"); return emptyBasics();
+    console.warn("FMCSA_API_KEY not set");
+    return emptyBasics({
+      source: "qcmobile_basics",
+      status: "unavailable",
+      reason: "api_key_missing",
+      httpStatus: null,
+    });
   }
   try {
     // The API returns { content: Array<{ basic: { basicsType: { basicsCode }, measureValue, basicsPercentile, ... } }> }
@@ -214,9 +243,25 @@ export async function getBasics(
     const data = await fetchFMCSA<FMCSABasicsPayload>(`/carriers/${dot}/basics`);
     return mapFmcsaBasicsPayload(data);
   } catch (err) {
+    if (err instanceof FMCSAApiError && err.status === 404) {
+      console.info(
+        `[fmcsa-basics] DOT ${dot} has no QCMobile carrier/BASIC record`
+      );
+      return emptyBasics({
+        source: "qcmobile_basics",
+        status: "no_public_data",
+        reason: "carrier_not_found",
+        httpStatus: 404,
+      });
+    }
     if (options.throwOnError) throw err;
     console.error(`FMCSA basics API failed for DOT ${dot}:`, err);
-    return emptyBasics();
+    return emptyBasics({
+      source: "qcmobile_basics",
+      status: "unavailable",
+      reason: "request_failed",
+      httpStatus: err instanceof FMCSAApiError ? err.status : null,
+    });
   }
 }
 
@@ -436,7 +481,14 @@ async function computeOosFromDatahub(dot: string): Promise<FMCSAOosRates | null>
   }
 }
 
-function emptyBasics(): FMCSABasics {
+function emptyBasics(
+  sourceStatus: FMCSABasicsSourceStatus = {
+    source: "qcmobile_basics",
+    status: "available",
+    reason: null,
+    httpStatus: null,
+  }
+): FMCSABasics {
   return {
     unsafeDriving: null,
     hosCompliance: null,
@@ -447,6 +499,7 @@ function emptyBasics(): FMCSABasics {
     crashIndicator: null,
     smsSnapshotDate: null,
     retrievedAt: null,
+    sourceStatus,
   };
 }
 
