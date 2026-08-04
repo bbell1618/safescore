@@ -171,6 +171,11 @@ async function main() {
     scopedCounts(READ_ONLY_BACKUP_TABLES),
     keptProof(),
   ]);
+  const userOwnedRequestsBefore = await service
+    .from("client_requests")
+    .select("id", { count: "exact", head: true })
+    .in("created_by", [...TARGET_USER_IDS]);
+  if (userOwnedRequestsBefore.error) throw userOwnedRequestsBefore.error;
   assert.deepEqual(
     Object.entries(backupsBefore).filter(([, count]) => count !== 0),
     [],
@@ -191,6 +196,15 @@ async function main() {
     .delete()
     .in("user_id", [...TARGET_USER_IDS]);
   if (activityByUser.error) throw activityByUser.error;
+
+  // A disposable verifier can create a request for a retained test carrier
+  // during the browser proof. That row is still synthetic test activity and its
+  // NO ACTION created_by FK must be removed before deleting the verifier.
+  const requestsByUser = await service
+    .from("client_requests")
+    .delete()
+    .in("created_by", [...TARGET_USER_IDS]);
+  if (requestsByUser.error) throw requestsByUser.error;
 
   // The only direct client_id table without a declared cascade is included
   // explicitly. The current targets have no rows, so this remains narrowly ID-scoped.
@@ -222,7 +236,14 @@ async function main() {
     }
   }
 
-  const [after, backupsAfter, zzAfter, clientsAfter, usersAfter] =
+  const [
+    after,
+    backupsAfter,
+    zzAfter,
+    clientsAfter,
+    usersAfter,
+    userOwnedRequestsAfter,
+  ] =
     await Promise.all([
       scopedCounts(CLIENT_SCOPED_TABLES),
       scopedCounts(READ_ONLY_BACKUP_TABLES),
@@ -235,13 +256,20 @@ async function main() {
         .from("users")
         .select("id", { count: "exact", head: true })
         .in("id", [...TARGET_USER_IDS]),
+      service
+        .from("client_requests")
+        .select("id", { count: "exact", head: true })
+        .in("created_by", [...TARGET_USER_IDS]),
     ]);
-  if (clientsAfter.error || usersAfter.error) {
-    throw clientsAfter.error ?? usersAfter.error;
+  if (clientsAfter.error || usersAfter.error || userOwnedRequestsAfter.error) {
+    throw (
+      clientsAfter.error ?? usersAfter.error ?? userOwnedRequestsAfter.error
+    );
   }
 
   assert.equal(clientsAfter.count, 0);
   assert.equal(usersAfter.count, 0);
+  assert.equal(userOwnedRequestsAfter.count, 0);
   assert.deepEqual(
     Object.entries(after).filter(([, count]) => count !== 0),
     [],
@@ -265,6 +293,10 @@ async function main() {
         before,
         after,
         authUsers: authProof,
+        userOwnedRequests: {
+          before: userOwnedRequestsBefore.count ?? 0,
+          after: userOwnedRequestsAfter.count ?? 0,
+        },
         storageObjectsRemoved,
         readOnlyBackupRows: backupsAfter,
         keptZz: zzAfter,
