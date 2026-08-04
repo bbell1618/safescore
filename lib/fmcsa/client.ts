@@ -543,13 +543,34 @@ export interface FMCSAViolationRecord {
 
 export interface FMCSACrashRecord {
   reportNumber: string;
+  reportSequenceNumber: string | null;
   crashDate: string;
   state: string;
   city: string;
-  fatalities: number;
-  injuries: number;
-  towAway: boolean;
-  hazmatRelease: boolean;
+  location: string | null;
+  fatalities: number | null;
+  injuries: number | null;
+  towAway: boolean | null;
+  hazmatRelease: boolean | null;
+  trafficway: string | null;
+  accessControlDesc: string | null;
+  roadSurfaceCondition: string | null;
+  weatherCondition: string | null;
+  lightCondition: string | null;
+  vehicleConfiguration: string | null;
+  severityWeight: number | null;
+  timeWeight: number | null;
+  citationIssued: boolean | null;
+  fmcsaNotPreventable: boolean | null;
+  vehicleIdentificationNumber: string | null;
+  vehicleLicenseNumber: string | null;
+  vehicleLicenseState: string | null;
+  federalRecordable: boolean | null;
+  stateRecordable: boolean | null;
+  rawData: {
+    fmcsa_datahub_daily_crash?: Record<string, unknown>;
+    fmcsa_sms_input_crash?: Record<string, unknown>;
+  };
 }
 
 export async function getInspections(
@@ -611,13 +632,31 @@ export async function getCrashes(
   const rows = await getCrashesByDot(dot, options);
   return rows.map((r) => ({
     reportNumber: r.reportNumber,
+    reportSequenceNumber: r.reportSequenceNumber,
     crashDate: r.crashDate,
     state: r.reportState,
     city: r.city,
+    location: r.location,
     fatalities: r.fatalities,
     injuries: r.injuries,
     towAway: r.towAway,
     hazmatRelease: r.hazmatRelease,
+    trafficway: r.trafficway,
+    accessControlDesc: r.accessControlDesc,
+    roadSurfaceCondition: r.roadSurfaceCondition,
+    weatherCondition: r.weatherCondition,
+    lightCondition: r.lightCondition,
+    vehicleConfiguration: r.vehicleConfiguration,
+    severityWeight: r.severityWeight,
+    timeWeight: r.timeWeight,
+    citationIssued: r.citationIssued,
+    fmcsaNotPreventable: r.fmcsaNotPreventable,
+    vehicleIdentificationNumber: r.vehicleIdentificationNumber,
+    vehicleLicenseNumber: r.vehicleLicenseNumber,
+    vehicleLicenseState: r.vehicleLicenseState,
+    federalRecordable: r.federalRecordable,
+    stateRecordable: r.stateRecordable,
+    rawData: r.rawData,
   }));
 }
 

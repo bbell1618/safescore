@@ -20,11 +20,37 @@ export const INSPECTION_ENRICHMENT_COLUMNS = [
 ] as const;
 
 export const CRASH_ENRICHMENT_COLUMNS = [
-  "hazmat_release",
   "preventable",
   "cpdp_eligible",
   "cpdp_eligible_types",
   "ai_assessed_at",
+] as const;
+
+export const PUBLIC_CRASH_SOURCE_COLUMNS = [
+  "crash_date",
+  "state",
+  "city",
+  "report_sequence_number",
+  "location",
+  "fatalities",
+  "injuries",
+  "tow_away",
+  "hazmat_release",
+  "trafficway",
+  "access_control_desc",
+  "road_surface_condition",
+  "weather_condition",
+  "light_condition",
+  "vehicle_configuration",
+  "severity_weight",
+  "time_weight",
+  "citation_issued",
+  "fmcsa_not_preventable",
+  "vehicle_identification_number",
+  "vehicle_license_number",
+  "vehicle_license_state",
+  "federal_recordable",
+  "state_recordable",
   "raw_data",
 ] as const;
 
@@ -91,6 +117,39 @@ export type ExistingViolationIdentity = {
   violation_code: string;
 };
 
+export type PublicCrashRawData = {
+  fmcsa_datahub_daily_crash?: Record<string, unknown>;
+  fmcsa_sms_input_crash?: Record<string, unknown>;
+};
+
+export type PublicCrashSource = {
+  crash_date: string;
+  state: string | null;
+  city: string | null;
+  report_sequence_number: string | null;
+  location: string | null;
+  fatalities: number | null;
+  injuries: number | null;
+  tow_away: boolean | null;
+  hazmat_release: boolean | null;
+  trafficway: string | null;
+  access_control_desc: string | null;
+  road_surface_condition: string | null;
+  weather_condition: string | null;
+  light_condition: string | null;
+  vehicle_configuration: string | null;
+  severity_weight: number | null;
+  time_weight: number | null;
+  citation_issued: boolean | null;
+  fmcsa_not_preventable: boolean | null;
+  vehicle_identification_number: string | null;
+  vehicle_license_number: string | null;
+  vehicle_license_state: string | null;
+  federal_recordable: boolean | null;
+  state_recordable: boolean | null;
+  raw_data: PublicCrashRawData;
+};
+
 export function compactSourceFields<T extends Record<string, unknown>>(
   fields: T
 ): Partial<T> {
@@ -124,6 +183,68 @@ export function buildDetailViolationUpdate(
     citation_number: source.citation_number,
     citation_result: source.citation_result,
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Update only the two namespaced FMCSA source rows. Evidence, PAR extraction,
+ * and any other unrelated raw metadata survive a public refresh unchanged.
+ */
+export function mergePublicCrashRawData(
+  existing: Record<string, unknown> | null | undefined,
+  incoming: PublicCrashRawData
+): Record<string, unknown> {
+  const merged = isRecord(existing) ? { ...existing } : {};
+  if (isRecord(incoming.fmcsa_datahub_daily_crash)) {
+    merged.fmcsa_datahub_daily_crash = {
+      ...incoming.fmcsa_datahub_daily_crash,
+    };
+  }
+  if (isRecord(incoming.fmcsa_sms_input_crash)) {
+    merged.fmcsa_sms_input_crash = {
+      ...incoming.fmcsa_sms_input_crash,
+    };
+  }
+  return merged;
+}
+
+/** Public FMCSA refreshes own only the enumerated crash source columns. */
+export function buildPublicCrashUpdate(
+  source: PublicCrashSource,
+  existingRawData?: Record<string, unknown> | null
+): Record<string, unknown> {
+  const patch = compactSourceFields({
+    crash_date: source.crash_date,
+    state: source.state,
+    city: source.city,
+    report_sequence_number: source.report_sequence_number,
+    location: source.location,
+    fatalities: source.fatalities,
+    injuries: source.injuries,
+    tow_away: source.tow_away,
+    hazmat_release: source.hazmat_release,
+    trafficway: source.trafficway,
+    access_control_desc: source.access_control_desc,
+    road_surface_condition: source.road_surface_condition,
+    weather_condition: source.weather_condition,
+    light_condition: source.light_condition,
+    vehicle_configuration: source.vehicle_configuration,
+    severity_weight: source.severity_weight,
+    time_weight: source.time_weight,
+    citation_issued: source.citation_issued,
+    fmcsa_not_preventable: source.fmcsa_not_preventable,
+    vehicle_identification_number: source.vehicle_identification_number,
+    vehicle_license_number: source.vehicle_license_number,
+    vehicle_license_state: source.vehicle_license_state,
+    federal_recordable: source.federal_recordable,
+    state_recordable: source.state_recordable,
+  }) as Record<string, unknown>;
+
+  patch.raw_data = mergePublicCrashRawData(existingRawData, source.raw_data);
+  return patch;
 }
 
 export function planDetailViolationWrites(

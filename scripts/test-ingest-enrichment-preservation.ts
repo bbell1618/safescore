@@ -39,12 +39,10 @@ assert.deepEqual(INSPECTION_ENRICHMENT_COLUMNS, [
   "raw_data",
 ]);
 assert.deepEqual(CRASH_ENRICHMENT_COLUMNS, [
-  "hazmat_release",
   "preventable",
   "cpdp_eligible",
   "cpdp_eligible_types",
   "ai_assessed_at",
-  "raw_data",
 ]);
 
 const publicPatch = buildPublicViolationUpdate({

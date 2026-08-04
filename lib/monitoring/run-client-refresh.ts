@@ -12,6 +12,7 @@ import {
 import { getSAFERSnapshot, type SAFERSnapshot } from "@/lib/fmcsa/safer";
 import { normalizeViolationLookupCode } from "@/lib/fmcsa/inspection-detail-xml";
 import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
+import { persistPublicCrashes } from "@/lib/fmcsa/crash-refresh";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import type { BurdenResult } from "@/lib/analysis/basic-measure";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -468,57 +469,11 @@ export async function runClientRefresh(
     }
   }
 
-  const { data: existingCrashes, error: crashReadError } = await supabase
-    .from("crashes")
-    .select("id, report_number")
-    .eq("client_id", clientId);
-  if (crashReadError) throw dbError("Unable to load existing crashes", crashReadError);
-  const existingCrashMap = new Map<string, string>();
-  for (const row of existingCrashes ?? []) {
-    if (row.report_number) existingCrashMap.set(row.report_number, row.id);
-  }
-
-  const newCrashIds: string[] = [];
-  for (const crash of crashes) {
-    const existingId = crash.reportNumber ? existingCrashMap.get(crash.reportNumber) : undefined;
-    const payload = {
-      crash_date: crash.crashDate,
-      state: crash.state,
-      city: crash.city,
-      fatalities: crash.fatalities,
-      injuries: crash.injuries,
-      tow_away: crash.towAway,
-    };
-    if (existingId) {
-      const { error } = await supabase
-        .from("crashes")
-        .update(buildSourceUpdate(payload))
-        .eq("id", existingId);
-      if (error) throw dbError("Unable to update crash", error);
-    } else {
-      const { data: inserted, error } = await supabase
-        .from("crashes")
-        .insert({
-          client_id: clientId,
-          dot_number: dotNumber,
-          report_number: crash.reportNumber,
-          ...payload,
-          // The public Crash File exposes a placard flag, not a release result.
-          // Keep the schema default until Portal/client evidence supplies one.
-          hazmat_release: false,
-          preventable: null,
-          cpdp_eligible: null,
-          raw_data: {},
-        })
-        .select("id")
-        .single();
-      if (error || !inserted) {
-        throw dbError("Unable to insert crash", error ?? { message: "insert returned no row" });
-      }
-      newCrashIds.push(inserted.id);
-      if (crash.reportNumber) existingCrashMap.set(crash.reportNumber, inserted.id);
-    }
-  }
+  const crashWrite = await persistPublicCrashes(
+    { clientId, dotNumber, crashes },
+    supabase
+  );
+  const { newCrashIds } = crashWrite;
 
   const burden = await getClientBurden(clientId, supabase);
   return {
@@ -536,7 +491,7 @@ export async function runClientRefresh(
       previousScore !== null ||
       (existingInspections?.length ?? 0) > 0 ||
       existingViolations.length > 0 ||
-      (existingCrashes?.length ?? 0) > 0,
+      crashWrite.hadExistingCrashes,
     saferSnapshot,
     basics,
     sourceStatus,
