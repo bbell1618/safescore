@@ -82,6 +82,51 @@ export interface Database {
           >;
         Update: Partial<Database["public"]["Tables"]["clients"]["Insert"]>;
       };
+      client_activation_initializations: {
+        Row: {
+          client_id: string;
+          activation_tier: ClientTier;
+          activation_source: string;
+          status: "pending" | "running" | "succeeded" | "failed";
+          claim_token: string;
+          attempt_count: number;
+          claimed_at: string;
+          completed_at: string | null;
+          error: string | null;
+          metadata: Record<string, unknown>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["client_activation_initializations"]["Row"],
+          | "claim_token"
+          | "attempt_count"
+          | "status"
+          | "claimed_at"
+          | "completed_at"
+          | "error"
+          | "metadata"
+          | "created_at"
+          | "updated_at"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["client_activation_initializations"]["Row"],
+              | "claim_token"
+              | "attempt_count"
+              | "status"
+              | "claimed_at"
+              | "completed_at"
+              | "error"
+              | "metadata"
+              | "created_at"
+              | "updated_at"
+            >
+          >;
+        Update: Partial<
+          Database["public"]["Tables"]["client_activation_initializations"]["Insert"]
+        >;
+      };
       users: {
         Row: {
           id: string;
@@ -831,6 +876,25 @@ export interface Database {
           result_status: string;
           result_tier: string;
           already_active: boolean;
+        }>;
+      };
+      claim_client_activation_initialization_v1: {
+        Args: {
+          p_client_id: string;
+          p_tier: ClientTier;
+          p_source: string;
+          p_create_if_missing?: boolean;
+        };
+        Returns: Array<{
+          claimed: boolean;
+          result_status:
+            | "not_enqueued"
+            | "pending"
+            | "running"
+            | "succeeded"
+            | "failed";
+          result_claim_token: string | null;
+          result_attempt_count: number;
         }>;
       };
       record_mcs150_submission_v1: {

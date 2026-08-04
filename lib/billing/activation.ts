@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientTier } from "@/lib/supabase/types";
 import { transitionFailure } from "@/lib/onboarding/server";
+import { runPostActivationInitialization } from "@/lib/activation/post-activation-server";
 
 export async function activatePaidSubscription(
   service: SupabaseClient,
@@ -35,10 +36,23 @@ export async function activatePaidSubscription(
     result_tier: string;
     already_active: boolean;
   };
+  const initialization = await runPostActivationInitialization(service, {
+    clientId: input.clientId,
+    tier: input.tier,
+    source: input.source,
+    newlyActivated: result.already_active !== true,
+    actorUserId: input.userId ?? null,
+  });
+  if (initialization.status === "in_progress") {
+    throw new Error(
+      "Activation initialization is still running. Retry after it finishes."
+    );
+  }
 
   return {
     status: String(result.result_status),
     tier: String(result.result_tier) as ClientTier,
     alreadyActive: result.already_active === true,
+    initialization,
   };
 }

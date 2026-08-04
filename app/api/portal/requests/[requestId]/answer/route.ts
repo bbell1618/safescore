@@ -4,6 +4,7 @@ import { ensureCitationDispositionFollowup } from "@/lib/evidence-loop/server";
 import { getPortalApiAccess } from "@/lib/portal/access";
 import { createServiceClient } from "@/lib/supabase/server";
 import { laneBIntakeAnswerOutcome } from "@/lib/evidence-loop/lifecycle";
+import { notifyOperations } from "@/lib/notifications/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function POST(
   const service = await createServiceClient();
   const { data: queueItem, error: queueError } = await service
     .from("client_requests")
-    .select("id, client_id, request_type, evidence_class, evidence_status, status, response")
+    .select("id, client_id, title, request_type, evidence_class, evidence_status, status, response")
     .eq("id", requestId)
     .eq("client_id", access.clientId)
     .eq("responsibility", "client")
@@ -217,6 +218,72 @@ export async function POST(
       },
       { status: 500 }
     );
+  }
+
+  if (!existingAnswer) {
+    const { data: client, error: clientError } = await service
+      .from("clients")
+      .select("name, dot_number")
+      .eq("id", access.clientId)
+      .single();
+    if (clientError || !client) {
+      return NextResponse.json(
+        {
+          error: `The answer was saved, but the client could not be loaded for the operations notification: ${
+            clientError?.message ?? "client not found"
+          }`,
+          ...(followupRequestId ? { followupRequestId } : {}),
+        },
+        { status: 502 }
+      );
+    }
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+    ).replace(/\/+$/, "");
+    try {
+      await notifyOperations(service, {
+        clientId: access.clientId,
+        actorUserId: access.userId,
+        event: "intake_question_answered",
+        entityType: "client_requests",
+        entityId: requestId,
+        description: "Client intake-answer notification recorded for operations",
+        email: {
+          trigger: "staff_intake_answered",
+          subject: `Client answered a SafeScore intake question — ${client.name}`,
+          heading: "Client answered an intake question",
+          message: `${client.name} answered “${queueItem.title}”.`,
+          consoleUrl: `${baseUrl}/console/clients/${access.clientId}/requests`,
+          ctaLabel: "Review client requests",
+          details: [
+            { label: "Company", value: client.name },
+            { label: "USDOT", value: client.dot_number },
+            { label: "Answer", value: parsed.data.answer === "yes" ? "Yes" : "No" },
+            {
+              label: "Follow-up request",
+              value: followupRequestId ? "Created" : "Not required",
+            },
+          ],
+        },
+        metadata: {
+          request_id: requestId,
+          answer: parsed.data.answer,
+          followup_request_id: followupRequestId ?? null,
+        },
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `The answer was saved, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          ...(followupRequestId ? { followupRequestId } : {}),
+        },
+        { status: 502 }
+      );
+    }
   }
 
   return NextResponse.json({

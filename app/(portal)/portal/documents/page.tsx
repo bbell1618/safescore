@@ -180,7 +180,8 @@ function requestedEvidenceItems(value: unknown): RequestedEvidenceItem[] {
 async function loadOpenRequests(
   supabase: PortalSupabase,
   clientId: string,
-  includeMcs150: boolean
+  includeMcs150: boolean,
+  includeEvidenceRequests: boolean
 ): Promise<ClientRequestRow[]> {
   let query = supabase
     .from("client_requests")
@@ -196,6 +197,9 @@ async function loadOpenRequests(
 
   if (!includeMcs150) {
     query = query.neq("category", "mcs150_truth_up");
+  }
+  if (!includeEvidenceRequests) {
+    query = query.eq("category", "fmcsa_portal_pin");
   }
 
   const { data, error } = await query.order("created_at", {
@@ -342,24 +346,11 @@ function ZoneSkeleton({ rows = 2 }: { rows?: number }) {
 
 async function NeededFromYouSection({
   requestPromise,
+  requestFeatureLocked,
 }: {
-  requestPromise: Promise<ClientRequestRow[]> | null;
+  requestPromise: Promise<ClientRequestRow[]>;
+  requestFeatureLocked: boolean;
 }) {
-  if (!requestPromise) {
-    return (
-      <ZoneFrame
-        id="needed-from-you"
-        title="Needed from you"
-        description="Send the records only your team can provide. GEIA handles the rest."
-      >
-        <ZoneLocked
-          feature="evidence_requests"
-          title="Document requests are not included in your service plan"
-        />
-      </ZoneFrame>
-    );
-  }
-
   const requests = await requestPromise;
   return (
     <ZoneFrame
@@ -367,7 +358,12 @@ async function NeededFromYouSection({
       title="Needed from you"
       description="Send the records only your team can provide. GEIA handles the rest."
     >
-      {requests.length === 0 ? (
+      {requests.length === 0 && requestFeatureLocked ? (
+        <ZoneLocked
+          feature="evidence_requests"
+          title="Document requests are not included in your service plan"
+        />
+      ) : requests.length === 0 ? (
         <EmptyZone
           icon={FileCheck2}
           title="Nothing needed from you right now"
@@ -379,11 +375,14 @@ async function NeededFromYouSection({
             const items = requestedEvidenceItems(request.requested_items);
             const status = statusPresentation(request);
             const isQuestion = request.request_type === "question";
+            const isFmcsaPinRequest =
+              request.category === "fmcsa_portal_pin";
             const lifecycleStatus =
               request.evidence_status ??
               (request.status === "open" ? "open" : request.status);
             const canUpload =
               !isQuestion &&
+              !isFmcsaPinRequest &&
               (lifecycleStatus === "open" ||
                 lifecycleStatus === "submitted" ||
                 lifecycleStatus === "insufficient");
@@ -467,6 +466,34 @@ async function NeededFromYouSection({
                     {status.copy}
                   </p>
                 </div>
+
+                {isFmcsaPinRequest ? (
+                  <div className="mt-4 rounded-lg border border-navy/15 bg-navy-subtle p-4">
+                    <div className="flex items-start gap-3">
+                      <LockKeyhole
+                        className="mt-0.5 h-5 w-5 shrink-0 text-navy"
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-navy">
+                          Where to find your PIN
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-warm-mid">
+                          Log in to{" "}
+                          <span className="font-mono text-xs">
+                            ai.fmcsa.dot.gov
+                          </span>{" "}
+                          and look under profile settings.
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-warm-mid">
+                          Do not send your PIN through ordinary email. Secure
+                          online PIN handoff is not available yet; contact your
+                          Golden Era SafeScore team for a secure handoff.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 {isQuestion && lifecycleStatus === "open" ? (
                   <RequestAnswer
@@ -630,13 +657,12 @@ export default async function PortalDocumentsPage() {
   const canSeeVault = tierHasFeature(context.tier, "compliance_layer");
   const canSeeReports = tierHasFeature(context.tier, "monthly_reports");
 
-  const requestPromise = canSeeRequests
-    ? loadOpenRequests(
-        context.supabase,
-        context.clientId,
-        tierHasFeature(context.tier, "compliance_layer")
-      )
-    : null;
+  const requestPromise = loadOpenRequests(
+    context.supabase,
+    context.clientId,
+    tierHasFeature(context.tier, "compliance_layer"),
+    canSeeRequests
+  );
   const documentPromise = canSeeVault
     ? loadDocuments(context.supabase, context.clientId)
     : null;
@@ -655,7 +681,10 @@ export default async function PortalDocumentsPage() {
 
       <PortalPageBody contentClassName="space-y-12">
         <Suspense fallback={<ZoneSkeleton rows={2} />}>
-          <NeededFromYouSection requestPromise={requestPromise} />
+          <NeededFromYouSection
+            requestPromise={requestPromise}
+            requestFeatureLocked={!canSeeRequests}
+          />
         </Suspense>
         <Suspense fallback={<ZoneSkeleton rows={3} />}>
           <VaultSection documentPromise={documentPromise} />

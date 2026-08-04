@@ -19,7 +19,9 @@ import { createServiceClient } from "@/lib/supabase/server";
 import type { ClientTier } from "@/lib/supabase/types";
 import { SUBSCRIPTION_TIERS, tierHasFeature } from "@/lib/tiers";
 import { reconcileLaneBEvidenceLoopForClient } from "@/lib/evidence-loop/server";
+import { closeAgedOutEvidenceRequests } from "@/lib/evidence-loop/age-out";
 import { retrySubmittedLaneBEvidenceRequests } from "@/lib/challengeability/reassess-on-change";
+import { notifyOperations } from "@/lib/notifications/operations";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -39,6 +41,7 @@ type CronSummary = {
   oos_changes: number;
   snapshots_created: number;
   alerts_created: number;
+  operations_notifications_logged: number;
   mcs150_checks_succeeded: number;
   mcs150_requests_created: number;
   mcs150_updates_confirmed: number;
@@ -46,6 +49,7 @@ type CronSummary = {
   carrier_enrichment_sources_succeeded: number;
   carrier_enrichment_sources_failed: number;
   lane_b_requests_created: number;
+  lane_b_requests_aged_out: number;
   lane_b_intake_questions_created: number;
   lane_b_evidence_retries_attempted: number;
   lane_b_evidence_retries_completed: number;
@@ -107,6 +111,7 @@ export async function GET(request: Request) {
     oos_changes: 0,
     snapshots_created: 0,
     alerts_created: 0,
+    operations_notifications_logged: 0,
     mcs150_checks_succeeded: 0,
     mcs150_requests_created: 0,
     mcs150_updates_confirmed: 0,
@@ -114,6 +119,7 @@ export async function GET(request: Request) {
     carrier_enrichment_sources_succeeded: 0,
     carrier_enrichment_sources_failed: 0,
     lane_b_requests_created: 0,
+    lane_b_requests_aged_out: 0,
     lane_b_intake_questions_created: 0,
     lane_b_evidence_retries_attempted: 0,
     lane_b_evidence_retries_completed: 0,
@@ -139,6 +145,9 @@ export async function GET(request: Request) {
       let mcs150TruthUp: Mcs150TruthUpRunResult | null = null;
       let mcs150TruthUpError: string | null = null;
       let carrierEnrichment: CarrierProfileEnrichmentResult | null = null;
+      let laneBEvidenceAgeOut: Awaited<
+        ReturnType<typeof closeAgedOutEvidenceRequests>
+      > | null = null;
       const refresh = await runClientRefresh(
         { clientId: client.id, dotNumber: client.dot_number },
         supabase
@@ -147,6 +156,15 @@ export async function GET(request: Request) {
       summary.new_violations += refresh.newViolationIds.length;
       summary.new_crashes += refresh.newCrashIds.length;
       summary.oos_changes += refresh.oosRateChange ? 1 : 0;
+      // Tier changes do not erase historical requests. Close aged-out work for
+      // every monitored subscription client, including a client downgraded
+      // below the evidence-request feature after a request was created.
+      laneBEvidenceAgeOut = await closeAgedOutEvidenceRequests(supabase, {
+        clientId: client.id,
+        trigger: "monitoring_cron",
+      });
+      summary.lane_b_requests_aged_out +=
+        laneBEvidenceAgeOut.closedRequestIds.length;
       try {
         carrierEnrichment = await refreshCarrierProfileEnrichment(
           {
@@ -238,6 +256,52 @@ export async function GET(request: Request) {
         oosRateChange: refresh.oosRateChange,
       });
       summary.alerts_created += emittedAlerts.created.length;
+      if (emittedAlerts.created.length > 0) {
+        const baseUrl = (
+          process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+        ).replace(/\/+$/, "");
+        const alertTypes = [
+          ...new Set(emittedAlerts.created.map((alert) => alert.type)),
+        ];
+        await notifyOperations(supabase, {
+          clientId: client.id,
+          event: "monitoring_alert_raised",
+          entityType: "clients",
+          entityId: client.id,
+          description: "Daily monitoring alert notification recorded for operations",
+          email: {
+            trigger: "staff_monitoring_alert",
+            subject: `SafeScore monitoring alert — ${client.name} (${emittedAlerts.created.length})`,
+            heading: "Daily monitoring found a safety-record change",
+            message: `${client.name} has ${emittedAlerts.created.length} new monitoring ${
+              emittedAlerts.created.length === 1 ? "alert" : "alerts"
+            } for operations to review.`,
+            consoleUrl: `${baseUrl}/console/clients/${client.id}/monitoring`,
+            ctaLabel: "Review monitoring",
+            details: [
+              { label: "Company", value: client.name },
+              { label: "USDOT", value: client.dot_number },
+              {
+                label: "Alert types",
+                value: alertTypes
+                  .map((type) => type.replaceAll("_", " "))
+                  .join(", "),
+              },
+              {
+                label: "Alerts",
+                value: emittedAlerts.created
+                  .map((alert) => alert.title)
+                  .join("; "),
+              },
+            ],
+          },
+          metadata: {
+            alert_ids: emittedAlerts.created.map((alert) => alert.id),
+            alert_types: alertTypes,
+          },
+        });
+        summary.operations_notifications_logged += 1;
+      }
 
       const assessmentErrors: string[] = [];
       // Challengeability feeds Remediate case work. Monitor intentionally stops
@@ -329,6 +393,8 @@ export async function GET(request: Request) {
           oos_rate_changes: refresh.oosRateChange?.changes ?? [],
           snapshot_status: snapshot.status,
           alerts_created: emittedAlerts.created.length,
+          operations_notification:
+            emittedAlerts.created.length > 0 ? "logged" : "not_needed",
           subscription_tier: client.tier,
           challengeability_assessment: shouldAssessChallengeability
             ? "run"
@@ -340,6 +406,8 @@ export async function GET(request: Request) {
                   laneBEvidenceLoop?.createdRequestIds.length ?? 0,
                 requests_existing:
                   laneBEvidenceLoop?.existingRequestIds.length ?? 0,
+                requests_aged_out:
+                  laneBEvidenceAgeOut?.closedRequestIds.length ?? 0,
                 intake_question_created:
                   laneBEvidenceLoop?.intakeQuestionCreated ?? false,
                 evidence_retries_attempted:

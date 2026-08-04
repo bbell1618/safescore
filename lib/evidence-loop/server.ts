@@ -497,7 +497,9 @@ export async function reconcileLaneBEvidenceRequests(
     );
     return classes.map((evidenceClass) => {
       const copy = buildLaneBEvidenceRequestCopy(evidenceClass, potentialPoints, {
-        citationNumber: violation.citation_number,
+        violationCode: violation.violation_code,
+        violationDescription: violation.violation_description,
+        inspectionDate: inspectionDateFor(violation),
       });
       return {
         violation,

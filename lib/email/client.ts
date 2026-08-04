@@ -6,6 +6,14 @@ import nodemailer from "nodemailer";
 
 const DEFAULT_SENDER = "Golden Era SafeScore";
 const DEFAULT_REPLY_TO = "info@goldenerainsurance.com";
+const OPERATIONS_RECIPIENT = "operations@goldenerainsurance.com";
+
+export type EmailDeliveryResult = {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  dryRun?: boolean;
+};
 
 async function sendEmail({
   to,
@@ -27,7 +35,7 @@ async function sendEmail({
   bcc?: string;
   trigger: string;
   template: string;
-}): Promise<{ success: boolean; messageId?: string; error?: string; dryRun?: boolean }> {
+}): Promise<EmailDeliveryResult> {
   const dryRun = process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
   if (dryRun) {
     console.log("EMAIL_DRY_RUN", JSON.stringify({ mode: "dry-run", trigger, recipient: to, subject, template }));
@@ -163,6 +171,27 @@ export interface InviteEmailData {
   magicLinkUrl: string;
 }
 
+function explicitDryRunOnly(): EmailDeliveryResult | null {
+  if (process.env.EMAIL_DRY_RUN?.trim().toLowerCase() === "true") {
+    return null;
+  }
+  return {
+    success: false,
+    dryRun: false,
+    error:
+      "This notification is disabled unless EMAIL_DRY_RUN is explicitly true.",
+  };
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 export interface RequestQueueReminderData {
   to: string;
   companyName: string;
@@ -187,6 +216,142 @@ export interface EvidenceIntakeQuestionData {
 }
 
 // ── Send functions ─────────────────────────────────────────────────────────
+
+export type OperationsNotificationTrigger =
+  | "staff_client_activated"
+  | "staff_tier_changed"
+  | "staff_evidence_uploaded"
+  | "staff_intake_answered"
+  | "staff_monitoring_alert";
+
+export interface OperationsNotificationData {
+  trigger: OperationsNotificationTrigger;
+  subject: string;
+  heading: string;
+  message: string;
+  consoleUrl: string;
+  ctaLabel?: string;
+  details?: Array<{ label: string; value: string }>;
+}
+
+export interface SafeScoreLiveEmailData {
+  to: string;
+  companyName: string;
+  dotNumber: string;
+  tierLabel: string;
+  portalUrl: string;
+}
+
+/**
+ * Operations notifications are fixed to the shared operations mailbox and
+ * remain dry-run-only until a separately authorized email launch.
+ */
+export async function sendOperationsNotification(
+  data: OperationsNotificationData
+): Promise<EmailDeliveryResult> {
+  const blocked = explicitDryRunOnly();
+  if (blocked) return blocked;
+
+  const detailRows = (data.details ?? [])
+    .map(
+      (detail) => `
+        <div class="detail-row">
+          <div class="label">${escapeHtml(detail.label)}</div>
+          <div class="value">${escapeHtml(detail.value)}</div>
+        </div>`
+    )
+    .join("");
+  const html = emailWrapper(`
+    <h2>${escapeHtml(data.heading)}</h2>
+    <p>${escapeHtml(data.message)}</p>
+    ${
+      detailRows
+        ? `<div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">${detailRows}</div>`
+        : ""
+    }
+    <a href="${escapeHtml(data.consoleUrl)}" class="cta">${escapeHtml(
+      data.ctaLabel ?? "Open in SafeScore"
+    )}</a>
+  `);
+
+  return sendEmail({
+    to: OPERATIONS_RECIPIENT,
+    subject: data.subject,
+    htmlBody: html,
+    trigger: data.trigger,
+    template: "operations_notification",
+  });
+}
+
+/** Client-facing activation notice, intentionally distinct from invite setup. */
+export async function sendSafeScoreLiveEmail(
+  data: SafeScoreLiveEmailData
+): Promise<EmailDeliveryResult> {
+  const blocked = explicitDryRunOnly();
+  if (blocked) return blocked;
+
+  const html = emailWrapper(`
+    <h2>Your SafeScore is live</h2>
+    <p>The first safety analysis for <strong>${escapeHtml(
+      data.companyName
+    )}</strong> is complete, and your portal is ready.</p>
+    <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <div class="detail-row"><div class="label">Company</div><div class="value">${escapeHtml(
+        data.companyName
+      )}</div></div>
+      <div class="detail-row"><div class="label">USDOT</div><div class="value">${escapeHtml(
+        data.dotNumber
+      )}</div></div>
+      <div class="detail-row"><div class="label">Service</div><div class="value">${escapeHtml(
+        data.tierLabel
+      )}</div></div>
+    </div>
+    <p>Sign in to see the safety information and next steps included with your service.</p>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">Open SafeScore</a>
+  `);
+
+  return sendEmail({
+    to: data.to,
+    subject: `Your SafeScore is live — ${data.companyName}`,
+    htmlBody: html,
+    trigger: "client_safescore_live",
+    template: "safescore_live",
+  });
+}
+
+export async function sendFmcsaPinRequestEmail({
+  to,
+  companyName,
+  portalUrl,
+}: {
+  to: string;
+  companyName: string;
+  portalUrl: string;
+}): Promise<EmailDeliveryResult> {
+  const blocked = explicitDryRunOnly();
+  if (blocked) return blocked;
+
+  const html = emailWrapper(`
+    <h2>FMCSA Portal PIN requested</h2>
+    <p>SafeScore needs the FMCSA Portal PIN for <strong>${escapeHtml(
+      companyName
+    )}</strong>.</p>
+    <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <p><strong>Where to find your PIN:</strong> Log in to the ai.fmcsa.dot.gov portal and look under your profile settings.</p>
+      <p><strong>Do not send the PIN through ordinary email.</strong></p>
+    </div>
+    <p>Open Documents in your SafeScore portal and follow the secure request.</p>
+    <a href="${escapeHtml(portalUrl)}" class="cta">Open Documents</a>
+  `);
+
+  return sendEmail({
+    to,
+    subject: `FMCSA Portal PIN requested — ${companyName}`,
+    htmlBody: html,
+    trigger: "fmcsa_pin_requested",
+    template: "fmcsa_pin_request",
+  });
+}
 
 export async function sendNewViolationAlert(
   data: NewViolationEmailData
@@ -312,18 +477,18 @@ export async function sendWelcomeEmail(
 
   const html = emailWrapper(`
     <h2>${greeting}</h2>
-    <p>Your SafeScore account for <strong>${data.companyName}</strong> (DOT ${data.dotNumber}) is now active.</p>
+    <p>Your SafeScore portal sign-in for <strong>${data.companyName}</strong> (DOT ${data.dotNumber}) is ready.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
       <div class="detail-row"><div class="label">Company</div><div class="value">${data.companyName}</div></div>
       <div class="detail-row"><div class="label">DOT number</div><div class="value">${data.dotNumber}</div></div>
     </div>
-    <p>Your portal will show the safety information included with your SafeScore service.</p>
-    <a href="${data.portalUrl}" class="cta">Access your portal</a>
+    <p>Sign in to finish any remaining onboarding or activation steps. SafeScore will send a separate notice when the first analysis is live.</p>
+    <a href="${data.portalUrl}" class="cta">Continue to SafeScore</a>
   `);
 
   const result = await sendEmail({
     to: data.to,
-    subject: `Welcome to SafeScore — ${data.companyName}`,
+    subject: `Your SafeScore portal sign-in is ready — ${data.companyName}`,
     htmlBody: html,
     trigger: "account_welcome",
     template: "welcome",

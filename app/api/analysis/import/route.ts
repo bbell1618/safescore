@@ -391,36 +391,6 @@ export async function runAnalysisImport({
       }
     }
 
-    // ── 7. Activate client if still in onboarding or prospect status ─────────
-    const { data: activatedClient, error: activationError } = await supabase
-      .from("clients")
-      .update({ status: "active" })
-      .eq("id", clientId)
-      .in("status", ["onboarding", "prospect", "awaiting_activation"])
-      .select("id")
-      .maybeSingle();
-    if (activationError) {
-      throw new Error(`Client activation after analysis failed: ${activationError.message}`);
-    }
-    if (activatedClient) {
-      const { error: activationLogError } = await supabase
-        .from("activity_log")
-        .insert({
-          client_id: clientId,
-          user_id: actorUserId ?? null,
-          action_type: "client_activated_by_analysis",
-          entity_type: "clients",
-          entity_id: clientId,
-          description: "GEIA analysis activated the client portal",
-          metadata: { to_status: "active", source: "analysis_import" },
-        });
-      if (activationLogError) {
-        throw new Error(
-          `Client was activated, but activation logging failed: ${activationLogError.message}`
-        );
-      }
-    }
-
     const monitoringSnapshot = await captureBurdenSnapshot(clientId, "rerun", supabase);
 
     // Challengeability is a required analysis stage, not cosmetic progress text.
@@ -461,6 +431,7 @@ export async function runAnalysisImport({
 
     await supabase.from("activity_log").insert({
       client_id: clientId,
+      user_id: actorUserId ?? null,
       action_type: "data_imported",
       entity_type: "client",
       description:

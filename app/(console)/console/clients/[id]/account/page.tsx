@@ -5,7 +5,7 @@ import {
   type CarrierProfileEnrichmentRow,
 } from "@/components/console/authority-insurance-section";
 import { PortalAccessCard } from "@/components/console/portal-access-card";
-import { ClientActivationControl } from "@/components/console/client-activation-control";
+import { FmcsaPinRequestControl } from "@/components/console/fmcsa-pin-request-control";
 import { createClient } from "@/lib/supabase/server";
 import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
@@ -68,6 +68,8 @@ export default async function AccountPage({
     { data: client },
     { data: subscriptions },
     { data: credentials },
+    { count: credentialPinCount, error: credentialPinError },
+    { data: openPinRequest, error: openPinRequestError },
     { data: enrichmentRows, error: enrichmentError },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
@@ -85,6 +87,19 @@ export default async function AccountPage({
       .eq("client_id", id)
       .limit(1),
     supabase
+      .from("client_credentials")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", id)
+      .not("fmcsa_pin_encrypted", "is", null),
+    supabase
+      .from("client_requests")
+      .select("id")
+      .eq("client_id", id)
+      .eq("category", "fmcsa_portal_pin")
+      .eq("status", "open")
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from("carrier_profile_enrichments")
       .select(
         "id, client_id, source, source_url, source_as_of, fetched_at, currentness, data, parser_version, created_at, updated_at"
@@ -99,10 +114,21 @@ export default async function AccountPage({
       `Unable to load authority and insurance data: ${enrichmentError.message}`
     );
   }
+  if (credentialPinError) {
+    throw new Error(
+      `Unable to verify FMCSA Portal PIN status: ${credentialPinError.message}`
+    );
+  }
+  if (openPinRequestError) {
+    throw new Error(
+      `Unable to load FMCSA Portal PIN request status: ${openPinRequestError.message}`
+    );
+  }
 
   const account = client as AccountClient;
   const subscription = ((subscriptions ?? []) as SubscriptionRow[])[0] ?? null;
   const credential = ((credentials ?? []) as CredentialRow[])[0] ?? null;
+  const hasFmcsaPortalPin = (credentialPinCount ?? 0) > 0;
   const authorityInsuranceRows =
     (enrichmentRows ?? []) as unknown as CarrierProfileEnrichmentRow[];
 
@@ -140,12 +166,6 @@ export default async function AccountPage({
         </section>
       </div>
 
-      <ClientActivationControl
-        clientId={id}
-        status={account.status}
-        tier={account.tier}
-      />
-
       <PortalAccessCard clientId={id} defaultEmail={account.email} />
 
       <AuthorityInsuranceSection
@@ -177,7 +197,7 @@ export default async function AccountPage({
             <p className="text-xs text-gray-500 mt-2">{textValue(account.filing_authorization_scope)}</p>
           </div>
           <div className="border border-[#F0E8DA] bg-white/60 rounded-lg p-4">
-            <p className="text-xs text-gray-500">FMCSA portal authorization</p>
+            <p className="text-xs text-gray-500">FMCSA data access</p>
             <div className="mt-2 flex items-center gap-2">
               <Badge variant={boolVariant(account.fmcsa_authorized)}>{boolLabel(account.fmcsa_authorized)}</Badge>
               <span className="text-xs text-gray-500">{formatDate(account.fmcsa_auth_date as string | null)}</span>
@@ -186,8 +206,20 @@ export default async function AccountPage({
         </div>
       </section>
 
-      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2 className="font-semibold text-[#1E1C1A] text-sm">FMCSA credentials</h2>
+      <section className="rounded-xl border border-[#D9C395] bg-[#FBF7F0] p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8B8178]">
+              Secure carrier access
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-[#1E1C1A]">
+              FMCSA Portal PIN
+            </h2>
+          </div>
+          <Badge variant={boolVariant(hasFmcsaPortalPin)}>
+            {boolLabel(hasFmcsaPortalPin)}
+          </Badge>
+        </div>
         {credential ? (
           <div className="mt-5 grid gap-4 md:grid-cols-3 text-sm">
             <Field label="Credential row" value={credential.id.slice(0, 8)} />
@@ -196,10 +228,25 @@ export default async function AccountPage({
             <Field label="Updated" value={formatDate(credential.updated_at)} />
           </div>
         ) : (
-          <p className="text-sm text-gray-500 mt-4">No FMCSA credential metadata on file.</p>
+          <p className="mt-4 text-sm text-gray-500">
+            No FMCSA Portal PIN is on file.
+          </p>
         )}
-        <p className="text-xs text-gray-400 mt-4">
-          Secret credential values are intentionally not displayed in the console.
+        {!hasFmcsaPortalPin ? (
+          <>
+            <p className="mt-4 rounded-lg border border-[#1B2D4F]/10 bg-[#E8ECF2] px-4 py-3 text-sm text-[#2A4270]">
+              <strong>Where the client can find it:</strong> Log in to the{" "}
+              <span className="font-mono text-xs">ai.fmcsa.dot.gov</span>{" "}
+              portal and look under profile settings.
+            </p>
+            <FmcsaPinRequestControl
+              clientId={id}
+              requestAlreadyOpen={Boolean(openPinRequest)}
+            />
+          </>
+        ) : null}
+        <p className="mt-4 text-xs text-gray-400">
+          Secret PIN values are intentionally never displayed in the console.
         </p>
       </section>
     </div>

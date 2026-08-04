@@ -54,11 +54,11 @@ export function ClientActivationControl({
   }
 
   return (
-    <section className="rounded-xl border border-amber-300 bg-amber-50 p-5">
+    <section className="rounded-xl border-2 border-amber-300 bg-amber-50 p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
         Assessment awaiting activation
       </p>
-      <h2 className="mt-1 font-semibold text-[#1E1C1A]">
+      <h2 className="mt-1 text-lg font-semibold text-[#1E1C1A]">
         Confirm payment before opening portal access
       </h2>
       <p className="mt-2 text-sm text-amber-900">
@@ -74,9 +74,9 @@ export function ClientActivationControl({
         type="button"
         onClick={() => void activate()}
         disabled={submitting}
-        className="mt-4 rounded-lg bg-[#1B2D4F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2A4270] disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-5 rounded-lg bg-[#1B2D4F] px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2A4270] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {submitting ? "Activating..." : "Confirm payment and activate"}
+        {submitting ? "Activating..." : "Confirm payment & activate"}
       </button>
     </section>
   );

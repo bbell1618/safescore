@@ -76,6 +76,78 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
 export const CITATION_DISMISSED_INTAKE_QUESTION =
   "Has any driver fought and beaten a roadside ticket in the last 24 months?";
 
+const SHORT_VIOLATION_DESCRIPTION_MAX = 72;
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+export type LaneBEvidenceViolationContext = {
+  violationCode?: string | null;
+  violationDescription?: string | null;
+  inspectionDate?: string | null;
+};
+
+function compactViolationDescription(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= SHORT_VIOLATION_DESCRIPTION_MAX) return normalized;
+  const clipped = normalized
+    .slice(0, SHORT_VIOLATION_DESCRIPTION_MAX - 1)
+    .trimEnd();
+  const finalSpace = clipped.lastIndexOf(" ");
+  const wordSafe =
+    finalSpace >= Math.floor(SHORT_VIOLATION_DESCRIPTION_MAX * 0.6)
+      ? clipped.slice(0, finalSpace)
+      : clipped;
+  return `${wordSafe}\u2026`;
+}
+
+function formatInspectionDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${MONTH_LABELS[month - 1]} ${day}, ${year}`;
+}
+
+/**
+ * Deterministic client-facing violation context shared by new request creation
+ * and the one-time live title backfill. Incomplete context stays generic rather
+ * than inventing a code, description, or inspection date.
+ */
+export function formatLaneBEvidenceViolationContext(
+  context: LaneBEvidenceViolationContext
+) {
+  const code = context.violationCode?.replace(/\s+/g, " ").trim() ?? "";
+  const description = context.violationDescription
+    ? compactViolationDescription(context.violationDescription)
+    : "";
+  const inspectionDate = context.inspectionDate
+    ? formatInspectionDate(context.inspectionDate)
+    : null;
+  if (!code || !description || !inspectionDate) return null;
+  return `${code} (${description}, ${inspectionDate})`;
+}
+
 export type LaneBViolationClassificationInput = {
   challengeTier: string | null;
   challengeReason: string | null;
@@ -221,20 +293,23 @@ export function evidenceClassesForViolation(
 export function buildLaneBEvidenceRequestCopy(
   evidenceClass: LaneBEvidenceClass,
   potentialPoints: number,
-  options: { citationNumber?: string | null } = {}
+  context: LaneBEvidenceViolationContext = {}
 ) {
   const definition = LANE_B_EVIDENCE_TAXONOMY[evidenceClass];
   const pointLabel = `${potentialPoints} ${
     potentialPoints === 1 ? "point" : "points"
   }`;
-  const citationSuffix =
-    evidenceClass === "citation-dismissed" && options.citationNumber?.trim()
-      ? ` for citation ${options.citationNumber.trim()}`
-      : "";
+  const violationContext = formatLaneBEvidenceViolationContext(context);
+  const contextualTitle =
+    evidenceClass === "citation-dismissed"
+      ? "Certified court disposition"
+      : definition.title;
   const contextNote = `${definition.ask} If the records confirm the error, this could remove ${pointLabel}.`;
 
   return {
-    title: `${definition.title}${citationSuffix}`,
+    title: violationContext
+      ? `${contextualTitle} \u2014 ${violationContext}`
+      : definition.title,
     whyCopy: `This could remove ${pointLabel} if the evidence confirms the issue.`,
     statusCopy: definition.ask,
     requestedItems: definition.items.map((item) => ({

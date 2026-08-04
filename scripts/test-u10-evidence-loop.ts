@@ -6,6 +6,7 @@ import {
   buildLaneBEvidenceRequestCopy,
   CITATION_DISMISSED_INTAKE_QUESTION,
   evidenceClassesForViolation,
+  formatLaneBEvidenceViolationContext,
   LANE_B_EVIDENCE_CLASSES,
   LANE_B_EVIDENCE_TAXONOMY,
   type LaneBEvidenceClass,
@@ -15,6 +16,12 @@ import {
   laneBEvidenceOutcome,
   remainingLaneBEvidenceItems,
 } from "../lib/evidence-loop/lifecycle";
+import {
+  closeAgedOutEvidenceRequests,
+  EVIDENCE_REQUEST_AGE_OUT_REASON,
+  evidenceRequestAgeOutCutoff,
+  violationIsOutsideScoringWindow,
+} from "../lib/evidence-loop/age-out";
 import {
   advanceSubmittedLaneBRequests,
   laneBEvidenceDedupeKey,
@@ -137,13 +144,42 @@ assert.deepEqual(
 );
 
 const liveLeadCopy = buildLaneBEvidenceRequestCopy("citation-dismissed", 18, {
-  citationNumber: "DA251770",
+  violationCode: "39345B2BVAC",
+  violationDescription: "Brake - Vacuum hose restricted",
+  inspectionDate: "2026-02-20",
 });
-assert.match(liveLeadCopy.title, /DA251770/);
+assert.equal(
+  liveLeadCopy.title,
+  "Certified court disposition \u2014 39345B2BVAC (Brake - Vacuum hose restricted, Feb 20, 2026)",
+);
 assert.match(liveLeadCopy.whyCopy, /remove 18 points/);
 assert.equal(liveLeadCopy.requestedItems.length, 1);
 assert.equal(liveLeadCopy.requestedItems[0]?.itemKey, "certified-court-disposition");
 assert.match(liveLeadCopy.requestedItems[0]?.contextNote ?? "", /certified court disposition/i);
+assert.equal(
+  buildLaneBEvidenceRequestCopy("citation-dismissed", 18).title,
+  "Certified court disposition needed",
+  "missing violation context must retain the truthful generic fallback",
+);
+assert.equal(
+  formatLaneBEvidenceViolationContext({
+    violationCode: " 3922SLLS4 ",
+    violationDescription:
+      "State/Local Laws - Speeding 15 or more miles per hour over the speed limit with additional source detail",
+    inspectionDate: "2026-02-24",
+  }),
+  "3922SLLS4 (State/Local Laws - Speeding 15 or more miles per hour over the speed\u2026, Feb 24, 2026)",
+  "long descriptions must be compacted deterministically",
+);
+assert.equal(
+  formatLaneBEvidenceViolationContext({
+    violationCode: "3922SLLS4",
+    violationDescription: "Speeding",
+    inspectionDate: "2026-02-30",
+  }),
+  null,
+  "invalid or incomplete dates must not produce invented context",
+);
 assert.equal(
   CITATION_DISMISSED_INTAKE_QUESTION,
   "Has any driver fought and beaten a roadside ticket in the last 24 months?",
@@ -724,6 +760,108 @@ class FakeSupabase {
 }
 
 async function main() {
+const ageOutDb = new FakeSupabase({
+  client_requests: [
+    {
+      id: "request-aged-out",
+      client_id: CLIENT_ID,
+      request_type: "evidence",
+      status: "open",
+      evidence_status: "open",
+      violation_id: "violation-aged-out",
+      status_copy: "Please upload evidence.",
+      closed_at: null,
+      next_reminder_at: "2026-08-07T12:00:00.000Z",
+      updated_at: "2026-07-30T12:00:00.000Z",
+    },
+    {
+      id: "request-boundary",
+      client_id: CLIENT_ID,
+      request_type: "evidence",
+      status: "open",
+      evidence_status: "submitted",
+      violation_id: "violation-boundary",
+      status_copy: "Evidence received.",
+      closed_at: null,
+      next_reminder_at: null,
+      updated_at: "2026-07-30T12:00:00.000Z",
+    },
+    {
+      id: "request-missing-date",
+      client_id: CLIENT_ID,
+      request_type: "evidence",
+      status: "open",
+      evidence_status: "open",
+      violation_id: "violation-missing-date",
+      status_copy: null,
+      closed_at: null,
+      next_reminder_at: null,
+      updated_at: "2026-07-30T12:00:00.000Z",
+    },
+    {
+      id: "request-already-closed",
+      client_id: CLIENT_ID,
+      request_type: "evidence",
+      status: "cancelled",
+      evidence_status: "open",
+      violation_id: "violation-aged-out",
+      status_copy: EVIDENCE_REQUEST_AGE_OUT_REASON,
+      closed_at: "2026-07-30T12:00:00.000Z",
+      next_reminder_at: null,
+      updated_at: "2026-07-30T12:00:00.000Z",
+    },
+  ],
+  violations: [
+    {
+      id: "violation-aged-out",
+      client_id: CLIENT_ID,
+      inspections: { inspection_date: "2024-07-30" },
+    },
+    {
+      id: "violation-boundary",
+      client_id: CLIENT_ID,
+      inspections: { inspection_date: "2024-07-31" },
+    },
+    {
+      id: "violation-missing-date",
+      client_id: CLIENT_ID,
+      inspections: { inspection_date: null },
+    },
+  ],
+  activity_log: [],
+});
+assert.equal(evidenceRequestAgeOutCutoff(AS_OF), "2024-07-31");
+assert.equal(violationIsOutsideScoringWindow("2024-07-30", AS_OF), true);
+assert.equal(violationIsOutsideScoringWindow("2024-07-31", AS_OF), false);
+assert.equal(violationIsOutsideScoringWindow(null, AS_OF), false);
+const agedOut = await closeAgedOutEvidenceRequests(ageOutDb as never, {
+  clientId: CLIENT_ID,
+  trigger: "monitoring_cron",
+  now: AS_OF,
+});
+assert.equal(agedOut.reviewedRequests, 3);
+assert.deepEqual(agedOut.closedRequestIds, ["request-aged-out"]);
+assert.equal(ageOutDb.tables.client_requests[0]?.status, "cancelled");
+assert.equal(
+  ageOutDb.tables.client_requests[0]?.status_copy,
+  EVIDENCE_REQUEST_AGE_OUT_REASON,
+);
+assert.equal(ageOutDb.tables.client_requests[0]?.next_reminder_at, null);
+assert.equal(ageOutDb.tables.client_requests[1]?.status, "open");
+assert.equal(ageOutDb.tables.client_requests[2]?.status, "open");
+assert.equal(ageOutDb.tables.activity_log.length, 1);
+assert.equal(
+  (ageOutDb.tables.activity_log[0]?.metadata as JsonRow)?.reason,
+  EVIDENCE_REQUEST_AGE_OUT_REASON,
+);
+const repeatedAgeOut = await closeAgedOutEvidenceRequests(ageOutDb as never, {
+  clientId: CLIENT_ID,
+  trigger: "monitoring_cron",
+  now: AS_OF,
+});
+assert.deepEqual(repeatedAgeOut.closedRequestIds, []);
+assert.equal(ageOutDb.tables.activity_log.length, 1, "age-out must be idempotent");
+
 const fake = new FakeSupabase({
   clients: [{ id: CLIENT_ID, tier: "remediate", name: "Test Carrier" }],
   users: [],
@@ -1345,6 +1483,15 @@ const evidenceLoopSource = read("lib/evidence-loop/server.ts");
 
 assert.match(cronSource, /reconcileLaneBEvidenceLoopForClient/);
 assert.match(cronSource, /trigger:\s*"monitoring_cron"/);
+assert.match(cronSource, /closeAgedOutEvidenceRequests/);
+assert.match(cronSource, /lane_b_requests_aged_out/);
+assert.ok(
+  cronSource.indexOf("const refresh = await runClientRefresh") <
+    cronSource.indexOf("await closeAgedOutEvidenceRequests") &&
+    cronSource.indexOf("await closeAgedOutEvidenceRequests") <
+      cronSource.indexOf("await reconcileLaneBEvidenceLoopForClient"),
+  "cron must close aged-out requests after import and before evidence reconciliation",
+);
 assert.match(assessmentSource, /reconcileLaneBEvidenceRequests/);
 assert.match(assessmentSource, /advanceSubmittedLaneBRequests/);
 assert.match(assessmentSource, /\.eq\("evidence_status",\s*"applied"\)/);

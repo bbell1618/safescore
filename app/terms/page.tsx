@@ -99,6 +99,7 @@ export default function TermsPage() {
                   <span className="mr-2 font-mono text-sm font-semibold text-amber print:text-black">
                     {index + 1}.
                   </span>
+                  {" "}
                   {term.title}
                 </h2>
                 <p className="mt-2 text-base leading-7 text-warm-mid print:text-black">

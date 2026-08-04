@@ -3,9 +3,12 @@ import {
   requireStaffOnboardingUser,
   transitionFailure,
 } from "@/lib/onboarding/server";
+import { runPostActivationInitialization } from "@/lib/activation/post-activation-server";
 import { NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export const maxDuration = 300;
 
 export async function POST(_request: Request, { params }: RouteContext) {
   try {
@@ -32,12 +35,25 @@ export async function POST(_request: Request, { params }: RouteContext) {
       result_tier: string;
       already_active: boolean;
     };
+    const initialization = await runPostActivationInitialization(service, {
+      clientId: id,
+      tier: "assessment",
+      source: "staff_activation",
+      newlyActivated: result.already_active !== true,
+      actorUserId: userId,
+    });
+    if (initialization.status === "in_progress") {
+      throw new Error(
+        "Another activation initialization is still running. Retry after it finishes."
+      );
+    }
 
     return NextResponse.json({
       success: true,
       status: result.result_status,
       tier: result.result_tier,
       alreadyActive: result.already_active,
+      initialization,
     });
   } catch (error) {
     if (error instanceof OnboardingRouteFailure) {

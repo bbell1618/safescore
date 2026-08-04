@@ -6,6 +6,8 @@ import { stripe } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
+export const maxDuration = 300;
+
 function stripeId(value: string | { id: string } | null): string | null {
   if (typeof value === "string" && value.trim()) return value;
   if (

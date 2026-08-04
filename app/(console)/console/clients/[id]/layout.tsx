@@ -7,6 +7,7 @@ import { RunAnalysisButton } from "@/components/console/run-analysis-button";
 import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
 import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
+import { ClientActivationControl } from "@/components/console/client-activation-control";
 import {
   normalizeClientTier,
   isClientTier,
@@ -174,6 +175,16 @@ export default async function ClientFileLayout({
           <ClientTabs clientId={id} tier={clientTier} />
         </div>
       </div>
+      {client.status === "awaiting_activation" &&
+      client.tier === "assessment" ? (
+        <div className="mx-auto max-w-7xl px-6 pt-5">
+          <ClientActivationControl
+            clientId={id}
+            status={client.status}
+            tier={client.tier}
+          />
+        </div>
+      ) : null}
       {children}
     </div>
   );

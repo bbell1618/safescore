@@ -26,6 +26,17 @@ function textFromHtml(html: string): string {
 const termsText = textFromHtml(
   renderToStaticMarkup(React.createElement(TermsPage))
 );
+const termsMarkup = renderToStaticMarkup(React.createElement(TermsPage));
+
+function textWithoutInventedTagWhitespace(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&amp;", "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const expectedTerms = [
   'SafeScore is a safety data and advocacy service provided by Golden Era Insurance Agency ("GEIA"). We analyze your carrier\'s FMCSA safety record, monitor it for changes, and \u2014 on qualifying plans \u2014 prepare and submit data challenges and crash preventability requests on your behalf, and coach your team through a prioritized safety improvement plan.',
@@ -68,6 +79,14 @@ for (const [index, term] of expectedTerms.entries()) {
     `Missing exact ordered terms clause: ${fullClause}`
   );
 }
+const renderedHeadings = [...termsMarkup.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(
+  (match) => textWithoutInventedTagWhitespace(match[1])
+);
+assert.deepEqual(
+  renderedHeadings,
+  expectedTitles.map((title, index) => `${index + 1}. ${title}`),
+  "Terms headings must contain a real text-space after every clause number"
+);
 assert.equal(
   (termsText.match(/SafeScore Terms of Service/g) ?? []).length >= 1,
   true

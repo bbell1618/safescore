@@ -13,6 +13,7 @@ import {
   CHALLENGEABILITY_EVIDENCE_TOTAL_MAX_BYTES,
 } from "@/lib/ai/openrouter";
 import { bridgeLaneBRequestToDataqCase } from "@/lib/evidence-loop/dataq-bridge";
+import { notifyOperations } from "@/lib/notifications/operations";
 
 export const maxDuration = 60;
 
@@ -33,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   const { data: queueItem, error: queueError } = await service
     .from("client_requests")
     .select(
-      "id, client_id, category, requested_items, status, request_type, evidence_class, evidence_status, violation_id, case_type, case_id, response"
+      "id, client_id, category, title, requested_items, status, request_type, evidence_class, evidence_status, violation_id, case_type, case_id, response"
     )
     .eq("id", requestId)
     .eq("client_id", access.clientId)
@@ -44,6 +45,60 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   }
   if (!queueItem || queueItem.status !== "open") {
     return NextResponse.json({ error: "Open request not found" }, { status: 404 });
+  }
+  const clientId = access.clientId;
+  const actorUserId = access.userId;
+  const requestTitle = queueItem.title;
+
+  async function notifyStaffForUpload(input: {
+    artifactId: string;
+    uploadKind: "lane_b_evidence" | "case_evidence" | "requested_document";
+    itemLabel?: string;
+  }) {
+    const { data: client, error: clientError } = await service
+      .from("clients")
+      .select("name, dot_number")
+      .eq("id", clientId)
+      .single();
+    if (clientError || !client) {
+      throw new Error(
+        `Unable to load the client for the upload notification: ${
+          clientError?.message ?? "client not found"
+        }`
+      );
+    }
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+    ).replace(/\/+$/, "");
+    return notifyOperations(service, {
+      clientId,
+      actorUserId,
+      event: "evidence_uploaded",
+      entityType: "client_requests",
+      entityId: requestId,
+      description: "Client upload notification recorded for operations",
+      email: {
+        trigger: "staff_evidence_uploaded",
+        subject: `Client uploaded SafeScore evidence — ${client.name}`,
+        heading: "New client upload",
+        message: `${client.name} uploaded an item for “${requestTitle}”.`,
+        consoleUrl: `${baseUrl}/console/clients/${clientId}/requests`,
+        ctaLabel: "Review request",
+        details: [
+          { label: "Company", value: client.name },
+          { label: "USDOT", value: client.dot_number },
+          { label: "Request", value: requestTitle },
+          ...(input.itemLabel
+            ? [{ label: "Item", value: input.itemLabel }]
+            : []),
+        ],
+      },
+      metadata: {
+        request_id: requestId,
+        artifact_id: input.artifactId,
+        upload_kind: input.uploadKind,
+      },
+    });
   }
   if (
     queueItem.category === "mcs150_truth_up" &&
@@ -469,6 +524,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
       );
     }
 
+    try {
+      await notifyStaffForUpload({
+        artifactId: documentRow.id,
+        uploadKind: "lane_b_evidence",
+        itemLabel: item.label,
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `Evidence was saved and reassessed, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          documentId: documentRow.id,
+          requestStatus,
+          statusCopy,
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       documentId: documentRow.id,
@@ -505,6 +582,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
       if (closeError) return NextResponse.json({ error: closeError.message }, { status: 500 });
     }
     await syncClientEvidenceRequest(service, access.clientId);
+    try {
+      await notifyStaffForUpload({
+        artifactId: evidenceId,
+        uploadKind: "case_evidence",
+        itemLabel: item.label,
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `Case evidence was saved, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          evidenceId,
+          requestStatus,
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({ ok: true, evidenceId, requestStatus, remaining });
   }
 
@@ -515,6 +612,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   const { data: documentRow, error: documentError } = await service.from("documents").insert({ client_id: access.clientId, storage_path: storagePath, filename: file.name, file_size: file.size, mime_type: file.type, category, status: "pending_review", uploaded_by: access.userId }).select("id").single();
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 });
   if (queueItem.category === "mcs150_truth_up") {
+    try {
+      await notifyStaffForUpload({
+        artifactId: documentRow.id,
+        uploadKind: "requested_document",
+      });
+    } catch (notificationError) {
+      return NextResponse.json(
+        {
+          error: `The document was saved, but the operations notification failed: ${
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError)
+          }`,
+          documentId: documentRow.id,
+          requestStatus: "open",
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({
       ok: true,
       documentId: documentRow.id,
@@ -526,5 +642,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   const now = new Date().toISOString();
   const { error: closeError } = await service.from("client_requests").update({ status: "fulfilled", closed_at: now, next_reminder_at: null, updated_at: now }).eq("id", requestId);
   if (closeError) return NextResponse.json({ error: closeError.message }, { status: 500 });
+  try {
+    await notifyStaffForUpload({
+      artifactId: documentRow.id,
+      uploadKind: "requested_document",
+    });
+  } catch (notificationError) {
+    return NextResponse.json(
+      {
+        error: `The document was saved, but the operations notification failed: ${
+          notificationError instanceof Error
+            ? notificationError.message
+            : String(notificationError)
+        }`,
+        documentId: documentRow.id,
+        requestStatus: "fulfilled",
+      },
+      { status: 502 }
+    );
+  }
   return NextResponse.json({ ok: true, documentId: documentRow.id, requestStatus: "fulfilled", remaining: 0 });
 }

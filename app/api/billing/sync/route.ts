@@ -5,6 +5,8 @@ import { isSubscriptionTier } from "@/lib/tiers";
 import { activatePaidSubscription } from "@/lib/billing/activation";
 import { OnboardingRouteFailure } from "@/lib/onboarding/server";
 
+export const maxDuration = 300;
+
 export async function POST(request: Request) {
   try {
     const authClient = await createClient();
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
       tier: activated.tier,
       status: activated.status,
       alreadyActive: activated.alreadyActive,
+      initialization: activated.initialization,
     });
   } catch (error) {
     if (error instanceof OnboardingRouteFailure) {

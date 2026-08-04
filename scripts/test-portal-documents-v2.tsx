@@ -39,7 +39,13 @@ for (const feature of [
     `Documents must gate ${feature} on the server`
   );
 }
-assert.match(documentsPage, /canSeeRequests\s*\?\s*loadOpenRequests/);
+assert.match(documentsPage, /const requestPromise = loadOpenRequests/);
+assert.match(
+  documentsPage,
+  /if \(!includeEvidenceRequests\)[\s\S]*?\.eq\("category", "fmcsa_portal_pin"\)/,
+  "a staff-created PIN to-do remains visible without opening the evidence-request tier"
+);
+assert.match(documentsPage, /requestFeatureLocked=\{!canSeeRequests\}/);
 assert.match(documentsPage, /canSeeVault\s*\?\s*loadDocuments/);
 assert.match(documentsPage, /canSeeReports\s*\?\s*loadSentReports/);
 assert.match(documentsPage, /\.eq\("responsibility", "client"\)/);
