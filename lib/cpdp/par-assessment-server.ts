@@ -77,6 +77,8 @@ export class ParAssessmentFailure extends Error {
   }
 }
 
+const PAR_ASSESSMENT_ATTEMPT_TIMEOUT_MS = 50_000;
+
 function openRouterClient() {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
@@ -264,11 +266,14 @@ export async function assessParForCpdp(
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     let rawOutput: string | null = null;
     try {
-      const response = await client.chat.completions.create({
-        model: NARRATIVE_MODEL_SLUG,
-        messages: [{ role: "user", content }],
-        temperature: 0.1,
-      });
+      const response = await client.chat.completions.create(
+        {
+          model: NARRATIVE_MODEL_SLUG,
+          messages: [{ role: "user", content }],
+          temperature: 0.1,
+        },
+        { signal: AbortSignal.timeout(PAR_ASSESSMENT_ATTEMPT_TIMEOUT_MS) }
+      );
       rawOutput = response.choices[0]?.message?.content ?? null;
       if (!rawOutput) throw new Error("AI returned an empty PAR assessment");
       const parsed = responseSchema.parse(JSON.parse(stripJsonFence(rawOutput)));

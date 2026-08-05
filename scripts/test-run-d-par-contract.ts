@@ -59,6 +59,9 @@ const intake = readFileSync(
 );
 assert.match(intake, /par_assessment_status", startingAssessmentStatus/);
 assert.match(intake, /Another PAR intake won the assessment claim/);
+assert.match(intake, /PAR_ASSESSMENT_LEASE_MS = 5 \* 60 \* 1000/);
+assert.match(intake, /isParAssessmentLeaseStale/);
+assert.match(intake, /par_assessment_attempted_at/);
 assert.match(intake, /cpdp_eligible: null/);
 assert.match(intake, /ai_eligibility_verdict: null/);
 assert.match(intake, /inserted\.error\?\.code === "23505"/);
@@ -69,6 +72,13 @@ const reviewRoute = readFileSync(
 );
 assert.match(reviewRoute, /supportingExcerpt/);
 assert.match(reviewRoute, /A quoted PAR excerpt is required/);
+
+const assessmentServer = readFileSync(
+  resolve(process.cwd(), "lib/cpdp/par-assessment-server.ts"),
+  "utf8"
+);
+assert.match(assessmentServer, /PAR_ASSESSMENT_ATTEMPT_TIMEOUT_MS = 50_000/);
+assert.match(assessmentServer, /AbortSignal\.timeout/);
 
 const caseRoute = readFileSync(
   resolve(process.cwd(), "app/api/cases/cpdp/[id]/route.ts"),
@@ -85,6 +95,8 @@ console.log(JSON.stringify({
   approvalRpcScopedToServiceRole: true,
   webhookPublicProxyException: true,
   concurrentIntakeClaimGuard: true,
+  staleAssessmentLeaseRecovery: true,
+  boundedProviderAttempt: true,
   replacementClearsPriorDetermination: true,
   yesOverrideRequiresParExcerpt: true,
   narrativeRequiresLinkedParBytes: true,

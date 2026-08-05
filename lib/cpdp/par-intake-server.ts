@@ -12,6 +12,7 @@ import { eligibleTypesFromQuestions } from "@/lib/cpdp/par-assessment-types";
 
 export const PAR_FUNCTION_UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
 export const PAR_REMOTE_FETCH_MAX_BYTES = 8 * 1024 * 1024;
+export const PAR_ASSESSMENT_LEASE_MS = 5 * 60 * 1000;
 const ALLOWED_PAR_MIMES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -76,6 +77,15 @@ function normalizeMime(bytes: Buffer, declaredMimeType: string | null) {
     );
   }
   return detected;
+}
+
+export function isParAssessmentLeaseStale(
+  attemptedAt: unknown,
+  nowMs = Date.now()
+) {
+  if (typeof attemptedAt !== "string") return true;
+  const attemptedMs = Date.parse(attemptedAt);
+  return !Number.isFinite(attemptedMs) || nowMs - attemptedMs >= PAR_ASSESSMENT_LEASE_MS;
 }
 
 async function ensureParEvidence(
@@ -144,7 +154,8 @@ async function loadContext(service: SupabaseClient, caseId: string) {
   const result = await service
     .from("cpdp_cases")
     .select(`
-      id, client_id, crash_id, status, par_assessment_status, par_assessment_error,
+      id, client_id, crash_id, status, par_assessment_status,
+      par_assessment_error, par_assessment_attempted_at,
       crashes(
         id, report_number, crash_date, city, state, location,
         fatalities, injuries, tow_away, hazmat_release,
@@ -260,7 +271,7 @@ export async function ingestPar(
   if (crash.par_content_sha256 === contentSha256 && crash.par_document_id) {
     const caseReload = await service
       .from("cpdp_cases")
-      .select("par_ai_assessment, par_assessment_status")
+      .select("par_ai_assessment, par_assessment_status, par_assessment_attempted_at")
       .eq("id", input.caseId)
       .single();
     if (caseReload.error || !caseReload.data) {
@@ -297,7 +308,10 @@ export async function ingestPar(
         alreadyReceived: true,
       };
     }
-    if (caseReload.data.par_assessment_status === "assessing") {
+    if (
+      caseReload.data.par_assessment_status === "assessing" &&
+      !isParAssessmentLeaseStale(caseReload.data.par_assessment_attempted_at)
+    ) {
       throw new ParIntakeError("This PAR is already being assessed. Retry after the current assessment finishes.", 409);
     }
     alreadyReceived = true;
@@ -312,18 +326,31 @@ export async function ingestPar(
   const startingAssessmentStatus = String(
     caseRow.par_assessment_status ?? "awaiting_par"
   );
-  if (startingAssessmentStatus === "assessing") {
+  const staleAssessmentReclaimed =
+    startingAssessmentStatus === "assessing" &&
+    isParAssessmentLeaseStale(caseRow.par_assessment_attempted_at);
+  if (startingAssessmentStatus === "assessing" && !staleAssessmentReclaimed) {
     throw new ParIntakeError("Another PAR intake is already assessing this crash.", 409);
   }
-  const claim = await service
+  const claimAttemptedAt = new Date().toISOString();
+  let claimQuery = service
     .from("cpdp_cases")
     .update({
       par_assessment_status: "assessing",
       par_assessment_error: null,
-      par_assessment_attempted_at: new Date().toISOString(),
+      par_assessment_attempted_at: claimAttemptedAt,
     })
     .eq("id", input.caseId)
-    .eq("par_assessment_status", startingAssessmentStatus)
+    .eq("par_assessment_status", startingAssessmentStatus);
+  if (startingAssessmentStatus === "assessing") {
+    claimQuery = typeof caseRow.par_assessment_attempted_at === "string"
+      ? claimQuery.eq(
+          "par_assessment_attempted_at",
+          caseRow.par_assessment_attempted_at
+        )
+      : claimQuery.is("par_assessment_attempted_at", null);
+  }
+  const claim = await claimQuery
     .select("id")
     .maybeSingle();
   if (claim.error) {
@@ -456,6 +483,7 @@ export async function ingestPar(
       content_sha256: contentSha256,
       file_size: input.bytes.length,
       mime_type: mimeType,
+      stale_assessment_reclaimed: staleAssessmentReclaimed,
     },
   });
   if (receivedActivity.error) {

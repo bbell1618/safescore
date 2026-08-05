@@ -10,7 +10,7 @@ import {
 } from "@/lib/cpdp/par-intake-server";
 import { fetchRemoteLexisPar } from "@/lib/cpdp/remote-par-fetch-server";
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const documentSchema = z.union([
   z.string().min(1),
