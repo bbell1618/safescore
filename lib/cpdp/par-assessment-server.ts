@@ -151,6 +151,7 @@ Hard rules:
 - The FMCSA MCMIS report number and a local law-enforcement PAR number use different numbering systems. Mark reportNumber NOT_COMPARABLE when both exist but are from those different systems; do not call the document mismatched for that fact alone.
 - Overall identity may be MATCH when carrier/USDOT, date, and location corroborate even if report numbers are NOT_COMPARABLE.
 - Never mark a question YES without a specific excerpt.
+- confidence is an integer percentage from 0 through 100 (for example, use 90, never 0.9).
 - draftedNarrative must be a filing-ready Request for Determination grounded only in supported PAR facts when at least one question is YES and identity is MATCH. Otherwise return null.
 - Do not emit placeholders, bracketed instructions, or invented facts.
 
@@ -173,7 +174,7 @@ Return valid JSON only with this exact shape:
   },
   "questions":[{"id":"supplied_id","answer":"YES|NO|UNCLEAR","excerpt":null,"reasoning":"..."}],
   "verdict":"ELIGIBLE|INDETERMINATE|NOT_ELIGIBLE",
-  "confidence":0,
+  "confidence":90,
   "overallReasoning":"...",
   "draftedNarrative":null
 }`;
@@ -248,7 +249,11 @@ function normalizeResponse(
     identity: parsed.identity,
     questions,
     verdict: parsed.verdict,
-    confidence: parsed.confidence,
+    // Some providers conventionally return a 0..1 fraction despite the prompt.
+    // Normalize that shape so the human-review UI never labels 0.9 as 0.9%.
+    confidence: parsed.confidence > 0 && parsed.confidence <= 1
+      ? Math.round(parsed.confidence * 10_000) / 100
+      : parsed.confidence,
     overallReasoning: parsed.overallReasoning,
     draftedNarrative: parsed.draftedNarrative,
     model: NARRATIVE_MODEL_SLUG,

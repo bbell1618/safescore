@@ -79,6 +79,7 @@ const assessmentServer = readFileSync(
 );
 assert.match(assessmentServer, /PAR_ASSESSMENT_ATTEMPT_TIMEOUT_MS = 50_000/);
 assert.match(assessmentServer, /AbortSignal\.timeout/);
+assert.match(assessmentServer, /parsed\.confidence > 0 && parsed\.confidence <= 1/);
 
 const caseRoute = readFileSync(
   resolve(process.cwd(), "app/api/cases/cpdp/[id]/route.ts"),
@@ -97,6 +98,7 @@ console.log(JSON.stringify({
   concurrentIntakeClaimGuard: true,
   staleAssessmentLeaseRecovery: true,
   boundedProviderAttempt: true,
+  fractionalConfidenceNormalized: true,
   replacementClearsPriorDetermination: true,
   yesOverrideRequiresParExcerpt: true,
   narrativeRequiresLinkedParBytes: true,
