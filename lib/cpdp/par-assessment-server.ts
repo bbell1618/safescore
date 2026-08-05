@@ -1,7 +1,6 @@
 import "server-only";
 
 import OpenAI from "openai";
-import { PDFParse } from "pdf-parse";
 import { z } from "zod";
 import { NARRATIVE_MODEL_SLUG } from "@/lib/ai/openrouter";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
@@ -97,6 +96,11 @@ function stripJsonFence(value: string) {
 }
 
 async function extractPdfText(bytes: Buffer): Promise<string> {
+  // Load the worker first, as required by pdf-parse in serverless runtimes.
+  // Keeping this lazy also lets configuration-gated routes reject requests
+  // before initializing the native PDF runtime.
+  await import("pdf-parse/worker");
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: new Uint8Array(bytes) });
   try {
     const result = await parser.getText();

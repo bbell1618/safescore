@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // pdf-parse relies on a native canvas package. Keep both packages external so
+  // Vercel's function tracer includes the Linux native binary at runtime.
+  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
   async redirects() {
     return [
       {
