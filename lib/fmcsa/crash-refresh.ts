@@ -163,6 +163,7 @@ export async function persistPublicCrashes(
 
   const newCrashIds: string[] = [];
   const updatedCrashIds: string[] = [];
+  const fetchedAt = new Date().toISOString();
   for (const crash of crashes) {
     const existing = findExistingCrash(crash, existingByReport);
     const sourcePatch = buildPublicCrashUpdate(
@@ -173,7 +174,7 @@ export async function persistPublicCrashes(
     if (existing) {
       const { error } = await supabase
         .from("crashes")
-        .update(sourcePatch)
+        .update({ ...sourcePatch, fmcsa_crash_sources_fetched_at: fetchedAt })
         .eq("id", existing.id);
       if (error) throw dbError("Unable to update crash", error);
       updatedCrashIds.push(existing.id);
@@ -200,6 +201,7 @@ export async function persistPublicCrashes(
         cpdp_eligible_types: null,
         ai_assessed_at: null,
         ...sourcePatch,
+        fmcsa_crash_sources_fetched_at: fetchedAt,
       })
       .select("id")
       .single();

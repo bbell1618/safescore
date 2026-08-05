@@ -213,11 +213,27 @@ export function monitoringSourceLabel(check: MonitoringCheckCandidate): string {
 
 export function monitoringWatchStatusText({
   lastCheck,
+  lastRun,
+  lastSnapshot,
   now = new Date(),
 }: {
   lastCheck: MonitoringCheckCandidate | null;
+  lastRun?: { timestamp: string; snapshotStatus: string | null } | null;
+  lastSnapshot?: { timestamp: string } | null;
   now?: Date;
 }): string {
+  if (
+    lastRun?.snapshotStatus === "unchanged" &&
+    lastSnapshot &&
+    requireValidDate(lastRun.timestamp, "Monitoring run").getTime() >
+      requireValidDate(lastSnapshot.timestamp, "Monitoring snapshot").getTime()
+  ) {
+    return [
+      `Checked ${formatMonitoringTimestamp(lastRun.timestamp)}; no change since ${formatMonitoringTimestamp(lastSnapshot.timestamp)}`,
+      `next check ${formatMonitoringTimestamp(nextMonitoringCheck(now))}`,
+      `alerts fire on: ${MONITORING_ALERT_EVENTS.join(", ")}`,
+    ].join(" \u00B7 ");
+  }
   const lastCheckText = lastCheck
     ? `${formatMonitoringTimestamp(lastCheck.timestamp)} via ${monitoringSourceLabel(lastCheck)}`
     : "not yet recorded";

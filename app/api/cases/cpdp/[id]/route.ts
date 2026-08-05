@@ -4,10 +4,28 @@ import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
 import { emitCaseResolutionAlert } from "@/lib/monitoring/alerts";
+import { z } from "zod";
 
 export const maxDuration = 60;
 
 const CPDP_RESOLUTION_STATUSES = new Set(["determination_made", "closed"]);
+
+const patchSchema = z.object({
+  status: z.enum(["draft", "filed", "pending", "determination_made", "closed"]).optional(),
+  filed_date: z.string().date().nullable().optional(),
+  determination_date: z.string().date().nullable().optional(),
+  outcome: z.enum(["not_preventable", "preventable", "undecided", "dismissed"]).nullable().optional(),
+  final_narrative: z.string().max(12000).nullable().optional(),
+  filing_notes: z.string().max(12000).nullable().optional(),
+  case_number: z.string().max(255).nullable().optional(),
+  cpdp_eligible_types: z.array(z.string().min(1).max(500)).max(21).nullable().optional(),
+  narrative_evidence_verified: z.boolean().optional(),
+  narrative_verified_at: z.string().datetime({ offset: true }).nullable().optional(),
+  narrative_verified_by: z.string().max(255).nullable().optional(),
+  par_identity_confirmed: z.boolean().optional(),
+  par_confirmed_at: z.string().datetime({ offset: true }).nullable().optional(),
+  par_confirmed_by: z.string().max(255).nullable().optional(),
+}).strict();
 
 /**
  * Strip the AI's PAR identity reconciliation preamble from generated narratives.
@@ -41,11 +59,24 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
+  let input: unknown;
+  try {
+    input = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsed = patchSchema.safeParse(input);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid CPDP case update", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+  const body = parsed.data;
   const supabase = getAdmin();
   const { data: beforeCase, error: beforeError } = await supabase
     .from("cpdp_cases")
-    .select("status, outcome, case_number, client_id, clients(name)")
+    .select("status, outcome, case_number, client_id, par_ai_assessment, par_assessment_status, clients(name), crashes(par_document_id)")
     .eq("id", id)
     .single();
 
@@ -53,6 +84,33 @@ export async function PATCH(
     return NextResponse.json(
       { error: beforeError?.message ?? "CPDP case not found" },
       { status: beforeError?.code === "PGRST116" ? 404 : 500 }
+    );
+  }
+
+  const beforeCrash = Array.isArray(beforeCase.crashes)
+    ? beforeCase.crashes[0]
+    : beforeCase.crashes;
+  const reviewControlledWrite =
+    body.cpdp_eligible_types !== undefined ||
+    body.par_identity_confirmed !== undefined ||
+    body.par_confirmed_at !== undefined ||
+    body.par_confirmed_by !== undefined ||
+    body.narrative_evidence_verified !== undefined ||
+    body.narrative_verified_at !== undefined ||
+    body.narrative_verified_by !== undefined;
+  if (reviewControlledWrite) {
+    return NextResponse.json(
+      { error: "Use the PAR determination review to approve identity, eligibility, and evidence-verification fields." },
+      { status: 409 }
+    );
+  }
+  if (
+    body.final_narrative !== undefined &&
+    (!beforeCrash?.par_document_id || beforeCase.par_assessment_status !== "approved")
+  ) {
+    return NextResponse.json(
+      { error: "Approve the PAR determination review before saving a final narrative." },
+      { status: 409 }
     );
   }
 
@@ -69,7 +127,7 @@ export async function PATCH(
     // Narrative sentinel check on current case narrative
     const { data: caseRow } = await supabase
       .from("cpdp_cases")
-      .select("final_narrative, ai_narrative, filed_without_evidence")
+      .select("final_narrative, ai_narrative, par_assessment_status, crashes(par_document_id)")
       .eq("id", id)
       .single();
 
@@ -83,33 +141,20 @@ export async function PATCH(
       );
     }
 
-    // Evidence gate — PAR (required evidence) must be received
-    const { count: receivedCount } = await supabase
-      .from("cpdp_evidence")
-      .select("id", { count: "exact", head: true })
-      .eq("case_id", id)
-      .eq("required", true)
-      .eq("status", "received");
-
-    const { count: totalCount } = await supabase
-      .from("cpdp_evidence")
-      .select("id", { count: "exact", head: true })
-      .eq("case_id", id);
-
-    if ((totalCount ?? 0) > 0 && (receivedCount ?? 0) === 0) {
-      const overrideEnabled =
-        caseRow?.filed_without_evidence === true ||
-        body.filed_without_evidence === true;
-
-      if (!overrideEnabled) {
-        return NextResponse.json(
-          {
-            error:
-              "The Police Accident Report (PAR) must be uploaded before filing. Upload the PAR or enable the override.",
-          },
-          { status: 403 }
-        );
-      }
+    const crashRelation = Array.isArray(caseRow?.crashes)
+      ? caseRow.crashes[0]
+      : caseRow?.crashes;
+    if (!crashRelation?.par_document_id) {
+      return NextResponse.json(
+        { error: "Cannot file: a linked Police Accident Report is required." },
+        { status: 403 }
+      );
+    }
+    if (caseRow?.par_assessment_status !== "approved") {
+      return NextResponse.json(
+        { error: "Cannot file: the PAR identity and 21-question assessment must be reviewed and approved." },
+        { status: 403 }
+      );
     }
   }
 
@@ -200,7 +245,7 @@ export async function POST(
     const { data: c } = await supabase
       .from("cpdp_cases")
       .select(
-        "*, cpdp_eligible_types, par_identity_confirmed, crashes(crash_date, city, state, report_number, fatalities, injuries, tow_away, hazmat_release), clients(name, dot_number)"
+        "*, cpdp_eligible_types, par_identity_confirmed, crashes(crash_date, city, state, report_number, fatalities, injuries, tow_away, hazmat_release, par_document_id), clients(name, dot_number)"
       )
       .eq("id", id)
       .single();
@@ -216,6 +261,7 @@ export async function POST(
       injuries: number;
       tow_away: boolean;
       hazmat_release: boolean;
+      par_document_id: string | null;
     } | null;
 
     const client = c.clients as { name: string; dot_number: string } | null;
@@ -226,12 +272,27 @@ export async function POST(
     if (!crash) {
       return NextResponse.json({ error: "Crash data missing" }, { status: 400 });
     }
+    if (!crash.par_document_id) {
+      return NextResponse.json(
+        { error: "Awaiting police report — upload or LexisNexis delivery" },
+        { status: 409 }
+      );
+    }
+    if (c.par_assessment_status !== "approved") {
+      return NextResponse.json(
+        { error: "Approve the PAR identity and 21-question assessment before regenerating the filing narrative." },
+        { status: 409 }
+      );
+    }
 
     // Fetch evidence items
-    const { data: evidenceRows } = await supabase
+    const { data: evidenceRows, error: evidenceError } = await supabase
       .from("cpdp_evidence")
-      .select("label, fmcsa_category, status, storage_path")
+      .select("label, doc_type, fmcsa_category, status, storage_path, document_id")
       .eq("case_id", id);
+    if (evidenceError) {
+      throw new Error(`Unable to load CPDP evidence: ${evidenceError.message}`);
+    }
 
     const isProvisional = !(evidenceRows ?? []).some(
       (e) => (e as Record<string, unknown>).status === "received"
@@ -239,26 +300,58 @@ export async function POST(
 
     // Download received evidence files for document grounding
     const evidenceFiles: EvidenceFile[] = [];
-    const receivedRows = (evidenceRows ?? []).filter(
-      (e) =>
-        (e as Record<string, unknown>).status === "received" &&
-        (e as Record<string, unknown>).storage_path
-    );
+    let loadedPoliceReport = false;
+    const receivedRows = (evidenceRows ?? []).filter((e) => {
+      const row = e as Record<string, unknown>;
+      return row.status === "received" && (row.storage_path || row.document_id);
+    });
 
     for (const row of receivedRows) {
-      const storagePath = (row as Record<string, unknown>).storage_path as string;
-      const label = (row as Record<string, unknown>).label as string;
+      const evidenceRow = row as Record<string, unknown>;
+      let storagePath = evidenceRow.storage_path as string | null;
+      let bucket = "dataq-evidence";
+      let storedMimeType: string | null = null;
+      const label = evidenceRow.label as string;
+      const isPoliceReport = evidenceRow.doc_type === "police_report";
       try {
+        if (evidenceRow.document_id) {
+          const { data: document, error: documentError } = await supabase
+            .from("documents")
+            .select("storage_path, mime_type")
+            .eq("id", evidenceRow.document_id as string)
+            .single();
+          if (documentError || !document?.storage_path) {
+            throw new Error(
+              `Linked document could not be resolved: ${
+                documentError?.message ?? "storage path missing"
+              }`
+            );
+          }
+          bucket = "documents";
+          storagePath = document.storage_path as string;
+          storedMimeType = document.mime_type as string | null;
+        }
+        if (!storagePath) throw new Error("Evidence storage path is missing");
         const { data: fileData, error: dlErr } = await supabase.storage
-          .from("dataq-evidence")
+          .from(bucket)
           .download(storagePath);
         if (dlErr || !fileData) {
+          if (isPoliceReport) {
+            throw new Error(
+              `Required police report could not be downloaded: ${
+                dlErr?.message ?? "file unavailable"
+              }`
+            );
+          }
           console.warn("[cpdp narrative POST] Could not download:", storagePath, dlErr?.message);
           continue;
         }
         const arrayBuf = await fileData.arrayBuffer();
         const sizeBytes = arrayBuf.byteLength;
         if (sizeBytes > 20971520) {
+          if (isPoliceReport) {
+            throw new Error("Required police report exceeds the 20 MB narrative-grounding limit");
+          }
           console.warn("[cpdp narrative POST] Skipping oversized file:", storagePath, sizeBytes);
           continue;
         }
@@ -272,16 +365,21 @@ export async function POST(
           tif: "image/tiff",
           tiff: "image/tiff",
         };
-        const mimeType = mimeMap[ext] ?? "application/octet-stream";
+        const mimeType = storedMimeType ?? mimeMap[ext] ?? "application/octet-stream";
         evidenceFiles.push({ label, mimeType, base64Data, sizeBytes });
+        if (isPoliceReport) loadedPoliceReport = true;
         console.log("[cpdp narrative POST] Loaded:", { label, mimeType, sizeBytes });
       } catch (err) {
+        if (isPoliceReport) throw err;
         console.warn(
           "[cpdp narrative POST] Download exception:",
           storagePath,
           err instanceof Error ? err.message : err
         );
       }
+    }
+    if (!loadedPoliceReport) {
+      throw new Error("The linked police report could not be loaded for grounded narrative generation");
     }
 
     const eligibleTypes = (c.cpdp_eligible_types as string[] | null) ?? [];

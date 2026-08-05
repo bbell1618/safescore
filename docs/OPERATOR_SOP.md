@@ -23,7 +23,6 @@ These are current product limitations, not optional operator steps:
 
 | Area | Current behavior | Operator rule until corrected |
 | --- | --- | --- |
-| Request reminders | Requests receive a next-reminder date, but the weekly reminder sweep is not scheduled and has no console control. | Do not assume a reminder was sent. Review due requests in the Requests tab and follow up manually outside SafeScore. |
 | Console alert triage | The dashboard counts unread, undismissed alerts, but the console does not show an alert-detail/read/dismiss view. | Use the dashboard signal to open the client, then inspect Monitoring, Violations, Remediation, and Cases. |
 | CPDP determination | “Record determination” advances the status but does not capture the outcome or determination date. | Preserve the determination outside SafeScore and do not close the case until the outcome/date capture gap is resolved or separately documented. |
 | Report delivery | Reports can be drafted, edited, marked reviewed, and printed. There is no operator Send control, and the existing send API does not enforce reviewed status. | Do not attempt to send or manually change a report to `sent`. Leave the approved report `reviewed` until the reviewed-only send workflow is repaired. |
@@ -51,7 +50,7 @@ Staff and client sessions are deliberately separated. If a portal user opens a c
 Public FMCSA sources
         |
         v
-Daily refresh -> snapshots -> alerts -> challengeability assessment
+Daily refresh -> snapshot policy -> alerts -> challengeability assessment
         |                         |
         |                         v
         |                  typed evidence requests
@@ -76,13 +75,12 @@ Monitoring/Remediation      carrier upload or answer
 | Lane B assessment | During activation and daily refresh for entitled tiers | Assesses new violations, creates typed evidence requests when supported, and retries submitted violation-evidence reassessment | It does not certify evidence or file DataQs |
 | Violation-evidence reassessment | Immediately after an upload to a violation-linked Lane B request, with bounded daily retry after a failure | Re-runs challengeability and marks that evidence applied or insufficient | Generic, PIN, and compliance uploads do not run challengeability |
 | Intake-question answer | When a carrier answers a question-type request | Records the answer, notifies operations, and creates the follow-up evidence request when the answer qualifies | The answer itself is not evidence and does not run challengeability |
+| Client-request reminders | During the daily monitoring run when an open client-owned request is due | Records a dry-run or delivery attempt, advances the next due date by seven days, and stops after reminder 3 | It never sends outside the configured email layer or duplicates the same request/reminder number |
 | Age-out lifecycle | After each monitored client refresh | Cancels an open violation-linked evidence request when the violation leaves the 24-month scoring window | It does not delete the violation or a filed case |
 | Carrier enrichment | Cadence-gated inside the daily run | Refreshes authoritative carrier-profile fields when due | It does not overwrite protected operator/client enrichment with null public-source values |
 | MCS-150 truth-up | Quarterly gate inside the daily run for Total Safety | Compares attested operational values to public census and follows the truth-up lifecycle | It never files an MCS-150 or changes billing |
 | Compliance expiration sweep | Daily for Total Safety | Evaluates CDL, medical certificate, annual MVR, vehicle inspection, and Clearinghouse clocks; creates one operations digest per client/day; creates certain 30-day renewal requests | It does not update a document date just because a request was fulfilled |
 | Operations notifications | On activation, onboarding tier change, evidence upload, intake answer, monitoring alert, and compliance digest | Records the event and delivery result in the activity log and links staff to the relevant console page | In dry-run mode it logs rather than sends live email |
-
-Weekly request reminders are intentionally absent from this table: the current release stores reminder dates but does not schedule the reminder route.
 
 ### What always needs operator judgment
 
@@ -134,7 +132,8 @@ Allow about 15 minutes before starting case work.
 3. Open every carrier listed under Needs attention.
 4. On each carrier, open Monitoring and note:
    - last successful check and source;
-   - latest burden and delta from the prior snapshot;
+   - whether the latest check created a snapshot or reported no change since the last snapshot;
+   - latest saved burden and delta from the prior saved snapshot;
    - violation, inspection, crash, and OOS-count changes;
    - which BASIC categories moved.
 5. Open Violations and Remediation to identify the records behind the movement.
@@ -145,6 +144,8 @@ Allow about 15 minutes before starting case work.
 ![Synthetic console Monitoring page showing the activation baseline, next scheduled check, and zero-row public-source result](./sop-assets/18-console-monitoring.png)
 
 Because the dashboard has no alert-detail/dismiss view, Needs attention is a signal, not a complete queue. The client’s Monitoring and work tabs are the source of the operational explanation.
+
+A daily check does not guarantee a new snapshot row. SafeScore saves a snapshot when tracked metrics change or the maximum-age policy requires one. When the run is unchanged, the Monitoring header shows the check time separately from the most recent saved snapshot.
 
 ### Interpret a burden change in this order
 
@@ -311,25 +312,26 @@ The workbench identifies a tow-away crash inside the current 24-month window tha
 1. Open **Cases**, then **CPDP workbench** at `/console/clients/{client_id}/cpdp`.
 2. Review the crash date, state, fatality/injury/tow-away facts, and source identifier.
 3. Select **Create CPDP submission** once the crash is worth investigating. Creation is idempotent for the same client/crash.
-4. In the draft case, select the eligible crash type. AI suggestions are advisory; the operator owns the selection.
-5. Generate the evidence checklist:
-   - police accident report is required unless an explicit override is documented;
-   - dashcam/video, photos, and statements may be useful depending on facts.
-6. Obtain and upload the police accident report. GEIA obtains the PAR; SafeScore does not make it a portal client to-do.
-7. Confirm that the PAR belongs to the correct carrier, driver, vehicle, crash date, and event.
-8. Review the generated eligibility analysis and filing narrative.
-9. Edit the final narrative. Resolve every `[VERIFY:]` item. Do not file a narrative containing `INSUFFICIENT EVIDENCE`.
-10. Confirm signed filing authorization is on file. Use an authorization override only when authorized and record the reason.
-11. File manually in FMCSA DataQs:
+4. The draft remains at **Awaiting police report — upload or LexisNexis delivery** until a real PAR is linked. Do not make an eligibility determination from crash metadata alone.
+5. Obtain the PAR through one of the two intake paths:
+   - manually upload the PDF or image in the CPDP workbench; or
+   - use the secret-gated LexisNexis delivery integration after its account secret is configured.
+6. SafeScore stores the PAR in the client document vault, links it to the crash and case, detects a PDF text layer, and uses the vision-capable path for scanned PDFs or images.
+7. Review all four identity checks: report-number system, crash date, location, and carrier/USDOT. Local PAR and FMCSA MCMIS report numbers are different systems; corroborate the event rather than forcing the numbers to match.
+8. Review every one of FMCSA's current 21 eligibility questions. Each AI answer must show a PAR excerpt when supported and one line of reasoning.
+9. Override an AI answer only with a written reason, then approve the assessment. Approval atomically records reviewer/timestamps, populates the crash and case eligibility fields, and preserves every override in activity history.
+10. Edit the PAR-grounded RFD narrative. Do not approve or file a narrative containing a placeholder, `[VERIFY:]`, or `INSUFFICIENT EVIDENCE`.
+11. Confirm signed filing authorization is on file. Use an authorization override only when authorized and record the reason.
+12. File manually in FMCSA DataQs:
     - locate the crash with FMCSA’s MCMIS crash identifier, not a local PAR number;
     - choose the crash-preventability request and correct crash type;
     - copy the reviewed final explanation;
     - attach the verified evidence;
     - review the federal attestation;
     - submit using the approved carrier authority.
-12. Back in SafeScore, record the FMCSA case ID and filing notes, then mark the case filed.
-13. Monitor the expected determination window, approximately 60 days.
-14. Record the determination and close only after the result is documented.
+13. Back in SafeScore, record the FMCSA case ID and filing notes, then mark the case filed.
+14. Monitor the expected determination window, approximately 60 days.
+15. Record the determination and close only after the result is documented.
 
 ### Status meanings
 
@@ -406,17 +408,15 @@ The onboarding and existing-client question is:
 
 A Yes answer creates or reuses a certified-court-disposition evidence request. It may be generic until the operator associates it with the relevant violation evidence. A Yes answer is not proof that the citation was dismissed; obtain the certified disposition.
 
-### Weekly reminder limitation
+### Request reminder automation
 
-Requests store a weekly next-reminder date and a three-reminder escalation limit, but no Vercel schedule or daily-cron call runs the reminder sweep. The console copy currently overstates this automation.
+The daily monitoring cron processes due open requests owned by the client. Each successful reminder attempt increments the count once, schedules the next reminder seven days later, and stops after reminder 3. A concurrent run or replay cannot mint the same `(request, reminder number)` twice.
 
-Until corrected:
-
-1. Sort the Requests queue oldest first.
-2. Review the Next reminder and reminder-count columns.
-3. Follow up through the approved manual channel.
-4. Do not tell the carrier that SafeScore already reminded them unless delivery evidence exists.
-5. Escalate stalled requests according to GEIA’s service procedure.
+1. Review the Next reminder and reminder-count columns in Requests.
+2. Confirm the `client_request_reminder_email` activity row before saying a reminder was delivered or dry-logged.
+3. Under `EMAIL_DRY_RUN`, SafeScore records the intended recipient, subject, reminder number, and dry-run status without sending a live email.
+4. If delivery fails or no portal-user email exists, the request remains due for a future retry; do not advance it manually to make the queue look current.
+5. After reminder 3, follow GEIA’s escalation procedure. SafeScore will not send a fourth automated reminder.
 
 ### Age-out behavior
 

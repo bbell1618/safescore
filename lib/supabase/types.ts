@@ -557,7 +557,13 @@ export interface Database {
           cpdp_eligible: boolean | null;
           cpdp_eligible_types: string[] | null;
           ai_assessed_at: string | null;
+          par_document_id: string | null;
+          par_document_source: "manual" | "lexisnexis" | null;
+          par_received_at: string | null;
+          par_local_report_number: string | null;
+          par_content_sha256: string | null;
           raw_data: Record<string, unknown> | null;
+          fmcsa_crash_sources_fetched_at: string | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["crashes"]["Row"], "id" | "created_at">;
@@ -600,11 +606,68 @@ export interface Database {
           final_narrative: string | null;
           filing_notes: string | null;
           created_by: string | null;
+          cpdp_eligible_types: string[] | null;
+          case_number: string | null;
+          filed_without_evidence: boolean;
+          override_reason: string | null;
+          narrative_evidence_verified: boolean;
+          narrative_verified_at: string | null;
+          narrative_verified_by: string | null;
+          ai_assessed_at: string | null;
+          ai_eligibility_verdict:
+            | "ELIGIBLE"
+            | "INDETERMINATE"
+            | "NOT_ELIGIBLE"
+            | null;
+          ai_eligibility_rationale: string | null;
+          ai_suggested_types: string[] | null;
+          par_identity_confirmed: boolean;
+          par_confirmed_at: string | null;
+          par_confirmed_by: string | null;
+          par_ai_assessment: Record<string, unknown> | null;
+          par_review_assessment: Record<string, unknown> | null;
+          par_assessment_status:
+            | "awaiting_par"
+            | "assessing"
+            | "ready_for_review"
+            | "approved"
+            | "failed";
+          par_assessment_model: string | null;
+          par_assessment_error: string | null;
+          par_assessment_attempted_at: string | null;
+          par_assessment_document_id: string | null;
+          par_reviewed_at: string | null;
+          par_reviewed_by: string | null;
+          par_assessment_overrides: Record<string, unknown> | null;
           updated_at: string;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["cpdp_cases"]["Row"], "id" | "updated_at" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["cpdp_cases"]["Insert"]>;
+      };
+      cpdp_evidence: {
+        Row: {
+          id: string;
+          case_id: string;
+          doc_type: string;
+          label: string;
+          context_note: string | null;
+          fmcsa_category: string | null;
+          required: boolean;
+          status: string;
+          storage_path: string | null;
+          uploaded_at: string | null;
+          uploaded_by: string | null;
+          document_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["cpdp_evidence"]["Row"],
+          "id" | "created_at"
+        >;
+        Update: Partial<
+          Database["public"]["Tables"]["cpdp_evidence"]["Insert"]
+        >;
       };
       mcs150_updates: {
         Row: {
@@ -1089,6 +1152,22 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      approve_cpdp_par_assessment_v1: {
+        Args: {
+          p_case_id: string;
+          p_reviewer_id: string;
+          p_review_assessment: Record<string, unknown>;
+          p_eligible_types: string[];
+          p_final_narrative: string | null;
+          p_overrides?: Record<string, unknown>[];
+        };
+        Returns: Array<{
+          case_id: string;
+          crash_id: string;
+          client_id: string;
+          approved_at: string;
+        }>;
+      };
       change_client_onboarding_tier_v1: {
         Args: {
           p_client_id: string;

@@ -141,6 +141,15 @@ assert.equal(
   }),
   "Watching daily \u00B7 last check not yet recorded \u00B7 next check Jul 23, 2026, 6:00 AM PT \u00B7 alerts fire on: new violation, new inspection, new crash, OOS change"
 );
+assert.equal(
+  monitoringWatchStatusText({
+    lastCheck: run,
+    lastRun: { timestamp: run.timestamp, snapshotStatus: "unchanged" },
+    lastSnapshot: { timestamp: snapshot.timestamp },
+    now: new Date("2026-07-22T23:47:38.000Z"),
+  }),
+  "Checked Jul 22, 2026, 2:21 PM PT; no change since Jul 22, 2026, 9:39 AM PT \u00B7 next check Jul 23, 2026, 6:00 AM PT \u00B7 alerts fire on: new violation, new inspection, new crash, OOS change"
+);
 
 assert.throws(
   () =>

@@ -8,7 +8,6 @@ import {
   type CrashRow,
   type EvidenceItem,
 } from "@/components/console/cpdp-case-editor";
-import { getPARRetrievalProvider } from "@/lib/par";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +45,18 @@ export default async function CpdpCaseDetailPage({
        narrative_evidence_verified,
        ai_assessed_at, ai_eligibility_verdict, ai_eligibility_rationale, ai_suggested_types,
        par_identity_confirmed, par_confirmed_at, par_confirmed_by,
+       par_ai_assessment, par_review_assessment, par_assessment_status, par_assessment_error,
        crashes(
          id, crash_date, city, state, report_number,
-         tow_away, fatalities, injuries, hazmat_release, cpdp_eligible
+         tow_away, fatalities, injuries, hazmat_release, cpdp_eligible,
+         report_sequence_number, location, trafficway, access_control_desc,
+         road_surface_condition, weather_condition, light_condition,
+         vehicle_configuration, severity_weight, time_weight, citation_issued,
+         fmcsa_not_preventable, vehicle_identification_number,
+         vehicle_license_number, vehicle_license_state, federal_recordable,
+         state_recordable, fmcsa_crash_sources_fetched_at,
+         par_document_id, par_document_source, par_received_at,
+         par_local_report_number, raw_data
        )`
     )
     .eq("id", caseId)
@@ -82,7 +90,9 @@ export default async function CpdpCaseDetailPage({
     storage_path: e.storage_path as string | null,
     uploaded_by: e.uploaded_by as string | null,
   }));
-  const parRetrievalStatus = getPARRetrievalProvider().status();
+  const parDeliveryStatus = process.env.LEXISNEXIS_WEBHOOK_SECRET?.trim()
+    ? "ready"
+    : "not_configured";
 
   const caseRow: CpdpCaseRow = {
     id: cpdpCase.id as string,
@@ -105,6 +115,10 @@ export default async function CpdpCaseDetailPage({
     par_identity_confirmed: (cpdpCase.par_identity_confirmed as boolean) ?? false,
     par_confirmed_at: cpdpCase.par_confirmed_at as string | null,
     par_confirmed_by: cpdpCase.par_confirmed_by as string | null,
+    par_ai_assessment: cpdpCase.par_ai_assessment as CpdpCaseRow["par_ai_assessment"],
+    par_review_assessment: cpdpCase.par_review_assessment as Record<string, unknown> | null,
+    par_assessment_status: (cpdpCase.par_assessment_status as CpdpCaseRow["par_assessment_status"]) ?? "awaiting_par",
+    par_assessment_error: cpdpCase.par_assessment_error as string | null,
   };
 
   return (
@@ -142,7 +156,7 @@ export default async function CpdpCaseDetailPage({
         cpdpCase={caseRow}
         crash={crash}
         initialEvidence={evidence}
-        parRetrievalStatus={parRetrievalStatus.state}
+        parRetrievalStatus={parDeliveryStatus}
       />
     </div>
   );

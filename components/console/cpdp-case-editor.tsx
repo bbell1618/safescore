@@ -7,6 +7,11 @@ import { narrativeBlockReason, hasVerifyPlaceholder } from "@/lib/analysis/narra
 import { toFilingReadyNarrative } from "@/lib/cpdp/filing-narrative";
 import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
 import { FiledAuthorizationStatus } from "@/components/console/filed-authorization-status";
+import { ParAssessmentReview } from "@/components/console/par-assessment-review";
+import {
+  CPDP_ELIGIBILITY_QUESTIONS,
+  type ParAiAssessment,
+} from "@/lib/cpdp/par-assessment-types";
 import {
   Car,
   AlertTriangle,
@@ -25,29 +30,9 @@ import { useRouter } from "next/navigation";
 // Full 21-type list for crashes on/after 2024-12-01; pre-2024 uses a shorter set.
 // Source: 49 CFR Part 385 Appendix B to Subchapter B
 
-const ELIGIBLE_TYPES_EXPANDED = [
-  "Struck in the rear by another vehicle",
-  "Struck while legally stopped or parked",
-  "Wrong-direction or illegal U-turn by another vehicle",
-  "Struck by an impaired driver",
-  "Struck by a distracted driver",
-  "Struck by a vehicle changing lanes",
-  "Failure to stop at traffic control device by another vehicle",
-  "Other driver fell asleep or had a medical emergency",
-  "Animal strike",
-  "Cargo or debris from another vehicle",
-  "Infrastructure failure (road, bridge, or signal defect)",
-  "Other vehicle mechanical failure",
-  "Suicide attempt by another person",
-  "Weather event or natural disaster",
-  "Struck in a work zone (not carrier's negligence)",
-  "Struck by a train or railroad equipment",
-  "Rail crossing signal or gate failure",
-  "Vehicle ahead stopped or turned unexpectedly",
-  "Struck while loading or unloading",
-  "Struck by a vehicle crossing the median",
-  "Other — crash circumstances beyond the carrier's control",
-];
+const ELIGIBLE_TYPES_EXPANDED = CPDP_ELIGIBILITY_QUESTIONS.map(
+  (question) => question.label
+);
 
 const ELIGIBLE_TYPES_LEGACY = [
   "Struck in the rear",
@@ -181,6 +166,10 @@ export interface CpdpCaseRow {
   par_identity_confirmed: boolean;
   par_confirmed_at: string | null;
   par_confirmed_by: string | null;
+  par_ai_assessment: ParAiAssessment | null;
+  par_review_assessment: Record<string, unknown> | null;
+  par_assessment_status: "awaiting_par" | "assessing" | "ready_for_review" | "approved" | "failed";
+  par_assessment_error: string | null;
 }
 
 export interface CrashRow {
@@ -194,6 +183,29 @@ export interface CrashRow {
   injuries: number;
   hazmat_release: boolean;
   cpdp_eligible: boolean | null;
+  report_sequence_number: string | null;
+  location: string | null;
+  trafficway: string | null;
+  access_control_desc: string | null;
+  road_surface_condition: string | null;
+  weather_condition: string | null;
+  light_condition: string | null;
+  vehicle_configuration: string | null;
+  severity_weight: number | null;
+  time_weight: number | null;
+  citation_issued: boolean | null;
+  fmcsa_not_preventable: boolean | null;
+  vehicle_identification_number: string | null;
+  vehicle_license_number: string | null;
+  vehicle_license_state: string | null;
+  federal_recordable: boolean | null;
+  state_recordable: boolean | null;
+  fmcsa_crash_sources_fetched_at: string | null;
+  par_document_id: string | null;
+  par_document_source: string | null;
+  par_received_at: string | null;
+  par_local_report_number: string | null;
+  raw_data: Record<string, unknown> | null;
 }
 
 export interface EvidenceItem {
@@ -218,6 +230,26 @@ interface Props {
   crash: CrashRow;
   initialEvidence: EvidenceItem[];
   parRetrievalStatus: "ready" | "not_configured";
+}
+
+function assessmentForDisplay(cpdpCase: CpdpCaseRow): ParAiAssessment | null {
+  const ai = cpdpCase.par_ai_assessment;
+  const review = cpdpCase.par_review_assessment as
+    | (Partial<ParAiAssessment> & {
+        identity?: ParAiAssessment["identity"] & { confirmed?: boolean };
+      })
+    | null;
+  if (cpdpCase.par_assessment_status !== "approved" || !ai || !review) {
+    return ai;
+  }
+  return {
+    ...ai,
+    ...review,
+    identity: { ...ai.identity, ...(review.identity ?? {}) },
+    questions: Array.isArray(review.questions) ? review.questions : ai.questions,
+    draftedNarrative:
+      cpdpCase.final_narrative ?? review.draftedNarrative ?? ai.draftedNarrative,
+  } as ParAiAssessment;
 }
 
 // ─── Evidence status pill ─────────────────────────────────────────────────────
@@ -286,6 +318,13 @@ export function CpdpCaseEditor({
   const [aiSuggestedTypes, setAiSuggestedTypes] = useState<string[]>(
     cpdpCase.ai_suggested_types ?? []
   );
+  const [parAiAssessment, setParAiAssessment] = useState<ParAiAssessment | null>(
+    assessmentForDisplay(cpdpCase)
+  );
+  const [assessmentStatus, setAssessmentStatus] = useState(cpdpCase.par_assessment_status);
+  const [assessmentError, setAssessmentError] = useState<string | null>(
+    cpdpCase.par_assessment_error ?? null
+  );
 
   // PAR identity confirmation state
   const [parConfirmed, setParConfirmed] = useState<boolean>(
@@ -332,6 +371,7 @@ export function CpdpCaseEditor({
   const parReceived = evidence.some(
     (e) => e.doc_type === "police_report" && e.status === "received"
   );
+  const parApproved = assessmentStatus === "approved";
   const blockReason = narrativeBlockReason(narrative);
   const hasEvidence = evidence.length > 0;
   const authorizationOverrideActive =
@@ -343,7 +383,8 @@ export function CpdpCaseEditor({
     status !== "pending" && // 'pending' is deprecated but guarded defensively
     !blockReason &&
     narrative.trim().length > 50 &&
-    (parReceived || overrideChecked) &&
+    parReceived &&
+    parApproved &&
     authorizationGateSatisfied;
   const filingReady = toFilingReadyNarrative(narrative);
   const selectedTypeSummary =
@@ -402,6 +443,28 @@ export function CpdpCaseEditor({
     setUploadErrors((prev) => { const n = { ...prev }; delete n[evidId]; return n; });
     const evidItem = evidence.find((e) => e.id === evidId);
     const isPar = evidItem?.doc_type === "police_report";
+    const previousParState = {
+      assessment: parAiAssessment,
+      status: assessmentStatus,
+      error: assessmentError,
+      verdict: aiVerdict,
+      rationale: aiRationale,
+      suggestedTypes: aiSuggestedTypes,
+      selectedTypes,
+      narrative,
+      confirmed: parConfirmed,
+    };
+    if (isPar) {
+      setAssessmentStatus("assessing");
+      setAssessmentError(null);
+      setParAiAssessment(null);
+      setAiVerdict(null);
+      setAiRationale(null);
+      setAiSuggestedTypes([]);
+      setSelectedTypes([]);
+      setNarrative("");
+      setParConfirmed(false);
+    }
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -411,6 +474,25 @@ export function CpdpCaseEditor({
       });
       const data = await res.json();
       if (!res.ok) {
+        if (isPar && data.stored) {
+          setEvidence((prev) =>
+            prev.map((item) =>
+              item.id === evidId ? { ...item, status: "received", uploaded_by: "staff" } : item
+            )
+          );
+          setAssessmentStatus("failed");
+          setAssessmentError(data.error ?? "PAR was stored, but assessment failed");
+        } else if (isPar) {
+          setParAiAssessment(previousParState.assessment);
+          setAssessmentStatus(previousParState.status);
+          setAssessmentError(previousParState.error);
+          setAiVerdict(previousParState.verdict);
+          setAiRationale(previousParState.rationale);
+          setAiSuggestedTypes(previousParState.suggestedTypes);
+          setSelectedTypes(previousParState.selectedTypes);
+          setNarrative(previousParState.narrative);
+          setParConfirmed(previousParState.confirmed);
+        }
         setUploadErrors((prev) => ({ ...prev, [evidId]: data.error ?? "Upload failed" }));
         return;
       }
@@ -420,26 +502,25 @@ export function CpdpCaseEditor({
           e.id === evidId ? { ...e, status: "received", uploaded_by: "geia" } : e
         )
       );
-      // If the PAR was uploaded and the server returned an eligibility assessment,
-      // update §1 state and auto-trigger the narrative draft.
+      // A PAR upload returns the complete, validated 21-question assessment.
       if (isPar && data.assessment) {
-        const { verdict, eligibleTypes, reasoning } = data.assessment as {
-          verdict: string;
-          eligibleTypes: string[];
-          reasoning: string;
-        };
-        setAiVerdict(verdict ?? null);
-        setAiRationale(reasoning ?? null);
-        setAiSuggestedTypes(eligibleTypes ?? []);
-        // Pre-select AI-suggested types if the human hasn't made a selection yet
-        setSelectedTypes((prev) =>
-          prev.length === 0 && eligibleTypes.length > 0 ? eligibleTypes : prev
-        );
-        // Auto-draft the narrative from the newly uploaded PAR
-        generateNarrative();
+        const assessment = data.assessment as ParAiAssessment;
+        const suggestedTypes = (data.suggestedTypes ?? []) as string[];
+        setParAiAssessment(assessment);
+        setAssessmentStatus("ready_for_review");
+        setAssessmentError(null);
+        setAiVerdict(assessment.verdict);
+        setAiRationale(assessment.overallReasoning);
+        setAiSuggestedTypes(suggestedTypes);
+        setNarrative(assessment.draftedNarrative ?? "");
       }
-    } catch {
-      setUploadErrors((prev) => ({ ...prev, [evidId]: "Network error" }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Network error";
+      setUploadErrors((prev) => ({ ...prev, [evidId]: message }));
+      if (isPar) {
+        setAssessmentStatus("failed");
+        setAssessmentError(message);
+      }
     } finally {
       setUploadingId(null);
     }
@@ -549,11 +630,6 @@ export function CpdpCaseEditor({
         .filter(Boolean)
         .join("\n\n");
       if (combinedFilingNotes) payload.filing_notes = combinedFilingNotes;
-      if (overrideChecked) {
-        payload.filed_without_evidence = true;
-        payload.override_reason = overrideReason.trim() || null;
-      }
-
       const res = await fetch(`/api/cases/cpdp/${caseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -618,6 +694,43 @@ export function CpdpCaseEditor({
             <p className="text-xs text-gray-500">
               Report: {crash.report_number}
             </p>
+            <div className="mt-4 grid gap-x-6 gap-y-2 text-[11px] text-gray-600 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ["Report sequence", crash.report_sequence_number],
+                ["Location", crash.location],
+                ["Trafficway", crash.trafficway],
+                ["Access control", crash.access_control_desc],
+                ["Road surface", crash.road_surface_condition],
+                ["Weather", crash.weather_condition],
+                ["Light", crash.light_condition],
+                ["Vehicle configuration", crash.vehicle_configuration],
+                ["Severity weight", crash.severity_weight],
+                ["Time weight", crash.time_weight],
+                ["Citation issued", crash.citation_issued === null ? null : crash.citation_issued ? "Yes" : "No"],
+                ["FMCSA not preventable", crash.fmcsa_not_preventable === null ? null : crash.fmcsa_not_preventable ? "Yes" : "No"],
+                ["VIN", crash.vehicle_identification_number],
+                ["Vehicle plate", [crash.vehicle_license_number, crash.vehicle_license_state].filter(Boolean).join(" · ") || null],
+                ["Federal recordable", crash.federal_recordable === null ? null : crash.federal_recordable ? "Yes" : "No"],
+                ["State recordable", crash.state_recordable === null ? null : crash.state_recordable ? "Yes" : "No"],
+              ].map(([label, value]) => (
+                <div key={String(label)}>
+                  <span className="font-semibold text-[#1E1C1A]">{label}: </span>
+                  <span>{value ?? "Not supplied by source"}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[10px] text-gray-400">
+              FMCSA crash sources fetched {crash.fmcsa_crash_sources_fetched_at ? formatDate(crash.fmcsa_crash_sources_fetched_at) : "not yet"}
+              {crash.par_received_at ? ` · PAR received ${formatDate(crash.par_received_at)} via ${crash.par_document_source ?? "unknown source"}` : ""}
+            </p>
+            {crash.raw_data && Object.keys(crash.raw_data).length > 0 && (
+              <details className="mt-3 rounded-lg border border-[#E6DED2] bg-white p-3">
+                <summary className="cursor-pointer text-[11px] font-semibold text-[#1E1C1A]">Full FMCSA source rows</summary>
+                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-gray-600">
+                  {JSON.stringify(crash.raw_data, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       </div>
@@ -634,7 +747,7 @@ export function CpdpCaseEditor({
         </div>
 
         {/* AI assessment banner — shown after PAR is uploaded and assessed */}
-        {aiVerdict && (
+        {aiVerdict && !parAiAssessment && (
           <div
             className={`flex items-start gap-2.5 p-3 rounded-lg border ${
               aiVerdict === "ELIGIBLE"
@@ -695,6 +808,43 @@ export function CpdpCaseEditor({
           </div>
         )}
 
+        {!parReceived && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
+            <FileText className="mx-auto mb-2 h-6 w-6 text-amber-500" />
+            <p className="text-sm font-semibold text-amber-900">
+              Awaiting police report — upload or LexisNexis delivery
+            </p>
+          </div>
+        )}
+
+        {assessmentStatus === "assessing" && (
+          <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Reading the PAR and evaluating all 21 FMCSA questions…
+          </div>
+        )}
+        {assessmentError && (
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{assessmentError}</span>
+          </div>
+        )}
+        {parReceived && parAiAssessment && (
+          <ParAssessmentReview
+            caseId={caseId}
+            assessment={parAiAssessment}
+            approved={parApproved}
+            onApproved={(eligibleTypes, approvedNarrative) => {
+              setAssessmentStatus("approved");
+              setParConfirmed(true);
+              setSelectedTypes(eligibleTypes);
+              setNarrative(approvedNarrative ?? "");
+            }}
+          />
+        )}
+
+        {parReceived && !parAiAssessment && status !== "draft" && (
+          <>
         <p className="text-xs text-gray-500">
           Select all applicable types. This is asserted in the RFD narrative — ground it in the PAR.
         </p>
@@ -747,6 +897,8 @@ export function CpdpCaseEditor({
             {eligibilitySaved ? "Saved" : "Save eligibility"}
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Section 2: Evidence ────────────────────────────────────────────── */}
@@ -762,8 +914,8 @@ export function CpdpCaseEditor({
 
         {parRetrievalStatus === "not_configured" && !parReceived && (
           <div className="rounded-lg border border-[#F0E8DA] bg-white p-3">
-            <p className="text-xs font-semibold text-[#1E1C1A]">PAR retrieval pending account activation</p>
-            <p className="mt-1 text-[11px] text-gray-500">LexisNexis retrieval is not configured. Use the manual-upload path below; no report data is fabricated.</p>
+            <p className="text-xs font-semibold text-[#1E1C1A]">LexisNexis PAR delivery is not configured</p>
+            <p className="mt-1 text-[11px] text-gray-500">Use the manual-upload path below; no report data is fabricated.</p>
           </div>
         )}
 
@@ -786,7 +938,7 @@ export function CpdpCaseEditor({
         ) : (
           <div className="space-y-2">
             {/* PAR identity confirmation — shown when PAR is uploaded */}
-            {parReceived && (
+            {parReceived && !parAiAssessment && status !== "draft" && (
               <div className={`flex items-start gap-2.5 p-3 rounded-lg border ${
                 parConfirmed
                   ? "bg-green-50 border-green-200"
@@ -900,11 +1052,11 @@ export function CpdpCaseEditor({
           <div className="flex gap-2">
             <button
               onClick={generateNarrative}
-              disabled={generating}
+              disabled={generating || !parReceived || !parApproved}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
             >
               {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Edit3 className="w-3 h-3" />}
-              {generating ? "Generating…" : parReceived ? "Re-generate from PAR" : "Generate draft"}
+              {generating ? "Generating…" : parApproved ? "Re-generate from approved PAR" : "PAR approval required"}
             </button>
             {narrative && (
               <button
@@ -926,8 +1078,7 @@ export function CpdpCaseEditor({
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700">
-              Upload the Police Accident Report before generating the narrative. Without the PAR,
-              the AI cannot assert verifiable facts and will return a provisional draft only.
+              Awaiting police report — upload or LexisNexis delivery. SafeScore will not create an eligibility determination or filing narrative from metadata alone.
             </p>
           </div>
         )}
@@ -960,8 +1111,9 @@ export function CpdpCaseEditor({
         <textarea
           className="w-full min-h-[200px] p-3 text-xs text-[#1E1C1A] bg-gray-50 border border-[#F0E8DA] rounded-lg resize-y font-mono focus:outline-none focus:border-[#C67A1E]"
           value={narrative}
+          disabled={!parApproved}
           onChange={(e) => setNarrative(e.target.value)}
-          placeholder="AI-generated narrative will appear here. You can edit before saving."
+          placeholder={parApproved ? "Edit the approved PAR-grounded narrative." : "Approve the PAR determination review before editing the final narrative."}
         />
 
         <div className="flex items-center justify-between">
@@ -970,7 +1122,7 @@ export function CpdpCaseEditor({
           </span>
           <button
             onClick={saveNarrative}
-            disabled={narrativeSaving || !!blockReason || narrative.trim().length < 10}
+            disabled={!parApproved || narrativeSaving || !!blockReason || narrative.trim().length < 10}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#C67A1E] text-white rounded-lg hover:bg-[#B86E18] disabled:opacity-50 transition-colors"
           >
             {narrativeSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : narrativeSaved ? <Check className="w-3 h-3" /> : null}
@@ -1231,32 +1383,6 @@ export function CpdpCaseEditor({
                       </div>
                     </div>
 
-                    {/* PAR gate override */}
-                    {!parReceived && hasEvidence && (
-                      <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <label className="flex items-start gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="mt-0.5 accent-[#C67A1E]"
-                            checked={overrideChecked}
-                            onChange={(e) => setOverrideChecked(e.target.checked)}
-                          />
-                          <span className="text-xs text-amber-800">
-                            File without PAR - I understand FMCSA may not review this submission without a Police Accident Report.
-                          </span>
-                        </label>
-                        {overrideChecked && (
-                          <input
-                            type="text"
-                            value={overrideReason}
-                            onChange={(e) => setOverrideReason(e.target.value)}
-                            placeholder="Reason (e.g. PAR unavailable - proceeding with dashcam)"
-                            className="w-full px-2 py-1 text-xs border border-amber-300 rounded bg-white focus:outline-none"
-                          />
-                        )}
-                      </div>
-                    )}
-
                     {!filingAuthorized && (
                       <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <label className="flex items-start gap-2 cursor-pointer">
@@ -1296,8 +1422,10 @@ export function CpdpCaseEditor({
                             ? blockReason ??
                               (!authorizationGateSatisfied
                                 ? "Client filing authorization is required, or use the authorization override below."
-                                : !parReceived && !overrideChecked
-                                ? "Upload the PAR or enable the override"
+                                : !parReceived
+                                ? "Upload the Police Accident Report"
+                                : !parApproved
+                                ? "Approve the PAR determination review"
                                 : narrative.trim().length < 50
                                 ? "Add a narrative before filing"
                                 : "")
@@ -1313,8 +1441,10 @@ export function CpdpCaseEditor({
                             ? "Resolve narrative issues"
                             : !authorizationGateSatisfied
                             ? "Client authorization required - obtain it or use override"
-                            : !parReceived && !overrideChecked
-                            ? "PAR required - upload or override"
+                            : !parReceived
+                            ? "PAR required"
+                            : !parApproved
+                            ? "PAR review approval required"
                             : narrative.trim().length < 50
                             ? "Narrative too short"
                             : ""}

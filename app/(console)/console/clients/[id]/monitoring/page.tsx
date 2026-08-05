@@ -84,7 +84,17 @@ export default async function MonitoringPage({
         }
       : null,
   ]);
-  const watchStatus = monitoringWatchStatusText({ lastCheck });
+  const snapshotStatus = latestMonitoringRun?.metadata?.snapshot_status;
+  const watchStatus = monitoringWatchStatusText({
+    lastCheck,
+    lastRun: latestMonitoringRun
+      ? {
+          timestamp: latestMonitoringRun.created_at,
+          snapshotStatus: typeof snapshotStatus === "string" ? snapshotStatus : null,
+        }
+      : null,
+    lastSnapshot: latest ? { timestamp: latest.captured_at } : null,
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">

@@ -27,13 +27,15 @@ export function CpdpCreateButton({ clientId, crashId, clientTier }: Props) {
         body: JSON.stringify({ clientId, crashId }),
       });
       if (res.ok) {
-        router.refresh();
+        const data = await res.json();
+        if (!data.caseId) throw new Error("CPDP case creation returned no case ID");
+        router.push(`/console/clients/${clientId}/cpdp/${data.caseId}`);
       } else {
         const data = await res.json();
         setError(data.error ?? "Failed to create case");
       }
-    } catch {
-      setError("Network error — please try again");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Network error — please try again");
     } finally {
       setLoading(false);
     }

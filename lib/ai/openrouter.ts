@@ -12,6 +12,7 @@ import {
   type ChallengeabilityAssessment,
   type ChallengeabilityRecord,
 } from "@/lib/analysis/challengeability-rubric";
+import { CPDP_ELIGIBILITY_QUESTIONS } from "@/lib/cpdp/par-assessment-types";
 
 const MODEL = "anthropic/claude-sonnet-4-6";
 const NARRATIVE_MODEL = "anthropic/claude-opus-4.8";
@@ -318,29 +319,9 @@ Return this exact JSON structure:
 }
 
 // Expanded 21-type list for crashes on/after 2024-12-01 (mirrors the editor constant)
-const CPDP_TYPES_EXPANDED = [
-  "Struck in the rear by another vehicle",
-  "Struck while legally stopped or parked",
-  "Wrong-direction or illegal U-turn by another vehicle",
-  "Struck by an impaired driver",
-  "Struck by a distracted driver",
-  "Struck by a vehicle changing lanes",
-  "Failure to stop at traffic control device by another vehicle",
-  "Other driver fell asleep or had a medical emergency",
-  "Animal strike",
-  "Cargo or debris from another vehicle",
-  "Infrastructure failure (road, bridge, or signal defect)",
-  "Other vehicle mechanical failure",
-  "Suicide attempt by another person",
-  "Weather event or natural disaster",
-  "Struck in a work zone (not carrier's negligence)",
-  "Struck by a train or railroad equipment",
-  "Rail crossing signal or gate failure",
-  "Vehicle ahead stopped or turned unexpectedly",
-  "Struck while loading or unloading",
-  "Struck by a vehicle crossing the median",
-  "Other — crash circumstances beyond the carrier's control",
-];
+const CPDP_TYPES_EXPANDED = CPDP_ELIGIBILITY_QUESTIONS.map(
+  (question) => question.label
+);
 
 const CPDP_TYPES_LEGACY = [
   "Struck in the rear",

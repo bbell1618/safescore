@@ -44,3 +44,4 @@ next-env.d.ts
 
 # Local state for the two-stage synthetic onboarding verifier (contains one-time URLs)
 tmp/onboarding-fix-live-state.json
+.env*.local
