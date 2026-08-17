@@ -17,11 +17,26 @@ export type ReportContentBlock =
   | { type: "table"; headers: string[]; rows: string[][] };
 
 const REPORT_SECTION_HEADINGS = new Set([
+  "Safety Profile Overview",
+  "Where the Burden Sits",
+  "Crash Record",
+  "What We Recommend",
+  "What Happens Next",
   "Burden Trend",
   "Diagnostic Snapshot",
-  "Priority Findings",
   "New Violations",
+  "Priority Findings",
   "Open Challenges",
+  "Changes This Quarter",
+  "Engagement Summary",
+  "Measured Improvement",
+  "Work Performed",
+  "Current Standing",
+  "Carrier Overview",
+  "Remediation Work Completed",
+  "Current Safety Standing",
+  "Ongoing Safety Management",
+  // Retain the former optional headings so historical reports still render.
   "Coaching Program",
   "Compliance Sweep",
 ]);

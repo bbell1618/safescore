@@ -191,50 +191,24 @@ for (const [file, feature] of Object.entries(apiGuards)) {
   assert.match(source, /status:\s*403/);
 }
 
-const richSectionPlan = Object.fromEntries(
-  CLIENT_TIERS.map((serviceTier) => [
-    serviceTier,
-    buildReportSectionPlan({
-      serviceTier,
-      newViolationCount: 2,
-      openChallengeCount: 2,
-      coachingItemCount: 1,
-      hasComplianceData: true,
-    }).map((section) => section.heading),
-  ])
-);
-
-assert.deepEqual(richSectionPlan.assessment, [
-  REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-  REPORT_SECTION_HEADINGS.priorityFindings,
-]);
-assert.deepEqual(richSectionPlan.monitor, [
-  REPORT_SECTION_HEADINGS.burdenTrend,
-  REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-  REPORT_SECTION_HEADINGS.priorityFindings,
-  REPORT_SECTION_HEADINGS.newViolations,
-]);
-assert.deepEqual(richSectionPlan.remediate, [
-  ...richSectionPlan.monitor,
-  REPORT_SECTION_HEADINGS.openChallenges,
-  REPORT_SECTION_HEADINGS.coachingProgram,
-]);
-assert.deepEqual(richSectionPlan.total_safety, [
-  ...richSectionPlan.remediate,
-  REPORT_SECTION_HEADINGS.complianceSweep,
-]);
-
-const optionalSectionsOmitted = buildReportSectionPlan({
+const totalSafetyUnderwriter = buildReportSectionPlan({
+  reportType: "underwriter",
   serviceTier: "total_safety",
-  newViolationCount: 0,
-  openChallengeCount: 0,
-  coachingItemCount: 0,
-  hasComplianceData: false,
 }).map((section) => section.heading);
-assert.ok(!optionalSectionsOmitted.includes(REPORT_SECTION_HEADINGS.newViolations));
-assert.ok(!optionalSectionsOmitted.includes(REPORT_SECTION_HEADINGS.openChallenges));
-assert.ok(!optionalSectionsOmitted.includes(REPORT_SECTION_HEADINGS.coachingProgram));
-assert.ok(!optionalSectionsOmitted.includes(REPORT_SECTION_HEADINGS.complianceSweep));
+const remediateUnderwriter = buildReportSectionPlan({
+  reportType: "underwriter",
+  serviceTier: "remediate",
+}).map((section) => section.heading);
+assert.ok(
+  totalSafetyUnderwriter.includes(
+    REPORT_SECTION_HEADINGS.ongoingSafetyManagement
+  )
+);
+assert.ok(
+  !remediateUnderwriter.includes(
+    REPORT_SECTION_HEADINGS.ongoingSafetyManagement
+  )
+);
 
 const cronSource = readFileSync(
   resolve(process.cwd(), "app/api/cron/monitoring-refresh/route.ts"),
@@ -297,8 +271,10 @@ console.log(
         subscriptionHistoryLimit: 8,
         serviceActivityMinimum: "monitor",
       },
-      reportSections: richSectionPlan,
-      optionalSectionsOmitted,
+      reportSections: {
+        totalSafetyUnderwriter,
+        remediateUnderwriter,
+      },
       cronTiers: SUBSCRIPTION_TIERS,
     },
     null,

@@ -565,13 +565,13 @@ Use the AI generator in `/console/clients/{client_id}/reports`.
 
 ![Synthetic console report generator showing all five operator report choices](./sop-assets/19-console-reports.png)
 
-| Report type | Intended use |
-| --- | --- |
-| Initial assessment | Full safety profile and recommendations used to onboard a new client |
-| Monthly progress | Burden trend, new violations, and next priorities; Open Challenges for Remediate and above |
-| Quarterly re-analysis | Comprehensive before/after re-analysis |
-| Improvement report | Summary of achieved score improvement for insurance re-marketing |
-| Underwriter report | Carrier-ready summary of completed remediation work for insurance carriers |
+| Report type | Audience | Comparison anchor | Sections, in order |
+| --- | --- | --- | --- |
+| Initial assessment | Client (onboarding) | None. This report never compares the carrier with a previous period. | Safety Profile Overview; Where the Burden Sits; Crash Record; What We Recommend; What Happens Next |
+| Monthly progress | Client | Snapshot closest to 30 days before the latest snapshot, provided it is at least 14 days older; otherwise this is the first reporting period. | Burden Trend; Diagnostic Snapshot; New Violations; Priority Findings; Open Challenges |
+| Quarterly re-analysis | Client | Snapshot closest to 90 days before the latest snapshot, provided it is at least 45 days older; otherwise this is the first reporting period. | Burden Trend; Diagnostic Snapshot; Changes This Quarter; Priority Findings; Open Challenges |
+| Improvement report | External insurance re-marketing audience | Earliest snapshot on file (the engagement baseline). | Engagement Summary; Measured Improvement; Work Performed; Current Standing |
+| Underwriter report | Insurance carrier underwriting | Earliest snapshot on file (the engagement baseline). | Carrier Overview; Remediation Work Completed; Current Safety Standing; Ongoing Safety Management (Total Safety only) |
 
 ### Review ritual
 
@@ -586,10 +586,11 @@ Use the AI generator in `/console/clients/{client_id}/reports`.
    - tier-appropriate sections;
    - fixed GEIA preparer block;
    - no bracket placeholders or `[VERIFY:]` tokens.
-5. Compare the preserved AI draft with the editable final copy.
-6. Select **Edit final copy**, make only supported changes, then **Save edits**.
-7. Use **Print view** for a client-presentable review/PDF proof.
-8. Select **Mark reviewed** only after the final copy is approved. SafeScore records reviewer and timestamp.
+5. Confirm the report matches its type's audience — improvement and underwriter reports must contain no internal queue language and no client weakness rankings.
+6. Compare the preserved AI draft with the editable final copy.
+7. Select **Edit final copy**, make only supported changes, then **Save edits**.
+8. Use **Print view** for a client-presentable review/PDF proof.
+9. Select **Mark reviewed** only after the final copy is approved. SafeScore records reviewer and timestamp.
 
 The AI draft remains preserved; edits belong in final content.
 

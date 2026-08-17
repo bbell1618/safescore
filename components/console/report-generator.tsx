@@ -5,19 +5,17 @@ import { useState } from "react";
 import { ArrowRight, Edit3, FileText, Loader2 } from "lucide-react";
 import { ServiceTierChip } from "@/components/console/service-tier-chip";
 import { ReportContent } from "@/components/reports/report-content";
-import type { ClientTier } from "@/lib/supabase/types";
+import type { ClientTier, ReportType } from "@/lib/supabase/types";
 
 interface Props {
   clientId: string;
   clientTier: ClientTier;
 }
 
-type ReportType = "assessment" | "monthly" | "quarterly" | "improvement" | "underwriter";
-
 const reportTypes: Array<{ value: ReportType; label: string; description: string }> = [
   { value: "assessment", label: "Initial assessment", description: "Full safety profile analysis with recommendations. Used to onboard new clients." },
-  { value: "monthly", label: "Monthly progress", description: "Burden trend, new violations, and next priorities. Open challenges are added for Remediate and above." },
-  { value: "quarterly", label: "Quarterly re-analysis", description: "Comprehensive re-analysis with before/after comparison." },
+  { value: "monthly", label: "Monthly progress", description: "30-day anchored burden trend, new violations, live portal requests, and open challenges." },
+  { value: "quarterly", label: "Quarterly re-analysis", description: "90-day anchored re-analysis with full per-BASIC before-and-after comparison." },
   { value: "improvement", label: "Improvement report", description: "Before/after summary of score improvements achieved. Used for insurance re-marketing." },
   { value: "underwriter", label: "Underwriter report", description: "Carrier-ready document showing remediation work completed. Submitted to insurance carriers." },
 ];

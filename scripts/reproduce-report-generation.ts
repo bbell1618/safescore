@@ -6,10 +6,10 @@ import {
   buildReportPrompts,
   formatReportDate,
   generateValidatedReport,
-  selectReportSnapshotPair,
+  selectReportSnapshots,
   type ReportCaseRow,
-  type ReportCoachingItemRow,
-  type ReportComplianceInput,
+  type ReportOpenRequestRow,
+  type ReportPriorityViolationRow,
   type ReportSnapshotRow,
   type ReportViolationRow,
 } from "../lib/reports/report-generation";
@@ -25,6 +25,10 @@ type StoredCaseRow = {
   final_narrative: string | null;
   ai_narrative: string | null;
   filing_notes: string | null;
+  filed_date: string | null;
+  outcome: string | null;
+  outcome_date?: string | null;
+  determination_date?: string | null;
 };
 
 type NewViolationQueryRow = {
@@ -32,8 +36,14 @@ type NewViolationQueryRow = {
   inspection_id: string;
   violation_code: string;
   violation_description: string;
+  basic_category: string | null;
   severity_weight: number | null;
   oos_violation: boolean;
+  convicted: boolean | null;
+  citation_number: string | null;
+  citation_result: string | null;
+  challenge_reason: string | null;
+  challenge_tier: ReportPriorityViolationRow["challenge_tier"];
   created_at: string;
   inspections:
     | { inspection_date: string | null }
@@ -115,12 +125,8 @@ async function main() {
     snapshotsResult,
     dataqResult,
     cpdpResult,
-    coachingResult,
-    driversResult,
-    driverDocumentsResult,
-    vehiclesResult,
-    maintenanceResult,
-    clearinghouseResult,
+    violationsResult,
+    openRequestsResult,
   ] = await Promise.all([
     service
       .from("clients")
@@ -135,59 +141,42 @@ async function main() {
       .eq("client_id", clientId)
       .order("captured_at", { ascending: false })
       .order("id", { ascending: false })
-      .limit(2),
+      .limit(1000),
     service
       .from("dataq_cases")
       .select(
-        "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
+        "case_number, status, final_narrative, ai_narrative, filing_notes, filed_date, outcome, outcome_date, created_at"
       )
       .eq("client_id", clientId)
-      .not("status", "in", '("approved","denied","closed")')
+      .neq("status", "draft")
       .order("created_at", { ascending: true })
       .order("id", { ascending: true }),
     service
       .from("cpdp_cases")
       .select(
-        "case_number, status, final_narrative, ai_narrative, filing_notes, created_at"
+        "case_number, status, final_narrative, ai_narrative, filing_notes, filed_date, outcome, determination_date, created_at"
       )
       .eq("client_id", clientId)
-      .not("status", "in", '("determination_made","closed")')
+      .neq("status", "draft")
       .order("created_at", { ascending: true })
       .order("id", { ascending: true }),
     service
-      .from("action_items")
+      .from("violations")
       .select(
-        "type, title, description, priority, projected_impact_score, status, due_date"
+        "id, inspection_id, violation_code, violation_description, basic_category, severity_weight, oos_violation, convicted, citation_number, citation_result, challenge_reason, challenge_tier, created_at, inspections(inspection_date)"
       )
       .eq("client_id", clientId)
-      .neq("status", "dismissed")
-      .order("priority", { ascending: true })
       .order("created_at", { ascending: true }),
     service
-      .from("drivers")
-      .select("cdl_number, cdl_expiry, medical_cert_expiry")
+      .from("client_requests")
+      .select(
+        "id, title, status, request_type, evidence_class, evidence_status, requested_items, violation_id, violations!client_requests_violation_id_fkey(violation_code)"
+      )
       .eq("client_id", clientId)
-      .eq("status", "active"),
-    service
-      .from("driver_documents")
-      .select("doc_type, expiry_date, status")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: true }),
-    service
-      .from("vehicles")
-      .select("id")
-      .eq("client_id", clientId)
-      .eq("status", "active"),
-    service
-      .from("vehicle_maintenance")
-      .select("maintenance_type, scheduled_date, completed_date, notes")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: true }),
-    service
-      .from("clearinghouse_records")
-      .select("query_date, result_type")
-      .eq("client_id", clientId)
-      .order("query_date", { ascending: true }),
+      .eq("responsibility", "client")
+      .eq("status", "open")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
 
   for (const [label, result] of [
@@ -195,12 +184,8 @@ async function main() {
     ["snapshots", snapshotsResult],
     ["DataQ cases", dataqResult],
     ["CPDP cases", cpdpResult],
-    ["coaching", coachingResult],
-    ["drivers", driversResult],
-    ["driver documents", driverDocumentsResult],
-    ["vehicles", vehiclesResult],
-    ["maintenance", maintenanceResult],
-    ["clearinghouse", clearinghouseResult],
+    ["violations", violationsResult],
+    ["open requests", openRequestsResult],
   ] as const) {
     if (result.error) throw new Error(`${label}: ${result.error.message}`);
   }
@@ -210,51 +195,22 @@ async function main() {
   if (snapshotCandidates.length === 0) {
     throw new Error("No burden snapshot is available.");
   }
-  if (
-    snapshotCandidates.length > 1 &&
-    snapshotCandidates[0]!.snapshot_date ===
-      snapshotCandidates[1]!.snapshot_date
-  ) {
-    const priorDateResult = await service
-      .from("burden_snapshots")
-      .select(
-        "id, snapshot_date, captured_at, source, total_points, per_basic, violation_count, inspection_count, crash_count, oos_count"
-      )
-      .eq("client_id", clientId)
-      .lt("snapshot_date", snapshotCandidates[0]!.snapshot_date)
-      .order("captured_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(1);
-    if (priorDateResult.error) throw priorDateResult.error;
-    const priorDateSnapshot = (priorDateResult.data ??
-      [])[0] as unknown as ReportSnapshotRow | undefined;
-    if (priorDateSnapshot) snapshotCandidates.push(priorDateSnapshot);
-  }
-  const snapshotSelection = selectReportSnapshotPair(
-    snapshotCandidates,
-    true
-  );
+  const snapshotSelection = selectReportSnapshots(snapshotCandidates, "monthly");
   const snapshots = snapshotSelection.snapshots;
 
   const canonicalScope = await getCanonicalInspectionScope(clientId, service);
+  const canonicalIds = new Set(canonicalScope.inspectionIds);
+  const canonicalViolations = (
+    (violationsResult.data ?? []) as unknown as NewViolationQueryRow[]
+  ).filter((row) => canonicalIds.has(row.inspection_id));
   let newViolations: ReportViolationRow[] = [];
   if (snapshots[1]) {
-    const violationsResult = await service
-      .from("violations")
-      .select(
-        "id, inspection_id, violation_code, violation_description, severity_weight, oos_violation, created_at, inspections(inspection_date)"
+    newViolations = canonicalViolations
+      .filter(
+        (row) =>
+          row.created_at > snapshots[1]!.captured_at &&
+          row.created_at <= snapshots[0]!.captured_at
       )
-      .eq("client_id", clientId)
-      .gt("created_at", snapshots[1].captured_at)
-      .lte("created_at", snapshots[0].captured_at)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
-    if (violationsResult.error) throw violationsResult.error;
-    const canonicalIds = new Set(canonicalScope.inspectionIds);
-    newViolations = (
-      (violationsResult.data ?? []) as unknown as NewViolationQueryRow[]
-    )
-      .filter((row) => canonicalIds.has(row.inspection_id))
       .map((row) => ({
         id: row.id,
         violation_code: row.violation_code,
@@ -271,24 +227,51 @@ async function main() {
       case_number: row.case_number,
       status: row.status,
       description: storedCaseDescription(row),
+      filed_date: row.filed_date,
+      outcome: row.outcome,
+      outcome_date: row.outcome_date ?? null,
     })),
     ...((cpdpResult.data ?? []) as unknown as StoredCaseRow[]).map((row) => ({
       case_type: "CPDP" as const,
       case_number: row.case_number,
       status: row.status,
       description: storedCaseDescription(row),
+      filed_date: row.filed_date,
+      outcome: row.outcome,
+      outcome_date: row.determination_date ?? null,
     })),
   ];
-  const compliance: ReportComplianceInput = {
-    drivers: (driversResult.data ?? []) as ReportComplianceInput["drivers"],
-    driverDocuments: (driverDocumentsResult.data ??
-      []) as ReportComplianceInput["driverDocuments"],
-    vehicles: (vehiclesResult.data ?? []) as ReportComplianceInput["vehicles"],
-    maintenanceRecords: (maintenanceResult.data ??
-      []) as ReportComplianceInput["maintenanceRecords"],
-    clearinghouseRecords: (clearinghouseResult.data ??
-      []) as ReportComplianceInput["clearinghouseRecords"],
-  };
+  const priorityViolations: ReportPriorityViolationRow[] = canonicalViolations.map(
+    (row) => ({
+      id: row.id,
+      violation_code: row.violation_code,
+      violation_description: row.violation_description,
+      basic_category: row.basic_category,
+      severity_weight: row.severity_weight,
+      oos_violation: row.oos_violation,
+      convicted: row.convicted,
+      citation_number: row.citation_number,
+      citation_result: row.citation_result,
+      challenge_reason: row.challenge_reason,
+      challenge_tier: row.challenge_tier,
+      inspection_date: inspectionDate(row),
+    })
+  );
+  const openRequests = (openRequestsResult.data ?? []).map((row) => {
+    const violation = Array.isArray(row.violations)
+      ? row.violations[0]
+      : row.violations;
+    return {
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      request_type: row.request_type,
+      evidence_class: row.evidence_class,
+      evidence_status: row.evidence_status,
+      violation_code: violation?.violation_code ?? null,
+      requested_items: row.requested_items,
+    } satisfies ReportOpenRequestRow;
+  });
   const client = clientResult.data!;
   const reportData = buildReportGenerationData({
     reportType: "monthly",
@@ -301,10 +284,11 @@ async function main() {
     },
     snapshots,
     newViolations,
+    onFileViolationCount: canonicalViolations.length,
+    priorityViolations,
+    priorityAsOf: new Date(snapshots[0]!.captured_at),
     cases,
-    coachingItems: (coachingResult.data ??
-      []) as unknown as ReportCoachingItemRow[],
-    compliance,
+    openRequests,
   });
   const prompts = buildReportPrompts(reportData);
   const attempts: Array<{
@@ -342,7 +326,6 @@ async function main() {
         selection: {
           queryOrder: ["captured_at DESC", "id DESC"],
           strategy: snapshotSelection.strategy,
-          immediatePairIds: snapshotSelection.immediatePairIds,
           selectedSnapshotIds: snapshots.map((snapshot) => snapshot.id),
           canonicalInspectionSource: canonicalScope.source,
         },

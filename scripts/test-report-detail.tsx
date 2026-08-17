@@ -64,6 +64,53 @@ assert.match(markup, /href="https:\/\/www\.fmcsa\.dot\.gov\/"/);
 assert.doesNotMatch(markup, /<script>/);
 assert.match(markup, /&lt;script&gt;/);
 
+const runESectionHeadings = [
+  "Safety Profile Overview",
+  "Where the Burden Sits",
+  "Crash Record",
+  "What We Recommend",
+  "What Happens Next",
+  "Burden Trend",
+  "Diagnostic Snapshot",
+  "New Violations",
+  "Priority Findings",
+  "Open Challenges",
+  "Changes This Quarter",
+  "Engagement Summary",
+  "Measured Improvement",
+  "Work Performed",
+  "Current Standing",
+  "Carrier Overview",
+  "Remediation Work Completed",
+  "Current Safety Standing",
+  "Ongoing Safety Management",
+] as const;
+
+const runEContent = [
+  "Per-type report",
+  "Report date: August 17, 2026",
+  ...runESectionHeadings.flatMap((heading) => [
+    heading,
+    `Verified content for ${heading}.`,
+  ]),
+].join("\n\n");
+const runEBlocks = parseReportContent(runEContent);
+const runEHeadingBlocks = runEBlocks.filter(
+  (block): block is { type: "heading"; level: 1 | 2 | 3; text: string } =>
+    block.type === "heading" && block.level === 2
+);
+assert.deepEqual(
+  runEHeadingBlocks.map((block) => block.text),
+  runESectionHeadings
+);
+
+const runEMarkup = renderToStaticMarkup(
+  createElement(ReportContent, { content: runEContent })
+);
+for (const heading of runESectionHeadings) {
+  assert.match(runEMarkup, new RegExp(`<h2[^>]*>${heading}<\\/h2>`));
+}
+
 const emptyMarkup = renderToStaticMarkup(
   createElement(ReportContent, { content: "" })
 );
@@ -207,6 +254,7 @@ console.log(
     {
       passed: true,
       markdownBlocks: blocks.map((block) => block.type),
+      perTypeSectionHeadingsRendered: runESectionHeadings.length,
       aiContentPreserved: true,
       reviewedAudit: {
         reviewed_by: reviewUpdate.reviewed_by,

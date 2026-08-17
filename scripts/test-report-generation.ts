@@ -1,763 +1,801 @@
 import assert from "node:assert/strict";
-import type { ClientTier } from "../lib/supabase/types";
 import {
+  ASSESSMENT_NEXT_STEPS_COPY,
   FIRST_REPORTING_PERIOD_STATEMENT,
   PREPARER_BLOCK,
+  QUARTERLY_FIRST_REPORTING_PERIOD_STATEMENT,
   REPORT_SECTION_HEADINGS,
+  REPORT_TYPE_CONFIGS,
+  UNDERWRITER_TOTAL_SAFETY_COPY,
   assembleGeneratedReport,
   buildReportGenerationData,
   buildReportPrompts,
   findReportPlaceholders,
-  formatReportDate,
   generateValidatedReport,
-  normalizeModelSectionHeadings,
-  selectReportSnapshotPair,
+  selectComparisonSnapshot,
+  selectReportSnapshots,
+  summarizeOpenReportRequests,
   validateGeneratedReport,
   type ReportCaseRow,
-  type ReportCoachingItemRow,
-  type ReportComplianceInput,
   type ReportGenerationData,
+  type ReportOpenRequestRow,
   type ReportPriorityViolationRow,
   type ReportSnapshotRow,
-  type ReportViolationRow,
+  type ReportType,
 } from "../lib/reports/report-generation";
-import { formatViolationScopeFact } from "../lib/analysis/violation-scope-presentation";
 
-const latest: ReportSnapshotRow = {
-  id: "latest",
-  snapshot_date: "2026-07-21",
-  captured_at: "2026-07-21T22:58:57.243Z",
-  total_points: 599,
-  per_basic: [
-    {
-      basic_category: "unsafe_driving",
-      violation_count: 8,
-      weighted_points: 113,
-    },
+function snapshot(
+  id: string,
+  capturedAt: string,
+  totalPoints: number,
+  basics: ReportSnapshotRow["per_basic"] = [
     {
       basic_category: "vehicle_maintenance",
-      violation_count: 42,
-      weighted_points: 402,
-    },
-    {
-      basic_category: "driver_fitness",
-      violation_count: 1,
-      weighted_points: 4,
-    },
-    {
-      basic_category: "hos_compliance",
-      violation_count: 17,
-      weighted_points: 80,
-    },
-  ],
-  violation_count: 71,
-  inspection_count: 76,
-  crash_count: 4,
-  oos_count: 10,
-};
-
-const previous: ReportSnapshotRow = {
-  id: "previous",
-  snapshot_date: "2026-07-10",
-  captured_at: "2026-07-10T19:16:07.814Z",
-  total_points: 582,
-  per_basic: [
-    {
-      basic_category: "driver_fitness",
-      violation_count: 1,
-      weighted_points: 4,
-    },
-    {
-      basic_category: "vehicle_maintenance",
-      violation_count: 40,
-      weighted_points: 375,
-    },
-    {
-      basic_category: "hos_compliance",
-      violation_count: 17,
-      weighted_points: 80,
+      violation_count: 4,
+      weighted_points: totalPoints - 20,
     },
     {
       basic_category: "unsafe_driving",
-      violation_count: 8,
-      weighted_points: 123,
+      violation_count: 2,
+      weighted_points: 20,
     },
-  ],
-  violation_count: 69,
-  inspection_count: 73,
-  crash_count: 4,
-  oos_count: 9,
-};
+  ]
+): ReportSnapshotRow {
+  return {
+    id,
+    snapshot_date: capturedAt.slice(0, 10),
+    captured_at: capturedAt,
+    source: "scheduled_refresh",
+    total_points: totalPoints,
+    per_basic: basics,
+    violation_count: 8,
+    inspection_count: 6,
+    crash_count: 2,
+    oos_count: 1,
+  };
+}
 
-const newViolations: ReportViolationRow[] = [
-  {
-    id: "v-tire",
-    violation_code: "39375A3TAOLTIS",
-    violation_description: "Tire description",
-    severity_weight: 8,
-    oos_violation: false,
-    inspection_date: "2026-06-19",
-  },
-  {
-    id: "v-hub",
-    violation_code: "3965BHWSL",
-    violation_description: "Hubs - Wheel seal leaking",
-    severity_weight: 2,
-    oos_violation: true,
-    inspection_date: "2026-06-19",
-  },
-];
+const latest = snapshot("latest", "2026-08-13T13:00:00.000Z", 120);
+const monthlyAnchor = snapshot("monthly-anchor", "2026-07-14T13:00:00.000Z", 150);
+const quarterlyAnchor = snapshot("quarterly-anchor", "2026-05-15T13:00:00.000Z", 190);
+const earliest = snapshot("earliest", "2026-04-01T13:00:00.000Z", 210);
 
 const priorityViolations: ReportPriorityViolationRow[] = [
   {
-    id: "investigate-citation",
-    violation_code: "3922C",
-    violation_description: "Failure to obey traffic control device",
+    id: "strong",
+    violation_code: "3922SLLS4",
+    violation_description: "Speeding",
     basic_category: "unsafe_driving",
-    severity_weight: 7,
+    severity_weight: 10,
     oos_violation: false,
-    convicted: true,
-    citation_number: "DA251770",
-    citation_result: null,
-    challenge_reason: "Court disposition is not yet recorded.",
-    challenge_tier: "investigate",
-    inspection_date: "2026-06-19",
+    convicted: false,
+    citation_number: "CITE-1",
+    citation_result: "dismissed",
+    challenge_reason: null,
+    challenge_tier: "strong",
+    inspection_date: "2026-07-13",
   },
   {
-    id: "operational-tire",
-    violation_code: "39375A3TAOLTIS",
-    violation_description: "Tire load/condition issue",
+    id: "investigate",
+    violation_code: "39530B1",
+    violation_description: "ELD certification",
+    basic_category: "hos_compliance",
+    severity_weight: 4,
+    oos_violation: false,
+    convicted: null,
+    citation_number: null,
+    citation_result: null,
+    challenge_reason: null,
+    challenge_tier: "investigate",
+    inspection_date: "2026-06-01",
+  },
+  {
+    id: "operational",
+    violation_code: "39375A3",
+    violation_description: "Tire tread depth",
     basic_category: "vehicle_maintenance",
     severity_weight: 8,
-    oos_violation: false,
-    convicted: false,
+    oos_violation: true,
+    convicted: null,
     citation_number: null,
     citation_result: null,
-    challenge_reason: "Operational tire control",
+    challenge_reason: null,
     challenge_tier: "operational",
-    inspection_date: "2026-06-19",
-  },
-  {
-    id: "operational-lamp",
-    violation_code: "3939ALHLI",
-    violation_description: "Required lamp inoperative",
-    basic_category: "vehicle_maintenance",
-    severity_weight: 6,
-    oos_violation: false,
-    convicted: false,
-    citation_number: null,
-    citation_result: null,
-    challenge_reason: "Operational lighting control",
-    challenge_tier: "operational",
-    inspection_date: "2026-05-20",
+    inspection_date: "2026-07-01",
   },
 ];
 
 const cases: ReportCaseRow[] = [
   {
     case_type: "DataQ",
+    case_number: null,
+    status: "draft",
+    description: "DRAFT MUST NEVER APPEAR",
+  },
+  {
+    case_type: "DataQ",
+    case_number: null,
+    status: "investigating",
+    description: "Pre-filing investigation",
+  },
+  {
+    case_type: "DataQ",
     case_number: "6103911",
     status: "filed",
-    description: "Stored DataQ description",
+    description: "ELD record review",
+    filed_date: "2026-05-29",
   },
   {
     case_type: "CPDP",
     case_number: "6123719",
     status: "filed",
-    description: "Stored crash preventability description",
+    description: "Lane-change crash request",
+    filed_date: "2026-06-09",
   },
   {
     case_type: "DataQ",
-    case_number: "closed-case",
-    status: "closed",
-    description: "Closed case must not appear as an open challenge",
+    case_number: "RESOLVED-1",
+    status: "approved",
+    description: "Resolved work",
+    filed_date: "2026-03-01",
+    outcome: "approved",
+    outcome_date: "2026-05-01",
   },
 ];
 
-const coachingItems: ReportCoachingItemRow[] = [
+const openRequests: ReportOpenRequestRow[] = [
+  ...Array.from({ length: 8 }, (_, index) => ({
+    id: `request-${index}`,
+    title: `Certified court disposition — CODE${index}`,
+    status: "open",
+    request_type: "evidence",
+    evidence_class: "citation-dismissed",
+    evidence_status: "open",
+    violation_code: `CODE${index}`,
+    requested_items: [{ label: "Certified court disposition" }],
+  })),
   {
-    type: "compliance",
-    title: "Coach tire inspections",
-    description: "Review tire condition during each pre-trip inspection.",
-    priority: "high",
-    projected_impact_score: 42,
-    status: "in_progress",
-    due_date: "2026-08-01",
+    id: "question",
+    title: "Has a roadside ticket been dismissed?",
+    status: "open",
+    request_type: "question",
+    evidence_class: "citation-dismissed",
+    evidence_status: "open",
+    violation_code: null,
+    requested_items: [],
+  },
+  {
+    id: "closed",
+    title: "Closed request",
+    status: "fulfilled",
+    request_type: "evidence",
+    evidence_class: "duplicate",
+    evidence_status: "applied",
+    violation_code: "CLOSED",
+    requested_items: [{ label: "Inspection record" }],
   },
 ];
 
-const compliance: ReportComplianceInput = {
-  drivers: [
-    {
-      cdl_number: "TEST-CDL",
-      cdl_expiry: "2027-06-01",
-      medical_cert_expiry: null,
-    },
-  ],
-  driverDocuments: [
-    { doc_type: "medical_certificate", expiry_date: "2026-09-01", status: "expiring" },
-  ],
-  vehicles: [{ id: "vehicle-1" }],
-  maintenanceRecords: [
-    {
-      maintenance_type: "preventive maintenance",
-      scheduled_date: "2026-07-30",
-      completed_date: null,
-      notes: "Tire and lamp review",
-    },
-  ],
-  clearinghouseRecords: [{ query_date: "2026-07-01", result_type: "negative" }],
-};
-
-const reportDate = formatReportDate(new Date("2026-07-21T12:00:00Z"));
-
-function buildTierData(
-  serviceTier: ClientTier,
-  overrides: Partial<{
-    snapshots: ReportSnapshotRow[];
-    newViolations: ReportViolationRow[];
-    cases: ReportCaseRow[];
-    coachingItems: ReportCoachingItemRow[];
-    compliance: ReportComplianceInput;
-  }> = {}
+function dataFor(
+  reportType: ReportType,
+  selectedSnapshots?: ReportSnapshotRow[],
+  serviceTier: "assessment" | "monitor" | "remediate" | "total_safety" =
+    "total_safety"
 ): ReportGenerationData {
+  const selection =
+    selectedSnapshots ??
+    selectReportSnapshots(
+      [quarterlyAnchor, latest, earliest, monthlyAnchor],
+      reportType
+    ).snapshots;
   return buildReportGenerationData({
-    reportType: serviceTier === "assessment" ? "assessment" : "monthly",
-    reportDate,
+    reportType,
+    reportDate: "August 17, 2026",
     serviceTier,
     carrier: {
-      name: "Nationwide Carrier Inc",
-      dotNumber: "2533650",
-      mcNumber: "880750",
+      name: "Test Carrier",
+      dotNumber: "1234567",
+      mcNumber: "765432",
+      fleet: {
+        clientStatedDriverCount: 5,
+        fmcsaPowerUnits: 40,
+        fmcsaDrivers: 45,
+        annualMileage: 1_417_456,
+        annualMileageYear: 2025,
+        source: "FMCSA SAFER",
+        sourceAsOf: "2026-08-16",
+      },
     },
-    snapshots: overrides.snapshots ?? [latest, previous],
-    newViolations: overrides.newViolations ?? newViolations,
-    onFileViolationCount: 71,
+    snapshots: selection,
+    newViolations: [
+      {
+        id: "new-1",
+        violation_code: "39375A3",
+        violation_description: "Tire tread depth",
+        severity_weight: 8,
+        oos_violation: true,
+        inspection_date: "2026-07-20",
+      },
+    ],
+    agedOutViolationCount: 2,
+    onFileViolationCount: 9,
     priorityViolations,
-    priorityAsOf: new Date("2026-07-21T12:00:00Z"),
-    cases: overrides.cases ?? cases,
-    coachingItems: overrides.coachingItems ?? coachingItems,
-    compliance: overrides.compliance ?? compliance,
+    priorityAsOf: new Date("2026-08-13T13:00:00Z"),
+    cases,
+    crashes: [
+      {
+        crash_date: "2026-01-01",
+        state: "CA",
+        report_number: "CA-1",
+        tow_away: true,
+      },
+      {
+        crash_date: "2026-02-01",
+        state: "NV",
+        report_number: "NV-2",
+        tow_away: false,
+      },
+    ],
+    openRequests,
+    clientEvidenceItemsCollected: 3,
   });
 }
 
-function headings(data: ReportGenerationData): string[] {
-  return data.sections.map((section) => section.heading);
+function caseSentence(reportCase: ReportCaseRow): string {
+  const reference = reportCase.case_number
+    ? `${reportCase.case_type} case ${reportCase.case_number}`
+    : `${reportCase.case_type} case with no stored case number`;
+  return `${reference} is ${reportCase.status}.${reportCase.outcome ? ` Its stored outcome is ${reportCase.outcome}.` : ""}`;
 }
 
 function validModelBody(data: ReportGenerationData): string {
-  const modelSections = data.sections.filter(
-    (section) =>
-      !(data.comparison?.firstReportingPeriod && section.key === "burdenTrend")
-  );
-  const grounding = data.cases.some((reportCase) => reportCase.case_type === "CPDP")
-    ? "Weighted violation burden is documented. CPDP crash preventability work is documented."
-    : "Weighted violation burden is documented.";
-  return modelSections
-    .map((section, index) => {
-      let sectionBody =
-        index === 0 ? grounding : "Documented data only.";
-      if (section.key === "diagnosticSnapshot") {
-        sectionBody =
-          `${data.diagnosticSnapshot.requiredViolationScopeSentence}` +
-          (index === 0 ? ` ${grounding}` : "");
-      }
-      if (
-        section.key === "priorityFindings" &&
-        data.comparison?.newViolations.length === 0
-      ) {
-        sectionBody = [
-          data.priorityFindings.requiredFallbackFacts.investigateSentence,
-          ...data.priorityFindings.requiredFallbackFacts.evidenceSentences,
-          ...data.priorityFindings.requiredFallbackFacts
-            .operationalFamilySentences,
-        ]
-          .filter((sentence): sentence is string => Boolean(sentence))
-          .join("\n");
-      }
-      return `${section.heading}\n${sectionBody}`;
-    })
-    .join("\n\n");
+  const lines: string[] = [];
+  const fixedKeys = new Set(Object.keys(data.fixedSections));
+  for (const section of data.sections) {
+    if (fixedKeys.has(section.key)) continue;
+    lines.push(section.heading);
+    switch (section.key) {
+      case "safetyProfileOverview":
+        lines.push(
+          `${data.carrier.name}, USDOT ${data.carrier.dotNumber}. ${data.diagnosticSnapshot.requiredViolationScopeSentence}`,
+          `${data.latestSnapshot.inspectionCount} inspections, ${data.latestSnapshot.crashCount} crashes, and ${data.latestSnapshot.oosCount} out-of-service violations are on the latest snapshot. The current weighted violation burden is ${data.latestSnapshot.totalPoints}.`
+        );
+        break;
+      case "whereBurdenSits":
+        lines.push(
+          ...data.latestSnapshot.perBasic.map(
+            (basic) =>
+              `${basic.label}: ${basic.violationCount} ${basic.violationCount === 1 ? "violation" : "violations"} and ${basic.weightedPoints} weighted points.`
+          )
+        );
+        break;
+      case "crashRecord":
+        lines.push(
+          ...data.crashes.map(
+            (crash) =>
+              `${crash.crashDate}, ${crash.state ?? "state not recorded"}, report ${crash.reportNumber}, tow-away ${crash.towAway ? "yes" : "no"}.`
+          )
+        );
+        break;
+      case "whatWeRecommend":
+        lines.push(
+          ...(data.priorityFindings?.challengeableViolations.map(
+            (violation) =>
+              `DataQ recommendation: ${violation.violationCode} — ${violation.violationDescription}; ${violation.challengeLane}; ${violation.weightedPoints} weighted points${violation.inspectionDate ? `; inspection date ${violation.inspectionDate}` : ""}.`
+          ) ?? []),
+          ...(data.priorityFindings?.topOperationalFamilies.map(
+            (family) =>
+              `Coaching priority: ${family.familyName} — ${family.violationCount} ${family.violationCount === 1 ? "violation" : "violations"}, ${family.weightedPoints} weighted points, ${family.inflowRatePerMonth} violations per month over the trailing window.`
+          ) ?? [])
+        );
+        break;
+      case "burdenTrend":
+        lines.push(
+          `Weighted violation burden moved from ${data.comparisonSnapshot?.totalPoints} to ${data.latestSnapshot.totalPoints}, a change of ${data.comparison!.totalPointsDelta! > 0 ? "+" : ""}${data.comparison!.totalPointsDelta} points.`,
+          ...(data.reportType === "quarterly"
+            ? data.comparison!.perBasicDeltas.map(
+                (basic) =>
+                  `${basic.label}: ${basic.previousWeightedPoints} weighted points before and ${basic.latestWeightedPoints} now.`
+              )
+            : data.comparison!.perBasicDeltas
+                .filter((basic) => basic.weightedPointsDelta !== 0)
+                .map(
+                  (basic) =>
+                    `${basic.label} moved from ${basic.previousWeightedPoints} to ${basic.latestWeightedPoints} weighted points, a change of ${basic.weightedPointsDelta > 0 ? "+" : ""}${basic.weightedPointsDelta}.`
+                ))
+        );
+        break;
+      case "diagnosticSnapshot":
+        lines.push(
+          `${data.diagnosticSnapshot.requiredViolationScopeSentence} The current weighted violation burden is ${data.latestSnapshot.totalPoints}.`
+        );
+        break;
+      case "newViolations":
+        if (data.comparison?.newViolations.length) {
+          lines.push(
+            ...data.comparison.newViolations.map(
+              (violation) =>
+                `${violation.code}: ${violation.description}; severity weight ${violation.severityWeight}; OOS ${violation.oos ? "yes" : "no"}; inspection date ${violation.inspectionDate}.`
+            )
+          );
+        } else {
+          lines.push(
+            data.comparison?.firstReportingPeriod
+              ? "This is the first reporting period; new-violation comparison begins next report."
+              : "No new violations were added during this reporting period."
+          );
+        }
+        break;
+      case "changesThisQuarter":
+        lines.push(data.comparison!.requiredChangeStatement!);
+        break;
+      case "priorityFindings":
+        lines.push(
+          ...(data.openRequests?.requiredSummarySentences ?? []),
+          ...(data.comparison?.newViolations.length === 0
+            ? [
+                data.priorityFindings?.requiredFallbackFacts
+                  ?.investigateSentence ?? null,
+                ...(data.priorityFindings?.requiredFallbackFacts
+                  ?.operationalFamilySentences ?? []),
+              ].filter((sentence): sentence is string => Boolean(sentence))
+            : []),
+          "Current priorities are grounded in the supplied weighted violation burden."
+        );
+        break;
+      case "openChallenges":
+        lines.push(
+          ...data.cases.map((item) =>
+            item.case_type === "CPDP"
+              ? `${caseSentence(item)} This is a crash preventability case.`
+              : caseSentence(item)
+          )
+        );
+        break;
+      case "engagementSummary":
+        lines.push(
+          `SafeScore measurement baseline: ${data.serviceBaselineDate}; starting weighted violation burden ${data.comparisonSnapshot?.totalPoints}; starting in-window violation count ${data.comparisonSnapshot?.violationCountInScoringWindow}.`
+        );
+        break;
+      case "measuredImprovement":
+        {
+          const violationReduction = data.comparison!.violationCountReduction ?? 0;
+          const violationChange =
+            violationReduction > 0
+              ? `a reduction of ${violationReduction}`
+              : violationReduction < 0
+                ? `a worsening of ${Math.abs(violationReduction)}`
+                : "no change";
+        lines.push(
+          `Measured weighted violation burden change: ${data.comparisonSnapshot?.totalPoints} to ${data.latestSnapshot.totalPoints}, ${data.comparison!.totalPointsReduction! >= 0 ? `a reduction of ${data.comparison!.totalPointsReduction}` : `a worsening of ${Math.abs(data.comparison!.totalPointsReduction!)}`} points.`,
+          ...data.comparison!.perBasicDeltas.map((basic) =>
+            basic.weightedPointsReduction >= 0
+              ? `${basic.label}: ${basic.previousWeightedPoints} to ${basic.latestWeightedPoints} weighted points, a reduction of ${basic.weightedPointsReduction}.`
+              : `${basic.label}: ${basic.previousWeightedPoints} to ${basic.latestWeightedPoints} weighted points, a worsening of ${Math.abs(basic.weightedPointsReduction)}.`
+          ),
+          `Measured in-window violation count change: ${data.comparisonSnapshot?.violationCountInScoringWindow} to ${data.latestSnapshot.violationCountInScoringWindow}, ${violationChange}.`
+        );
+        }
+        break;
+      case "workPerformed":
+      case "remediationWorkCompleted":
+        lines.push(
+          ...data.cases.map((item) =>
+            item.case_type === "CPDP"
+              ? `${caseSentence(item)} This is crash preventability work.`
+              : caseSentence(item)
+          ),
+          ...(data.reportType === "improvement" &&
+          data.clientEvidenceItemsCollected > 0
+            ? [
+                `Client evidence items collected for filed-or-beyond cases: ${data.clientEvidenceItemsCollected}.`,
+              ]
+            : [])
+        );
+        break;
+      case "currentStanding":
+        lines.push(
+          `Current standing: ${data.latestSnapshot.totalPoints} weighted violation burden and ${data.latestSnapshot.violationCountInScoringWindow} in-window violations.`
+        );
+        break;
+      case "currentSafetyStanding":
+        lines.push(
+          `Current safety standing: weighted violation burden ${data.latestSnapshot.totalPoints}, compared with ${data.comparisonSnapshot?.totalPoints} at the SafeScore measurement baseline; ${data.latestSnapshot.violationCountInScoringWindow} violations are in the scoring window.`
+        );
+        break;
+      case "carrierOverview":
+        lines.push(
+          `Carrier: ${data.carrier.name}; USDOT ${data.carrier.dotNumber}; MC ${data.carrier.mcNumber}.`,
+          `FMCSA fleet facts: ${data.carrier.fleet.fmcsaPowerUnits} power units and ${data.carrier.fleet.fmcsaDrivers} drivers as of ${data.carrier.fleet.sourceAsOf}.`
+        );
+        break;
+      default:
+        throw new Error(`Unhandled model section ${section.key}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
 }
 
-async function main() {
-  assert.equal(reportDate, "July 21, 2026");
-
-  const sameDayEarlier: ReportSnapshotRow = {
-    ...latest,
-    id: "same-day-earlier",
-    snapshot_date: "2026-07-22",
-    captured_at: "2026-07-22T13:00:29.131Z",
-    total_points: 590,
-  };
-  const sameDayLatest: ReportSnapshotRow = {
-    ...latest,
-    id: "same-day-latest",
-    snapshot_date: "2026-07-22",
-    captured_at: "2026-07-22T16:39:49.928Z",
-    total_points: 550,
-  };
-  const distinctDateSelection = selectReportSnapshotPair(
-    [sameDayEarlier, previous, sameDayLatest, latest],
-    true
-  );
-  assert.equal(distinctDateSelection.strategy, "prior_distinct_date");
-  assert.deepEqual(distinctDateSelection.immediatePairIds, [
-    "same-day-latest",
-    "same-day-earlier",
-  ]);
+const expectedConfigs = {
+  assessment: ["client onboarding", "none", 700, false, true],
+  monthly: ["client", "anchor", 500, true, true],
+  quarterly: ["client", "anchor", 700, true, true],
+  improvement: ["external insurance re-marketing", "baseline", 400, false, false],
+  underwriter: ["insurance carrier underwriting", "baseline", 400, false, false],
+} as const;
+const expectedSections: Record<ReportType, string[]> = {
+  assessment: [
+    "safetyProfileOverview",
+    "whereBurdenSits",
+    "crashRecord",
+    "whatWeRecommend",
+    "whatHappensNext",
+  ],
+  monthly: [
+    "burdenTrend",
+    "diagnosticSnapshot",
+    "newViolations",
+    "priorityFindings",
+    "openChallenges",
+  ],
+  quarterly: [
+    "burdenTrend",
+    "diagnosticSnapshot",
+    "changesThisQuarter",
+    "priorityFindings",
+    "openChallenges",
+  ],
+  improvement: [
+    "engagementSummary",
+    "measuredImprovement",
+    "workPerformed",
+    "currentStanding",
+  ],
+  underwriter: [
+    "carrierOverview",
+    "remediationWorkCompleted",
+    "currentSafetyStanding",
+    "ongoingSafetyManagement",
+  ],
+};
+assert.deepEqual(Object.keys(REPORT_TYPE_CONFIGS), Object.keys(expectedConfigs));
+for (const type of Object.keys(expectedConfigs) as ReportType[]) {
+  const config = REPORT_TYPE_CONFIGS[type];
+  const expected = expectedConfigs[type];
   assert.deepEqual(
-    distinctDateSelection.snapshots.map((snapshot) => snapshot.id),
-    ["same-day-latest", "latest"]
+    [
+      config.audience,
+      config.comparison.mode,
+      config.wordBudget,
+      config.includeOpenRequests,
+      config.includeOperationalPriorities,
+    ],
+    expected
   );
-  const sameDayFallback = selectReportSnapshotPair(
-    [sameDayEarlier, sameDayLatest],
-    true
-  );
-  assert.equal(sameDayFallback.strategy, "same_day_fallback");
-  assert.deepEqual(
-    sameDayFallback.snapshots.map((snapshot) => snapshot.id),
-    ["same-day-latest", "same-day-earlier"]
-  );
-  assert.equal(
-    selectReportSnapshotPair([sameDayEarlier, sameDayLatest], false).strategy,
-    "latest_only"
-  );
-  assert.throws(
-    () =>
-      selectReportSnapshotPair(
-        [{ ...sameDayLatest, id: "invalid-date", captured_at: "not-a-date" }],
-        true
-      ),
-    /invalid captured_at timestamp/
-  );
+  assert.deepEqual(config.sections, expectedSections[type]);
+}
+assert.deepEqual(REPORT_TYPE_CONFIGS.monthly.comparison, {
+  mode: "anchor",
+  targetDaysBack: 30,
+  minDaysBack: 14,
+});
+assert.deepEqual(REPORT_TYPE_CONFIGS.quarterly.comparison, {
+  mode: "anchor",
+  targetDaysBack: 90,
+  minDaysBack: 45,
+});
 
-  const assessment = buildTierData("assessment");
-  const monitor = buildTierData("monitor");
-  const remediate = buildTierData("remediate");
-  const totalSafety = buildTierData("total_safety");
-
-  assert.deepEqual(headings(assessment), [
-    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-    REPORT_SECTION_HEADINGS.priorityFindings,
-  ]);
-  assert.equal(assessment.previousSnapshot, null);
-  assert.equal(assessment.comparison, null);
-  assert.deepEqual(assessment.cases, []);
-  assert.deepEqual(assessment.coachingProgram, []);
-  assert.equal(assessment.complianceSweep, null);
-
-  assert.deepEqual(headings(monitor), [
-    REPORT_SECTION_HEADINGS.burdenTrend,
-    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-    REPORT_SECTION_HEADINGS.priorityFindings,
-    REPORT_SECTION_HEADINGS.newViolations,
-  ]);
-  assert.equal(monitor.comparison?.totalPointsDelta, 17);
-  assert.equal(monitor.comparison?.violationCountDelta, 2);
-  assert.equal(monitor.comparison?.inspectionCountDelta, 3);
-  assert.equal(monitor.comparison?.crashCountDelta, 0);
-  assert.equal(monitor.comparison?.oosCountDelta, 1);
-  assert.equal(monitor.comparison?.newViolations.length, 2);
-  assert.deepEqual(monitor.diagnosticSnapshot, {
-    violationsInScoringWindow: 68,
-    violationsOnFile: 71,
-    requiredViolationScopeSentence:
-      "68 violations in the 24-month scoring window (71 on file).",
-  });
-  assert.deepEqual(monitor.cases, []);
-  assert.deepEqual(monitor.coachingProgram, []);
-  assert.equal(monitor.complianceSweep, null);
-
-  assert.deepEqual(headings(remediate), [
-    REPORT_SECTION_HEADINGS.burdenTrend,
-    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-    REPORT_SECTION_HEADINGS.priorityFindings,
-    REPORT_SECTION_HEADINGS.newViolations,
-    REPORT_SECTION_HEADINGS.openChallenges,
-    REPORT_SECTION_HEADINGS.coachingProgram,
-  ]);
-  assert.deepEqual(
-    remediate.cases.map((reportCase) => reportCase.case_number),
-    ["6103911", "6123719"]
-  );
-  assert.equal(remediate.coachingProgram[0]?.title, "Coach tire inspections");
-  assert.equal(remediate.complianceSweep, null);
-
-  assert.deepEqual(headings(totalSafety), [
-    REPORT_SECTION_HEADINGS.burdenTrend,
-    REPORT_SECTION_HEADINGS.diagnosticSnapshot,
-    REPORT_SECTION_HEADINGS.priorityFindings,
-    REPORT_SECTION_HEADINGS.newViolations,
-    REPORT_SECTION_HEADINGS.openChallenges,
-    REPORT_SECTION_HEADINGS.coachingProgram,
-    REPORT_SECTION_HEADINGS.complianceSweep,
-  ]);
-  assert.equal(totalSafety.complianceSweep?.activeDriverCount, 1);
-  assert.equal(totalSafety.complianceSweep?.driversMissingQualificationData, 1);
-  assert.equal(totalSafety.complianceSweep?.activeVehicleCount, 1);
-  assert.deepEqual(totalSafety.priorityFindings.investigateQueue, {
-    violationCount: 1,
-    weightedPoints: 21,
-  });
-  assert.equal(
-    totalSafety.priorityFindings.evidenceAsks[0]?.requests[0]?.label,
-    "Court disposition for citation #DA251770"
-  );
-  assert.deepEqual(
-    totalSafety.priorityFindings.topOperationalFamilies.map(
-      (family) => family.familyName
+const closest = selectComparisonSnapshot(
+  [
+    latest,
+    snapshot("too-young", "2026-08-01T13:00:00.000Z", 130),
+    snapshot("near-target", "2026-07-15T13:00:00.000Z", 140),
+    snapshot("farther", "2026-07-01T13:00:00.000Z", 160),
+  ],
+  { targetDaysBack: 30, minDaysBack: 14 }
+);
+assert.equal(closest?.id, "near-target");
+assert.equal(
+  selectComparisonSnapshot(
+    [latest, snapshot("boundary", "2026-07-30T13:00:00.000Z", 130)],
+    { targetDaysBack: 30, minDaysBack: 14 }
+  )?.id,
+  "boundary"
+);
+assert.equal(
+  selectComparisonSnapshot(
+    [latest, snapshot("one-ms-young", "2026-07-30T13:00:00.001Z", 130)],
+    { targetDaysBack: 30, minDaysBack: 14 }
+  ),
+  null
+);
+assert.equal(
+  selectReportSnapshots([latest, earliest, monthlyAnchor], "improvement")
+    .comparisonSnapshotId,
+  earliest.id
+);
+assert.equal(
+  selectReportSnapshots([latest], "improvement").comparisonSnapshotId,
+  latest.id
+);
+assert.equal(
+  selectReportSnapshots([latest, monthlyAnchor], "quarterly").strategy,
+  "anchor_first_reporting_period"
+);
+assert.throws(
+  () =>
+    selectComparisonSnapshot(
+      [snapshot("bad", "not-a-date", 1)],
+      { targetDaysBack: 30, minDaysBack: 14 }
     ),
-    ["Tires & Wheels", "Lighting & Electrical"]
-  );
+  /invalid captured_at/
+);
 
-  const noOptionalRemediation = buildTierData("remediate", {
-    cases: [],
-    coachingItems: [],
-  });
-  assert.ok(!headings(noOptionalRemediation).includes(REPORT_SECTION_HEADINGS.openChallenges));
-  assert.ok(!headings(noOptionalRemediation).includes(REPORT_SECTION_HEADINGS.coachingProgram));
-  const noCompliance = buildTierData("total_safety", {
-    compliance: {
-      drivers: [],
-      driverDocuments: [],
-      vehicles: [],
-      maintenanceRecords: [],
-      clearinghouseRecords: [],
-    },
-  });
-  assert.ok(!headings(noCompliance).includes(REPORT_SECTION_HEADINGS.complianceSweep));
+const requestSummary = summarizeOpenReportRequests(openRequests);
+assert.equal(requestSummary.rowCount, 9);
+assert.equal(requestSummary.evidenceRequestCount, 8);
+assert.equal(requestSummary.questionCount, 1);
+for (let index = 0; index < 8; index += 1) {
+  assert.ok(requestSummary.requiredSummarySentences[0]?.includes(`CODE${index}`));
+}
+assert.match(requestSummary.requiredSummarySentences[0]!, /visible in your portal/i);
+assert.ok(!requestSummary.requiredSummarySentences[0]!.includes("CLOSED"));
 
-  const vehicle = monitor.comparison?.perBasicDeltas.find(
-    (item) => item.basicCategory === "vehicle_maintenance"
-  );
-  const unsafe = monitor.comparison?.perBasicDeltas.find(
-    (item) => item.basicCategory === "unsafe_driving"
-  );
+for (const type of Object.keys(REPORT_TYPE_CONFIGS) as ReportType[]) {
+  const data = dataFor(type);
+  const config = REPORT_TYPE_CONFIGS[type];
   assert.deepEqual(
-    { points: vehicle?.weightedPointsDelta, count: vehicle?.violationCountDelta },
-    { points: 27, count: 2 }
+    data.sections.map((section) => section.key),
+    config.sections
   );
-  assert.deepEqual(
-    { points: unsafe?.weightedPointsDelta, count: unsafe?.violationCountDelta },
-    { points: -10, count: 0 }
+  assert.ok(data.cases.every((item) => item.status !== "draft"));
+  const prompts = buildReportPrompts(data);
+  assert.ok(prompts.system.includes(config.audience));
+  assert.ok(prompts.user.includes(`approximately ${config.wordBudget} words`));
+  assert.ok(
+    prompts.system.includes(
+      "Every factual claim must come from the structured data. Never state that something does not exist, is not active, or has no records unless the structured data explicitly contains that section with zero rows. Never mention internal statuses, drafts, or systems not present in the structured data."
+    )
   );
+  const report = assembleGeneratedReport(validModelBody(data), data);
+  assert.deepEqual(findReportPlaceholders(report), []);
+  assert.deepEqual(validateGeneratedReport(report, data), []);
+  assert.equal(report.split(PREPARER_BLOCK).length - 1, 1);
+}
 
-  const assessmentPrompts = buildReportPrompts(assessment);
-  const monitorPrompts = buildReportPrompts(monitor);
-  const totalSafetyPrompts = buildReportPrompts(totalSafety);
-  assert.match(totalSafetyPrompts.system, /Use only facts present in the structured report data/);
-  assert.match(totalSafetyPrompts.system, /If a datum is absent or null, omit the sentence/);
-  assert.match(totalSafetyPrompts.system, /server adds those fixed fields exactly/);
-  assert.ok(!totalSafetyPrompts.system.includes(PREPARER_BLOCK));
-  assert.ok(totalSafetyPrompts.user.includes(JSON.stringify(PREPARER_BLOCK)));
-  assert.ok(totalSafetyPrompts.user.includes('"totalPointsDelta": 17'));
-  assert.ok(totalSafetyPrompts.user.includes('"case_number": "6103911"'));
-  assert.ok(
-    totalSafetyPrompts.user.includes(
-      'Exact mandatory sentence: "CPDP case 6123719 is filed for crash preventability."'
-    )
-  );
-  assert.ok(
-    totalSafetyPrompts.user.includes(
-      "real stored description=Stored crash preventability description"
-    )
-  );
-  assert.ok(
-    totalSafetyPrompts.user.includes(
-      '"requiredViolationScopeSentence": "68 violations in the 24-month scoring window (71 on file)."'
-    )
-  );
-  assert.ok(!assessmentPrompts.user.includes("6103911"));
-  assert.ok(!assessmentPrompts.user.includes("Coach tire inspections"));
-  assert.ok(!monitorPrompts.user.includes("6103911"));
-  assert.ok(!monitorPrompts.user.includes("Coach tire inspections"));
-  assert.equal(
-    formatViolationScopeFact(68, 71),
-    "68 violations in the 24-month scoring window (71 on file)."
-  );
-  const noNewViolationData = buildTierData("total_safety", {
-    newViolations: [],
-  });
-  const noNewViolationPrompts = buildReportPrompts(noNewViolationData);
-  assert.ok(
-    noNewViolationPrompts.system.includes(
-      "never substitute a generic \"no new violations\" sentence"
-    )
-  );
-  assert.ok(
-    noNewViolationPrompts.user.includes('"violationCount": 1')
-  );
-  assert.ok(
-    noNewViolationPrompts.user.includes(
-      '"label": "Court disposition for citation #DA251770"'
-    )
-  );
-  assert.ok(
-    noNewViolationPrompts.user.includes('"familyName": "Tires & Wheels"')
-  );
-  assert.ok(
-    noNewViolationPrompts.user.includes(
-      'Exact mandatory sentence: "Under investigation: 21 weighted points across 1 violation — evidence pending."'
-    )
-  );
-  for (const forbidden of [
-    "[Insert Date]",
-    "changed by [X] points",
-    "[Your Name]",
-    "[briefly describe",
-  ]) {
-    assert.ok(!`${totalSafetyPrompts.system}\n${totalSafetyPrompts.user}`.includes(forbidden));
-  }
-
-  const assessmentReport = assembleGeneratedReport(validModelBody(assessment), assessment);
-  assert.deepEqual(validateGeneratedReport(assessmentReport, assessment), []);
-  assert.ok(!assessmentReport.includes(FIRST_REPORTING_PERIOD_STATEMENT));
-  assert.ok(!assessmentReport.includes(REPORT_SECTION_HEADINGS.burdenTrend));
-
-  const validBody = validModelBody(totalSafety);
-  const markdownDecoratedBody = totalSafety.sections.reduce(
-    (body, section) =>
-      body.replace(
-        `${section.heading}\n`,
-        `## **${section.heading}**  \n`
-      ),
-    validBody
-  );
-  const normalizedMarkdownBody = normalizeModelSectionHeadings(
-    markdownDecoratedBody,
-    totalSafety.sections
-  );
-  for (const section of totalSafety.sections) {
-    assert.ok(normalizedMarkdownBody.includes(`${section.heading}\n`));
-    assert.ok(!normalizedMarkdownBody.includes(`**${section.heading}**`));
-  }
-  const markdownDecoratedReport = await generateValidatedReport(
-    buildReportPrompts(totalSafety),
-    totalSafety,
-    async () => markdownDecoratedBody
-  );
-  assert.equal(markdownDecoratedReport.attempts, 1);
-  assert.deepEqual(
-    validateGeneratedReport(markdownDecoratedReport.content, totalSafety),
-    []
-  );
-  const validReport = assembleGeneratedReport(validBody, totalSafety);
-  assert.deepEqual(validateGeneratedReport(validReport, totalSafety), []);
-  assert.ok(
-    validateGeneratedReport(
-      validReport.replace(
-        totalSafety.diagnosticSnapshot.requiredViolationScopeSentence,
-        "There are violations in the current window."
-      ),
-      totalSafety
-    ).includes(
-      `missing the required diagnostic violation-scope sentence: ${totalSafety.diagnosticSnapshot.requiredViolationScopeSentence}`
-    )
-  );
-  const genericNoNewReport = assembleGeneratedReport(
-    validModelBody(noNewViolationData).replace(
-      [
-        noNewViolationData.priorityFindings.requiredFallbackFacts
-          .investigateSentence,
-        ...noNewViolationData.priorityFindings.requiredFallbackFacts
-          .evidenceSentences,
-        ...noNewViolationData.priorityFindings.requiredFallbackFacts
-          .operationalFamilySentences,
-      ]
-        .filter((sentence): sentence is string => Boolean(sentence))
-        .join("\n"),
-      "No new violations occurred."
+const assessment = dataFor("assessment");
+const assessmentPrompts = buildReportPrompts(assessment);
+assert.equal(assessment.comparison, undefined);
+assert.equal(assessment.comparisonSnapshot, null);
+assert.ok(!assessmentPrompts.user.includes("previousSnapshot"));
+assert.ok(!assessmentPrompts.user.includes(REPORT_SECTION_HEADINGS.burdenTrend));
+assert.ok(!assessmentPrompts.user.includes('"comparisonSnapshot"'));
+assert.ok(!assessmentPrompts.user.includes('"clientEvidenceItemsCollected"'));
+const assessmentReport = assembleGeneratedReport(
+  validModelBody(assessment),
+  assessment
+);
+assert.ok(assessmentReport.endsWith(PREPARER_BLOCK));
+assert.equal(assessmentReport.split(ASSESSMENT_NEXT_STEPS_COPY).length - 1, 1);
+assert.ok(!assessmentReport.includes(FIRST_REPORTING_PERIOD_STATEMENT));
+assert.equal(assessment.latestSnapshot.perBasic.length, 7);
+assert.deepEqual(
+  assessment.latestSnapshot.perBasic.map((basic) => basic.label),
+  [
+    "Vehicle Maintenance",
+    "Unsafe Driving",
+    "Controlled Substances/Alcohol",
+    "Crash Indicator",
+    "Driver Fitness",
+    "Hazardous Materials Compliance",
+    "Hours-of-Service Compliance",
+  ]
+);
+assert.deepEqual(
+  assessment.latestSnapshot.perBasic.slice(2).map((basic) => [
+    basic.violationCount,
+    basic.weightedPoints,
+  ]),
+  Array.from({ length: 5 }, () => [0, 0])
+);
+const assessmentWithoutRecommendations = assessmentReport.replace(
+  /DataQ recommendation:[^\n]+\n?|Coaching priority:[^\n]+\n?/g,
+  ""
+);
+assert.ok(
+  validateGeneratedReport(assessmentWithoutRecommendations, assessment).some(
+    (issue) => issue.includes("assessment recommendation")
+  )
+);
+assert.ok(
+  validateGeneratedReport(
+    assessmentReport.replace(
+      REPORT_SECTION_HEADINGS.crashRecord,
+      `${REPORT_SECTION_HEADINGS.crashRecord}\nCompared with the previous period, the record improved.`
     ),
-    noNewViolationData
-  );
-  assert.ok(
-    validateGeneratedReport(genericNoNewReport, noNewViolationData).some(
-      (issue) =>
-        issue.startsWith(
-          "missing required no-new-violation priority fact:"
-        )
-    )
-  );
-  assert.ok(validReport.startsWith(`Monthly progress report\nReport date: ${reportDate}`));
-  assert.ok(validReport.endsWith(PREPARER_BLOCK));
-  assert.ok(
-    validateGeneratedReport(
-      assembleGeneratedReport(
-        validBody.replace("CPDP crash preventability", "CPDP"),
-        totalSafety
-      ),
-      totalSafety
-    ).includes("missing the required crash preventability description for CPDP")
-  );
-  assert.ok(
-    validateGeneratedReport(
-      assembleGeneratedReport(validBody.replace("Weighted violation burden", "SMS points"), totalSafety),
-      totalSafety
-    ).includes("mislabels weighted violation burden as SMS points")
-  );
-
-  const forbiddenHeadingReport = assembleGeneratedReport(
-    `${validModelBody(assessment)}\n\n${REPORT_SECTION_HEADINGS.openChallenges}\nNot allowed.`,
     assessment
+  ).some((issue) => issue.includes("forbidden comparison-period language"))
+);
+
+const quarterlyFirst = dataFor("quarterly", [latest]);
+assert.equal(quarterlyFirst.comparison?.firstReportingPeriod, true);
+const quarterlyFirstReport = assembleGeneratedReport(
+  validModelBody(quarterlyFirst),
+  quarterlyFirst
+);
+assert.ok(quarterlyFirstReport.includes(QUARTERLY_FIRST_REPORTING_PERIOD_STATEMENT));
+assert.deepEqual(validateGeneratedReport(quarterlyFirstReport, quarterlyFirst), []);
+
+const improvement = dataFor("improvement");
+const improvementPrompt = buildReportPrompts(improvement).user;
+assert.equal(improvement.priorityFindings, undefined);
+assert.equal(improvement.openRequests, undefined);
+assert.ok(!improvementPrompt.includes("CODE0"));
+assert.ok(!improvementPrompt.includes("Pre-filing investigation"));
+assert.ok(!improvementPrompt.includes("DRAFT MUST NEVER APPEAR"));
+assert.ok(!improvementPrompt.includes('"crashes"'));
+assert.ok(!improvementPrompt.includes('"openRequests"'));
+assert.ok(!improvementPrompt.includes('"priorityFindings"'));
+assert.deepEqual(
+  improvement.cases.map((item) => item.case_number),
+  ["6103911", "6123719", "RESOLVED-1"]
+);
+assert.ok(improvement.cases.every((item) => item.outcome == null));
+const improvementReport = assembleGeneratedReport(
+  validModelBody(improvement),
+  improvement
+);
+assert.ok(
+  validateGeneratedReport(
+    improvementReport.replace(
+      /Measured in-window violation count change:[^\n]+\n?/,
+      ""
+    ),
+    improvement
+  ).some((issue) => issue.includes("Measured in-window violation count change"))
+);
+
+const underwriter = dataFor("underwriter");
+const underwriterPrompt = buildReportPrompts(underwriter).user;
+assert.ok(!underwriterPrompt.includes('"openRequests"'));
+assert.ok(!underwriterPrompt.includes('"priorityFindings"'));
+assert.ok(!underwriterPrompt.includes('"clientEvidenceItemsCollected"'));
+assert.equal(
+  underwriter.cases.find((item) => item.case_number === "RESOLVED-1")?.outcome,
+  "approved"
+);
+assert.equal(
+  underwriter.fixedSections.ongoingSafetyManagement,
+  UNDERWRITER_TOTAL_SAFETY_COPY
+);
+const lowerTierUnderwriter = dataFor(
+  "underwriter",
+  undefined,
+  "remediate"
+);
+assert.ok(
+  !lowerTierUnderwriter.sections.some(
+    (section) => section.key === "ongoingSafetyManagement"
+  )
+);
+
+const validMonthly = dataFor("monthly");
+const validMonthlyReport = assembleGeneratedReport(
+  validModelBody(validMonthly),
+  validMonthly
+);
+assert.ok(
+  validateGeneratedReport(
+    validMonthlyReport.replace(
+      `${REPORT_SECTION_HEADINGS.openChallenges}\n`,
+      `${REPORT_SECTION_HEADINGS.openChallenges}\nDRAFT internal work.\n`
+    ),
+    validMonthly
+  ).some((issue) => issue.includes("forbidden draft language"))
+);
+assert.ok(
+  validateGeneratedReport(
+    validMonthlyReport.replace(
+      REPORT_SECTION_HEADINGS.priorityFindings,
+      `## Additional Notes\nSomething.\n\n${REPORT_SECTION_HEADINGS.priorityFindings}`
+    ),
+    validMonthly
+  ).some((issue) => issue.includes("extra section heading Additional Notes"))
+);
+for (const extraHeading of ["Additional Notes:", "**Additional Notes**"]) {
+  assert.ok(
+    validateGeneratedReport(
+      validMonthlyReport.replace(
+        REPORT_SECTION_HEADINGS.priorityFindings,
+        `${extraHeading}\nSomething.\n\n${REPORT_SECTION_HEADINGS.priorityFindings}`
+      ),
+      validMonthly
+    ).some((issue) => issue.includes("extra section heading Additional Notes"))
+  );
+}
+assert.ok(
+  validateGeneratedReport(
+    validMonthlyReport.replace(
+      `${REPORT_SECTION_HEADINGS.newViolations}\n`,
+      ""
+    ),
+    validMonthly
+  ).some((issue) => issue.includes("missing required section heading"))
+);
+for (const phrase of [
+  "evidence pending",
+  "under investigation",
+  "Operational priority",
+]) {
+  const invalid = assembleGeneratedReport(
+    `${validModelBody(improvement)}\n${phrase}.`,
+    improvement
   );
   assert.ok(
-    validateGeneratedReport(forbiddenHeadingReport, assessment).includes(
-      `forbidden section heading ${REPORT_SECTION_HEADINGS.openChallenges}`
+    validateGeneratedReport(invalid, improvement).some((issue) =>
+      issue.toLowerCase().includes("forbidden external-report phrase")
     )
   );
-  const missingHeadingReport = assembleGeneratedReport(
-    validBody.replace(`${REPORT_SECTION_HEADINGS.complianceSweep}\nDocumented data only.`, ""),
-    totalSafety
+}
+for (const phrase of [
+  "evidence requests",
+  "client weakness rankings",
+  "operations queue",
+]) {
+  const invalid = assembleGeneratedReport(
+    `${validModelBody(improvement)}\n${phrase}.`,
+    improvement
   );
   assert.ok(
-    validateGeneratedReport(missingHeadingReport, totalSafety).includes(
-      `missing required section heading ${REPORT_SECTION_HEADINGS.complianceSweep}`
+    validateGeneratedReport(invalid, improvement).some((issue) =>
+      issue.toLowerCase().includes("forbidden")
     )
   );
+}
 
-  const firstPeriodMonitor = buildTierData("monitor", {
-    snapshots: [latest],
-    newViolations: [],
-  });
-  assert.equal(firstPeriodMonitor.comparison?.firstReportingPeriod, true);
-  assert.equal(firstPeriodMonitor.comparison?.totalPointsDelta, null);
-  assert.deepEqual(firstPeriodMonitor.comparison?.perBasicDeltas, []);
-  assert.deepEqual(firstPeriodMonitor.comparison?.newViolations, []);
-  assert.equal(
-    firstPeriodMonitor.comparison?.requiredFirstPeriodStatement,
-    FIRST_REPORTING_PERIOD_STATEMENT
-  );
-  const firstPeriodGenerated = await generateValidatedReport(
-    buildReportPrompts(firstPeriodMonitor),
-    firstPeriodMonitor,
-    async () => validModelBody(firstPeriodMonitor)
-  );
-  assert.equal(
-    firstPeriodGenerated.content.split(FIRST_REPORTING_PERIOD_STATEMENT).length - 1,
-    1
-  );
-  assert.equal(
-    firstPeriodGenerated.content.split(REPORT_SECTION_HEADINGS.burdenTrend).length - 1,
-    1
-  );
-  const missingFirstPeriodStatement = `Monthly progress report\nReport date: ${reportDate}\n\n${validModelBody(
-    firstPeriodMonitor
-  )}\n\n${PREPARER_BLOCK}`;
-  assert.ok(
-    validateGeneratedReport(missingFirstPeriodStatement, firstPeriodMonitor).includes(
-      "missing the required first-reporting-period statement"
-    )
-  );
-
-  const eighty = "x".repeat(80);
-  const scannerInput = `[Insert Date] [X] [VERIFY: fact] [label] [${eighty}]`;
-  assert.deepEqual(findReportPlaceholders(scannerInput), [
-    "[Insert Date]",
-    "[X]",
-    "[VERIFY: fact]",
-    "[label]",
-    `[${eighty}]`,
-  ]);
-  assert.deepEqual(findReportPlaceholders("[]"), []);
-  assert.deepEqual(findReportPlaceholders(`[${"x".repeat(81)}]`), []);
-  assert.deepEqual(findReportPlaceholders("[line\nbreak]"), []);
-
-  const assembledOnFirstAttempt = await generateValidatedReport(
-    totalSafetyPrompts,
-    totalSafety,
-    async () => validBody
-  );
-  assert.equal(assembledOnFirstAttempt.attempts, 1);
-  assert.equal(assembledOnFirstAttempt.content.split(PREPARER_BLOCK).length - 1, 1);
-
-  const retrySystems: string[] = [];
-  const attemptEvents: Array<{
-    attempt: number;
-    status: string;
-    reason: string;
-    rawOutput?: string;
-  }> = [];
-  const retryResponses = [
-    "Report dated [Insert Date]",
-    "Report changed by [X] points",
-    validBody,
-  ];
-  const retried = await generateValidatedReport(
-    totalSafetyPrompts,
-    totalSafety,
-    async ({ system, attempt }) => {
-      retrySystems.push(system);
-      return retryResponses[attempt - 1]!;
-    },
+async function testRetryAndPrint() {
+  const events: string[] = [];
+  const generated = await generateValidatedReport(
+    buildReportPrompts(validMonthly),
+    validMonthly,
+    async ({ attempt }) =>
+      attempt === 1
+        ? `${validModelBody(validMonthly)}\n\n[placeholder]`
+        : validModelBody(validMonthly),
     {
-      onAttempt: async (event) => {
-        attemptEvents.push(event);
+      onAttempt(event) {
+        events.push(`${event.attempt}:${event.status}`);
       },
     }
   );
-  assert.equal(retried.attempts, 3);
-  assert.equal(retrySystems.length, 3);
-  assert.ok(!retrySystems[0]?.includes("Corrective system note"));
-  assert.ok(retrySystems[1]?.includes("Corrective system note"));
-  assert.ok(retrySystems[2]?.includes("Corrective system note"));
-  assert.deepEqual(findReportPlaceholders(retrySystems[1] ?? ""), []);
-  assert.deepEqual(findReportPlaceholders(retrySystems[2] ?? ""), []);
-  assert.deepEqual(
-    attemptEvents.map((event) => `${event.attempt}:${event.status}`),
-    [
-      "1:started",
-      "1:failed",
-      "2:started",
-      "2:failed",
-      "3:started",
-      "3:succeeded",
-    ]
-  );
-  assert.equal(attemptEvents[1]?.rawOutput, retryResponses[0]);
-  assert.match(attemptEvents[1]?.reason ?? "", /Validation failed/);
-
-  let failedAttempts = 0;
-  await assert.rejects(
-    generateValidatedReport(totalSafetyPrompts, totalSafety, async () => {
-      failedAttempts += 1;
-      return "Report [still unresolved]";
-    }),
-    /failed validation after 3 attempts: forbidden bracketed token/
-  );
-  assert.equal(failedAttempts, 3);
-
-  let reservedBlockAttempts = 0;
-  const reservedBlockRecovery = await generateValidatedReport(
-    totalSafetyPrompts,
-    totalSafety,
-    async () => {
-      reservedBlockAttempts += 1;
-      return reservedBlockAttempts === 1 ? `Body\n\n${PREPARER_BLOCK}` : validBody;
-    }
-  );
-  assert.equal(reservedBlockRecovery.attempts, 2);
-  assert.equal(reservedBlockRecovery.content.split(PREPARER_BLOCK).length - 1, 1);
-
+  assert.equal(generated.attempts, 2);
+  assert.deepEqual(events, [
+    "1:started",
+    "1:failed",
+    "2:started",
+    "2:succeeded",
+  ]);
   console.log(
     JSON.stringify(
       {
         passed: true,
-        tiers: {
-          assessment: headings(assessment),
-          monitor: headings(monitor),
-          remediate: headings(remediate),
-          totalSafety: headings(totalSafety),
-        },
-        totalPoints: { previous: 582, latest: 599, delta: 17 },
-        openChallenges: remediate.cases.length,
-        coachingItems: remediate.coachingProgram.length,
-        complianceSourceRows: totalSafety.complianceSweep?.sourceRowCounts,
-        assessmentHasFirstPeriodBoilerplate: assessmentReport.includes(
-          FIRST_REPORTING_PERIOD_STATEMENT
-        ),
-        placeholderRetryAttempts: retried.attempts,
-        terminalFailureAttempts: failedAttempts,
+        reportTypes: Object.keys(REPORT_TYPE_CONFIGS),
+        monthlyAnchorId: selectReportSnapshots(
+          [quarterlyAnchor, latest, earliest, monthlyAnchor],
+          "monthly"
+        ).comparisonSnapshotId,
+        quarterlyFirstPeriod: selectReportSnapshots(
+          [latest, monthlyAnchor],
+          "quarterly"
+        ).strategy,
+        baselineId: selectReportSnapshots(
+          [latest, earliest, monthlyAnchor],
+          "improvement"
+        ).comparisonSnapshotId,
+        openRequestRowsProven: requestSummary.rowCount,
+        allTypesValidated: true,
+        retryAttemptsProven: generated.attempts,
       },
       null,
       2
@@ -765,7 +803,7 @@ async function main() {
   );
 }
 
-void main().catch((error) => {
+testRetryAndPrint().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
