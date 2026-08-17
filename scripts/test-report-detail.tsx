@@ -172,6 +172,39 @@ assert.ok(
 assert.match(actionRoute, /\.delete\(\)/);
 assert.match(actionRoute, /status: 409/);
 
+const sendRoute = source("app/api/reports/[id]/send/route.ts");
+assert.match(sendRoute, /report\.status !== "reviewed"/);
+assert.ok((sendRoute.match(/status: 409/g) ?? []).length >= 2);
+assert.match(sendRoute, /\.eq\("status", "reviewed"\)/);
+assert.match(sendRoute, /\.select\("id, status, sent_at"\)/);
+assert.match(sendRoute, /\.maybeSingle\(\)/);
+assert.match(sendRoute, /emailSent = result\.success && !dryRun/);
+assert.match(
+  sendRoute,
+  /process\.env\.EMAIL_DRY_RUN\?\.trim\(\)\.toLowerCase\(\) !== "false"/
+);
+
+const detailActions = source(
+  "components/console/report-detail-actions.tsx"
+);
+assert.match(detailActions, /const isReviewed = status === "reviewed"/);
+assert.match(detailActions, /`\/api\/reports\/\$\{reportId\}\/send`/);
+assert.match(detailActions, /Send to client/);
+assert.match(
+  detailActions,
+  /Marked sent — email suppressed by dry-run gate/
+);
+
+const emailClient = source("lib/email/client.ts");
+assert.match(
+  emailClient,
+  /sendReportReady\([\s\S]*?Promise<EmailDeliveryResult>/
+);
+assert.match(
+  emailClient,
+  /sendReportReady\([\s\S]*?return result;\s*}/
+);
+
 const generator = source("components/console/report-generator.tsx");
 assert.doesNotMatch(generator, /fetch\(`\/api\/reports`/);
 assert.doesNotMatch(generator, /\/send/);
@@ -260,7 +293,10 @@ console.log(
         reviewed_by: reviewUpdate.reviewed_by,
         reviewed_at: reviewUpdate.reviewed_at,
       },
-      guardedMutations: ["save", "review", "delete"],
+      guardedMutations: ["save", "review", "delete", "send"],
+      reviewedOnlySend: true,
+      atomicSendTransition: true,
+      dryRunSuppressionSurfaced: true,
       generatorCreatesDuplicateRow: false,
       generatorExposesSend: false,
       portalPdfGenerationStaffOnly: true,

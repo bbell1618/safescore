@@ -5,8 +5,12 @@ import {
   monitoringWatchStatusText,
   mostRecentMonitoringCheck,
 } from "@/lib/monitoring/watch-status";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import {
+  MonitoringAlertList,
+  type MonitoringAlertRow,
+} from "@/components/console/monitoring-alert-list";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +31,10 @@ export default async function MonitoringPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const [supabase, service] = await Promise.all([
+    createClient(),
+    createServiceClient(),
+  ]);
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
@@ -49,19 +56,32 @@ export default async function MonitoringPage({
     diffFromPrior: snapshots[index + 1] ? diffSnapshots(snapshot, snapshots[index + 1]) : null,
   }));
 
-  const { data: latestMonitoringRun, error: latestMonitoringRunError } =
-    await supabase
+  const [latestMonitoringRunResult, alertsResult] = await Promise.all([
+    supabase
       .from("activity_log")
       .select("created_at, metadata")
       .eq("client_id", id)
       .filter("metadata->>source", "eq", "monitoring_cron")
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .maybeSingle(),
+    service
+      .from("alerts")
+      .select(
+        "id, type, severity, title, message, created_at, acknowledged_at, acknowledged_by"
+      )
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
+  const { data: latestMonitoringRun, error: latestMonitoringRunError } =
+    latestMonitoringRunResult;
   if (latestMonitoringRunError) {
     throw new Error(
       `Unable to load the latest monitoring run: ${latestMonitoringRunError.message}`
     );
+  }
+  if (alertsResult.error) {
+    throw new Error(`Unable to load monitoring alerts: ${alertsResult.error.message}`);
   }
 
   const runSource = latestMonitoringRun?.metadata?.source;
@@ -123,6 +143,10 @@ export default async function MonitoringPage({
           {watchStatus}
         </p>
       </section>
+
+      <MonitoringAlertList
+        initialAlerts={(alertsResult.data ?? []) as MonitoringAlertRow[]}
+      />
 
       <div>
         <h2 className="font-semibold text-[#1E1C1A] text-sm">SafeScore computed burden</h2>

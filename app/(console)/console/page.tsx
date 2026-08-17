@@ -4,7 +4,9 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { QuickAssessment } from "@/components/console/quick-assessment";
 import { NewClientButton } from "@/components/console/new-client-button";
+import { OperatorToday } from "@/components/console/operator-today";
 import { AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
+import { getOperatorToday } from "@/lib/operator/checklist-server";
 import {
   normalizeClientTier,
   isClientTier,
@@ -35,16 +37,35 @@ const statusLabel: Record<string, string> = {
 export default async function ConsolePage() {
   const supabase = await createClient();
 
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [todayResult, clientsResult, alertsResult] = await Promise.all([
+    getOperatorToday()
+      .then((payload) => ({ payload, error: null }))
+      .catch((error: unknown) => ({
+        payload: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown Today context loading failure",
+      })),
+    supabase
+      .from("clients")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("alerts")
+      .select("client_id")
+      .is("dismissed_at", null)
+      .is("read_at", null),
+  ]);
 
-  const { data: alertCounts } = await supabase
-    .from("alerts")
-    .select("client_id")
-    .is("dismissed_at", null)
-    .is("read_at", null);
+  if (clientsResult.error) {
+    throw new Error(`Unable to load console clients: ${clientsResult.error.message}`);
+  }
+  if (alertsResult.error) {
+    throw new Error(`Unable to load console alert counts: ${alertsResult.error.message}`);
+  }
+  const clients = clientsResult.data;
+  const alertCounts = alertsResult.data;
 
   const alertMap = new Map<string, number>();
   for (const a of alertCounts ?? []) {
@@ -67,6 +88,12 @@ export default async function ConsolePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <OperatorToday
+        items={todayResult.payload?.items ?? []}
+        gates={todayResult.payload?.gates ?? []}
+        error={todayResult.error}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

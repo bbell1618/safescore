@@ -9,6 +9,7 @@ import {
   Pencil,
   Printer,
   Save,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
@@ -17,12 +18,18 @@ import type { ReportStatus } from "@/lib/supabase/types";
 
 type ReportActionResponse = {
   error?: string;
+  success?: boolean;
+  clientEmail?: string | null;
+  emailSent?: boolean;
+  dryRun?: boolean;
+  emailError?: string | null;
   report?: {
     id: string;
     status: ReportStatus;
-    final_content: string | null;
-    reviewed_by: string | null;
-    reviewed_at: string | null;
+    final_content?: string | null;
+    reviewed_by?: string | null;
+    reviewed_at?: string | null;
+    sent_at?: string | null;
   };
 };
 
@@ -54,12 +61,13 @@ export function ReportDetailActions({
   const [status, setStatus] = useState(initialStatus);
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState<
-    "save" | "review" | "delete" | null
+    "save" | "review" | "send" | "delete" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const isDraft = status === "draft";
+  const isReviewed = status === "reviewed";
   const hasUnsavedChanges = content !== savedContent;
 
   async function updateReport(action: "save" | "review") {
@@ -145,6 +153,46 @@ export function ReportDetailActions({
     }
   }
 
+  async function sendToClient() {
+    setPending("send");
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/reports/${reportId}/send`, {
+        method: "POST",
+      });
+      const payload = await responseBody(response);
+      if (!response.ok || !payload.success || !payload.report) {
+        throw new Error(
+          payload.error ?? `Report send failed with HTTP ${response.status}`
+        );
+      }
+
+      setStatus(payload.report.status);
+      if (payload.dryRun) {
+        setMessage("Marked sent — email suppressed by dry-run gate");
+      } else if (payload.emailSent) {
+        setMessage("Report sent to the client and published in their portal.");
+      } else {
+        setMessage("Report marked sent and published in the client portal.");
+        setError(
+          payload.emailError ??
+            "The client notification was not delivered. Check the client email and delivery configuration."
+        );
+      }
+      router.refresh();
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : "Unable to send report"
+      );
+    } finally {
+      setPending(null);
+    }
+  }
+
   function cancelEditing() {
     setContent(savedContent);
     setEditing(false);
@@ -207,6 +255,17 @@ export function ReportDetailActions({
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               {pending === "review" ? "Marking reviewed..." : "Mark reviewed"}
+            </button>
+          )}
+          {isReviewed && (
+            <button
+              type="button"
+              onClick={sendToClient}
+              disabled={pending !== null}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1B2D4F] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2A4270] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {pending === "send" ? "Sending..." : "Send to client"}
             </button>
           )}
         </div>

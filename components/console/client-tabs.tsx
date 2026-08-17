@@ -12,6 +12,7 @@ const TABS: ReadonlyArray<{
   href: string;
   feature?: TierFeature;
 }> = [
+  { key: "checklist", label: "Checklist", href: "/checklist" },
   { key: "overview", label: "Overview", href: "" },
   { key: "violations", label: "Violations", href: "/violations" },
   { key: "remediation", label: "Remediation", href: "/remediation", feature: "playbook_coach" },
@@ -24,6 +25,7 @@ const TABS: ReadonlyArray<{
 ];
 
 function activeTab(pathname: string) {
+  if (pathname.includes("/checklist")) return "checklist";
   if (pathname.includes("/cases") || pathname.includes("/dataq") || pathname.includes("/cpdp")) {
     return "cases";
   }

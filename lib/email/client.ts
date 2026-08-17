@@ -439,7 +439,7 @@ export async function sendCaseStatusChange(
 
 export async function sendReportReady(
   data: ReportReadyEmailData
-): Promise<{ success: boolean }> {
+): Promise<EmailDeliveryResult> {
   const html = emailWrapper(`
     <h2>Your safety report is ready</h2>
     <p>A new report has been prepared for ${data.companyName}.</p>
@@ -469,7 +469,7 @@ export async function sendReportReady(
     console.error("sendReportReady failed:", result.error);
   }
 
-  return { success: result.success };
+  return result;
 }
 
 export async function sendWelcomeEmail(

@@ -59,6 +59,8 @@ export async function proxy(request: NextRequest) {
       "/api/analysis/",
       "/api/cases/",
       "/api/clients",
+      "/api/monitoring/",
+      "/api/operator/",
       "/api/requests/",
       "/api/violations/",
       "/api/playbooks/",

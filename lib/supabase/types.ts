@@ -583,6 +583,8 @@ export interface Database {
           last_status_check: string | null;
           outcome_date: string | null;
           outcome: "approved" | "denied" | "withdrawn" | null;
+          determination_outcome: string | null;
+          determination_recorded_at: string | null;
           ai_narrative: string | null;
           final_narrative: string | null;
           filing_notes: string | null;
@@ -590,7 +592,17 @@ export interface Database {
           updated_at: string;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["dataq_cases"]["Row"], "id" | "updated_at" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["dataq_cases"]["Row"],
+          | "id"
+          | "updated_at"
+          | "created_at"
+          | "determination_outcome"
+          | "determination_recorded_at"
+        > & {
+          determination_outcome?: string | null;
+          determination_recorded_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["dataq_cases"]["Insert"]>;
       };
       cpdp_cases: {
@@ -602,6 +614,8 @@ export interface Database {
           filed_date: string | null;
           determination_date: string | null;
           outcome: CpdpOutcome | null;
+          determination_outcome: string | null;
+          determination_recorded_at: string | null;
           ai_narrative: string | null;
           final_narrative: string | null;
           filing_notes: string | null;
@@ -642,7 +656,17 @@ export interface Database {
           updated_at: string;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["cpdp_cases"]["Row"], "id" | "updated_at" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["cpdp_cases"]["Row"],
+          | "id"
+          | "updated_at"
+          | "created_at"
+          | "determination_outcome"
+          | "determination_recorded_at"
+        > & {
+          determination_outcome?: string | null;
+          determination_recorded_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["cpdp_cases"]["Insert"]>;
       };
       cpdp_evidence: {
@@ -797,13 +821,81 @@ export interface Database {
           entity_id: string | null;
           read_at: string | null;
           dismissed_at: string | null;
+          acknowledged_at: string | null;
+          acknowledged_by: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["alerts"]["Row"], "id" | "created_at" | "entity_type" | "entity_id"> & {
+        Insert: Omit<
+          Database["public"]["Tables"]["alerts"]["Row"],
+          | "id"
+          | "created_at"
+          | "entity_type"
+          | "entity_id"
+          | "acknowledged_at"
+          | "acknowledged_by"
+        > & {
           entity_type?: string | null;
           entity_id?: string | null;
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["alerts"]["Insert"]>;
+      };
+      operator_item_acks: {
+        Row: {
+          id: string;
+          client_id: string;
+          rule_key: string;
+          context_key: string;
+          action: "done" | "snooze";
+          snoozed_until: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          rule_key: string;
+          context_key: string;
+          action: "done" | "snooze";
+          snoozed_until?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["operator_item_acks"]["Insert"]
+        >;
+      };
+      operator_manual_items: {
+        Row: {
+          id: string;
+          client_id: string;
+          title: string;
+          details: string | null;
+          due_date: string | null;
+          status: "open" | "done";
+          created_by: string | null;
+          created_at: string;
+          completed_at: string | null;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          title: string;
+          details?: string | null;
+          due_date?: string | null;
+          status?: "open" | "done";
+          created_by?: string | null;
+          created_at?: string;
+          completed_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["operator_manual_items"]["Insert"]
+        >;
       };
       activity_log: {
         Row: {

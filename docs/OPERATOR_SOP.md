@@ -591,18 +591,20 @@ Use the AI generator in `/console/clients/{client_id}/reports`.
 7. Select **Edit final copy**, make only supported changes, then **Save edits**.
 8. Use **Print view** for a client-presentable review/PDF proof.
 9. Select **Mark reviewed** only after the final copy is approved. SafeScore records reviewer and timestamp.
+10. Select **Send to client**. The control appears only after review, and the server accepts only an atomic `reviewed -> sent` transition.
+11. Confirm the result: the report is now visible in the portal's **From GEIA** area. When the email dry-run gate is active, no live email is sent and the confirmation reads `Marked sent — email suppressed by dry-run gate`.
 
 The AI draft remains preserved; edits belong in final content.
 
-### Current send limitation
+### Reviewed-only send
 
-The expected lifecycle is `draft -> reviewed -> sent`, but the current detail page has no Send control and the existing server route does not enforce that the report was reviewed. Therefore:
+The enforced lifecycle is `draft -> reviewed -> sent`.
 
-- stop at Reviewed;
-- do not call the route directly;
-- do not manually edit database status;
-- do not promise the report is visible in the portal’s From GEIA area, which lists `sent` reports only;
-- wait for the reviewed-only send workflow to be repaired and verified.
+- A draft cannot be sent. Edit it and mark it reviewed first.
+- The Send control appears only for a reviewed report, and the server rejects every other status with `409 Conflict`.
+- The status update uses `status = reviewed` as an atomic predicate. A second or stale request cannot send a duplicate notification.
+- Sending changes the report to Sent and makes it portal-visible even while `EMAIL_DRY_RUN` suppresses the email. Never change report status directly in the database.
+- If the status changes in another session, reload the detail view before taking another action.
 
 The header **Generate Report** PDF button is a legacy path that creates a reviewed assessment record without the AI/final-content review split. Do not use it for client deliverables. Use the five-type generator.
 
@@ -615,7 +617,7 @@ Three drafts are currently stacked for operator review. Drafts normally accumula
 3. Identify which draft is the intended canonical client report.
 4. Fully review/edit that draft and mark only that one Reviewed.
 5. A draft may be deleted only after the operator confirms it is obsolete or superseded. Reviewed reports cannot be deleted.
-6. Until Send is repaired, leave the approved row Reviewed and the others Draft; do not alter statuses as a workaround.
+6. Send only the approved Reviewed row. Leave the others Draft until the operator deliberately deletes or reviews them; do not alter statuses as a workaround.
 
 ---
 
@@ -691,10 +693,48 @@ Do not rename, delete, or recreate the carrier. Everything must remain on the ex
 - [ ] Evidence upload links to the correct request and automatically reassesses.
 - [ ] Age-out cancels only the correct open violation request.
 - [ ] Total Safety sweep creates one digest/client/day and only the intended 30-day renewal asks.
-- [ ] A five-type report can be generated, edited, reviewed, and—after the send repair—sent only from Reviewed.
+- [ ] A five-type report can be generated, edited, reviewed, and sent only from Reviewed.
 - [ ] Portal From GEIA lists sent reports only.
 - [ ] A generated playbook’s immediate portal visibility is either accepted or replaced with a reviewed publish gate.
 - [ ] No live email, Stripe charge, client invitation, filing, or status change occurs outside the approved runbook.
+
+---
+
+## 10. Operator Checklist
+
+The Operator Checklist is the primary operating surface for routine SafeScore work. Start each shift with **Today** on `/console`, then open a carrier's **Checklist** before working from an individual tab. Today rolls up work that needs staff action across carriers; the client Checklist also shows work waiting on the client, work waiting on a system gate, and manual items.
+
+> Operator checklist items are DERIVED from live data; stored todo rows drift and are forbidden. Stored state is only acks/snoozes/manual items.
+
+### How the checklist stays truthful
+
+- The server assembles the current client context in one batched read and evaluates deterministic rules when the Checklist or Today payload is requested. Derived work is not created by a cron job and is not stored as todo rows.
+- A derived item appears while its live condition is true and auto-clears when that condition clears. Completing the linked work is the normal way to remove it.
+- Monthly-report cadence is based on a Sent report in the last 30 days. The exact review sequence is: generate monthly → review → mark reviewed → Send.
+- Quarterly strategic review is the intentional human-judgment exception. A Done acknowledgment applies only to the current quarter's context key; the next quarter produces a new item.
+- A snooze temporarily hides only an eligible human-judgment item until its recorded date. It does not change the source record, resolve a request, acknowledge an alert, or complete a case.
+- Alert acknowledgment is a read receipt, not a decision or remediation result. Read the alert against the latest snapshot and source rows first, then acknowledge that specific alert. The monitoring item clears only when no relevant unread alerts remain.
+- Manual items are deliberately stored operator notes. They may be completed or soft-deleted, but they never replace a derived rule or its underlying workflow.
+- A checklist error must be treated as an error. Never interpret a failed context load as an empty, completed queue.
+
+### Rule-family guide
+
+| Family | What it means | Where the instructions lead |
+| --- | --- | --- |
+| Monitoring | An unread change alert needs staff review and acknowledgment. | Follow §2: compare snapshots, inspect source rows, classify the movement, then acknowledge the alert. |
+| Reporting | A scheduled report is due or generated drafts need review. | Follow §8: generate the correct type, review/edit the final copy, mark reviewed, then Send. |
+| Evidence | A carrier request is waiting, escalated, or submitted for staff review. | Follow §5: inspect the linked violation/case and evidence, allow automatic reassessment where applicable, and record the honest outcome. |
+| Cases | A DataQ or CPDP draft is more than seven days old, or any filed case has no recorded determination yet. | Follow §4 for CPDP and §5 for Lane B/DataQ; never infer a determination or filing authority. |
+| Compliance | A Total Safety driver roster is empty, a DQF has missing items, an expiration is due within 60 days, or an annual Clearinghouse query is due. | Follow §7: verify the source document, update the operational record, and keep roster counts separate from billing. |
+| Onboarding | No portal user has accepted access yet, or no baseline assessment has ever reached Sent. | Follow §3 for portal access and §8 for baseline report review and delivery. |
+| Service | A quarterly strategic review needs operator judgment. | Review the carrier's current trends, cases, requests, and service priorities, then mark the quarter complete only after the review occurs. |
+| Gates | A system-level condition prevents normal delivery or automation. | Follow §9 and the approved launch/runbook process; never bypass dry-run, missing integration, or test-billing safeguards. |
+
+### Generated work versus manual work
+
+Derived items explain a live condition, why it matters, and the next steps. Use **Go** to open the authoritative workbench; do not mark a derived item done merely to make the queue shorter. Manual items are for genuinely ad-hoc operator work that has no deterministic source condition. Before creating one, confirm that an existing rule, request, case, or compliance record does not already represent the work.
+
+The empty state reads `Nothing needs you right now — {N} waiting on client, {M} waiting on gates.` It means no current item needs staff action; it does not mean client-owned or gate-blocked work disappeared. Read those waiting counts before ending the review.
 
 ---
 
