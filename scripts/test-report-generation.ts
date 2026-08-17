@@ -248,6 +248,12 @@ function caseSentence(reportCase: ReportCaseRow): string {
   return `${reference} is ${reportCase.status}.${reportCase.outcome ? ` Its stored outcome is ${reportCase.outcome}.` : ""}`;
 }
 
+function caseDescriptionSentence(reportCase: ReportCaseRow): string[] {
+  return reportCase.description?.trim()
+    ? [`Stored case description: ${reportCase.description.trim()}`]
+    : [];
+}
+
 function validModelBody(data: ReportGenerationData): string {
   const lines: string[] = [];
   const fixedKeys = new Set(Object.keys(data.fixedSections));
@@ -281,7 +287,7 @@ function validModelBody(data: ReportGenerationData): string {
         lines.push(
           ...(data.priorityFindings?.challengeableViolations.map(
             (violation) =>
-              `DataQ recommendation: ${violation.violationCode} — ${violation.violationDescription}; ${violation.challengeLane}; ${violation.weightedPoints} weighted points${violation.inspectionDate ? `; inspection date ${violation.inspectionDate}` : ""}.`
+              `DataQ recommendation: ${violation.violationCode} — ${violation.violationDescription}; ${violation.challengeLane}; ${violation.weightedPoints} weighted ${violation.weightedPoints === 1 ? "point" : "points"}${violation.inspectionDate ? `; inspection date ${violation.inspectionDate}` : ""}.`
           ) ?? []),
           ...(data.priorityFindings?.topOperationalFamilies.map(
             (family) =>
@@ -345,11 +351,12 @@ function validModelBody(data: ReportGenerationData): string {
         break;
       case "openChallenges":
         lines.push(
-          ...data.cases.map((item) =>
+          ...data.cases.flatMap((item) => [
             item.case_type === "CPDP"
               ? `${caseSentence(item)} This is a crash preventability case.`
-              : caseSentence(item)
-          )
+              : caseSentence(item),
+            ...caseDescriptionSentence(item),
+          ])
         );
         break;
       case "engagementSummary":
@@ -541,6 +548,8 @@ for (let index = 0; index < 8; index += 1) {
 }
 assert.match(requestSummary.requiredSummarySentences[0]!, /visible in your portal/i);
 assert.ok(!requestSummary.requiredSummarySentences[0]!.includes("CLOSED"));
+assert.ok(requestSummary.requiredSummarySentences[0]!.endsWith("dismissed?"));
+assert.ok(!requestSummary.requiredSummarySentences[0]!.endsWith("?."));
 
 for (const type of Object.keys(REPORT_TYPE_CONFIGS) as ReportType[]) {
   const data = dataFor(type);
