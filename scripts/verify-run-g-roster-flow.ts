@@ -452,14 +452,7 @@ async function captureCleanupRows(
     .select("id, action_type, entity_id")
     .eq("client_id", CLIENT_ID)
     .gte("created_at", runStartedAt)
-    .in("entity_id", entityIds)
-    .in("action_type", [
-      "client_driver_roster_requested",
-      "client_driver_roster_submitted",
-      "compliance_driver_approved",
-      "compliance_driver_rejected",
-      "client_driver_roster_request_closed",
-    ]);
+    .in("entity_id", entityIds);
   if (activitiesResult.error) throw activitiesResult.error;
   for (const row of activitiesResult.data ?? []) artifacts.activityIds.add(row.id);
 }
@@ -1319,6 +1312,8 @@ async function main() {
 
   const passed =
     proofFailure === null && cleanupFailures.length === 0 && finalFailure === null;
+  const cleanupVerified =
+    cleanupFailures.length === 0 && finalFailure === null && finalState !== null;
   console.log(
     JSON.stringify(
       {
@@ -1344,10 +1339,10 @@ async function main() {
             finalState !== null &&
             JSON.stringify(finalState.protectedCounts) ===
               JSON.stringify(baseline.protectedCounts),
-          documentRows: finalState === null ? null : 0,
-          driverDocumentRows: finalState === null ? null : 0,
-          activityRows: finalState === null ? null : 0,
-          storageObjects: finalState === null ? null : 0,
+          documentRows: cleanupVerified ? 0 : null,
+          driverDocumentRows: cleanupVerified ? 0 : null,
+          activityRows: cleanupVerified ? 0 : null,
+          storageObjects: cleanupVerified ? 0 : null,
           sessionsRevoked: cleanupFailures.every(
             (failure) => !failure.startsWith("session revocation")
           ),
