@@ -386,9 +386,9 @@ const REPORT_TYPE_INSTRUCTIONS: Record<ReportType, string> = {
   assessment:
     "Write only a concise onboarding Safety Profile Overview. Identify the carrier and reproduce every required overview fact. The server deterministically adds the BASIC, crash, recommendation, and next-step sections from the structured data. Never compare this assessment with a previous period.",
   monthly:
-    "Write a client monthly progress report. Use the full anchor period when a comparison snapshot is supplied. New Violations must cover every supplied new violation or reproduce its supplied fallback sentence. Priority Findings must include every supplied open-request summary exactly and may use only supplied current priorities. Open Challenges must cover every supplied open case with its case type, case number, status, and its real stored description reproduced exactly when present.",
+    "Write a client monthly progress report. Use the full anchor period when a comparison snapshot is supplied. New Violations must cover every supplied new violation or reproduce its supplied fallback sentence. Priority Findings must include every supplied open-request summary exactly and may use only supplied current priorities. Open Challenges must cover every supplied open case with its case type, case number, status, and a concise accurate summary derived only from its real stored description when present.",
   quarterly:
-    "Write a client quarterly re-analysis. When a comparison snapshot is supplied, Burden Trend must list before and after values for every BASIC, including unchanged categories. Changes This Quarter must reproduce the supplied added-and-aged-out statement. Priority Findings must include every supplied open-request summary exactly. Open Challenges must cover every supplied open case with its case type, case number, status, and its real stored description reproduced exactly when present.",
+    "Write a client quarterly re-analysis. When a comparison snapshot is supplied, Burden Trend must list before and after values for every BASIC, including unchanged categories. Changes This Quarter must reproduce the supplied added-and-aged-out statement. Priority Findings must include every supplied open-request summary exactly. Open Challenges must cover every supplied open case with its case type, case number, status, and a concise accurate summary derived only from its real stored description when present.",
   improvement:
     "Write an external insurance re-marketing report. Compare the engagement baseline with the latest measurement, include every BASIC reduction or worsening, and limit Work Performed to supplied filed-or-beyond cases and the supplied client-evidence count when greater than zero. Do not include weakness rankings, request language, pending-investigation language, or internal queue language.",
   underwriter:
@@ -1071,10 +1071,6 @@ function exactCaseSentence(reportCase: ReportCaseRow): string {
     : "";
   return `${reference} is ${reportCase.status}.${outcome}`;
 }
-function exactCaseDescriptionSentence(reportCase: ReportCaseRow): string | null {
-  const description = reportCase.description?.trim();
-  return description ? `Stored case description: ${description}` : null;
-}
 function assessmentBurdenFacts(data: ReportGenerationData): string[] {
   if (data.reportType !== "assessment") return [];
   return data.latestSnapshot.perBasic.map(
@@ -1269,9 +1265,6 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
   const requestFacts = data.openRequests?.requiredSummarySentences ?? [];
   const changeFact = data.comparison?.requiredChangeStatement;
   const caseFacts = data.cases.map(exactCaseSentence);
-  const caseDescriptionFacts = data.cases
-    .map(exactCaseDescriptionSentence)
-    .filter((sentence): sentence is string => Boolean(sentence));
   const mandatoryFacts = [
     ...assessmentModelFacts,
     ...comparisonMandatoryFacts(data),
@@ -1280,7 +1273,6 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
     ...(changeFact ? [changeFact] : []),
     ...requestFacts,
     ...caseFacts,
-    ...caseDescriptionFacts,
   ];
   const serverOwnedHeadings = [...serverOwned].map(
     (key) => REPORT_SECTION_HEADINGS[key]
@@ -1304,7 +1296,7 @@ Hard rules:
 - Reproduce every supplied mandatory sentence exactly once in its logically matching section.
 - If comparisonSnapshot exists, use its full timestamp as the selected comparison anchor. Never substitute another period.
 - For every CPDP case supplied, use the phrase crash preventability and never call it an inspection dispute.
-- In Open Challenges, include every supplied case's type, case number, status, and reproduce its mandatory stored-description sentence exactly when present. Do not paraphrase or add case facts.
+- In Open Challenges, include every supplied case's type, case number, and status. When a stored description is present, add a concise accurate summary derived only from that description; do not copy the full narrative and do not add case facts.
 - Do not make legal opinions, outcome promises, underwriting promises, regulatory guarantees, or compliance-certification claims.`;
   const wordInstruction =
     data.reportType === "assessment"
@@ -1513,10 +1505,6 @@ export function validateGeneratedReport(
     ...assessmentRecommendationFacts(data),
     ...comparisonMandatoryFacts(data),
     ...priorityMandatoryFacts(data),
-    ...data.cases.map(exactCaseSentence),
-    ...data.cases
-      .map(exactCaseDescriptionSentence)
-      .filter((sentence): sentence is string => Boolean(sentence)),
   ]) {
     const count = countOccurrence(content, sentence);
     if (count === 0) {
@@ -1661,6 +1649,37 @@ export function validateGeneratedReport(
   for (const sentence of data.openRequests?.requiredSummarySentences ?? []) {
     if (countOccurrence(priorityBody, sentence) !== 1) {
       issues.push(`missing or duplicated open-request summary: ${sentence}`);
+    }
+  }
+  const caseSectionHeading =
+    data.reportType === "monthly" || data.reportType === "quarterly"
+      ? REPORT_SECTION_HEADINGS.openChallenges
+      : data.reportType === "improvement"
+        ? REPORT_SECTION_HEADINGS.workPerformed
+        : data.reportType === "underwriter"
+          ? REPORT_SECTION_HEADINGS.remediationWorkCompleted
+          : null;
+  if (caseSectionHeading) {
+    const caseSection = sectionBody(content, caseSectionHeading, [
+      ...plannedHeadings,
+    ]);
+    for (const reportCase of data.cases) {
+      const sentence = exactCaseSentence(reportCase);
+      if (countOccurrence(caseSection, sentence) !== 1) {
+        issues.push(
+          `case fact is missing or duplicated in ${caseSectionHeading}: ${sentence}`
+        );
+      }
+      const storedDescription = reportCase.description?.trim();
+      if (
+        storedDescription &&
+        storedDescription.length >= 500 &&
+        content.includes(storedDescription)
+      ) {
+        issues.push(
+          `stored case narrative was copied verbatim instead of summarized in ${caseSectionHeading}`
+        );
+      }
     }
   }
   for (const heading of [

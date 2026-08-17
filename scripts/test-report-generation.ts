@@ -129,7 +129,7 @@ const cases: ReportCaseRow[] = [
     case_type: "CPDP",
     case_number: "6123719",
     status: "filed",
-    description: "Lane-change crash request",
+    description: `Lane-change crash request involving a preventability review. ${"The stored factual record documents the crash circumstances without adding an outcome prediction. ".repeat(8)}`,
     filed_date: "2026-06-09",
   },
   {
@@ -249,9 +249,10 @@ function caseSentence(reportCase: ReportCaseRow): string {
 }
 
 function caseDescriptionSentence(reportCase: ReportCaseRow): string[] {
-  return reportCase.description?.trim()
-    ? [`Stored case description: ${reportCase.description.trim()}`]
-    : [];
+  const description = reportCase.description?.trim();
+  if (!description) return [];
+  const firstSentence = description.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() ?? description;
+  return [`Case summary from stored facts: ${firstSentence}`];
 }
 
 function validModelBody(data: ReportGenerationData): string {
@@ -711,6 +712,22 @@ const validMonthly = dataFor("monthly");
 const validMonthlyReport = assembleGeneratedReport(
   validModelBody(validMonthly),
   validMonthly
+);
+const longStoredDescription = validMonthly.cases.find(
+  (item) => item.case_type === "CPDP"
+)?.description;
+assert.ok(longStoredDescription && longStoredDescription.length >= 500);
+assert.ok(buildReportPrompts(validMonthly).user.includes(longStoredDescription));
+assert.ok(!validMonthlyReport.includes(longStoredDescription));
+assert.deepEqual(validateGeneratedReport(validMonthlyReport, validMonthly), []);
+assert.ok(
+  validateGeneratedReport(
+    validMonthlyReport.replace(
+      "This is a crash preventability case.",
+      `This is a crash preventability case. ${longStoredDescription}`
+    ),
+    validMonthly
+  ).some((issue) => issue.includes("copied verbatim instead of summarized"))
 );
 assert.ok(
   validateGeneratedReport(
