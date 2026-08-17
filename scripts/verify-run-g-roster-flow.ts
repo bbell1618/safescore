@@ -982,9 +982,10 @@ async function main() {
     }
     assert.match(consoleCompliance.body, /Client submissions pending review/);
     assert.match(consoleCompliance.body, new RegExp(UPDATED_DRIVER_NAME));
-    assert.match(consoleRequests.body, new RegExp(ROSTER_TITLE));
+    const rosterTitleHtml = /Driver roster (?:&|&amp;) qualification documents/;
+    assert.match(consoleRequests.body, rosterTitleHtml);
     assert.ok(consoleRequests.body.includes(`/roster/${bearerToken}`));
-    assert.match(portalDocuments.body, new RegExp(ROSTER_TITLE));
+    assert.match(portalDocuments.body, rosterTitleHtml);
     assert.ok(portalDocuments.body.includes(`/roster/${bearerToken}`));
     assert.equal(portalCompliance.body.includes(UPDATED_DRIVER_NAME), false);
 
