@@ -311,6 +311,23 @@ function validateContent(content: string, type: ReportType): {
       "underwriter report contained forbidden guarantee language"
     );
   }
+  if (type === "improvement") {
+    assert.doesNotMatch(
+      content,
+      /\bpending\b/i,
+      "improvement report contained forbidden pending language"
+    );
+    assert.doesNotMatch(
+      sectionBody(content, "Current Standing", headings),
+      /\b(?:cases?|challenges?|filed)\b/i,
+      "improvement Current Standing contained case-work language"
+    );
+    assert.doesNotMatch(
+      sectionBody(content, "Work Performed", headings),
+      /\b(?:during|since) (?:the )?(?:SafeScore )?(?:engagement|service)\b/i,
+      "improvement Work Performed misstated case timing"
+    );
+  }
 
   return { placeholderMatches, headings };
 }

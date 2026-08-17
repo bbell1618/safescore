@@ -808,6 +808,39 @@ for (const phrase of [
     )
   );
 }
+const pendingImprovement = assembleGeneratedReport(
+  `${validModelBody(improvement)}\nBoth cases remain pending resolution.`,
+  improvement
+);
+assert.ok(
+  validateGeneratedReport(pendingImprovement, improvement).some((issue) =>
+    issue.toLowerCase().includes("forbidden pending")
+  )
+);
+const misstatedCaseTiming = assembleGeneratedReport(
+  validModelBody(improvement).replace(
+    `${REPORT_SECTION_HEADINGS.workPerformed}\n`,
+    `${REPORT_SECTION_HEADINGS.workPerformed}\nThese cases were filed during the engagement.\n`
+  ),
+  improvement
+);
+assert.ok(
+  validateGeneratedReport(misstatedCaseTiming, improvement).some((issue) =>
+    issue.toLowerCase().includes("misstates pre-baseline")
+  )
+);
+assert.ok(
+  validateGeneratedReport(
+    assembleGeneratedReport(
+      validModelBody(improvement).replace(
+        "Current standing:",
+        "Open cases remain. Current standing:"
+      ),
+      improvement
+    ),
+    improvement
+  ).some((issue) => issue.includes("Current Standing"))
+);
 
 async function testRetryAndPrint() {
   const events: string[] = [];

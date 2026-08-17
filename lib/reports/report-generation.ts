@@ -390,7 +390,7 @@ const REPORT_TYPE_INSTRUCTIONS: Record<ReportType, string> = {
   quarterly:
     "Write a client quarterly re-analysis. When a comparison snapshot is supplied, Burden Trend must list before and after values for every BASIC, including unchanged categories. Changes This Quarter must reproduce the supplied added-and-aged-out statement. Priority Findings must include every supplied open-request summary exactly. Open Challenges must cover every supplied open case with its case type, case number, status, and a concise accurate summary derived only from its real stored description when present.",
   improvement:
-    "Write an external insurance re-marketing report. Compare the engagement baseline with the latest measurement, include every BASIC reduction or worsening, and limit Work Performed to supplied filed-or-beyond cases and the supplied client-evidence count when greater than zero. Do not include weakness rankings, request language, pending-investigation language, or internal queue language.",
+    "Write an external insurance re-marketing report. Compare the engagement baseline with the latest measurement, include every BASIC reduction or worsening, and limit Work Performed to supplied filed-or-beyond cases and the supplied client-evidence count when greater than zero. Never use the word pending. Never say a case was filed during or since the engagement unless its filed date is on or after serviceBaselineDate. Current Standing contains only latest measured safety totals, never cases or challenges. Do not include weakness rankings, request language, investigation language, or internal queue language.",
   underwriter:
     "Write for insurance carrier underwriting. Carrier Overview uses only supplied identity and fleet facts. Remediation Work Completed includes only supplied filed-or-beyond cases, their stored status, and a stored outcome only when present. Current Safety Standing gives the measured trajectory and current in-window counts. Do not include weakness rankings, evidence asks, draft work, internal queue language, or outcome promises.",
 };
@@ -1720,6 +1720,41 @@ export function validateGeneratedReport(
     }
     if (/\b(?:client )?weakness (?:ranking|rankings)\b/i.test(content)) {
       issues.push("forbidden weakness-ranking language in external report");
+    }
+  }
+  if (data.reportType === "improvement") {
+    if (/\bpending\b/i.test(content)) {
+      issues.push("forbidden pending language in improvement report");
+    }
+    const currentStandingBody = sectionBody(
+      content,
+      REPORT_SECTION_HEADINGS.currentStanding,
+      [...plannedHeadings]
+    );
+    if (/\b(?:cases?|challenges?|filed)\b/i.test(currentStandingBody)) {
+      issues.push("case-work language is forbidden in improvement Current Standing");
+    }
+    const baselineTime = Date.parse(data.serviceBaselineDate);
+    const hasPreBaselineCase = data.cases.some((reportCase) => {
+      const filedTime = reportCase.filed_date
+        ? Date.parse(reportCase.filed_date)
+        : Number.NaN;
+      return Number.isFinite(filedTime) && filedTime < baselineTime;
+    });
+    const workPerformedBody = sectionBody(
+      content,
+      REPORT_SECTION_HEADINGS.workPerformed,
+      [...plannedHeadings]
+    );
+    if (
+      hasPreBaselineCase &&
+      /\b(?:during|since) (?:the )?(?:SafeScore )?(?:engagement|service)\b/i.test(
+        workPerformedBody
+      )
+    ) {
+      issues.push(
+        "improvement report misstates pre-baseline case work as occurring during the engagement"
+      );
     }
   }
   if (data.reportType === "underwriter" && /\bguarantee\w*\b/i.test(content)) {
