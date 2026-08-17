@@ -23,6 +23,12 @@ export type ChecklistItemState =
 
 export type ChecklistPriority = 1 | 2 | 3;
 
+export type ChecklistItemAction = {
+  kind: "request_driver_roster" | "copy_roster_link";
+  label: string;
+  value?: string;
+};
+
 /**
  * A derived operator action. `contextKey` is deliberately explicit because
  * acknowledgements apply to one rule occurrence, never to every future
@@ -41,6 +47,7 @@ export type ChecklistItem = {
   href: string;
   canMarkDone: boolean;
   canSnooze: boolean;
+  action?: ChecklistItemAction;
   defaultSnoozeDays?: number;
   snoozedUntil?: string;
 };
@@ -71,9 +78,13 @@ export type ChecklistRequestContext = {
   id: string;
   status: string;
   responsibility: string;
+  requestType: "evidence" | "question" | "roster_collection" | null;
   evidenceStatus: string | null;
   escalatedAt: string | null;
   nextReminderAt: string | null;
+  createdAt: string;
+  uploadToken: string;
+  uploadUrl: string;
 };
 
 export type ChecklistCaseKind = "DataQ" | "CPDP";
@@ -114,10 +125,19 @@ export type OperatorManualItem = {
   deletedAt: string | null;
 };
 
+export type ChecklistPendingDriverContext = {
+  id: string;
+  fullName: string;
+  requestId: string | null;
+  createdAt: string;
+};
+
 export type ChecklistComplianceContext = {
   /** False only when the production schema genuinely lacks the source tables. */
   available: boolean;
+  /** Approved operational roster only. Pending client submissions stay separate. */
   drivers: ComplianceHealthDriverInput[];
+  pendingDrivers: ChecklistPendingDriverContext[];
   driverDocuments: ComplianceHealthDriverDocumentInput[];
   vehicles: ComplianceHealthVehicleInput[];
   clearinghouseRecords: ComplianceHealthClearinghouseInput[];

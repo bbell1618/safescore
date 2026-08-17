@@ -467,19 +467,30 @@ Total Safety is an operational compliance service. Its roster is not the billing
 - Adding, terminating, or correcting a compliance driver must never change the plan count or MRR automatically.
 - If billing needs to change, use the approved subscription process separately.
 
-### Collect before entering data
+### Request and review the driver list
 
-For each driver:
+Open `/console/clients/{client_id}/compliance` and select **Request driver roster**. SafeScore creates one open request and provides a no-login link. Copy that link when dry-run email is enabled or when the carrier needs it by text.
 
-- full name;
-- CDL number, state, class, and expiration when available;
-- hire date and active/terminated status;
-- employment application;
-- prior-employer checks;
-- road test/certificate;
-- initial MVR and annual-review date;
-- medical certificate and expiration;
-- Clearinghouse pre-employment query evidence.
+The carrier uses the link to add one driver at a time. Each save records the name and CDL facts immediately, and the carrier can return to add, edit, or remove entries while the request stays open. Ask the carrier to snap the CDL and medical-card photos when available; blank dates are acceptable when the source photo is attached.
+
+Client entries remain in **Client submissions pending review** and do not enter the official roster yet. For each submission:
+
+1. Compare the entered facts with the uploaded CDL and medical-card images.
+2. Fill any verified CDL or medical-card expiration date that the carrier left blank.
+3. Approve an accurate row, or reject only that staged row when it does not belong in the roster.
+4. Close the roster request only after the carrier has submitted the list and no entries remain pending.
+
+Only approved driver rows feed DQF gaps, compliance health, expiration alerts, Clearinghouse work, and the client portal. A pending client submission must never change those outputs.
+
+The driver-list request collects:
+
+- full name and CDL number;
+- CDL state, class, and expiration when available;
+- medical-card expiration when available;
+- hire date when available;
+- CDL and medical-card source images when available.
+
+After approval, collect and maintain the remaining qualification-file records: employment application, prior-employer checks, road test/certificate, initial MVR and annual-review date, and Clearinghouse pre-employment query evidence.
 
 For each vehicle:
 
@@ -502,10 +513,11 @@ Open `/console/clients/{client_id}/compliance`.
 ![Synthetic Total Safety Compliance manager before roster records are collected](./sop-assets/11-compliance-empty.png)
 
 1. **Drivers & qualification files**
-   - select **Add driver**;
-   - enter identity, licensing, hire, and status facts;
-   - open the driver’s DQF details and record each checklist item/document/date;
-   - terminate rather than erase a driver whose employment ended.
+   - use **Request driver roster** for the initial carrier collection;
+   - review and approve client submissions before they become official records;
+   - use **Add driver** only when GEIA is entering a directly verified record outside the client-request flow;
+   - open an approved driver’s DQF details and record each remaining checklist item/document/date;
+   - terminate rather than erase an approved driver whose employment ended.
 2. **Vehicles & maintenance**
    - select **Add vehicle**;
    - enter unit/VIN/plate and annual inspection facts;
@@ -516,7 +528,7 @@ Open `/console/clients/{client_id}/compliance`.
 
 ![Synthetic Total Safety Compliance manager after two drivers, one vehicle, DQF records, and Clearinghouse facts were entered](./sop-assets/16-console-compliance-populated.png)
 
-Use source documents where available. Do not mark an item On file based only on a verbal statement.
+Use source documents where available. Do not mark an item On file based only on a verbal statement. A submitted photo may support approval only after the operator actually reviews it.
 
 ### Expiration sweep
 

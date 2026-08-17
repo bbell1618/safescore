@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   isPublicEvidenceUploadPath,
+  isPublicRosterApiPath,
   isPublicUnauthenticatedPagePath,
 } from "@/lib/auth/public-paths";
 import { isStaffReportActionPath } from "@/lib/auth/report-paths";
@@ -48,8 +49,10 @@ export async function proxy(request: NextRequest) {
       "/api/fmcsa/",
     ];
     const isPublicEvidenceUpload = isPublicEvidenceUploadPath(path);
+    const isPublicRosterApi = isPublicRosterApiPath(path);
     if (
       isPublicEvidenceUpload ||
+      isPublicRosterApi ||
       publicApiExactPaths.has(path) ||
       publicApiPrefixes.some((prefix) => path.startsWith(prefix))
     ) return supabaseResponse;

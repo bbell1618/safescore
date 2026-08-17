@@ -45,7 +45,7 @@ type RequestedEvidenceItem = {
   contextNote: string | null;
 };
 
-type ClientRequestType = "evidence" | "question";
+type ClientRequestType = "evidence" | "question" | "roster_collection";
 
 type ClientRequestRow = {
   id: string;
@@ -61,6 +61,8 @@ type ClientRequestRow = {
   evidence_status: string | null;
   status_copy: string | null;
   due_at: string | null;
+  upload_token: string;
+  submitted_at: string | null;
   created_at: string;
 };
 
@@ -94,6 +96,20 @@ const REQUEST_STATUS_LABELS: Record<string, string> = {
 };
 
 function statusPresentation(request: ClientRequestRow) {
+  if (request.request_type === "roster_collection") {
+    return request.submitted_at
+      ? {
+          label: "List submitted",
+          copy: "Your driver list is saved. You can still add or correct a driver until GEIA finishes its review.",
+          tone: "navy" as const,
+        }
+      : {
+          label: "Driver list needed",
+          copy: "Open the secure link to add each driver and optional credential photos. Your work saves as you go.",
+          tone: "amber" as const,
+        };
+  }
+
   const lifecycleStatus =
     request.evidence_status ?? (request.status === "open" ? "open" : request.status);
 
@@ -186,7 +202,7 @@ async function loadOpenRequests(
   let query = supabase
     .from("client_requests")
     .select(
-      "id, category, title, description, requested_items, request_type, evidence_class, why_copy, potential_points, status, evidence_status, status_copy, due_at, created_at"
+      "id, category, title, description, requested_items, request_type, evidence_class, why_copy, potential_points, status, evidence_status, status_copy, due_at, upload_token, submitted_at, created_at"
     )
     .eq("client_id", clientId)
     .eq("responsibility", "client")
@@ -212,7 +228,10 @@ async function loadOpenRequests(
   if (error) {
     throw new Error(`Unable to load document requests: ${error.message}`);
   }
-  return (data ?? []) as ClientRequestRow[];
+  const rows = (data ?? []) as ClientRequestRow[];
+  return includeCompliance
+    ? rows
+    : rows.filter((row) => row.request_type !== "roster_collection");
 }
 
 async function loadDocuments(
@@ -379,6 +398,8 @@ async function NeededFromYouSection({
             const items = requestedEvidenceItems(request.requested_items);
             const status = statusPresentation(request);
             const isQuestion = request.request_type === "question";
+            const isRosterCollection =
+              request.request_type === "roster_collection";
             const isFmcsaPinRequest =
               request.category === "fmcsa_portal_pin";
             const lifecycleStatus =
@@ -386,6 +407,7 @@ async function NeededFromYouSection({
               (request.status === "open" ? "open" : request.status);
             const canUpload =
               !isQuestion &&
+              !isRosterCollection &&
               !isFmcsaPinRequest &&
               (lifecycleStatus === "open" ||
                 lifecycleStatus === "submitted" ||
@@ -506,7 +528,24 @@ async function NeededFromYouSection({
                   />
                 ) : null}
 
-                {!isQuestion && items.length > 0 ? (
+                {isRosterCollection ? (
+                  <div className="mt-4 rounded-lg border border-gold/30 bg-amber-subtle/55 p-4">
+                    <p className="text-sm font-semibold text-warm-dark">
+                      Add names, CDL numbers, and optional photos in the secure driver-list page.
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-warm-mid">
+                      No extra password is needed. You can save a few drivers, leave, and come back with this link.
+                    </p>
+                    <Link
+                      href={`/roster/${request.upload_token}`}
+                      className="btn-primary mt-3 min-h-11 w-full text-sm sm:w-auto"
+                    >
+                      {request.submitted_at ? "Review or update driver list" : "Open driver list"}
+                    </Link>
+                  </div>
+                ) : null}
+
+                {!isQuestion && !isRosterCollection && items.length > 0 ? (
                   <div className="mt-4 divide-y divide-sand overflow-hidden rounded-lg border border-sand bg-warm-white">
                     {items.map((item, itemIndex) => (
                       <div
@@ -536,7 +575,7 @@ async function NeededFromYouSection({
                       </div>
                     ) : null}
                   </div>
-                ) : !isQuestion && canUpload ? (
+                ) : !isQuestion && !isRosterCollection && canUpload ? (
                   <RequestUpload requestId={request.id} laneBEvidence={request.category === "lane_b_evidence"} />
                 ) : null}
               </PortalMotionArticle>

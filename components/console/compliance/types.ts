@@ -9,6 +9,11 @@ export type ComplianceDriverRow = {
   medical_cert_expiry: string | null;
   hired_date: string | null;
   status: "active" | "inactive" | "terminated";
+  source: "operator" | "client_portal";
+  approved_at: string | null;
+  approved_by: string | null;
+  request_id: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };

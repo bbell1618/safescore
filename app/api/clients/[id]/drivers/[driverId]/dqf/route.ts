@@ -141,6 +141,7 @@ export async function PUT(
         .select("id, full_name")
         .eq("id", ids.data.driverId)
         .eq("client_id", ids.data.clientId)
+        .not("approved_at", "is", null)
         .maybeSingle(),
     ]);
     if (clientResult.error) {
@@ -231,7 +232,8 @@ export async function PUT(
           updated_at: now,
         })
         .eq("id", ids.data.driverId)
-        .eq("client_id", ids.data.clientId);
+        .eq("client_id", ids.data.clientId)
+        .not("approved_at", "is", null);
       if (driverExpiryError) {
         throw new Error(
           `Qualification item ${item.id} was saved, but the driver expiration date could not be synchronized: ${driverExpiryError.message}`

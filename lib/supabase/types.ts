@@ -60,6 +60,10 @@ export type DocumentExpiryStatus =
   | "expiring_soon"
   | "expired"
   | "missing";
+export type DocumentReviewStatus =
+  | "pending_review"
+  | "reviewed"
+  | "action_needed";
 export type VehicleStatus = "active" | "inactive";
 export type VehicleMaintenanceType =
   | "pm_service"
@@ -313,7 +317,7 @@ export interface Database {
           responsibility: "client" | "geia";
           case_type: "dataq" | "cpdp" | null;
           case_id: string | null;
-          request_type: "evidence" | "question" | null;
+          request_type: "evidence" | "question" | "roster_collection" | null;
           evidence_class:
             | "wrong-attribution"
             | "duplicate"
@@ -359,7 +363,11 @@ export interface Database {
           responsibility?: "client" | "geia";
           case_type?: "dataq" | "cpdp" | null;
           case_id?: string | null;
-          request_type?: "evidence" | "question" | null;
+          request_type?:
+            | "evidence"
+            | "question"
+            | "roster_collection"
+            | null;
           evidence_class?:
             | "wrong-attribution"
             | "duplicate"
@@ -921,6 +929,7 @@ export interface Database {
           file_size: number | null;
           mime_type: string | null;
           category: DocumentCategory;
+          status: DocumentReviewStatus;
           uploaded_by: string | null;
           client_request_id: string | null;
           violation_id: string | null;
@@ -939,7 +948,8 @@ export interface Database {
         Insert: Omit<
           Database["public"]["Tables"]["documents"]["Row"],
           | "id"
-          | "created_at"
+           | "created_at"
+           | "status"
           | "client_request_id"
           | "violation_id"
           | "case_type"
@@ -951,6 +961,7 @@ export interface Database {
           Partial<
             Pick<
               Database["public"]["Tables"]["documents"]["Row"],
+              | "status"
               | "client_request_id"
               | "violation_id"
               | "case_type"
@@ -1021,6 +1032,11 @@ export interface Database {
           medical_cert_expiry: string | null;
           hired_date: string | null;
           status: DriverStatus;
+          source: "operator" | "client_portal";
+          approved_at: string | null;
+          approved_by: string | null;
+          request_id: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1035,6 +1051,11 @@ export interface Database {
           medical_cert_expiry?: string | null;
           hired_date?: string | null;
           status?: DriverStatus;
+          source?: "operator" | "client_portal";
+          approved_at?: string | null;
+          approved_by?: string | null;
+          request_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

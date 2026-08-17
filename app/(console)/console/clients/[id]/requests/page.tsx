@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import { RosterLinkCopy } from "@/components/console/roster-link-copy";
 
 export default async function ClientRequestsPage({
   params,
@@ -11,13 +12,16 @@ export default async function ClientRequestsPage({
   const { data: rows, error } = await supabase
     .from("client_requests")
     .select(
-      "id, title, source, status, reminder_count, reminder_limit, next_reminder_at, escalated_at, created_at, requested_items"
+      "id, title, source, status, request_type, upload_token, reminder_count, reminder_limit, next_reminder_at, escalated_at, created_at, requested_items"
     )
     .eq("client_id", id)
     .order("created_at", { ascending: true });
   if (error) {
     throw new Error(`Unable to load client requests: ${error.message}`);
   }
+  const appUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+  ).replace(/\/+$/, "");
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
@@ -47,12 +51,21 @@ export default async function ClientRequestsPage({
                 <td className="px-4 py-3">
                   <p className="font-medium">{row.title}</p>
                   <p className="text-xs text-gray-400">
-                    {row.source} ·{" "}
-                    {Array.isArray(row.requested_items)
-                      ? row.requested_items.length
-                      : 0}{" "}
-                    evidence items
+                    {row.request_type === "roster_collection"
+                      ? `${row.source} · driver-list collection`
+                      : `${row.source} · ${
+                          Array.isArray(row.requested_items)
+                            ? row.requested_items.length
+                            : 0
+                        } evidence items`}
                   </p>
+                  {row.request_type === "roster_collection" &&
+                  row.status === "open" ? (
+                    <RosterLinkCopy
+                      compact
+                      url={`${appUrl}/roster/${row.upload_token}`}
+                    />
+                  ) : null}
                 </td>
                 <td className="px-4 py-3">{formatDate(row.created_at)}</td>
                 <td className="px-4 py-3">

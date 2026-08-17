@@ -13,6 +13,12 @@ export type DueClientRequest = {
   reminderCount: number;
   reminderLimit: number;
   nextReminderAt: string;
+  /** Per-request destination, used by no-login bearer-token workflows. */
+  portalUrl?: string;
+  /** Non-secret URL recorded in activity metadata. */
+  activityPortalUrl?: string;
+  /** Account-level fallback used only by no-login request flows. */
+  fallbackRecipientEmail?: string;
 };
 
 export type ClientReminderRecipient = {
@@ -147,6 +153,9 @@ export async function processDueClientRequestReminders(
   const results: ClientRequestReminderResult[] = [];
 
   for (const request of due) {
+    const requestPortalUrl = request.portalUrl ?? input.portalUrl;
+    const activityPortalUrl =
+      request.activityPortalUrl ?? request.portalUrl ?? input.portalUrl;
     const reminderLimit = effectiveReminderLimit(request);
     if (request.reminderCount >= reminderLimit) {
       const stopped = await repository.stopExhausted({
@@ -191,6 +200,9 @@ export async function processDueClientRequestReminders(
         reason: `Unable to load reminder recipient: ${errorMessage(error)}`,
       });
       continue;
+    }
+    if (!recipient?.email && request.fallbackRecipientEmail) {
+      recipient = { email: request.fallbackRecipientEmail };
     }
     if (!recipient?.email) {
       results.push({
@@ -247,7 +259,7 @@ export async function processDueClientRequestReminders(
         requestTitle: request.title,
         reminderNumber,
         reminderLimit,
-        portalUrl: input.portalUrl,
+        portalUrl: requestPortalUrl,
       });
     } catch (error) {
       delivery = { success: false, error: errorMessage(error) };
@@ -272,7 +284,7 @@ export async function processDueClientRequestReminders(
         source: input.source,
         recipient: recipient.email,
         subject,
-        portalUrl: input.portalUrl,
+        portalUrl: activityPortalUrl,
         delivery,
         deliveryStatus: status,
       });

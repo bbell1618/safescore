@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   DQF_CHECKLIST_ITEMS,
   buildComplianceHealth,
+  complianceDocumentExpiryStatus,
   complianceStatusForDays,
   complianceStatusLabel,
   complianceThresholdForDays,
@@ -33,6 +34,19 @@ assert.equal(complianceStatusForDays(1), "expiring");
 assert.equal(complianceStatusForDays(0), "expired");
 assert.equal(complianceStatusForDays(-1), "expired");
 assert.equal(complianceStatusLabel("on_file"), "On file");
+assert.equal(complianceDocumentExpiryStatus(null, "2026-08-04"), "missing");
+assert.equal(
+  complianceDocumentExpiryStatus("2026-08-04", "2026-08-04"),
+  "expired"
+);
+assert.equal(
+  complianceDocumentExpiryStatus("2026-09-03", "2026-08-04"),
+  "expiring_soon"
+);
+assert.equal(
+  complianceDocumentExpiryStatus("2026-12-31", "2026-08-04"),
+  "current"
+);
 
 assert.equal(deriveAnnualDueDate("2026-08-04"), "2027-08-04");
 assert.equal(deriveAnnualDueDate("2024-02-29"), "2025-02-28");
@@ -73,6 +87,7 @@ const health = buildComplianceHealth({
       status: "active",
       cdl_expiry: "2026-10-03",
       medical_cert_expiry: "2026-08-11",
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
     {
       id: "driver-missing",
@@ -80,6 +95,7 @@ const health = buildComplianceHealth({
       status: "active",
       cdl_expiry: null,
       medical_cert_expiry: null,
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
     {
       id: "driver-terminated",
@@ -87,6 +103,15 @@ const health = buildComplianceHealth({
       status: "terminated",
       cdl_expiry: "2020-01-01",
       medical_cert_expiry: "2020-01-01",
+      approved_at: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "driver-pending",
+      full_name: "Pending Client Submission",
+      status: "active",
+      cdl_expiry: "2026-08-05",
+      medical_cert_expiry: "2026-08-05",
+      approved_at: null,
     },
   ],
   driverDocuments: standardDocuments,
@@ -113,7 +138,15 @@ const health = buildComplianceHealth({
   ],
 });
 
-assert.equal(health.drivers.total, 2, "terminated drivers are excluded");
+assert.equal(
+  health.drivers.total,
+  2,
+  "terminated and unapproved client-submitted drivers are excluded"
+);
+assert.ok(
+  health.upcoming.every((item) => item.driverId !== "driver-pending"),
+  "pending client submissions cannot create expiration work"
+);
 assert.equal(health.drivers.expired, 1);
 assert.equal(health.drivers.missing, 1);
 assert.equal(health.vehicles.total, 1, "inactive vehicles are excluded");
@@ -151,6 +184,7 @@ const missingAnnualReviewDate = buildComplianceHealth({
       status: "active",
       cdl_expiry: "2027-08-04",
       medical_cert_expiry: "2027-08-04",
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
   ],
   driverDocuments: DQF_CHECKLIST_ITEMS.map((item, index) => ({

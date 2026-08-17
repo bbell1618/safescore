@@ -36,6 +36,7 @@ const healthWithoutChecklistRows = buildComplianceHealth({
       status: "active",
       cdl_expiry: "2026-09-03",
       medical_cert_expiry: "2026-08-11",
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
   ],
   driverDocuments: [],

@@ -254,8 +254,9 @@ export default async function PortalCompliancePage() {
     await Promise.all([
       access.supabase
         .from("drivers")
-        .select("id, full_name, status, cdl_expiry, medical_cert_expiry")
-        .eq("client_id", access.clientId),
+        .select("id, full_name, status, cdl_expiry, medical_cert_expiry, approved_at")
+        .eq("client_id", access.clientId)
+        .not("approved_at", "is", null),
       access.supabase
         .from("driver_documents")
         .select("id, driver_id, doc_type, status, completed_date, expiry_date, document_id")

@@ -85,6 +85,7 @@ export async function POST(
         .select("id, full_name")
         .eq("id", parsed.data.driver_id)
         .eq("client_id", clientId.data)
+        .not("approved_at", "is", null)
         .maybeSingle(),
     ]);
     if (clientResult.error) {

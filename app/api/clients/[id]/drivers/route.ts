@@ -114,10 +114,14 @@ export async function POST(
         medical_cert_expiry: parsed.data.medical_cert_expiry ?? null,
         hired_date: parsed.data.hired_date ?? null,
         status: parsed.data.status,
+        source: "operator",
+        approved_at: now,
+        approved_by: userId,
+        request_id: null,
         updated_at: now,
       })
       .select(
-        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, created_at, updated_at"
+        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, source, approved_at, approved_by, request_id, notes, created_at, updated_at"
       )
       .single();
     if (insertError || !driver) {

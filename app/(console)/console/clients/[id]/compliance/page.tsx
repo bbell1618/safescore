@@ -2,6 +2,12 @@ import { AlertTriangle, CheckCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ClearinghouseSection } from "@/components/console/compliance/clearinghouse-section";
 import { DriverRosterSection } from "@/components/console/compliance/driver-roster-section";
+import { RosterRequestControl } from "@/components/console/compliance/roster-request-control";
+import {
+  RosterReviewStrip,
+  type PendingRosterDriver,
+  type PendingRosterDocument,
+} from "@/components/console/compliance/roster-review-strip";
 import type {
   ComplianceClearinghouseRow,
   ComplianceDocumentOption,
@@ -19,7 +25,7 @@ import { formatComplianceBasis, formatComplianceIssueStatus } from "@/lib/analys
 import { timeWeightFor } from "@/lib/analysis/basic-measure";
 import { buildComplianceHealth } from "@/lib/compliance/health";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +71,7 @@ export default async function CompliancePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const service = await createServiceClient();
   const { data: clientData, error: clientError } = await supabase
     .from("clients")
     .select("id, tier")
@@ -85,12 +92,13 @@ export default async function CompliancePage({
     clearinghouseResult,
     profileResult,
     documentsResult,
+    rosterRequestResult,
     canonicalScope,
   ] = await Promise.all([
     supabase
       .from("drivers")
       .select(
-        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, created_at, updated_at"
+        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, source, approved_at, approved_by, request_id, notes, created_at, updated_at"
       )
       .eq("client_id", id)
       .order("status")
@@ -137,6 +145,13 @@ export default async function CompliancePage({
       .eq("client_id", id)
       .order("created_at", { ascending: false })
       .limit(250),
+    supabase
+      .from("client_requests")
+      .select("id, upload_token, submitted_at, created_at")
+      .eq("client_id", id)
+      .eq("request_type", "roster_collection")
+      .eq("status", "open")
+      .maybeSingle(),
     getCanonicalInspectionScope(id, supabase),
   ]);
 
@@ -148,6 +163,7 @@ export default async function CompliancePage({
     ["Clearinghouse history", clearinghouseResult.error],
     ["compliance profile", profileResult.error],
     ["compliance documents", documentsResult.error],
+    ["open driver-list request", rosterRequestResult.error],
   ] as const;
   const failedQuery = dataErrors.find(([, error]) => error);
   if (failedQuery?.[1]) {
@@ -156,13 +172,93 @@ export default async function CompliancePage({
     );
   }
 
-  const drivers = (driversResult.data ?? []) as unknown as ComplianceDriverRow[];
+  const allDrivers = (driversResult.data ?? []) as unknown as ComplianceDriverRow[];
+  const drivers = allDrivers.filter((driver) => driver.approved_at !== null);
+  const pendingDrivers = allDrivers.filter(
+    (driver) =>
+      driver.source === "client_portal" && driver.approved_at === null
+  );
   const driverDocuments = (driverDocumentsResult.data ?? []) as unknown as ComplianceDriverDocumentRow[];
   const vehicles = (vehiclesResult.data ?? []) as unknown as ComplianceVehicleRow[];
   const maintenance = (maintenanceResult.data ?? []) as unknown as ComplianceMaintenanceRow[];
   const clearinghouseRecords = (clearinghouseResult.data ?? []) as unknown as ComplianceClearinghouseRow[];
   const complianceProfile = (profileResult.data ?? null) as ComplianceProfileRow | null;
   const documents = (documentsResult.data ?? []) as ComplianceDocumentOption[];
+  const openRosterRequest = rosterRequestResult.data as
+    | {
+        id: string;
+        upload_token: string;
+        submitted_at: string | null;
+        created_at: string;
+      }
+    | null;
+
+  const pendingDriverIds = new Set(pendingDrivers.map((driver) => driver.id));
+  const pendingDocumentLinks = driverDocuments.filter(
+    (document) =>
+      pendingDriverIds.has(document.driver_id) &&
+      document.document_id !== null &&
+      (document.doc_type === "cdl" || document.doc_type === "medical_cert")
+  );
+  const pendingDocumentIds = pendingDocumentLinks.flatMap((document) =>
+    document.document_id ? [document.document_id] : []
+  );
+  const { data: pendingDocumentRows, error: pendingDocumentError } =
+    pendingDocumentIds.length > 0
+      ? await service
+          .from("documents")
+          .select("id, filename, storage_path")
+          .eq("client_id", id)
+          .in("id", pendingDocumentIds)
+      : { data: [], error: null };
+  if (pendingDocumentError) {
+    throw new Error(
+      `Unable to load client-submitted driver documents: ${pendingDocumentError.message}`
+    );
+  }
+  const pendingDocumentById = new Map(
+    (pendingDocumentRows ?? []).map((document) => [document.id, document])
+  );
+  const signedPendingDocuments = new Map<string, PendingRosterDocument>();
+  await Promise.all(
+    pendingDocumentLinks.map(async (driverDocument) => {
+      const documentId = driverDocument.document_id;
+      if (!documentId) return;
+      const document = pendingDocumentById.get(documentId);
+      if (!document) {
+        throw new Error(
+          `Client-submitted driver document ${documentId} is not available for this client.`
+        );
+      }
+      const { data: signed, error: signedError } = await service.storage
+        .from("documents")
+        .createSignedUrl(document.storage_path, 3_600);
+      if (signedError || !signed?.signedUrl) {
+        throw new Error(
+          `Unable to open ${document.filename}: ${
+            signedError?.message ?? "signed URL was not returned"
+          }`
+        );
+      }
+      signedPendingDocuments.set(driverDocument.id, {
+        id: driverDocument.id,
+        docType: driverDocument.doc_type as "cdl" | "medical_cert",
+        filename: document.filename,
+        url: signed.signedUrl,
+      });
+    })
+  );
+  const pendingReviewDrivers: PendingRosterDriver[] = pendingDrivers.map(
+    (driver) => ({
+      ...driver,
+      documents: driverDocuments
+        .filter((document) => document.driver_id === driver.id)
+        .flatMap((document) => {
+          const signed = signedPendingDocuments.get(document.id);
+          return signed ? [signed] : [];
+        }),
+    })
+  );
   const asOfDate = pacificDateOnly();
   const health = buildComplianceHealth({
     asOfDate,
@@ -291,7 +387,27 @@ export default async function CompliancePage({
             Operational driver, fleet, Clearinghouse, and audit-readiness records
           </p>
         </div>
-        <ServiceTierChip tier={clientTier} feature="compliance_layer" />
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          <ServiceTierChip tier={clientTier} feature="compliance_layer" />
+          {tierHasFeature(clientTier, "compliance_layer") ? (
+            <RosterRequestControl
+              key={openRosterRequest?.id ?? "no-open-roster-request"}
+              clientId={id}
+              initialRequest={
+                openRosterRequest
+                  ? {
+                      id: openRosterRequest.id,
+                      rosterUrl: `${(
+                        process.env.NEXT_PUBLIC_APP_URL ??
+                        "https://safescore.vercel.app"
+                      ).replace(/\/+$/, "")}/roster/${openRosterRequest.upload_token}`,
+                      submittedAt: openRosterRequest.submitted_at,
+                    }
+                  : null
+              }
+            />
+          ) : null}
+        </div>
       </div>
 
       {!tierHasFeature(clientTier, "compliance_layer") ? (
@@ -311,6 +427,21 @@ export default async function CompliancePage({
           title="MCS-150 truth-up is not included in this client’s plan"
         />
       )}
+
+      {tierHasFeature(clientTier, "compliance_layer") ? (
+        <RosterReviewStrip
+          clientId={id}
+          initialDrivers={pendingReviewDrivers}
+          request={
+            openRosterRequest
+              ? {
+                  id: openRosterRequest.id,
+                  submittedAt: openRosterRequest.submitted_at,
+                }
+              : null
+          }
+        />
+      ) : null}
 
       <section className="rounded-xl border border-[#F0E8DA] bg-[#FBF7F0] p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

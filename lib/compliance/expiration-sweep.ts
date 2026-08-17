@@ -138,10 +138,11 @@ async function loadCandidates(
       service
         .from("drivers")
         .select(
-          "id, full_name, cdl_expiry, medical_cert_expiry, status"
+          "id, full_name, cdl_expiry, medical_cert_expiry, status, approved_at"
         )
         .eq("client_id", clientId)
         .eq("status", "active")
+        .not("approved_at", "is", null)
         .order("id"),
       service
         .from("driver_documents")

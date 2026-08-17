@@ -100,6 +100,7 @@ export async function PATCH(
         .select("id, full_name")
         .eq("id", ids.data.driverId)
         .eq("client_id", ids.data.clientId)
+        .not("approved_at", "is", null)
         .maybeSingle(),
     ]);
     if (clientResult.error) {
@@ -127,8 +128,9 @@ export async function PATCH(
       .update({ ...parsed.data, updated_at: new Date().toISOString() })
       .eq("id", ids.data.driverId)
       .eq("client_id", ids.data.clientId)
+      .not("approved_at", "is", null)
       .select(
-        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, created_at, updated_at"
+        "id, client_id, full_name, cdl_number, cdl_state, cdl_class, cdl_expiry, medical_cert_expiry, hired_date, status, source, approved_at, approved_by, request_id, notes, created_at, updated_at"
       )
       .single();
     if (updateError || !driver) {

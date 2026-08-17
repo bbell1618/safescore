@@ -69,6 +69,7 @@ function baseContext(): OperatorWorkContext {
     compliance: {
       available: true,
       drivers: [],
+      pendingDrivers: [],
       driverDocuments: [],
       vehicles: [],
       clearinghouseRecords: [],
@@ -116,6 +117,7 @@ const expectedRuleKeys = [
   "cases.stale_draft",
   "cases.determination_check",
   "compliance.roster_empty",
+  "compliance.roster_review",
   "compliance.dqf_gaps",
   "compliance.expirations",
   "compliance.clearinghouse",
@@ -221,49 +223,85 @@ assert.deepEqual(evaluateChecklist(baseContext()), []);
       id: "escalated",
       status: "open",
       responsibility: "client",
+      requestType: "evidence",
       evidenceStatus: "open",
       escalatedAt: daysBefore(1),
       nextReminderAt: null,
+      createdAt: daysBefore(8),
+      uploadToken: "token-escalated",
+      uploadUrl: "https://example.test/roster/token-escalated",
     },
     {
       id: "waiting-later",
       status: "open",
       responsibility: "client",
+      requestType: "evidence",
       evidenceStatus: "insufficient",
       escalatedAt: null,
       nextReminderAt: "2026-08-25T16:00:00.000Z",
+      createdAt: daysBefore(7),
+      uploadToken: "token-waiting-later",
+      uploadUrl: "https://example.test/roster/token-waiting-later",
     },
     {
       id: "waiting-earlier",
       status: "open",
       responsibility: "client",
+      requestType: "question",
       evidenceStatus: null,
       escalatedAt: null,
       nextReminderAt: "2026-08-20T16:00:00.000Z",
+      createdAt: daysBefore(6),
+      uploadToken: "token-waiting-earlier",
+      uploadUrl: "https://example.test/roster/token-waiting-earlier",
     },
     {
       id: "submitted",
       status: "open",
       responsibility: "client",
+      requestType: "evidence",
       evidenceStatus: "submitted",
       escalatedAt: daysBefore(2),
       nextReminderAt: "2026-08-18T16:00:00.000Z",
+      createdAt: daysBefore(5),
+      uploadToken: "token-submitted",
+      uploadUrl: "https://example.test/roster/token-submitted",
     },
     {
       id: "closed",
       status: "fulfilled",
       responsibility: "client",
+      requestType: "evidence",
       evidenceStatus: "submitted",
       escalatedAt: daysBefore(2),
       nextReminderAt: null,
+      createdAt: daysBefore(4),
+      uploadToken: "token-closed",
+      uploadUrl: "https://example.test/roster/token-closed",
     },
     {
       id: "geia-owned",
       status: "open",
       responsibility: "geia",
+      requestType: "evidence",
       evidenceStatus: "submitted",
       escalatedAt: daysBefore(3),
       nextReminderAt: "2026-08-19T16:00:00.000Z",
+      createdAt: daysBefore(3),
+      uploadToken: "token-geia",
+      uploadUrl: "https://example.test/roster/token-geia",
+    },
+    {
+      id: "roster-request",
+      status: "open",
+      responsibility: "client",
+      requestType: "roster_collection",
+      evidenceStatus: "submitted",
+      escalatedAt: daysBefore(3),
+      nextReminderAt: "2026-08-19T16:00:00.000Z",
+      createdAt: daysBefore(2),
+      uploadToken: "token-roster",
+      uploadUrl: "https://example.test/roster/token-roster",
     },
   ];
   assert.equal(
@@ -394,18 +432,64 @@ function totalSafetyContext(): OperatorWorkContext {
   );
 
   const empty = totalSafetyContext();
+  const requestRoster = one(empty, "compliance.roster_empty");
   assert.equal(
-    one(empty, "compliance.roster_empty").title,
+    requestRoster.title,
     "Collect driver roster — the compliance layer is empty"
   );
+  assert.deepEqual(requestRoster.action, {
+    kind: "request_driver_roster",
+    label: "Request driver roster",
+  });
+  empty.requests.push({
+    id: "open-roster-request",
+    status: "open",
+    responsibility: "client",
+    requestType: "roster_collection",
+    evidenceStatus: null,
+    escalatedAt: null,
+    nextReminderAt: "2026-08-24T19:00:00.000Z",
+    createdAt: "2026-08-15T19:00:00.000Z",
+    uploadToken: "roster-token",
+    uploadUrl: "https://safescore.example/roster/roster-token",
+  });
+  const waiting = one(empty, "compliance.roster_empty");
+  assert.equal(waiting.state, "waiting_client");
+  assert.equal(
+    waiting.why,
+    "Roster requested Aug 15, 2026 — waiting on client"
+  );
+  assert.deepEqual(waiting.action, {
+    kind: "copy_roster_link",
+    label: "Copy link",
+    value: "https://safescore.example/roster/roster-token",
+  });
+  empty.requests[0].escalatedAt = "2026-08-17T19:00:00.000Z";
+  const overdue = one(empty, "compliance.roster_empty");
+  assert.equal(overdue.state, "needs_you");
+  assert.equal(overdue.title, "Follow up on overdue driver roster");
+  assert.deepEqual(overdue.action, waiting.action);
+  empty.requests[0].escalatedAt = null;
+  empty.compliance.pendingDrivers.push({
+    id: "pending-driver",
+    fullName: "Pending Driver",
+    requestId: "open-roster-request",
+    createdAt: "2026-08-16T19:00:00.000Z",
+  });
+  const review = one(empty, "compliance.roster_review");
+  assert.equal(review.title, "Review 1 client-submitted driver");
+  assert.match(review.href, /#client-submissions-pending-review$/);
   empty.compliance.drivers.push({
     id: "terminated-driver",
     full_name: "Former Driver",
     status: "terminated",
     cdl_expiry: null,
     medical_cert_expiry: null,
+    approved_at: daysBefore(30),
   });
   assert.equal(itemsFor(empty, "compliance.roster_empty").length, 0);
+  empty.compliance.pendingDrivers = [];
+  assert.equal(itemsFor(empty, "compliance.roster_review").length, 0);
 }
 
 // DQF counts drivers (not missing documents) and clears with all seven required rows.
@@ -418,6 +502,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "active",
       cdl_expiry: "2027-12-31",
       medical_cert_expiry: "2027-12-31",
+      approved_at: daysBefore(30),
     },
   ];
   assert.equal(
@@ -448,6 +533,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "active",
       cdl_expiry: "2026-10-16",
       medical_cert_expiry: "2026-10-17",
+      approved_at: daysBefore(30),
     },
     {
       id: "driver-2",
@@ -455,6 +541,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "active",
       cdl_expiry: "2026-08-17",
       medical_cert_expiry: "2026-08-16",
+      approved_at: daysBefore(30),
     },
   ];
   const expiration = one(context, "compliance.expirations");
@@ -472,6 +559,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "active",
       cdl_expiry: null,
       medical_cert_expiry: null,
+      approved_at: daysBefore(30),
     },
     {
       id: "driver-2",
@@ -479,6 +567,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "active",
       cdl_expiry: null,
       medical_cert_expiry: null,
+      approved_at: daysBefore(30),
     },
     {
       id: "driver-3",
@@ -486,6 +575,7 @@ function totalSafetyContext(): OperatorWorkContext {
       status: "terminated",
       cdl_expiry: null,
       medical_cert_expiry: null,
+      approved_at: daysBefore(30),
     },
   ];
   context.compliance.clearinghouseRecords = [

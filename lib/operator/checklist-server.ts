@@ -156,7 +156,7 @@ export async function assembleClientWorkContext(
     service
       .from("client_requests")
       .select(
-        "id, status, responsibility, evidence_status, escalated_at, next_reminder_at",
+        "id, status, responsibility, request_type, evidence_status, escalated_at, next_reminder_at, created_at, upload_token",
         { count: "exact" }
       )
       .eq("client_id", clientId)
@@ -183,9 +183,10 @@ export async function assembleClientWorkContext(
       .range(0, MAX_BATCH_ROWS - 1),
     service
       .from("drivers")
-      .select("id, full_name, status, cdl_expiry, medical_cert_expiry", {
-        count: "exact",
-      })
+      .select(
+        "id, full_name, status, cdl_expiry, medical_cert_expiry, source, approved_at, request_id, created_at",
+        { count: "exact" }
+      )
       .eq("client_id", clientId)
       .order("created_at", { ascending: true })
       .range(0, MAX_BATCH_ROWS - 1),
@@ -283,9 +284,12 @@ export async function assembleClientWorkContext(
       id: string;
       status: string;
       responsibility: string;
+      request_type: "evidence" | "question" | "roster_collection" | null;
       evidence_status: string | null;
       escalated_at: string | null;
       next_reminder_at: string | null;
+      created_at: string;
+      upload_token: string;
     }>
   );
   const dataqCases = requireCompleteRows(
@@ -312,10 +316,28 @@ export async function assembleClientWorkContext(
       determination_recorded_at: string | null;
     }>
   );
-  const drivers = requireCompleteRows(
+  const allDrivers = requireCompleteRows(
     "compliance drivers",
-    driversResult as CountedRows<OperatorWorkContext["compliance"]["drivers"][number]>
+    driversResult as CountedRows<
+      OperatorWorkContext["compliance"]["drivers"][number] & {
+        source: "operator" | "client_portal";
+        request_id: string | null;
+        created_at: string;
+      }
+    >
   );
+  const drivers = allDrivers.filter((driver) => driver.approved_at !== null);
+  const pendingDrivers = allDrivers
+    .filter(
+      (driver) =>
+        driver.source === "client_portal" && driver.approved_at === null
+    )
+    .map((driver) => ({
+      id: driver.id,
+      fullName: driver.full_name,
+      requestId: driver.request_id,
+      createdAt: driver.created_at,
+    }));
   const driverDocuments = requireCompleteRows(
     "driver qualification documents",
     driverDocumentsResult as CountedRows<
@@ -391,13 +413,20 @@ export async function assembleClientWorkContext(
     sentAt: report.sent_at,
     createdAt: report.created_at,
   }));
+  const requestBaseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
+  ).replace(/\/+$/, "");
   const requestFacts: ChecklistRequestContext[] = requests.map((request) => ({
     id: request.id,
     status: request.status,
     responsibility: request.responsibility,
+    requestType: request.request_type,
     evidenceStatus: request.evidence_status,
     escalatedAt: request.escalated_at,
     nextReminderAt: request.next_reminder_at,
+    createdAt: request.created_at,
+    uploadToken: request.upload_token,
+    uploadUrl: `${requestBaseUrl}/roster/${request.upload_token}`,
   }));
   const caseFacts: ChecklistCaseContext[] = [
     ...dataqCases.map((reportCase) => ({
@@ -462,6 +491,7 @@ export async function assembleClientWorkContext(
     compliance: {
       available: true,
       drivers,
+      pendingDrivers,
       driverDocuments,
       vehicles,
       clearinghouseRecords,
@@ -528,7 +558,9 @@ export async function getOperatorToday(options: AssembleOptions = {}): Promise<{
           (itemValue): TodayChecklistItem => ({
             ...itemValue,
             title: `${context.client.name}: ${itemValue.title}`,
-            href: `/console/clients/${context.client.id}/checklist`,
+            href:
+              itemValue.href.trim() ||
+              `/console/clients/${context.client.id}/checklist`,
             clientId: context.client.id,
             clientName: context.client.name,
           })

@@ -72,6 +72,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
   if (!queueItem || queueItem.status !== "open") {
     return NextResponse.json({ error: "Open request not found" }, { status: 404 });
   }
+  if (queueItem.request_type === "roster_collection") {
+    return NextResponse.json(
+      {
+        error:
+          "Use the driver-list link for this request; a single document upload cannot complete it.",
+        code: "ROSTER_WIZARD_REQUIRED",
+      },
+      { status: 409 }
+    );
+  }
   const clientId = access.clientId;
   const actorUserId = access.userId;
   const requestTitle = queueItem.title;
@@ -182,6 +192,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ req
           .select("id")
           .eq("id", requestedItem.driverId)
           .eq("client_id", clientId)
+          .not("approved_at", "is", null)
           .maybeSingle(),
         service
           .from("driver_documents")

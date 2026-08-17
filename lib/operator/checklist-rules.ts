@@ -260,6 +260,8 @@ const reportingStackedDrafts: ChecklistRule = {
 function requestsAwaitingClient(context: OperatorWorkContext) {
   return context.requests.filter(
     (request) =>
+      (request.requestType === "evidence" ||
+        request.requestType === "question") &&
       request.responsibility === "client" &&
       request.status === "open" &&
       request.evidenceStatus !== "submitted"
@@ -337,6 +339,8 @@ const evidenceSubmitted: ChecklistRule = {
   evaluate(context) {
     const count = context.requests.filter(
       (request) =>
+        (request.requestType === "evidence" ||
+          request.requestType === "question") &&
         request.responsibility === "client" &&
         request.status === "open" &&
         request.evidenceStatus === "submitted"
@@ -447,11 +451,74 @@ const complianceRosterEmpty: ChecklistRule = {
     if (
       !context.compliance.available ||
       context.client.tier !== "total_safety" ||
-      // The server supplies the full roster. Terminated rows still mean a
-      // roster exists; only a genuinely empty drivers table triggers intake.
+      // The server supplies the approved roster. Terminated approved rows
+      // still prove a roster exists; pending submissions do not.
       context.compliance.drivers.length > 0
     ) {
       return [];
+    }
+    const rosterRequest = [...context.requests]
+      .filter(
+        (request) =>
+          request.requestType === "roster_collection" &&
+          request.status === "open"
+      )
+      .sort(
+        (left, right) =>
+          timestamp(right.createdAt, "roster request created_at") -
+          timestamp(left.createdAt, "roster request created_at")
+      )[0];
+    if (rosterRequest) {
+      if (rosterRequest.escalatedAt) {
+        return [
+          item({
+            ruleKey: this.ruleKey,
+            contextKey: rosterRequest.id,
+            family: "compliance",
+            state: "needs_you",
+            priority: 1,
+            title: "Follow up on overdue driver roster",
+            why: `The driver-list request from ${formatDate(rosterRequest.createdAt)} exhausted its reminder cadence without a completed roster.`,
+            instructions: [
+              "Contact the carrier directly and confirm who will complete the driver list.",
+              "Use Copy link to resend the same no-login collection link.",
+              "Leave the request open so new submissions still enter review.",
+            ],
+            href: clientHref(context, "/compliance"),
+            canMarkDone: false,
+            canSnooze: false,
+            action: {
+              kind: "copy_roster_link",
+              label: "Copy link",
+              value: rosterRequest.uploadUrl,
+            },
+          }),
+        ];
+      }
+      return [
+        item({
+          ruleKey: this.ruleKey,
+          contextKey: rosterRequest.id,
+          family: "compliance",
+          state: "waiting_client",
+          priority: 3,
+          title: "Driver roster requested — waiting on client",
+          why: `Roster requested ${formatDate(rosterRequest.createdAt)} — waiting on client`,
+          instructions: [
+            "Let the standard client-request reminder cadence run.",
+            "Use Copy link when the carrier needs the no-login driver-list link again.",
+            "Review submitted drivers before they enter the official roster.",
+          ],
+          href: clientHref(context, "/compliance"),
+          canMarkDone: false,
+          canSnooze: false,
+          action: {
+            kind: "copy_roster_link",
+            label: "Copy link",
+            value: rosterRequest.uploadUrl,
+          },
+        }),
+      ];
     }
     return [
       item({
@@ -468,6 +535,46 @@ const complianceRosterEmpty: ChecklistRule = {
           "Verify each roster entry before adding qualification-file records.",
         ],
         href: clientHref(context, "/compliance"),
+        canMarkDone: false,
+        canSnooze: false,
+        action: {
+          kind: "request_driver_roster",
+          label: "Request driver roster",
+        },
+      }),
+    ];
+  },
+};
+
+const complianceRosterReview: ChecklistRule = {
+  ruleKey: "compliance.roster_review",
+  evaluate(context) {
+    if (
+      !context.compliance.available ||
+      context.client.tier !== "total_safety" ||
+      context.compliance.pendingDrivers.length === 0
+    ) {
+      return [];
+    }
+    const count = context.compliance.pendingDrivers.length;
+    return [
+      item({
+        ruleKey: this.ruleKey,
+        contextKey: "pending-drivers",
+        family: "compliance",
+        state: "needs_you",
+        priority: 1,
+        title: `Review ${count} client-submitted ${plural(count, "driver")}`,
+        why: `${count} client-submitted ${plural(count, "driver is", "drivers are")} staged outside the official compliance roster until staff review.`,
+        instructions: [
+          "Open the pending-review strip and compare each entry with its uploaded documents.",
+          "Fill any verified credential dates before approving the driver.",
+          "Approve accurate entries or reject only the staged row when it does not belong in the roster.",
+        ],
+        href: clientHref(
+          context,
+          "/compliance#client-submissions-pending-review"
+        ),
         canMarkDone: false,
         canSnooze: false,
       }),
@@ -699,6 +806,7 @@ export const CHECKLIST_RULES: readonly ChecklistRule[] = [
   casesStaleDraft,
   casesDeterminationCheck,
   complianceRosterEmpty,
+  complianceRosterReview,
   complianceDqfGaps,
   complianceExpirations,
   complianceClearinghouse,

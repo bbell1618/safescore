@@ -52,6 +52,12 @@ export type ComplianceHealthStatus =
   | "expiring"
   | "expired";
 
+export type ComplianceDocumentExpiryStatus =
+  | "current"
+  | "expiring_soon"
+  | "expired"
+  | "missing";
+
 export type ComplianceExpirationThreshold =
   | "60_day"
   | "30_day"
@@ -83,6 +89,7 @@ export type ComplianceHealthDriverInput = {
   status: "active" | "inactive" | "terminated" | string;
   cdl_expiry: string | null;
   medical_cert_expiry: string | null;
+  approved_at: string | null;
 };
 
 export type ComplianceHealthDriverDocumentInput = {
@@ -257,6 +264,20 @@ export function complianceStatusForDays(
   return "on_file";
 }
 
+export function complianceDocumentExpiryStatus(
+  expiryDate: string | null,
+  asOfDate: string
+): ComplianceDocumentExpiryStatus {
+  const healthStatus = complianceStatusForDays(
+    daysUntilDate(expiryDate, asOfDate),
+    expiryDate !== null
+  );
+  if (healthStatus === "missing") return "missing";
+  if (healthStatus === "expired") return "expired";
+  if (healthStatus === "expiring") return "expiring_soon";
+  return "current";
+}
+
 export function complianceStatusLabel(status: ComplianceHealthStatus): string {
   return COMPLIANCE_STATUS_LABELS[status];
 }
@@ -347,7 +368,9 @@ export function buildComplianceHealth(
 
   const upcoming: UpcomingComplianceItem[] = [];
   const drivers = input.drivers
-    .filter((driver) => driver.status === "active")
+    .filter(
+      (driver) => driver.status === "active" && driver.approved_at !== null
+    )
     .map((driver): DriverComplianceHealth => {
       const documents = docsByDriver.get(driver.id) ?? new Map();
       const cdlDocument = documents.get("cdl");

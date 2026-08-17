@@ -10,6 +10,7 @@ const routeFiles = [
   "app/api/clients/[id]/drivers/route.ts",
   "app/api/clients/[id]/drivers/[driverId]/route.ts",
   "app/api/clients/[id]/drivers/[driverId]/dqf/route.ts",
+  "app/api/clients/[id]/drivers/[driverId]/review/route.ts",
   "app/api/clients/[id]/vehicles/route.ts",
   "app/api/clients/[id]/vehicles/[vehicleId]/route.ts",
   "app/api/clients/[id]/vehicles/[vehicleId]/maintenance/route.ts",
@@ -29,6 +30,7 @@ for (const path of routeFiles) {
 for (const path of [
   "app/api/clients/[id]/drivers/[driverId]/route.ts",
   "app/api/clients/[id]/drivers/[driverId]/dqf/route.ts",
+  "app/api/clients/[id]/drivers/[driverId]/review/route.ts",
   "app/api/clients/[id]/vehicles/[vehicleId]/route.ts",
   "app/api/clients/[id]/vehicles/[vehicleId]/maintenance/route.ts",
   "app/api/clients/[id]/clearinghouse-records/route.ts",
@@ -113,6 +115,7 @@ const sampleHealth = buildComplianceHealth({
       status: "active",
       cdl_expiry: "2026-08-11",
       medical_cert_expiry: "2026-09-03",
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
     {
       id: "driver-2",
@@ -120,6 +123,7 @@ const sampleHealth = buildComplianceHealth({
       status: "terminated",
       cdl_expiry: null,
       medical_cert_expiry: null,
+      approved_at: "2026-01-01T00:00:00.000Z",
     },
   ],
   driverDocuments: [],

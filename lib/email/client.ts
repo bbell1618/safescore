@@ -216,6 +216,12 @@ export interface EvidenceIntakeQuestionData {
   portalUrl: string;
 }
 
+export interface DriverRosterRequestEmailData {
+  to: string;
+  companyName: string;
+  rosterUrl: string;
+}
+
 // ── Send functions ─────────────────────────────────────────────────────────
 
 export type OperationsNotificationTrigger =
@@ -352,6 +358,29 @@ export async function sendFmcsaPinRequestEmail({
     htmlBody: html,
     trigger: "fmcsa_pin_requested",
     template: "fmcsa_pin_request",
+  });
+}
+
+export async function sendDriverRosterRequestEmail(
+  data: DriverRosterRequestEmailData
+): Promise<EmailDeliveryResult> {
+  const html = emailWrapper(`
+    <h2>We need your driver list</h2>
+    <p>Golden Era&apos;s safety program tracks driver credentials for <strong>${escapeHtml(
+      data.companyName
+    )}</strong> so nothing expires unnoticed.</p>
+    <p>Tap the link, add each driver&apos;s name and CDL number, then snap a photo of the CDL and medical card. It takes about a minute per driver.</p>
+    <p>Your progress saves as you go, so you can leave and come back anytime. Reply to this email if you have questions.</p>
+    <a href="${escapeHtml(data.rosterUrl)}" class="cta">Add your driver list</a>
+    <p style="margin-top:20px;font-size:12px;color:#6B6B6B;">No login or password is needed for this secure link.</p>
+  `);
+
+  return sendEmail({
+    to: data.to,
+    subject: `Driver list needed — ${data.companyName}`,
+    htmlBody: html,
+    trigger: "driver_roster_requested",
+    template: "driver_roster_request",
   });
 }
 

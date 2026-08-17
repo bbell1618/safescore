@@ -24,7 +24,12 @@ type DueRequestRow = {
   reminder_count: number;
   reminder_limit: number;
   next_reminder_at: string;
-  clients: { name: string } | Array<{ name: string }> | null;
+  request_type: string | null;
+  upload_token: string;
+  clients:
+    | { name: string; email: string | null }
+    | Array<{ name: string; email: string | null }>
+    | null;
 };
 
 function companyName(row: DueRequestRow) {
@@ -33,7 +38,8 @@ function companyName(row: DueRequestRow) {
 }
 
 function createReminderRepository(
-  service: SupabaseClient
+  service: SupabaseClient,
+  baseUrl: string
 ): ClientRequestReminderRepository {
   return {
     async listDue(nowIso) {
@@ -42,7 +48,7 @@ function createReminderRepository(
         const { data, error } = await service
           .from("client_requests")
           .select(
-            "id, client_id, title, reminder_count, reminder_limit, next_reminder_at, clients(name)"
+            "id, client_id, title, reminder_count, reminder_limit, next_reminder_at, request_type, upload_token, clients(name,email)"
           )
           .eq("status", "open")
           .eq("responsibility", "client")
@@ -64,6 +70,16 @@ function createReminderRepository(
             reminderCount: row.reminder_count,
             reminderLimit: row.reminder_limit,
             nextReminderAt: row.next_reminder_at,
+            ...(row.request_type === "roster_collection"
+              ? {
+                  portalUrl: `${baseUrl}/roster/${row.upload_token}`,
+                  // Bearer tokens must not be persisted in activity metadata.
+                  activityPortalUrl: `${baseUrl}/roster/[redacted]`,
+                  fallbackRecipientEmail: (
+                    Array.isArray(row.clients) ? row.clients[0] : row.clients
+                  )?.email ?? undefined,
+                }
+              : {}),
           }))
         );
         if (page.length < PAGE_SIZE) break;
@@ -190,10 +206,11 @@ export async function runDueClientRequestReminders(
     source: ClientRequestReminderSource;
   }
 ): Promise<ClientRequestReminderRunResult> {
-  const portalUrl = `${(
+  const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ?? "https://safescore.vercel.app"
-  ).replace(/\/+$/, "")}/portal/documents#needed-from-you`;
-  return processDueClientRequestReminders(createReminderRepository(service), {
+  ).replace(/\/+$/, "");
+  const portalUrl = `${baseUrl}/portal/documents#needed-from-you`;
+  return processDueClientRequestReminders(createReminderRepository(service, baseUrl), {
     now: input.now ?? new Date(),
     source: input.source,
     portalUrl,

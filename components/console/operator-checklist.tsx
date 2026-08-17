@@ -7,7 +7,9 @@ import {
   Check,
   ChevronRight,
   CirclePlus,
+  ClipboardList,
   ClipboardCheck,
+  Copy,
   Clock3,
   ExternalLink,
   ListOrdered,
@@ -26,12 +28,15 @@ import type {
 type ChecklistPayload = {
   items?: ChecklistItem[];
   manualItems?: OperatorManualItem[];
+  request?: { id?: string };
+  rosterUrl?: string;
   error?: string;
 };
 
 type PendingAction =
   | `ack:${string}`
   | `manual:${string}`
+  | `roster:${string}`
   | "manual:create"
   | null;
 
@@ -113,6 +118,7 @@ function ChecklistCard({
   item,
   pending,
   onAcknowledge,
+  onDerivedAction,
 }: {
   clientId: string;
   item: ChecklistItem;
@@ -121,8 +127,10 @@ function ChecklistCard({
     item: ChecklistItem,
     action: "done" | "snooze"
   ) => Promise<void>;
+  onDerivedAction: (item: ChecklistItem) => Promise<void>;
 }) {
   const busy = pending === `ack:${item.id}`;
+  const actionBusy = pending === `roster:${item.id}`;
   const snoozeDays = item.defaultSnoozeDays ?? 14;
 
   return (
@@ -152,6 +160,23 @@ function ChecklistCard({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {item.action ? (
+            <button
+              type="button"
+              onClick={() => void onDerivedAction(item)}
+              disabled={pending !== null}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[#C67A1E] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#A85F15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {actionBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : item.action.kind === "copy_roster_link" ? (
+                <Copy className="h-3.5 w-3.5" />
+              ) : (
+                <ClipboardList className="h-3.5 w-3.5" />
+              )}
+              {actionBusy ? "Working…" : item.action.label}
+            </button>
+          ) : null}
           {item.canMarkDone ? (
             <button
               type="button"
@@ -463,6 +488,58 @@ export function OperatorChecklist({
     }
   }
 
+  async function runDerivedAction(item: ChecklistItem) {
+    if (!item.action) return;
+    setPending(`roster:${item.id}`);
+    setError(null);
+    setMessage(null);
+    try {
+      if (item.action.kind === "copy_roster_link") {
+        if (!item.action.value) {
+          throw new Error("The driver-list link was not included in this checklist item.");
+        }
+        await navigator.clipboard.writeText(item.action.value);
+        setMessage("Driver-list link copied.");
+        return;
+      }
+
+      if (item.action.kind !== "request_driver_roster") {
+        throw new Error(`Unsupported checklist action: ${item.action.kind}`);
+      }
+      const response = await fetch(
+        `/api/clients/${encodeURIComponent(clientId)}/driver-roster-request`,
+        { method: "POST" }
+      );
+      const payload = await jsonBody(response);
+      if (!response.ok) {
+        if (payload.request?.id && payload.rosterUrl) {
+          await reload();
+          setError(
+            payload.error ??
+              "The request was saved, but its notification failed. Use Copy link to share it manually."
+          );
+          return;
+        }
+        throw new Error(
+          payload.error ??
+            `Driver-list request failed with HTTP ${response.status}`
+        );
+      }
+      await reload();
+      setMessage(
+        "Driver-list request created. Use the new Copy link action to share the no-login link."
+      );
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Unknown driver-list action failure"
+      );
+    } finally {
+      setPending(null);
+    }
+  }
+
   async function createManual(title: string, dueDate: string) {
     setPending("manual:create");
     setError(null);
@@ -619,6 +696,7 @@ export function OperatorChecklist({
                     item={item}
                     pending={pending}
                     onAcknowledge={acknowledge}
+                    onDerivedAction={runDerivedAction}
                   />
                 ))}
               </div>
