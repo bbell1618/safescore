@@ -1742,7 +1742,13 @@ export async function generateValidatedReport(
           ? error.message
           : "The text provider failed without an error message.";
       await options.onAttempt?.({ attempt, status: "failed", reason });
-      throw error;
+      lastIssues = [`Text provider failed: ${reason}`];
+      if (attempt === 3) {
+        throw new Error(
+          `Report generation failed after 3 attempts: ${reason}`
+        );
+      }
+      continue;
     }
     const content = assembleGeneratedReport(generatedBody, data);
     const serverOwnedHeadings = [...serverOwnedSectionKeys(data)].map(

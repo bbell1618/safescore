@@ -803,6 +803,37 @@ async function testRetryAndPrint() {
     "2:started",
     "2:succeeded",
   ]);
+  const providerEvents: string[] = [];
+  const recoveredProviderFailure = await generateValidatedReport(
+    buildReportPrompts(validMonthly),
+    validMonthly,
+    async ({ attempt }) => {
+      if (attempt === 1) throw new Error("Transient provider truncation.");
+      return validModelBody(validMonthly);
+    },
+    {
+      onAttempt(event) {
+        providerEvents.push(`${event.attempt}:${event.status}`);
+      },
+    }
+  );
+  assert.equal(recoveredProviderFailure.attempts, 2);
+  assert.deepEqual(providerEvents, [
+    "1:started",
+    "1:failed",
+    "2:started",
+    "2:succeeded",
+  ]);
+  await assert.rejects(
+    generateValidatedReport(
+      buildReportPrompts(validMonthly),
+      validMonthly,
+      async () => {
+        throw new Error("Provider remains unavailable.");
+      }
+    ),
+    /failed after 3 attempts: Provider remains unavailable/
+  );
   console.log(
     JSON.stringify(
       {
@@ -823,6 +854,7 @@ async function testRetryAndPrint() {
         openRequestRowsProven: requestSummary.rowCount,
         allTypesValidated: true,
         retryAttemptsProven: generated.attempts,
+        providerRetryAttemptsProven: recoveredProviderFailure.attempts,
       },
       null,
       2

@@ -405,7 +405,7 @@ async function requestReportText(params: {
         { role: "user", content: params.user },
       ],
       temperature: 0.2,
-      max_tokens: Math.max(1_800, params.wordBudget * 3),
+      max_tokens: Math.max(2_400, params.wordBudget * 4),
     }),
   });
   const rawBody = await response.text();
