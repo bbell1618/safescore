@@ -66,8 +66,8 @@ assert.ok(!accountSource.includes("value={subscription.tier}"));
 const sharedTierLabelRenderers = {
   "app/page.tsx": "TIER_LABELS[tier.value]",
   "app/onboarding/page.tsx": "TIER_LABELS[assignedTierData.value]",
-  "app/(console)/console/page.tsx": "TIER_LABELS[clientTier]",
-  "app/(console)/console/clients/[id]/layout.tsx": "TIER_LABELS[clientTier]",
+  "app/(console)/console/page.tsx": "tierDisplayLabel(client.tier)",
+  "app/(console)/console/clients/[id]/layout.tsx": "tierDisplayLabel(client.tier)",
   "app/(portal)/portal/account/page.tsx": "tierDisplayLabel(context.tier)",
   "components/console/client-intake-fields.tsx": "TIER_LABELS[tier]",
   "components/console/service-tier-chip.tsx": "TIER_LABELS[minimumTier]",
@@ -152,8 +152,8 @@ assert.ok(
   )
 );
 assert.ok(
-  activitySource.includes(
-    "canSeeCases\n    ? loadPortalActivityCases(access.clientId)"
+  /const casesPromise = canSeeCases\s*\?\s*loadPortalActivityCases\(access\.clientId\)/.test(
+    activitySource
   )
 );
 
@@ -171,7 +171,11 @@ for (const feature of [
     `Documents must enforce ${feature} before loading that zone`
   );
 }
-assert.match(documentsSource, /canSeeRequests\s*\?\s*loadOpenRequests/);
+assert.match(
+  documentsSource,
+  /const requestPromise = loadOpenRequests\([\s\S]*?canSeeRequests\s*\);/
+);
+assert.ok(documentsSource.includes("requestFeatureLocked={!canSeeRequests}"));
 assert.match(documentsSource, /canSeeVault\s*\?\s*loadDocuments/);
 assert.match(documentsSource, /canSeeReports\s*\?\s*loadSentReports/);
 
@@ -216,7 +220,10 @@ const cronSource = readFileSync(
 );
 assert.match(cronSource, /\.eq\("status",\s*"active"\)/);
 assert.match(cronSource, /\.in\("tier",\s*\[\.\.\.SUBSCRIPTION_TIERS\]\)/);
-assert.ok(cronSource.includes('tierHasFeature(\n        client.tier,\n        "case_visibility"'));
+assert.match(
+  cronSource,
+  /tierHasFeature\(\s*client\.tier,\s*"case_visibility"\s*\)/
+);
 
 const proxySource = readFileSync(resolve(process.cwd(), "proxy.ts"), "utf8");
 assert.ok(proxySource.includes("activeAssignedClient"));
