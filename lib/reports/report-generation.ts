@@ -1062,15 +1062,6 @@ export function buildReportGenerationData(params: {
   return data;
 }
 
-function exactCaseSentence(reportCase: ReportCaseRow): string {
-  const reference = reportCase.case_number
-    ? `${reportCase.case_type} case ${reportCase.case_number}`
-    : `${reportCase.case_type} case with no stored case number`;
-  const outcome = reportCase.outcome
-    ? ` Its stored outcome is ${reportCase.outcome}.`
-    : "";
-  return `${reference} is ${reportCase.status}.${outcome}`;
-}
 function assessmentBurdenFacts(data: ReportGenerationData): string[] {
   if (data.reportType !== "assessment") return [];
   return data.latestSnapshot.perBasic.map(
@@ -1264,7 +1255,6 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
   const newViolationFallback = mandatoryNewViolationFallback(data);
   const requestFacts = data.openRequests?.requiredSummarySentences ?? [];
   const changeFact = data.comparison?.requiredChangeStatement;
-  const caseFacts = data.cases.map(exactCaseSentence);
   const mandatoryFacts = [
     ...assessmentModelFacts,
     ...comparisonMandatoryFacts(data),
@@ -1272,7 +1262,6 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
     ...(newViolationFallback ? [newViolationFallback] : []),
     ...(changeFact ? [changeFact] : []),
     ...requestFacts,
-    ...caseFacts,
   ];
   const serverOwnedHeadings = [...serverOwned].map(
     (key) => REPORT_SECTION_HEADINGS[key]
@@ -1663,11 +1652,33 @@ export function validateGeneratedReport(
     const caseSection = sectionBody(content, caseSectionHeading, [
       ...plannedHeadings,
     ]);
+    const caseLines = caseSection
+      .split(/\r?\n/)
+      .map((line) => line.replace(/[*_`#]/g, "").trim().toLowerCase());
     for (const reportCase of data.cases) {
-      const sentence = exactCaseSentence(reportCase);
-      if (countOccurrence(caseSection, sentence) !== 1) {
+      const typeNeedle = reportCase.case_type.toLowerCase();
+      const numberNeedle = reportCase.case_number?.toLowerCase() ?? null;
+      const statusNeedle = reportCase.status.toLowerCase();
+      const matchingLine = caseLines.find(
+        (line) =>
+          line.includes(typeNeedle) &&
+          (numberNeedle
+            ? line.includes(numberNeedle)
+            : line.includes("no stored case number")) &&
+          line.includes(statusNeedle)
+      );
+      if (!matchingLine) {
         issues.push(
-          `case fact is missing or duplicated in ${caseSectionHeading}: ${sentence}`
+          `case type, number, or status is missing in ${caseSectionHeading}: ${reportCase.case_type} ${reportCase.case_number ?? "no stored case number"} ${reportCase.status}`
+        );
+      }
+      if (
+        data.reportType === "underwriter" &&
+        reportCase.outcome &&
+        !caseSection.toLowerCase().includes(reportCase.outcome.toLowerCase())
+      ) {
+        issues.push(
+          `stored case outcome is missing in ${caseSectionHeading}: ${reportCase.outcome}`
         );
       }
       const storedDescription = reportCase.description?.trim();

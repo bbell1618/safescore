@@ -720,6 +720,17 @@ assert.ok(longStoredDescription && longStoredDescription.length >= 500);
 assert.ok(buildReportPrompts(validMonthly).user.includes(longStoredDescription));
 assert.ok(!validMonthlyReport.includes(longStoredDescription));
 assert.deepEqual(validateGeneratedReport(validMonthlyReport, validMonthly), []);
+const bulletCaseReport = validMonthlyReport.replace(
+  "DataQ case 6103911 is filed.",
+  "- **DataQ case 6103911** (filed): concise summary from the stored facts."
+);
+assert.deepEqual(validateGeneratedReport(bulletCaseReport, validMonthly), []);
+assert.ok(
+  validateGeneratedReport(
+    bulletCaseReport.replace("(filed): concise", "(submitted): concise"),
+    validMonthly
+  ).some((issue) => issue.includes("case type, number, or status is missing"))
+);
 assert.ok(
   validateGeneratedReport(
     validMonthlyReport.replace(
