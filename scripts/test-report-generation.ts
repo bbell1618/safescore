@@ -577,6 +577,17 @@ const assessment = dataFor("assessment");
 const assessmentPrompts = buildReportPrompts(assessment);
 assert.equal(assessment.comparison, undefined);
 assert.equal(assessment.comparisonSnapshot, null);
+assert.deepEqual(Object.keys(assessment.fixedSections), [
+  "whatHappensNext",
+  "whereBurdenSits",
+  "crashRecord",
+  "whatWeRecommend",
+]);
+assert.match(
+  assessmentPrompts.user,
+  /Required model-written section headings:\nSafety Profile Overview\n/
+);
+assert.match(assessmentPrompts.user, /under 120 words/);
 assert.ok(!assessmentPrompts.user.includes("previousSnapshot"));
 assert.ok(!assessmentPrompts.user.includes(REPORT_SECTION_HEADINGS.burdenTrend));
 assert.ok(!assessmentPrompts.user.includes('"comparisonSnapshot"'));
@@ -587,6 +598,13 @@ const assessmentReport = assembleGeneratedReport(
 );
 assert.ok(assessmentReport.endsWith(PREPARER_BLOCK));
 assert.equal(assessmentReport.split(ASSESSMENT_NEXT_STEPS_COPY).length - 1, 1);
+for (const heading of [
+  REPORT_SECTION_HEADINGS.whereBurdenSits,
+  REPORT_SECTION_HEADINGS.crashRecord,
+  REPORT_SECTION_HEADINGS.whatWeRecommend,
+]) {
+  assert.equal(assessmentReport.split(heading).length - 1, 1);
+}
 assert.ok(!assessmentReport.includes(FIRST_REPORTING_PERIOD_STATEMENT));
 assert.equal(assessment.latestSnapshot.perBasic.length, 7);
 assert.deepEqual(

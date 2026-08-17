@@ -384,7 +384,7 @@ const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 };
 const REPORT_TYPE_INSTRUCTIONS: Record<ReportType, string> = {
   assessment:
-    "Write an onboarding assessment. Safety Profile Overview must identify the carrier and reproduce every required overview fact. Where the Burden Sits must list every BASIC in the supplied largest-first order, including zero rows. Crash Record must cover every supplied crash. What We Recommend must name every supplied challengeable violation with its supplied challenge lane and every supplied Lane C operational family as a coaching or maintenance priority. Never compare this assessment with a previous period.",
+    "Write only a concise onboarding Safety Profile Overview. Identify the carrier and reproduce every required overview fact. The server deterministically adds the BASIC, crash, recommendation, and next-step sections from the structured data. Never compare this assessment with a previous period.",
   monthly:
     "Write a client monthly progress report. Use the full anchor period when a comparison snapshot is supplied. New Violations must cover every supplied new violation or reproduce its supplied fallback sentence. Priority Findings must include every supplied open-request summary exactly and may use only supplied current priorities. Open Challenges must cover every supplied open case with its case type, case number, status, and its real stored description reproduced exactly when present.",
   quarterly:
@@ -1045,6 +1045,20 @@ export function buildReportGenerationData(params: {
   if (config.includeOpenRequests) {
     data.openRequests = summarizeOpenReportRequests(params.openRequests ?? []);
   }
+  if (params.reportType === "assessment") {
+    const burdenFacts = assessmentBurdenFacts(data);
+    const crashFacts = assessmentCrashFacts(data);
+    const recommendationFacts = assessmentRecommendationFacts(data);
+    fixedSections.whereBurdenSits = burdenFacts.join("\n");
+    fixedSections.crashRecord =
+      crashFacts.length > 0
+        ? crashFacts.join("\n")
+        : "No crashes are present in the supplied public crash records.";
+    fixedSections.whatWeRecommend =
+      recommendationFacts.length > 0
+        ? recommendationFacts.join("\n")
+        : "The supplied data contains no challengeable violation candidates or Lane C operational families to recommend at this time.";
+  }
   return data;
 }
 
@@ -1061,20 +1075,19 @@ function exactCaseDescriptionSentence(reportCase: ReportCaseRow): string | null 
   const description = reportCase.description?.trim();
   return description ? `Stored case description: ${description}` : null;
 }
-function assessmentMandatoryFacts(data: ReportGenerationData): string[] {
+function assessmentBurdenFacts(data: ReportGenerationData): string[] {
   if (data.reportType !== "assessment") return [];
-  return [
-    data.diagnosticSnapshot.requiredViolationScopeSentence,
-    `${data.latestSnapshot.inspectionCount} inspections, ${data.latestSnapshot.crashCount} crashes, and ${data.latestSnapshot.oosCount} out-of-service violations are on the latest snapshot.`,
-    ...data.latestSnapshot.perBasic.map(
-      (basic) =>
-        `${basic.label}: ${basic.violationCount} ${basic.violationCount === 1 ? "violation" : "violations"} and ${basic.weightedPoints} weighted points.`
-    ),
-    ...data.crashes.map(
-      (crash) =>
-        `${crash.crashDate}, ${crash.state ?? "state not recorded"}, report ${crash.reportNumber}, tow-away ${crash.towAway ? "yes" : "no"}.`
-    ),
-  ];
+  return data.latestSnapshot.perBasic.map(
+    (basic) =>
+      `${basic.label}: ${basic.violationCount} ${basic.violationCount === 1 ? "violation" : "violations"} and ${basic.weightedPoints} weighted points.`
+  );
+}
+function assessmentCrashFacts(data: ReportGenerationData): string[] {
+  if (data.reportType !== "assessment") return [];
+  return data.crashes.map(
+    (crash) =>
+      `${crash.crashDate}, ${crash.state ?? "state not recorded"}, report ${crash.reportNumber}, tow-away ${crash.towAway ? "yes" : "no"}.`
+  );
 }
 function assessmentRecommendationFacts(data: ReportGenerationData): string[] {
   if (data.reportType !== "assessment" || !data.priorityFindings) return [];
@@ -1196,10 +1209,14 @@ function promptStructuredData(data: ReportGenerationData) {
   if (data.reportType === "assessment") {
     return {
       carrier: carrierIdentity,
-      latestSnapshot: data.latestSnapshot,
+      latestOverview: {
+        capturedAt: data.latestSnapshot.capturedAt,
+        totalPoints: data.latestSnapshot.totalPoints,
+        inspectionCount: data.latestSnapshot.inspectionCount,
+        crashCount: data.latestSnapshot.crashCount,
+        oosCount: data.latestSnapshot.oosCount,
+      },
       diagnosticSnapshot: data.diagnosticSnapshot,
-      crashes: data.crashes,
-      priorityFindings: data.priorityFindings,
     };
   }
   if (data.reportType === "monthly" || data.reportType === "quarterly") {
@@ -1244,7 +1261,10 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
     (section) => !serverOwned.has(section.key)
   );
   const exactHeadings = modelSections.map((section) => section.heading);
-  const assessmentFacts = assessmentMandatoryFacts(data);
+  const assessmentModelFacts =
+    data.reportType === "assessment"
+      ? [data.diagnosticSnapshot.requiredViolationScopeSentence]
+      : [];
   const newViolationFallback = mandatoryNewViolationFallback(data);
   const requestFacts = data.openRequests?.requiredSummarySentences ?? [];
   const changeFact = data.comparison?.requiredChangeStatement;
@@ -1253,8 +1273,7 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
     .map(exactCaseDescriptionSentence)
     .filter((sentence): sentence is string => Boolean(sentence));
   const mandatoryFacts = [
-    ...assessmentFacts,
-    ...assessmentRecommendationFacts(data),
+    ...assessmentModelFacts,
     ...comparisonMandatoryFacts(data),
     ...priorityMandatoryFacts(data),
     ...(newViolationFallback ? [newViolationFallback] : []),
@@ -1280,14 +1299,18 @@ Hard rules:
 - Do not emit square-bracketed text of any kind.
 - Write only the model-owned report body. Do not add a title, report-date line, fixed section, signature, preparer block, or email address; the server adds those fields exactly.
 - ${serverOwnedHeadings.length > 0 ? `The following headings and their copy are server-owned and forbidden in your body: ${serverOwnedHeadings.join("; ")}.` : "No report section is server-owned for this body."}
-- Use exactly these standalone section headings, once each and in this order: ${exactHeadings.join("; ")}. Do not add, rename, decorate, or omit a heading.
+- Use exactly these standalone section headings, once each and in this order: ${exactHeadings.join("; ")}. Do not add, rename, decorate, or omit a heading. Do not add subheadings or standalone lead-in labels inside a section.
 - The totalPoints and weightedPoints values are SafeScore weighted violation burden, not FMCSA SMS points or an SMS score. Use the exact phrase weighted violation burden for the total and never call it SMS points.
 - Reproduce every supplied mandatory sentence exactly once in its logically matching section.
 - If comparisonSnapshot exists, use its full timestamp as the selected comparison anchor. Never substitute another period.
 - For every CPDP case supplied, use the phrase crash preventability and never call it an inspection dispute.
 - In Open Challenges, include every supplied case's type, case number, status, and reproduce its mandatory stored-description sentence exactly when present. Do not paraphrase or add case facts.
 - Do not make legal opinions, outcome promises, underwriting promises, regulatory guarantees, or compliance-certification claims.`;
-  const user = `Write the ${reportLabel} below for the stated audience in approximately ${data.typeContract.wordBudget} words.
+  const wordInstruction =
+    data.reportType === "assessment"
+      ? `The complete report targets approximately ${data.typeContract.wordBudget} words after the server adds its factual sections. Keep the model-written Safety Profile Overview under 120 words.`
+      : `Write the ${reportLabel} below for the stated audience in approximately ${data.typeContract.wordBudget} words.`;
+  const user = `${wordInstruction}
 
 Report-specific instruction: ${REPORT_TYPE_INSTRUCTIONS[data.reportType]}${firstPeriodInstruction}
 
@@ -1485,7 +1508,8 @@ export function validateGeneratedReport(
   }
 
   for (const sentence of [
-    ...assessmentMandatoryFacts(data),
+    ...assessmentBurdenFacts(data),
+    ...assessmentCrashFacts(data),
     ...assessmentRecommendationFacts(data),
     ...comparisonMandatoryFacts(data),
     ...priorityMandatoryFacts(data),
@@ -1526,6 +1550,31 @@ export function validateGeneratedReport(
     }
     if (!profileBody.includes(data.carrier.dotNumber)) {
       issues.push("assessment profile is missing the USDOT number");
+    }
+    const plainProfileBody = profileBody.replace(/[*_`]/g, "");
+    for (const [value, label, nounPattern] of [
+      [data.latestSnapshot.inspectionCount, "inspection", "inspections?"],
+      [data.latestSnapshot.crashCount, "crash", "crash(?:es)?"],
+      [
+        data.latestSnapshot.oosCount,
+        "out-of-service violation",
+        "out[-‑]of[-‑]service violations?",
+      ],
+    ] as const) {
+      const pattern = new RegExp(`\\b${value}\\s+${nounPattern}\\b`, "i");
+      if (!pattern.test(plainProfileBody)) {
+        issues.push(`assessment profile is missing the ${label} count ${value}`);
+      }
+    }
+    if (
+      !new RegExp(
+        `\\b${data.latestSnapshot.totalPoints}\\s+(?:total\\s+)?weighted violation burden\\b|\\bweighted violation burden(?:\\s+(?:is|of|stands at|totals))?\\s+${data.latestSnapshot.totalPoints}\\b`,
+        "i"
+      ).test(plainProfileBody)
+    ) {
+      issues.push(
+        `assessment profile is missing the weighted violation burden ${data.latestSnapshot.totalPoints}`
+      );
     }
     const burdenBody = sectionBody(
       content,
