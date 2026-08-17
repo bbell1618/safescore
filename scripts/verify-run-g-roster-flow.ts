@@ -301,6 +301,7 @@ function syntheticPdf(label: string): Blob {
 async function pauseForBrowserReview(input: {
   requestId: string;
   driverId: string;
+  stage: "before_approval" | "after_approval";
 }) {
   if (!stdin.isTTY || !stdout.isTTY) {
     throw new Error(
@@ -308,24 +309,33 @@ async function pauseForBrowserReview(input: {
     );
   }
 
+  const beforeApproval = input.stage === "before_approval";
   console.log(
     JSON.stringify(
       {
-        checkpoint: "browser_review_before_staff_approval",
+        checkpoint: beforeApproval
+          ? "browser_review_before_staff_approval"
+          : "browser_review_after_staff_approval",
         fixturesRemainLive: true,
         bearerTokenPrinted: false,
         requestId: input.requestId,
         driverId: input.driverId,
-        staffSurfaces: [
-          `/console/clients/${CLIENT_ID}/compliance`,
-          `/console/clients/${CLIENT_ID}/requests`,
-          "/console/today",
-        ],
-        portalSurfaces: ["/portal/documents", "/portal/compliance"],
-        publicWizard:
-          "Open the copyable roster link from the authenticated Requests surface; the bearer URL is intentionally never printed.",
-        resume:
-          "After browser evidence is captured, return to this terminal and press Enter. Approval, closure, and exact cleanup run only after that input.",
+        staffSurfaces: beforeApproval
+          ? [
+              `/console/clients/${CLIENT_ID}/compliance`,
+              `/console/clients/${CLIENT_ID}/requests`,
+              "/console",
+            ]
+          : [`/console/clients/${CLIENT_ID}/compliance`],
+        portalSurfaces: beforeApproval
+          ? ["/portal/documents", "/portal/compliance"]
+          : ["/portal/compliance"],
+        publicWizard: beforeApproval
+          ? "Open the copyable roster link from the authenticated Requests surface; the bearer URL is intentionally never printed."
+          : "The public wizard keeps the reviewed request-linked row visible and read-only until staff closes the request.",
+        resume: beforeApproval
+          ? "After browser evidence is captured, return to this terminal and press Enter. Approval runs only after that input."
+          : "After the approved-only surfaces are captured, return and press Enter. Closure and exact cleanup run only after that input.",
       },
       null,
       2
@@ -353,7 +363,11 @@ async function pauseForBrowserReview(input: {
   process.once("SIGTERM", onTermination);
   try {
     await Promise.race([
-      prompt.question("Browser review complete; press Enter to continue: "),
+      prompt.question(
+        beforeApproval
+          ? "Pre-approval browser review complete; press Enter to approve: "
+          : "Post-approval browser review complete; press Enter to close and clean up: "
+      ),
       interrupt,
     ]);
   } finally {
@@ -1059,6 +1073,7 @@ async function main() {
     await pauseForBrowserReview({
       requestId: artifacts.requestId,
       driverId,
+      stage: "before_approval",
     });
     proof.browserCheckpoint = {
       reachedAfterSubmit: true,
@@ -1142,18 +1157,6 @@ async function main() {
     assert.equal(postApprovalDrivers[0]?.id, driverId);
     assert.equal(typeof postApprovalDrivers[0]?.approvedAt, "string");
 
-    const [consoleAfterApproval, portalAfterApproval] = await Promise.all([
-      callText({
-        path: `/console/clients/${CLIENT_ID}/compliance`,
-        cookie: staff.cookie,
-      }),
-      callText({ path: "/portal/compliance", cookie: portal.cookie }),
-    ]);
-    assert.equal(consoleAfterApproval.status, 200);
-    assert.equal(portalAfterApproval.status, 200);
-    assert.match(consoleAfterApproval.body, /Close roster request/);
-    assert.match(consoleAfterApproval.body, new RegExp(UPDATED_DRIVER_NAME));
-    assert.match(portalAfterApproval.body, new RegExp(UPDATED_DRIVER_NAME));
     assert.equal(
       (await service
         .from("clients")
@@ -1173,6 +1176,16 @@ async function main() {
       stagedExcludedBeforeApproval: true,
       approvedIncludedAfterApproval: true,
       billingDriverCount: EXPECTED_BILLING_DRIVER_COUNT,
+    };
+
+    await pauseForBrowserReview({
+      requestId: artifacts.requestId,
+      driverId,
+      stage: "after_approval",
+    });
+    proof.browserCheckpoint = {
+      ...record(proof.browserCheckpoint, "browser checkpoint proof"),
+      approvedSurfacesReviewedBeforeClose: true,
     };
 
     const closed = await callJson({
