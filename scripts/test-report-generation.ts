@@ -665,6 +665,19 @@ assert.ok(!improvementPrompt.includes("DRAFT MUST NEVER APPEAR"));
 assert.ok(!improvementPrompt.includes('"crashes"'));
 assert.ok(!improvementPrompt.includes('"openRequests"'));
 assert.ok(!improvementPrompt.includes('"priorityFindings"'));
+assert.ok(!improvementPrompt.includes('"cases"'));
+assert.deepEqual(Object.keys(improvement.fixedSections).sort(), [
+  "currentStanding",
+  "workPerformed",
+]);
+assert.match(
+  improvement.fixedSections.workPerformed ?? "",
+  /CPDP crash preventability case 6123719 — status: filed/
+);
+assert.match(
+  improvement.fixedSections.workPerformed ?? "",
+  /Client evidence items collected for filed-or-beyond cases: 3\./
+);
 assert.deepEqual(
   improvement.cases.map((item) => item.case_number),
   ["6103911", "6123719", "RESOLVED-1"]
@@ -689,6 +702,7 @@ const underwriterPrompt = buildReportPrompts(underwriter).user;
 assert.ok(!underwriterPrompt.includes('"openRequests"'));
 assert.ok(!underwriterPrompt.includes('"priorityFindings"'));
 assert.ok(!underwriterPrompt.includes('"clientEvidenceItemsCollected"'));
+assert.ok(!underwriterPrompt.includes('"cases"'));
 assert.equal(
   underwriter.cases.find((item) => item.case_number === "RESOLVED-1")?.outcome,
   "approved"
@@ -696,6 +710,14 @@ assert.equal(
 assert.equal(
   underwriter.fixedSections.ongoingSafetyManagement,
   UNDERWRITER_TOTAL_SAFETY_COPY
+);
+assert.match(
+  underwriter.fixedSections.remediationWorkCompleted ?? "",
+  /stored outcome: approved/
+);
+assert.match(
+  underwriter.fixedSections.currentSafetyStanding ?? "",
+  /weighted violation burden 120, compared with 210/
 );
 const lowerTierUnderwriter = dataFor(
   "underwriter",
@@ -818,11 +840,11 @@ assert.ok(
   )
 );
 const misstatedCaseTiming = assembleGeneratedReport(
-  validModelBody(improvement).replace(
-    `${REPORT_SECTION_HEADINGS.workPerformed}\n`,
-    `${REPORT_SECTION_HEADINGS.workPerformed}\nThese cases were filed during the engagement.\n`
-  ),
+  validModelBody(improvement),
   improvement
+).replace(
+  `${REPORT_SECTION_HEADINGS.workPerformed}\n`,
+  `${REPORT_SECTION_HEADINGS.workPerformed}\nThese cases were filed during the engagement.\n`
 );
 assert.ok(
   validateGeneratedReport(misstatedCaseTiming, improvement).some((issue) =>
@@ -831,12 +853,9 @@ assert.ok(
 );
 assert.ok(
   validateGeneratedReport(
-    assembleGeneratedReport(
-      validModelBody(improvement).replace(
-        "Current standing:",
-        "Open cases remain. Current standing:"
-      ),
-      improvement
+    assembleGeneratedReport(validModelBody(improvement), improvement).replace(
+      "Current standing:",
+      "Open cases remain. Current standing:"
     ),
     improvement
   ).some((issue) => issue.includes("Current Standing"))

@@ -390,9 +390,9 @@ const REPORT_TYPE_INSTRUCTIONS: Record<ReportType, string> = {
   quarterly:
     "Write a client quarterly re-analysis. When a comparison snapshot is supplied, Burden Trend must list before and after values for every BASIC, including unchanged categories. Changes This Quarter must reproduce the supplied added-and-aged-out statement. Priority Findings must include every supplied open-request summary exactly. Open Challenges must cover every supplied open case with its case type, case number, status, and a concise accurate summary derived only from its real stored description when present.",
   improvement:
-    "Write an external insurance re-marketing report. Compare the engagement baseline with the latest measurement, include every BASIC reduction or worsening, and limit Work Performed to supplied filed-or-beyond cases and the supplied client-evidence count when greater than zero. Never use the word pending. Never say a case was filed during or since the engagement unless its filed date is on or after serviceBaselineDate. Current Standing contains only latest measured safety totals, never cases or challenges. Do not include weakness rankings, request language, investigation language, or internal queue language.",
+    "Write only the external Engagement Summary and Measured Improvement sections. Compare the engagement baseline with the latest measurement and include every BASIC reduction or worsening. The server deterministically adds Work Performed and Current Standing from the stored case, evidence, and snapshot facts. Do not include weakness rankings, request language, investigation language, case work, or internal queue language.",
   underwriter:
-    "Write for insurance carrier underwriting. Carrier Overview uses only supplied identity and fleet facts. Remediation Work Completed includes only supplied filed-or-beyond cases, their stored status, and a stored outcome only when present. Current Safety Standing gives the measured trajectory and current in-window counts. Do not include weakness rankings, evidence asks, draft work, internal queue language, or outcome promises.",
+    "Write only the Carrier Overview for insurance carrier underwriting using the supplied identity and fleet facts. The server deterministically adds Remediation Work Completed, Current Safety Standing, and any tier-appropriate Ongoing Safety Management copy. Do not include case work, weakness rankings, evidence asks, draft work, internal queue language, or outcome promises.",
 };
 const ALL_REPORT_SECTION_HEADINGS = Object.values(REPORT_SECTION_HEADINGS);
 const LEGACY_FORBIDDEN_HEADINGS = [
@@ -1059,7 +1059,51 @@ export function buildReportGenerationData(params: {
         ? recommendationFacts.join("\n")
         : "The supplied data contains no challengeable violation candidates or Lane C operational families to recommend at this time.";
   }
+  if (params.reportType === "improvement") {
+    fixedSections.workPerformed = buildExternalCaseSection(data, false);
+    fixedSections.currentStanding = `Current standing: ${data.latestSnapshot.totalPoints} weighted violation burden and ${data.latestSnapshot.violationCountInScoringWindow} in-window violations.`;
+  }
+  if (params.reportType === "underwriter") {
+    fixedSections.remediationWorkCompleted = buildExternalCaseSection(
+      data,
+      true
+    );
+    const previous = data.comparisonSnapshot;
+    fixedSections.currentSafetyStanding = previous
+      ? `Current safety standing: weighted violation burden ${data.latestSnapshot.totalPoints}, compared with ${previous.totalPoints} at the SafeScore measurement baseline; ${data.latestSnapshot.violationCountInScoringWindow} violations are in the scoring window.`
+      : `Current safety standing: ${data.latestSnapshot.totalPoints} weighted violation burden and ${data.latestSnapshot.violationCountInScoringWindow} violations in the scoring window.`;
+  }
   return data;
+}
+
+function buildExternalCaseSection(
+  data: ReportGenerationData,
+  includeOutcome: boolean
+): string {
+  const lines = data.cases.map((reportCase) => {
+    const reference = reportCase.case_number
+      ? `${reportCase.case_type}${reportCase.case_type === "CPDP" ? " crash preventability" : ""} case ${reportCase.case_number}`
+      : `${reportCase.case_type}${reportCase.case_type === "CPDP" ? " crash preventability" : ""} case with no stored case number`;
+    const filedDate = reportCase.filed_date
+      ? `; filed date: ${reportCase.filed_date}`
+      : "";
+    const outcome =
+      includeOutcome && reportCase.outcome
+        ? `; stored outcome: ${reportCase.outcome}`
+        : "";
+    return `${reference} — status: ${reportCase.status}${filedDate}${outcome}.`;
+  });
+  if (
+    data.reportType === "improvement" &&
+    data.clientEvidenceItemsCollected > 0
+  ) {
+    lines.push(
+      `Client evidence items collected for filed-or-beyond cases: ${data.clientEvidenceItemsCollected}.`
+    );
+  }
+  return lines.length > 0
+    ? lines.join("\n")
+    : "No filed-or-beyond case work is present in the supplied case records.";
 }
 
 function assessmentBurdenFacts(data: ReportGenerationData): string[] {
@@ -1225,19 +1269,10 @@ function promptStructuredData(data: ReportGenerationData) {
       latestSnapshot: data.latestSnapshot,
       comparisonSnapshot: data.comparisonSnapshot,
       comparison: data.comparison,
-      cases: data.cases,
-      ...(data.clientEvidenceItemsCollected > 0
-        ? { clientEvidenceItemsCollected: data.clientEvidenceItemsCollected }
-        : {}),
     };
   }
   return {
     carrier: data.carrier,
-    serviceBaselineDate: data.serviceBaselineDate,
-    latestSnapshot: data.latestSnapshot,
-    comparisonSnapshot: data.comparisonSnapshot,
-    comparison: data.comparison,
-    cases: data.cases,
   };
 }
 
@@ -1255,9 +1290,23 @@ export function buildReportPrompts(data: ReportGenerationData): ReportPrompts {
   const newViolationFallback = mandatoryNewViolationFallback(data);
   const requestFacts = data.openRequests?.requiredSummarySentences ?? [];
   const changeFact = data.comparison?.requiredChangeStatement;
+  const allComparisonFacts = comparisonMandatoryFacts(data);
+  const modelComparisonFacts =
+    data.reportType === "improvement"
+      ? allComparisonFacts.filter(
+          (fact) =>
+            !fact.startsWith("Current standing:") &&
+            !fact.startsWith("Client evidence items collected")
+        )
+      : data.reportType === "underwriter"
+        ? allComparisonFacts.filter(
+            (fact) =>
+              fact.startsWith("Carrier:") || fact.startsWith("FMCSA fleet facts:")
+          )
+        : allComparisonFacts;
   const mandatoryFacts = [
     ...assessmentModelFacts,
-    ...comparisonMandatoryFacts(data),
+    ...modelComparisonFacts,
     ...priorityMandatoryFacts(data),
     ...(newViolationFallback ? [newViolationFallback] : []),
     ...(changeFact ? [changeFact] : []),
@@ -1290,6 +1339,10 @@ Hard rules:
   const wordInstruction =
     data.reportType === "assessment"
       ? `The complete report targets approximately ${data.typeContract.wordBudget} words after the server adds its factual sections. Keep the model-written Safety Profile Overview under 120 words.`
+      : data.reportType === "improvement"
+        ? `The complete report targets approximately ${data.typeContract.wordBudget} words after the server adds its factual sections. Keep the model-written Engagement Summary and Measured Improvement together under 250 words.`
+        : data.reportType === "underwriter"
+          ? `The complete report targets approximately ${data.typeContract.wordBudget} words after the server adds its factual sections. Keep the model-written Carrier Overview under 120 words.`
       : `Write the ${reportLabel} below for the stated audience in approximately ${data.typeContract.wordBudget} words.`;
   const user = `${wordInstruction}
 
