@@ -411,6 +411,8 @@ export interface Database {
           id: string;
           client_id: string;
           snapshot_date: string;
+          basics_sms_run_date: string | null;
+          basics_stale: boolean;
           unsafe_driving_measure: number | null;
           unsafe_driving_pct: number | null;
           unsafe_driving_alert: boolean;
@@ -440,8 +442,37 @@ export interface Database {
           source_file_hash: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["score_snapshots"]["Row"], "id" | "created_at">;
+        Insert: Omit<Database["public"]["Tables"]["score_snapshots"]["Row"], "id" | "created_at" | "basics_sms_run_date" | "basics_stale"> & {
+          basics_sms_run_date?: string | null;
+          basics_stale?: boolean;
+        };
         Update: Partial<Database["public"]["Tables"]["score_snapshots"]["Insert"]>;
+      };
+      basic_measure_releases: {
+        Row: {
+          id: string;
+          client_id: string;
+          dot_number: string;
+          sms_run_date: string;
+          source: "qcmobile_basics" | "public_sms_profile" | "authenticated_all_basics";
+          source_url: string | null;
+          measures: Record<BasicCategory, {
+            measure: number | null;
+            percentile: number | null;
+            alert: boolean | null;
+            inspections_with_violations: number | null;
+          } | null>;
+          captured_at: string;
+          captured_by: string;
+          notes: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["basic_measure_releases"]["Row"], "id" | "captured_at" | "source_url" | "notes"> & {
+          id?: string;
+          captured_at?: string;
+          source_url?: string | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["basic_measure_releases"]["Insert"]>;
       };
       inspections: {
         Row: {

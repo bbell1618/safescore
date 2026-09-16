@@ -41,6 +41,9 @@ export interface SafetyReportProps {
     percentile: number | null;
     alertIndicator: string | null;
   }>;
+  basicsAsOf: string | null;
+  basicsSourceLabel: string | null;
+  basicsStale: boolean;
   burden: {
     perBasic: Array<{
       category: string;
@@ -363,6 +366,9 @@ export function SafetyReport({
   client,
   carrier,
   basics,
+  basicsAsOf,
+  basicsSourceLabel,
+  basicsStale,
   burden,
   openCases,
   violations,
@@ -479,8 +485,14 @@ export function SafetyReport({
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>BASIC Performance Scores</Text>
+          {basicsAsOf && (
+            <Text style={styles.note}>
+              {`FMCSA data as of ${new Date(`${basicsAsOf}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })} · ${basicsSourceLabel}`}
+              {basicsStale && <Text style={styles.tableCellRed}> · STALE — older than 45 days</Text>}
+            </Text>
+          )}
           {basics.length === 0 ? (
-            <Text style={styles.emptyState}>No BASIC score data available.</Text>
+            <Text style={styles.emptyState}>No current FMCSA BASIC data on file.</Text>
           ) : (
             <View style={styles.table}>
               <View style={styles.tableHeader}>

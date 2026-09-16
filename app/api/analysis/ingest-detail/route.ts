@@ -111,6 +111,8 @@ export async function POST(request: NextRequest) {
           {
             client_id: clientId,
             snapshot_date: allBasics.snapshotDate,
+            basics_sms_run_date: allBasics.snapshotDate,
+            basics_stale: false,
             unsafe_driving_measure: b.unsafe_driving.measure,
             unsafe_driving_pct: b.unsafe_driving.percentile,
             unsafe_driving_alert: b.unsafe_driving.alert,
@@ -140,6 +142,27 @@ export async function POST(request: NextRequest) {
         );
       if (snapshotError) {
         return NextResponse.json({ error: snapshotError.message }, { status: 500 });
+      }
+
+      const { error: releaseError } = await serviceSupabase
+        .from("basic_measure_releases")
+        .upsert({
+          client_id: clientId,
+          dot_number: dotNumber,
+          sms_run_date: allBasics.snapshotDate,
+          source: "authenticated_all_basics",
+          source_url: null,
+          measures: Object.fromEntries(Object.entries(b).map(([key, basic]) => [key, {
+            measure: basic.measure,
+            percentile: basic.percentile,
+            alert: basic.alert,
+            inspections_with_violations: null,
+          }])),
+          captured_by: "ingest-detail",
+          notes: `source_file_hash ${fileHash}`,
+        }, { onConflict: "client_id,sms_run_date,source" });
+      if (releaseError) {
+        return NextResponse.json({ error: releaseError.message }, { status: 500 });
       }
 
       const summary = {

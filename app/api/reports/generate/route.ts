@@ -2,10 +2,11 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { SafetyReport } from "@/lib/pdf/safety-report";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
+import { classifyBasicsCurrentness } from "@/lib/fmcsa/basics-currentness";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { normalizeClientTier, tierHasFeature } from "@/lib/tiers";
-import type { ClientTier } from "@/lib/supabase/types";
+import type { ClientTier, Database } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -189,29 +190,47 @@ export async function POST(request: Request) {
     alertIndicator: string | null;
   }> = [];
 
-  const { data: scoreSnapshot } = await serviceSupabase
-    .from("score_snapshots")
+  const { data: releaseData, error: releaseError } = await serviceSupabase
+    .from("basic_measure_releases")
     .select("*")
     .eq("client_id", clientId)
-    .order("snapshot_date", { ascending: false })
+    .order("sms_run_date", { ascending: false })
+    .order("captured_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (scoreSnapshot) {
-    basics = [
-      ["Unsafe Driving", scoreSnapshot.unsafe_driving_measure, scoreSnapshot.unsafe_driving_pct, scoreSnapshot.unsafe_driving_alert],
-      ["Hours-of-Service Compliance", scoreSnapshot.hos_compliance_measure, scoreSnapshot.hos_compliance_pct, scoreSnapshot.hos_compliance_alert],
-      ["Driver Fitness", scoreSnapshot.driver_fitness_measure, scoreSnapshot.driver_fitness_pct, scoreSnapshot.driver_fitness_alert],
-      ["Controlled Substances/Alcohol", scoreSnapshot.controlled_substance_measure, scoreSnapshot.controlled_substance_pct, scoreSnapshot.controlled_substance_alert],
-      ["Vehicle Maintenance", scoreSnapshot.vehicle_maint_measure, scoreSnapshot.vehicle_maint_pct, scoreSnapshot.vehicle_maint_alert],
-      ["Hazardous Materials Compliance", scoreSnapshot.hm_compliance_measure, scoreSnapshot.hm_compliance_pct, scoreSnapshot.hm_compliance_alert],
-      ["Crash Indicator", scoreSnapshot.crash_indicator_measure, scoreSnapshot.crash_indicator_pct, scoreSnapshot.crash_indicator_alert],
-    ].map(([category, measure, percentile, alert]) => ({
-      category: category as string,
-      measure: measure as number | null,
-      percentile: percentile as number | null,
-      alertIndicator: alert ? "Y" : "N",
-    }));
+  if (releaseError) {
+    throw new Error(`Unable to load BASIC measure release: ${releaseError.message}`);
   }
+  const release = releaseData as Database["public"]["Tables"]["basic_measure_releases"]["Row"] | null;
+  if (release) {
+    basics = ([
+      ["Unsafe Driving", "unsafe_driving"],
+      ["Hours-of-Service Compliance", "hos_compliance"],
+      ["Driver Fitness", "driver_fitness"],
+      ["Controlled Substances/Alcohol", "controlled_substance"],
+      ["Vehicle Maintenance", "vehicle_maintenance"],
+      ["Hazardous Materials Compliance", "hazmat_compliance"],
+      ["Crash Indicator", "crash_indicator"],
+    ] as const).map(([category, key]) => {
+      const basic = release.measures[key];
+      const alert = basic?.alert;
+      return {
+        category,
+        measure: basic?.measure ?? null,
+        percentile: basic?.percentile ?? null,
+        alertIndicator: alert === true ? "Y" : alert === false ? "N" : null,
+      };
+    });
+  }
+  const basicsAsOf = release?.sms_run_date ?? null;
+  const basicsSourceLabel = release ? {
+    qcmobile_basics: "FMCSA QCMobile",
+    public_sms_profile: "FMCSA SMS public profile",
+    authenticated_all_basics: "FMCSA authenticated SMS export",
+  }[release.source] ?? null : null;
+  const basicsStale = release
+    ? classifyBasicsCurrentness(release.sms_run_date).currentness !== "current"
+    : false;
 
   const { inspectionIds: canonicalInspectionIds } =
     await getCanonicalInspectionScope(clientId, serviceSupabase);
@@ -288,6 +307,9 @@ export async function POST(request: Request) {
       },
       carrier,
       basics,
+      basicsAsOf,
+      basicsSourceLabel,
+      basicsStale,
       burden: {
         perBasic: burden.perBasic.map((item) => ({
           category: item.basicCategory,

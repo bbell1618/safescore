@@ -20,6 +20,9 @@ async function main() {
         usdotStatus: "Active",
       },
       basics: [],
+      basicsAsOf: null,
+      basicsSourceLabel: null,
+      basicsStale: false,
       burden: { perBasic: [], totalPoints: 0 },
       openCases: [
         { kind: "CPDP", label: "6123719", status: "filed" },

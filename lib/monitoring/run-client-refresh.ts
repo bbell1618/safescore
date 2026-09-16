@@ -10,6 +10,7 @@ import {
   type FMCSABasicsSourceStatus,
 } from "@/lib/fmcsa/client";
 import { getSAFERSnapshot, type SAFERSnapshot } from "@/lib/fmcsa/safer";
+import { classifyBasicsCurrentness } from "@/lib/fmcsa/basics-currentness";
 import { normalizeViolationLookupCode } from "@/lib/fmcsa/inspection-detail-xml";
 import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
 import { persistPublicCrashes } from "@/lib/fmcsa/crash-refresh";
@@ -47,6 +48,7 @@ export type ClientRefreshResult = {
   hadMonitoringBaseline: boolean;
   saferSnapshot: SAFERSnapshot | null;
   basics: FMCSABasics;
+  basicsCurrentness: ReturnType<typeof classifyBasicsCurrentness>;
   sourceStatus: ClientRefreshSourceStatus;
 };
 
@@ -117,6 +119,10 @@ export async function runClientRefresh(
       getCrashes(dotNumber, { throwOnError: true }),
       loadViolationReferenceLookup(supabase),
     ]);
+  const basicsCurrency = classifyBasicsCurrentness(basics.smsSnapshotDate);
+  if (basicsCurrency.currentness !== "current") {
+    console.warn(`[monitoring-refresh] QCMobile BASICs for DOT ${dotNumber} are ${basicsCurrency.currentness} (sms run date ${basicsCurrency.runDate ?? "missing"}, age ${basicsCurrency.ageDays ?? "n/a"} days); BASIC measures not written.`);
+  }
   const saferSnapshot = saferResult.value;
   if (saferResult.error) {
     console.error(`[monitoring-refresh] SAFER failed for DOT ${dotNumber}:`, saferResult.error.message);
@@ -205,49 +211,49 @@ export async function runClientRefresh(
   const publicScorePayload: Record<string, unknown> = {
     client_id: clientId,
     snapshot_date: today,
-    ...(basics.unsafeDriving
+    ...(basicsCurrency.currentness === "current" && basics.unsafeDriving
       ? {
           unsafe_driving_measure: basics.unsafeDriving.measureValue,
           unsafe_driving_pct: basics.unsafeDriving.percentile,
           unsafe_driving_alert: basics.unsafeDriving.alert,
         }
       : {}),
-    ...(basics.hosCompliance
+    ...(basicsCurrency.currentness === "current" && basics.hosCompliance
       ? {
           hos_compliance_measure: basics.hosCompliance.measureValue,
           hos_compliance_pct: basics.hosCompliance.percentile,
           hos_compliance_alert: basics.hosCompliance.alert,
         }
       : {}),
-    ...(basics.driverFitness
+    ...(basicsCurrency.currentness === "current" && basics.driverFitness
       ? {
           driver_fitness_measure: basics.driverFitness.measureValue,
           driver_fitness_pct: basics.driverFitness.percentile,
           driver_fitness_alert: basics.driverFitness.alert,
         }
       : {}),
-    ...(basics.controlledSubstances
+    ...(basicsCurrency.currentness === "current" && basics.controlledSubstances
       ? {
           controlled_substance_measure: basics.controlledSubstances.measureValue,
           controlled_substance_pct: basics.controlledSubstances.percentile,
           controlled_substance_alert: basics.controlledSubstances.alert,
         }
       : {}),
-    ...(basics.vehicleMaintenance
+    ...(basicsCurrency.currentness === "current" && basics.vehicleMaintenance
       ? {
           vehicle_maint_measure: basics.vehicleMaintenance.measureValue,
           vehicle_maint_pct: basics.vehicleMaintenance.percentile,
           vehicle_maint_alert: basics.vehicleMaintenance.alert,
         }
       : {}),
-    ...(basics.hmCompliance
+    ...(basicsCurrency.currentness === "current" && basics.hmCompliance
       ? {
           hm_compliance_measure: basics.hmCompliance.measureValue,
           hm_compliance_pct: basics.hmCompliance.percentile,
           hm_compliance_alert: basics.hmCompliance.alert,
         }
       : {}),
-    ...(basics.crashIndicator
+    ...(basicsCurrency.currentness === "current" && basics.crashIndicator
       ? {
           crash_indicator_measure: basics.crashIndicator.measureValue,
           crash_indicator_pct: basics.crashIndicator.percentile,
@@ -258,6 +264,8 @@ export async function runClientRefresh(
     oos_driver_rate: saferSnapshot?.driverOosRate ?? oos.driverOosRate,
     oos_hazmat_rate: saferSnapshot?.hazmatOosRate ?? oos.hazmatOosRate,
     source: "api",
+    basics_sms_run_date: basicsCurrency.runDate,
+    basics_stale: basicsCurrency.currentness !== "current",
   };
   const scoreSnapshotFields =
     "id, snapshot_date, source, oos_vehicle_rate, oos_driver_rate, oos_hazmat_rate";
@@ -304,6 +312,37 @@ export async function runClientRefresh(
       "Unable to persist score snapshot",
       scoreWrite.error ?? { message: "write returned no row" }
     );
+  }
+
+  if (basicsCurrency.currentness === "current") {
+    const measures = Object.fromEntries(
+      ([
+        ["unsafe_driving", basics.unsafeDriving],
+        ["hos_compliance", basics.hosCompliance],
+        ["driver_fitness", basics.driverFitness],
+        ["controlled_substance", basics.controlledSubstances],
+        ["vehicle_maintenance", basics.vehicleMaintenance],
+        ["hazmat_compliance", basics.hmCompliance],
+        ["crash_indicator", basics.crashIndicator],
+      ] as const).map(([key, value]) => {
+        return [key, value ? {
+          measure: value.measureValue,
+          percentile: value.percentile,
+          alert: value.alert,
+          inspections_with_violations: value.investigationCount,
+        } : null];
+      })
+    );
+    const { error } = await supabase.from("basic_measure_releases").upsert({
+      client_id: clientId,
+      dot_number: dotNumber,
+      sms_run_date: basicsCurrency.runDate,
+      source: "qcmobile_basics",
+      source_url: null,
+      measures,
+      captured_by: "monitoring-refresh",
+    }, { onConflict: "client_id,sms_run_date,source" });
+    if (error) throw dbError("Unable to persist BASIC measure release", error);
   }
 
   const oosRateChange = detectOosRateChange(previousScore, scoreWrite.data);
@@ -494,6 +533,7 @@ export async function runClientRefresh(
       crashWrite.hadExistingCrashes,
     saferSnapshot,
     basics,
+    basicsCurrentness: basicsCurrency,
     sourceStatus,
   };
 }
