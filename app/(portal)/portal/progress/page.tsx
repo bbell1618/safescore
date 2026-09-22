@@ -1,3 +1,4 @@
+import { portalCopy } from "@/lib/portal/copy";
 import { Suspense } from "react";
 import {
   Bell,
@@ -85,7 +86,7 @@ function caseStatus(caseRow: PortalProgressCase): {
   ) {
     return {
       label: caseRow.status === "closed" ? "Closed" : "Decision received",
-      tone: "success",
+      tone: caseRow.outcome === "not_preventable" || caseRow.outcome === "approved" || caseRow.status === "approved" ? "success" : "info",
     };
   }
   if (caseRow.status === "denied") {
@@ -244,10 +245,10 @@ async function AlertsSection({
                       ) : null}
                     </div>
                     <h3 className="mt-3 font-heading text-lg font-semibold text-warm-dark">
-                      {alert.title}
+                      {portalCopy(alert.title)}
                     </h3>
                     <p className="mt-1 text-sm leading-6 text-warm-mid">
-                      {alert.message}
+                      {portalCopy(alert.message)}
                     </p>
                   </div>
                   <time
@@ -290,7 +291,7 @@ function CaseTimeline({ caseRow }: { caseRow: PortalProgressCase }) {
   if (caseRow.filedDate) {
     return <>Filed {formatDate(caseRow.filedDate)}</>;
   }
-  return <>GEIA is preparing the next step</>;
+  return <>{isWin(caseRow) ? "Decision date not recorded" : "GEIA is preparing the next step"}</>;
 }
 
 function isWin(row: PortalProgressCase) { return row.outcome === "not_preventable" || row.outcome === "approved" || row.status === "approved"; }
@@ -348,11 +349,11 @@ async function CasesSection({ promise, group }: { promise: Promise<PortalProgres
                       ) : null}
                     </div>
                     <h3 className="mt-3 font-heading text-lg font-semibold text-warm-dark">
-                      {caseRow.title}
+                      {portalCopy(caseRow.title)}
                     </h3>
                     {caseRow.detail ? (
                       <p className="mt-1 text-xs text-warm-gray">
-                        {caseRow.detail}
+                        {portalCopy(caseRow.detail)}
                       </p>
                     ) : null}
                     {group === "wins" && <p className="mt-3 text-sm leading-6 text-warm-mid">{caseRow.outcome === "not_preventable" ? <>FMCSA excludes crashes with this determination from Crash Indicator scoring; the crash remains visible on the public record. <a className="inline-flex min-h-11 items-center underline" href="https://www.fmcsa.dot.gov/safety/crash-preventability-determination-program-faqs" target="_blank" rel="noreferrer">How this determination works</a></> : "The record review was approved. The exact correction and points removed are not recorded in this view."}</p>}
@@ -502,7 +503,7 @@ export default async function PortalActivityPage() {
         <Suspense
           fallback={
             <div
-              aria-label="Loading latest burden"
+              aria-label="Loading latest violation burden"
               className="mt-7 flex h-20 w-32 items-center justify-center rounded-xl border border-gold/15 bg-warm-white/5"
               role="status"
             >
@@ -516,7 +517,7 @@ export default async function PortalActivityPage() {
       <PortalSectionDivider transition="navy-to-warm" />
 
       <PortalPageBody contentClassName="space-y-12 py-12 sm:py-16 lg:py-16">
-        <Suspense fallback={<SectionFallback label="burden trend" rows={4} />}>
+        <Suspense fallback={<SectionFallback label="violation burden trend" rows={4} />}>
           <TrendSection promise={snapshotsPromise} />
         </Suspense>
 

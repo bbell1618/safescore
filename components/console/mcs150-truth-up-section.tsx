@@ -1,4 +1,5 @@
 "use client";
+import { formatNumericComparison } from "@/lib/presentation-comparisons";
 
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -204,7 +205,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
           error?: string;
         };
         if (!response.ok) {
-          throw new Error(body.error ?? "Unable to load MCS-150 truth-up.");
+          throw new Error(body.error ?? "Unable to load MCS-150 review.");
         }
         setState(body);
         setForm(profileForm(body.attestedProfile));
@@ -226,7 +227,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load MCS-150 truth-up."
+            : "Unable to load MCS-150 review."
         );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -389,7 +390,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
       >
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading MCS-150 truth-up…
+          Loading MCS-150 review…
         </div>
       </section>
     );
@@ -399,7 +400,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
     return (
       <section className="rounded-xl border border-red-200 bg-red-50 p-6">
         <p className="text-sm font-medium text-red-800">
-          MCS-150 truth-up could not be loaded.
+          MCS-150 review could not be loaded.
         </p>
         {error && (
           <p className="mt-1 text-xs text-red-700" role="alert">
@@ -456,7 +457,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
           <div className="flex items-center gap-2">
             <FileCheck2 className="h-5 w-5 text-[#C67A1E]" />
             <h2 className="text-base font-bold text-[#1E1C1A]">
-              MCS-150 truth-up
+              MCS-150 review
             </h2>
           </div>
           <p className="mt-1 text-xs text-gray-500">
@@ -642,9 +643,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
                 {metric.label}
               </p>
               <p className="mt-1 text-sm font-semibold text-[#1E1C1A]">
-                {metric.before === null ? "Unavailable" : metric.before.toFixed(2)}
-                {" → "}
-                {metric.after === null ? "Unavailable" : metric.after.toFixed(2)}
+                {formatNumericComparison(metric.before, metric.after)}
               </p>
               <p className="mt-1 text-[11px] capitalize text-gray-500">
                 Direction: {metric.direction}
@@ -657,7 +656,7 @@ export function Mcs150TruthUpSection({ clientId }: { clientId: string }) {
         </p>
         {!state.latestBurden && (
           <p className="mt-1 text-[11px] text-amber-700">
-            No burden snapshot is available, so burden-per-power-unit direction
+            No violation burden snapshot is available, so burden-per-power-unit direction
             cannot be calculated.
           </p>
         )}

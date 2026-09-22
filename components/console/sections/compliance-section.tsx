@@ -429,7 +429,7 @@ export default async function CompliancePage({
         <TierUpgradeNote
           feature="compliance_layer"
           currentTier={clientTier}
-          title="MCS-150 truth-up is not included in this client’s plan"
+          title="MCS-150 review is not included in this client’s plan"
         />
       )}
 

@@ -194,7 +194,7 @@ export default async function PlaybookPage({
                 </div>
                 <p className="mt-3 text-sm text-gray-600">
                   Generated {formatTimestamp(selected.generated_at)} from the
-                  Lane C record as of {formatShortDate(selected.source_as_of)}.
+                  Operational safety record as of {formatShortDate(selected.source_as_of)}.
                 </p>
                 <p className="mt-1 text-xs text-gray-400">
                   Template {selected.template_version}
@@ -331,8 +331,7 @@ export default async function PlaybookPage({
             No playbook generated yet
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500">
-            Generate the first version to turn the client&apos;s live Lane C
-            burden into owner modules, present-family programs, and a monthly
+            Generate the first version to turn the client&apos;s current operational safety record into owner modules, present-family programs, and a monthly
             installment calendar.
           </p>
         </section>
@@ -479,7 +478,7 @@ function FamilyProgramCard({ program }: { program: PlaybookFamilyProgram }) {
 
         <div>
           <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-[#8B5E2B]">
-            Live Lane C facts
+            Recorded operating patterns
           </h4>
           <div className="mt-2 overflow-x-auto rounded-lg border border-[#F0E8DA]">
             <table className="w-full text-left text-xs">

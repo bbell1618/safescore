@@ -1,3 +1,4 @@
+import { portalCopy } from "@/lib/portal/copy";
 import Link from "next/link";
 import { CalendarClock, CircleCheck, FileCheck2, FolderOpen, LockKeyhole, MessageCircleQuestion } from "lucide-react";
 import { PortalMotionArticle, PortalMotionSection } from "@/components/portal/motion";
@@ -271,19 +272,19 @@ export async function NeededFromYouSection({
                       ) : null}
                     </div>
                     <h3 className="font-heading text-base font-semibold text-warm-dark">
-                      {request.title}
+                      {portalCopy(request.title)}
                     </h3>
                     {request.description ? (
                       <p className="mt-1 text-sm leading-6 text-warm-mid">
-                        {request.description}
+                        {portalCopy(request.description)}
                       </p>
                     ) : null}
                     {request.why_copy || request.potential_points !== null ? (
                       <p className="mt-2 text-sm font-medium leading-6 text-amber-dark">
-                        {request.why_copy ??
-                          `This could remove ${request.potential_points} point${
+                        {request.why_copy ? portalCopy(request.why_copy) :
+                          `Evidence review covers ${request.potential_points} weighted point${
                             request.potential_points === 1 ? "" : "s"
-                          }.`}
+                          }. Removal is not established.`}
                       </p>
                     ) : null}
                     {request.due_at ? (
@@ -319,7 +320,7 @@ export async function NeededFromYouSection({
                     aria-hidden="true"
                   />
                   <p className="text-xs leading-5 text-warm-mid">
-                    {status.copy}
+                    {portalCopy(status.copy)}
                   </p>
                 </div>
 
@@ -354,7 +355,7 @@ export async function NeededFromYouSection({
                 {isQuestion && lifecycleStatus === "open" ? (
                   <RequestAnswer
                     requestId={request.id}
-                    question={request.title}
+                    question={portalCopy(request.title)}
                   />
                 ) : null}
 
@@ -379,15 +380,15 @@ export async function NeededFromYouSection({
                   <div className="mt-4 divide-y divide-sand overflow-hidden rounded-lg border border-sand bg-warm-white">
                     {items.map((item, itemIndex) => (
                       <div
-                        key={item.evidenceId ?? `${item.label}-${itemIndex}`}
+                        key={item.evidenceId ?? `${portalCopy(item.label)}-${itemIndex}`}
                         className="p-4"
                       >
                         <p className="text-sm font-semibold text-warm-dark">
-                          {item.label}
+                          {portalCopy(item.label)}
                         </p>
                         {item.contextNote ? (
                           <p className="mt-1 text-xs leading-5 text-warm-mid">
-                            {item.contextNote}
+                            {portalCopy(item.contextNote)}
                           </p>
                         ) : null}
                         {canUpload && item.evidenceId ? (

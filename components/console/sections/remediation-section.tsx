@@ -274,7 +274,7 @@ export default async function RemediationPage({
               <span className="font-semibold text-[#1E1C1A]">{queue.totalPoints} pts</span>.
               {" "}Estimated points removable if successfully challenged:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.laneBPoints} pts ({laneBPercent}%)</span>.
-              {" "}Operational burden that needs coaching, maintenance, or time decay:{" "}
+              {" "}Operational violation burden that needs coaching, maintenance, or time decay:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.laneCPoints} pts ({laneCPercent}%)</span>.
               {" "}Plus <span className="font-semibold text-[#1E1C1A]">{queue.laneA.length}</span>{" "}
               crash{queue.laneA.length === 1 ? "" : "es"} flagged for CPDP review.
@@ -331,15 +331,15 @@ export default async function RemediationPage({
         </div>
         <div className="mt-5 grid gap-2 border-t border-[#EAD8BC] pt-4 text-xs md:grid-cols-3">
           <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
-            <p className="font-semibold text-[#1E1C1A]">Lane A - CPDP</p>
+            <p className="font-semibold text-[#1E1C1A]">Crash preventability review</p>
             <p className="text-gray-500 mt-1">Review eligible crashes for documented non-preventability.</p>
           </div>
           <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
-            <p className="font-semibold text-[#1E1C1A]">Lane B - DataQs</p>
+            <p className="font-semibold text-[#1E1C1A]">DataQ record correction</p>
             <p className="text-gray-500 mt-1">File only genuinely erroneous violations supported by actual evidence. Investigate means evidence is needed, not that the violation is removable.</p>
           </div>
           <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
-            <p className="font-semibold text-[#1E1C1A]">Lane C - operational fixes</p>
+            <p className="font-semibold text-[#1E1C1A]">Operational safety improvements</p>
             <p className="text-gray-500 mt-1">Correct legitimate safety issues and monitor their 24-month age-out.</p>
           </div>
         </div>
@@ -348,13 +348,13 @@ export default async function RemediationPage({
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA]">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">Case and evidence action queue</h2>
-          <p className="text-xs text-gray-500 mt-1">Lanes A, I, and B stay item-level for crash review, evidence investigation, and genuine challenge filings. Lane C coaching and shop work is grouped by root-cause family below.</p>
+          <p className="text-xs text-gray-500 mt-1">Crash reviews, evidence investigations, and record corrections stay listed individually. Coaching and maintenance work is grouped by recurring issue below.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-white/60 text-xs text-gray-500">
               <tr>
-                <th className="text-left font-medium px-5 py-3">Lane</th>
+                <th className="text-left font-medium px-5 py-3">Work type</th>
                 <th className="text-left font-medium px-5 py-3">Item</th>
                 <th className="text-left font-medium px-5 py-3">BASIC</th>
                 <th className="text-left font-medium px-5 py-3">Point-impact</th>
@@ -374,7 +374,7 @@ export default async function RemediationPage({
                 queue.priorityRows.map((item) =>
                   item.lane === "A" ? (
                     <tr key={`crash-${item.crash.id}`} className="bg-[#FBF7F0]">
-                      <td className="px-5 py-4"><Badge variant="gold">A</Badge></td>
+                      <td className="px-5 py-4"><Badge variant="gold">Crash review</Badge></td>
                       <td className="px-5 py-4 font-medium text-[#1E1C1A]">
                         Crash {formatDate(item.crash.crash_date)}
                         {item.crash.state ? ` \u00B7 ${item.crash.state}` : ""}
@@ -391,7 +391,7 @@ export default async function RemediationPage({
                     </tr>
                   ) : item.lane === "I" ? (
                     <tr key={`investigate-${item.violation.id}`} className="bg-[#FBF7F0]">
-                      <td className="px-5 py-4"><Badge variant="warning">I</Badge></td>
+                      <td className="px-5 py-4"><Badge variant="warning">Evidence review</Badge></td>
                       <td className="px-5 py-4">
                         <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
                         <div className="text-xs text-gray-500 max-w-sm truncate">{item.violation.violation_description}</div>
@@ -410,7 +410,7 @@ export default async function RemediationPage({
                     </tr>
                   ) : item.lane === "B" ? (
                     <tr key={`violation-${item.violation.id}`} className="bg-[#FBF7F0]">
-                      <td className="px-5 py-4"><Badge variant="info">B</Badge></td>
+                      <td className="px-5 py-4"><Badge variant="info">Record review</Badge></td>
                       <td className="px-5 py-4">
                         <div className="font-medium text-[#1E1C1A]">{item.violation.violation_code}</div>
                         <div className="text-xs text-gray-500 max-w-sm truncate">{item.violation.violation_description}</div>
@@ -440,7 +440,7 @@ export default async function RemediationPage({
               <h2 className="text-sm font-medium text-gray-600">Operational families</h2>
               <ServiceTierChip tier={clientTier} feature="playbook_coach" />
             </div>
-            <p className="mt-1 text-xs text-gray-400">Operational burden is grouped at the root-cause level. The remedy is coaching, maintenance, and stopping new inflow while SafeScore monitors the 24-month decay.</p>
+            <p className="mt-1 text-xs text-gray-400">Operational violation burden is grouped at the root-cause level. The remedy is coaching, maintenance, and stopping new inflow while SafeScore monitors the 24-month decay.</p>
           </div>
           <Link
             href={`/console/clients/${id}/plan#playbook`}
@@ -451,7 +451,7 @@ export default async function RemediationPage({
         </div>
         <div className="grid gap-3 p-4 lg:grid-cols-2">
           {laneCFamilyGroups.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">No scored operational burden in the current window.</div>
+            <div className="px-5 py-8 text-center text-sm text-gray-400">No scored operational violation burden in the current window.</div>
           ) : (
             laneCFamilyGroups.map((group) => (
               <article

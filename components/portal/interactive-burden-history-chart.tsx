@@ -154,7 +154,7 @@ export function InteractiveBurdenHistoryChart({
         }}
       >
         <svg
-          aria-label={`Interactive weighted burden chart with ${points.length} stored ${
+          aria-label={`Interactive weighted violation burden chart with ${points.length} stored ${
             points.length === 1 ? "snapshot" : "snapshots"
           }`}
           className="block h-80"

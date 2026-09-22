@@ -118,7 +118,7 @@ export default async function MonitoringPage({
         <h2 className="font-heading text-xl font-semibold text-navy">Monitoring · {alertsResult.data?.length ?? 0} alerts</h2>
         {latest && previous && diff ? (
           <p className="text-sm text-gray-500 mt-1">
-            Since {formatDate(previous.snapshot_date)}, in-window burden moved from {previous.total_points} to {latest.total_points}.
+            {previous.total_points === latest.total_points ? `Violation burden is unchanged at ${latest.total_points} weighted points since ${formatDate(previous.snapshot_date)}.` : `Since ${formatDate(previous.snapshot_date)}, violation burden moved from ${previous.total_points} to ${latest.total_points} weighted points.`}
           </p>
         ) : latest ? (
           <p className="text-sm text-gray-500 mt-1">
@@ -126,7 +126,7 @@ export default async function MonitoringPage({
           </p>
         ) : (
           <p className="text-sm text-gray-500 mt-1">
-            Monitoring is ready, but no burden snapshots have been captured yet.
+            Monitoring is ready, but no violation burden snapshots have been captured yet.
           </p>
         )}
       </div>
@@ -145,13 +145,13 @@ export default async function MonitoringPage({
       />
 
       <div>
-        <h2 className="font-semibold text-[#1E1C1A] text-sm">SafeScore computed burden</h2>
+        <h2 className="font-semibold text-[#1E1C1A] text-sm">SafeScore violation burden</h2>
         <p className="mt-1 text-xs text-gray-500">Calculated from the canonical in-window inspection and violation layer.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
-          <p className="text-xs text-gray-500">In-window burden</p>
+          <p className="text-xs text-gray-500">In-window violation burden</p>
           <p className="text-2xl font-bold text-[#1E1C1A] mt-1">{latest?.total_points ?? 0}</p>
           {diff && <p className={`text-xs mt-1 ${movementClass(diff.totalPointsDelta)}`}>{signed(diff.totalPointsDelta)} since prior</p>}
         </div>
@@ -203,7 +203,7 @@ export default async function MonitoringPage({
             <thead className="bg-white/60 text-xs text-gray-500">
               <tr>
                 <th className="text-left font-medium px-5 py-3">Snapshot</th>
-                <th className="text-left font-medium px-5 py-3">Burden</th>
+                <th className="text-left font-medium px-5 py-3">Violation burden</th>
                 <th className="text-left font-medium px-5 py-3">Violations</th>
                 <th className="text-left font-medium px-5 py-3">Inspections</th>
                 <th className="text-left font-medium px-5 py-3">Crashes</th>

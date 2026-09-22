@@ -14,7 +14,7 @@ interface Props {
 
 const reportTypes: Array<{ value: ReportType; label: string; description: string }> = [
   { value: "assessment", label: "Initial assessment", description: "Full safety profile analysis with recommendations. Used to onboard new clients." },
-  { value: "monthly", label: "Monthly progress", description: "30-day anchored burden trend, new violations, live portal requests, and open challenges." },
+  { value: "monthly", label: "Monthly progress", description: "30-day violation burden trend, new violations, live portal requests, and open challenges." },
   { value: "quarterly", label: "Quarterly re-analysis", description: "90-day anchored re-analysis with full per-BASIC before-and-after comparison." },
   { value: "improvement", label: "Improvement report", description: "Before/after summary of score improvements achieved. Used for insurance re-marketing." },
   { value: "underwriter", label: "Underwriter report", description: "Carrier-ready document showing remediation work completed. Submitted to insurance carriers." },

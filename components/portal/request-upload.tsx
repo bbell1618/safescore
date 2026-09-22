@@ -1,4 +1,5 @@
 "use client";
+import { portalCopy } from "@/lib/portal/copy";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -54,7 +55,7 @@ export function RequestUpload({
         <input className="sr-only" type="file" disabled={busy} accept="image/*,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void submit(file); }} />
       </label>
       <details className="mt-2"><summary className="inline-flex min-h-11 cursor-pointer items-center text-xs text-warm-mid underline">Other file types</summary><label className="btn-secondary inline-flex min-h-11 cursor-pointer items-center text-xs focus-within:outline-2 focus-within:outline-gold has-[:disabled]:opacity-60">Upload another document<input className="sr-only" type="file" disabled={busy} accept={laneBEvidence ? ".pdf,.jpg,.jpeg,.png,.webp,.txt" : ".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.xls,.xlsx"} onChange={(event) => { const file = event.target.files?.[0]; if (file) void submit(file); }} /></label></details>
-      {message && <p className="mt-1 text-xs text-warm-mid" role="status">{message}</p>}
+      {message && <p className="mt-1 text-xs text-warm-mid" role="status">{portalCopy(message)}</p>}
     </div>
   );
 }

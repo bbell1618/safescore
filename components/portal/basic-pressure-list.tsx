@@ -150,7 +150,7 @@ export function BasicPressureList({
                   )}, ${plural(
                     basic.violation_count,
                     "violation"
-                  )}, ${share}% of total burden. ${
+                  )}, ${share}% of total violation burden. ${
                     expanded ? "Collapse" : "Expand"
                   } top violations.`}
                   className="group flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-2 transition-colors hover:bg-warm-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 active:scale-[0.995] active:bg-sand/70 motion-reduce:transform-none motion-reduce:transition-none"
@@ -227,7 +227,7 @@ export function BasicPressureList({
                         {basic.weighted_points.toLocaleString("en-US")} pts
                       </span>{" "}
                       · {plural(basic.violation_count, "violation")} · {share}%
-                      of total burden
+                      of total violation burden
                     </motion.div>
                   ) : null}
                 </AnimatePresence>

@@ -1,3 +1,4 @@
+import { portalCopy } from "@/lib/portal/copy";
 import { NeededFromYouSection } from "@/components/portal/needed-from-you";
 import { loadPortalRequests } from "@/lib/portal/requests-server";
 import Link from "next/link";
@@ -451,7 +452,7 @@ export default async function PortalHomePage() {
             {latest ? (
               <>
                 <h1 className="max-w-full break-words font-heading text-[clamp(3rem,15vw,6rem)] font-semibold leading-none tracking-tight text-amber-light">
-                  <span className="sr-only">Current weighted burden: </span>
+                  <span className="sr-only">Current weighted violation burden: </span>
                   {latest.total_points.toLocaleString("en-US")}
                 </h1>
                 <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
@@ -514,7 +515,7 @@ export default async function PortalHomePage() {
               <div className="mt-4 min-w-0 pb-1">
                 <BurdenSparkline
                   fitContainer
-                  label={`Weighted burden across ${plural(
+                  label={`Weighted violation burden across ${plural(
                     snapshots.length,
                     "snapshot"
                   )}`}
@@ -584,7 +585,7 @@ export default async function PortalHomePage() {
           </div>
           <div className="mt-5 max-w-4xl space-y-3 text-sm leading-7 text-warm-mid">
             {changeNarrative.map((sentence) => (
-              <p key={sentence}>{sentence}</p>
+              <p key={sentence}>{portalCopy(sentence)}</p>
             ))}
           </div>
         </PortalMotionSection>

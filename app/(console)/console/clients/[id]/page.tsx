@@ -29,7 +29,7 @@ const TT = {
   POWER_UNITS:
     "Trucks and tractors the carrier operates, from its latest MCS-150. Used as the exposure denominator in several BASIC calculations.",
   DRIVERS:
-    "Driver count from the latest MCS-150. Total Safety per-driver billing reconciles to this when available.",
+    "Driver count from the latest MCS-150. The service-plan driver count is recorded separately.",
   MCS150:
     "The carrier's most recent biennial census filing and annual mileage. A stale MCS-150 can distort BASIC math.",
   SAFETY_RATING:
@@ -51,7 +51,7 @@ function buildStoryStrip(
 
   if (topBasic) {
     sentences.push(
-      `${topBasic.label} carries the largest in-window burden: ${topBasic.weightedPoints} point${topBasic.weightedPoints === 1 ? "" : "s"} across ${topBasic.violationCount} violation${topBasic.violationCount === 1 ? "" : "s"}.`
+      `${topBasic.label} carries the largest in-window violation burden: ${topBasic.weightedPoints} point${topBasic.weightedPoints === 1 ? "" : "s"} across ${topBasic.violationCount} violation${topBasic.violationCount === 1 ? "" : "s"}.`
     );
     sentences.push(
       `Total in-window weighted burden is ${burden.totalPoints}. FMCSA does not publish public percentiles for low-volume carriers; this is the burden that drives the BASIC measures.`
@@ -159,7 +159,7 @@ export default async function ClientOverviewPage({
         <h1 className="mt-3 font-heading text-3xl sm:text-5xl">{client.name}</h1>
         <div className="mt-4 flex flex-wrap gap-2"><Badge variant={tierBadgeVariant(tier)}>{tierDisplayLabel(client.tier)}</Badge><Badge variant="info">Stored authority: {authority ?? "Not recorded"}</Badge><Badge variant="info">{filings == null ? "Insurance filings not recorded" : `${filings} insurance filings on record`}</Badge></div>
         {motus && <p className="mt-2 text-xs text-warm-white/65">FMCSA source as of {formatDate(motus.source_as_of ?? motus.fetched_at)} · {motus.currentness}. Filing records do not establish current coverage.</p>}
-        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline fitContainer label="Recorded violation burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
+        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted violation burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline fitContainer label="Recorded violation burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
         <p className="mt-6 max-w-3xl text-sm text-warm-white/75">FMCSA does not publish public percentile rankings for low-volume carriers; this is the corrected weighted burden in the 24-month window.</p>
         <div className="mt-6 flex flex-wrap items-start gap-3"><RunAnalysisButton clientId={id} dotNumber={client.dot_number} hasData={(violationCount ?? 0) > 0} hasFmcsaAccess={client.fmcsa_authorized === true} /><ChallengeabilityAnalysisButton clientId={id} totalCount={violationCount ?? 0} unassessedCount={unassessedResult.count ?? 0} /><FmcsaExportUpload clientId={id} dotNumber={client.dot_number} /></div>
       </header>
@@ -210,7 +210,7 @@ export default async function ClientOverviewPage({
         <div className="px-5 py-4 border-b border-[#F0E8DA] flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="font-semibold text-[#1E1C1A] text-sm">
-              In-window weighted burden {"\u2014"} drives the BASIC measures (total {burden.totalPoints})
+              In-window weighted violation burden {"\u2014"} drives the BASIC measures (total {burden.totalPoints})
             </h2>
             <p className="text-xs text-gray-500 mt-1">
               FMCSA does not publish public percentile rankings for low-volume carriers; this is the corrected weighted burden in the 24-month window.
@@ -224,7 +224,7 @@ export default async function ClientOverviewPage({
             <thead className="bg-[#FEFCF8] border-b border-[#F0E8DA]">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">BASIC</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">In-window weighted burden (points)</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">In-window weighted violation burden (points)</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Scored violations (count)</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Potential removal impact (points)</th>
               </tr>
@@ -297,7 +297,7 @@ export default async function ClientOverviewPage({
           value="Operational vs challengeable work"
           body="Removability is separate from weighted burden; the queue estimates what can be acted on."
           href={`/console/clients/${id}/plan`}
-          linkText="View in Remediation"
+          linkText="Open Plan"
         />
         <SummaryLink
           title="Cases"

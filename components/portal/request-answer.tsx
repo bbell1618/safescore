@@ -1,4 +1,5 @@
 "use client";
+import { portalCopy } from "@/lib/portal/copy";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -80,7 +81,7 @@ export function RequestAnswer({
           className="mt-2 text-xs leading-5 text-warm-mid"
           role={answered ? "status" : "alert"}
         >
-          {message}
+          {portalCopy(message)}
         </p>
       ) : null}
     </fieldset>
