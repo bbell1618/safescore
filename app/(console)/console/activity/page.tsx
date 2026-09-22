@@ -54,15 +54,15 @@ export default async function ActivityPage() {
         {logs && logs.length > 0 ? (
           <div className="divide-y divide-[#F0E8DA]">
             {logs.map((log) => (
-              <div key={log.id} className="px-5 py-3.5 flex items-start gap-4">
+              <div key={log.id} className="flex flex-col items-start gap-2 px-5 py-3.5 sm:flex-row sm:gap-4">
                 <div className="shrink-0 pt-0.5">
                   <Badge variant={typeColorMap[log.action_type] ?? "default"}>
                     {log.action_type.replace(/_/g, " ")}
                   </Badge>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#1E1C1A]">{log.description}</p>
-                  <div className="flex gap-3 mt-0.5 text-xs text-gray-400">
+                  <p className="text-sm text-[#1E1C1A] [overflow-wrap:anywhere]">{log.description}</p>
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 [overflow-wrap:anywhere]">
                     {(log.clients as { name: string } | null)?.name && (
                       <span>{(log.clients as { name: string }).name}</span>
                     )}
