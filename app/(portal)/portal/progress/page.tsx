@@ -20,13 +20,11 @@ import {
 } from "@/components/portal/motion";
 import { GoldenEraTruckLoader } from "@/components/portal/truck-loader";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
-import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
+import { loadPortalProgressCases, type PortalProgressCase } from "@/lib/portal/progress-server";
 import {
   loadPortalActivityAlerts,
-  loadPortalActivityCases,
   loadPortalActivitySnapshots,
   type PortalActivityAlert,
-  type PortalActivityCase,
   type PortalActivitySnapshot,
 } from "@/lib/portal/activity-server";
 import { getPortalPageAccess } from "@/lib/portal/access";
@@ -62,7 +60,7 @@ function toneClasses(tone: SemanticTone): string {
   return "bg-info-light text-info";
 }
 
-function caseStatus(caseRow: PortalActivityCase): {
+function caseStatus(caseRow: PortalProgressCase): {
   label: string;
   tone: SemanticTone;
 } {
@@ -178,7 +176,7 @@ async function TrendSection({
         <div>
           <p className="mono-label text-amber">Complete history</p>
           <h2 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
-            Burden trend
+            Violation burden trend
           </h2>
           <p className="mt-2 text-sm leading-6 text-warm-mid">
             Every stored check stays in the record, including temporary spikes.
@@ -187,7 +185,7 @@ async function TrendSection({
         {latest ? (
           <dl className="text-right">
             <dt className="font-mono text-[10px] uppercase tracking-wider text-warm-gray">
-              Latest
+              Latest violation burden
             </dt>
             <dd className="mt-1 font-mono text-3xl font-semibold text-warm-dark">
               {latest.totalPoints.toLocaleString("en-US")}
@@ -219,7 +217,7 @@ async function AlertsSection({
       <header className="flex items-center gap-2 border-b border-sand px-5 py-4 sm:px-6">
         <Bell className="h-4 w-4 text-amber-dark" aria-hidden="true" />
         <h2 className="font-heading text-xl font-semibold text-warm-dark">
-          Alerts
+          Alerts history
         </h2>
       </header>
       {alerts.length > 0 ? (
@@ -281,13 +279,10 @@ async function AlertsSection({
   );
 }
 
-function CaseTimeline({ caseRow }: { caseRow: PortalActivityCase }) {
-  if (
-    caseRow.caseType === "cpdp" &&
-    ["filed", "pending"].includes(caseRow.status)
-  ) {
-    const label = cpdpFiledTimelineLabel(caseRow.filedDate);
-    if (label) return <>{label}</>;
+function CaseTimeline({ caseRow }: { caseRow: PortalProgressCase }) {
+  if (caseRow.filedDate && !caseRow.decisionDate && ["filed", "pending", "pending_state", "pending_fmcsa"].includes(caseRow.status)) {
+    if (caseRow.caseType === "cpdp") return <>Filed {formatDate(caseRow.filedDate)} · FMCSA currently reports about 90 days on average for review; this is not a deadline.</>;
+    return <>Filed {formatDate(caseRow.filedDate)} · {caseRow.responseDeadline ? `Recorded response deadline ${formatDate(caseRow.responseDeadline)}` : "Determination date not recorded"}</>;
   }
   if (caseRow.decisionDate) {
     return <>Decision {formatDate(caseRow.decisionDate)}</>;
@@ -298,23 +293,24 @@ function CaseTimeline({ caseRow }: { caseRow: PortalActivityCase }) {
   return <>GEIA is preparing the next step</>;
 }
 
-async function CasesSection({
-  promise,
-}: {
-  promise: Promise<PortalActivityCase[]>;
-}) {
-  const cases = await promise;
+function isWin(row: PortalProgressCase) { return row.outcome === "not_preventable" || row.outcome === "approved" || row.status === "approved"; }
+function isFiled(row: PortalProgressCase) { return !!row.filedDate && !row.decisionDate && ["filed", "pending", "pending_state", "pending_fmcsa", "reconsidering"].includes(row.status); }
+
+async function CasesSection({ promise, group }: { promise: Promise<PortalProgressCase[]>; group: "wins" | "progress" | "other" }) {
+  const allCases = await promise;
+  const cases = allCases.filter(row => group === "wins" ? isWin(row) : group === "progress" ? !isWin(row) && isFiled(row) : !isWin(row) && !isFiled(row));
+  const title = group === "wins" ? "Wins" : group === "progress" ? "In progress" : "Preparation and other decisions";
   return (
     <PortalMotionSection
       interactive
-      id="cases"
+      id={group === "progress" ? "cases" : group}
       className="scroll-mt-28 overflow-hidden rounded-xl border border-sand bg-warm-white shadow-sm"
     >
       <header className="border-b border-sand px-5 py-4 sm:px-6">
         <div className="flex items-center gap-2">
           <FileCheck2 className="h-4 w-4 text-amber-dark" aria-hidden="true" />
           <h2 className="font-heading text-xl font-semibold text-warm-dark">
-            Case activity
+            {title}
           </h2>
         </div>
         <p className="mt-1 text-sm leading-6 text-warm-mid">
@@ -359,6 +355,7 @@ async function CasesSection({
                         {caseRow.detail}
                       </p>
                     ) : null}
+                    {group === "wins" && <p className="mt-3 text-sm leading-6 text-warm-mid">{caseRow.outcome === "not_preventable" ? <>FMCSA excludes crashes with this determination from Crash Indicator scoring; the crash remains visible on the public record. <a className="inline-flex min-h-11 items-center underline" href="https://www.fmcsa.dot.gov/safety/crash-preventability-determination-program-faqs" target="_blank" rel="noreferrer">How this determination works</a></> : "The record review was approved. The exact correction and points removed are not recorded in this view."}</p>}
                     <p className="mt-3 font-mono text-[11px] text-warm-mid">
                       <CaseTimeline caseRow={caseRow} />
                     </p>
@@ -395,7 +392,7 @@ async function CasesSection({
             aria-hidden="true"
           />
           <h3 className="mt-3 font-heading text-lg font-semibold text-warm-dark">
-            No case activity on file
+            {group === "wins" ? "No favorable determinations recorded yet" : group === "progress" ? "No filed cases awaiting a decision" : "No other case activity on file"}
           </h3>
           <p className="mt-1 text-sm text-warm-mid">
             GEIA opens a filing only for a genuine data error or an eligible
@@ -403,6 +400,7 @@ async function CasesSection({
           </p>
         </div>
       )}
+      {group === "progress" && allCases.some(row => !isWin(row) && !isFiled(row)) && <details className="border-t border-sand p-5"><summary className="min-h-11 cursor-pointer font-heading text-warm-dark">Preparation and other decisions</summary><CasesSection promise={promise} group="other" /></details>}
     </PortalMotionSection>
   );
 }
@@ -455,8 +453,8 @@ export default async function PortalActivityPage() {
       <div className="overflow-hidden">
         <PortalHeroBand
           eyebrow="Monitoring record"
-          title="Activity"
-          description="See how your weighted burden has moved, what changed, and where each filing stands."
+          title="What we've done for you"
+          description="Follow your violation burden, recorded results, and the work GEIA is doing for you."
         />
         <PortalSectionDivider transition="navy-to-warm" />
         <PortalPageBody>
@@ -465,7 +463,7 @@ export default async function PortalActivityPage() {
               currentTier={access.tier}
               feature="trend_history"
               headingLevel="h2"
-              title="Activity history is not included in your plan"
+              title="Progress history is not included in your plan"
             />
           </PortalReveal>
         </PortalPageBody>
@@ -491,15 +489,15 @@ export default async function PortalActivityPage() {
   const alertsPromise = loadPortalActivityAlerts(access.clientId);
   const canSeeCases = tierHasFeature(access.tier, "case_visibility");
   const casesPromise = canSeeCases
-    ? loadPortalActivityCases(access.clientId)
+    ? loadPortalProgressCases(access.clientId)
     : null;
 
   return (
     <div className="overflow-hidden">
       <PortalHeroBand
         eyebrow="Monitoring record"
-        title="Activity"
-        description="See how your weighted burden has moved, what changed, and where each filing stands."
+        title="What we've done for you"
+        description="Follow your violation burden, recorded results, and the work GEIA is doing for you."
       >
         <Suspense
           fallback={
@@ -522,19 +520,21 @@ export default async function PortalActivityPage() {
           <TrendSection promise={snapshotsPromise} />
         </Suspense>
 
-        <Suspense fallback={<SectionFallback label="alerts" />}>
-          <AlertsSection promise={alertsPromise} />
-        </Suspense>
+
 
         {casesPromise ? (
           <Suspense
             fallback={<SectionFallback label="case activity" rows={4} />}
           >
-            <CasesSection promise={casesPromise} />
+            <CasesSection promise={casesPromise} group="wins" />
+            <CasesSection promise={casesPromise} group="progress" />
           </Suspense>
         ) : (
           <CasesUpgradeNote />
         )}
+        <Suspense fallback={<SectionFallback label="alerts" />}>
+          <AlertsSection promise={alertsPromise} />
+        </Suspense>
       </PortalPageBody>
 
       <PortalSectionDivider transition="warm-to-navy" />
