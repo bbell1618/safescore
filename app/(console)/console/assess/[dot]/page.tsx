@@ -1,4 +1,5 @@
 import { getCarrier, getBasics, getOosRates } from "@/lib/fmcsa/client";
+import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import { ScoreCard } from "@/components/ui/score-card";
 import { AddClientForm } from "@/components/console/add-client-form";
 import { AlertTriangle, Truck, Users2 } from "lucide-react";
@@ -82,7 +83,7 @@ export default async function AssessPage({
           <p className="font-semibold text-[#C67A1E]">Could not fetch carrier data</p>
           <p className="text-sm text-gray-500 mt-1">{error}</p>
           <p className="text-xs text-gray-400 mt-3">
-            Make sure FMCSA_API_KEY is configured.
+            Try the USDOT number again. If this continues, ask your team to check the FMCSA connection.
           </p>
         </div>
       </div>
@@ -100,37 +101,22 @@ export default async function AssessPage({
   ];
 
   const alerts = basicsArray.filter((b) => b.data?.alert).length;
+  const burden = existingClient ? await getClientBurden(existingClient.id) : null;
+  const hasPublishedPercentile = basicsArray.some(b => b.data?.percentile != null);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-          <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
-          <span>{"\u203A"}</span>
-          <span>Assessment {"\u2014"} DOT {dot}</span>
+      <header className="portal-navy-texture rounded-2xl bg-navy p-6 text-warm-white sm:p-8">
+        <Link href="/console/assess" className="inline-flex min-h-11 items-center text-sm text-warm-white/75 underline">Assess another carrier</Link>
+        <p className="mt-3 font-mono text-xs uppercase tracking-wider text-gold-light">Carrier assessment</p>
+        <h1 className="mt-2 break-words font-heading text-3xl sm:text-4xl">{carrier.legalName}</h1>
+        <p className="mt-3 font-mono text-sm text-warm-white/75">USDOT {carrier.dotNumber}{carrier.mcNumber ? ` · MC ${carrier.mcNumber}` : ""} · {carrier.phyCity}, {carrier.phyState}</p>
+        <div className="mt-6 flex flex-wrap items-end gap-6">
+          {burden ? <div><p className="text-xs text-warm-white/70">Current violation burden</p><p className="mt-1 font-heading text-6xl text-amber-light">{burden.totalPoints.toLocaleString()} <span className="font-mono text-sm">weighted points</span></p><p className="mt-2 font-mono text-xs text-warm-white/65">As of {burden.asOf} · SafeScore canonical inspection records</p></div> : <p className="text-sm text-warm-white/75">Violation burden will be available after the carrier&apos;s inspection records are analyzed.</p>}
+          {alerts > 0 && <span className="rounded-full bg-amber-subtle px-3 py-2 text-sm text-amber-dark">{alerts} BASIC alert{alerts === 1 ? "" : "s"}</span>}
         </div>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-[#1E1C1A]">
-              {carrier.legalName}
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              DOT {carrier.dotNumber}
-              {carrier.mcNumber ? ` \u00B7 MC ${carrier.mcNumber}` : ""}
-              {" \u00B7 "}
-              {carrier.phyCity}, {carrier.phyState}
-            </p>
-          </div>
-          {alerts > 0 && (
-            <div className="flex items-center gap-1.5 bg-[#FDF4E7] border border-[#C67A1E]/20 rounded-lg px-3 py-1.5">
-              <AlertTriangle className="w-4 h-4 text-[#C67A1E]" />
-              <span className="text-sm font-medium text-[#C67A1E]">
-                {alerts} BASIC alert{alerts > 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+        {!hasPublishedPercentile && <p className="mt-5 text-sm leading-6 text-warm-white/80">FMCSA publishes no percentiles for this carrier. Raw BASIC measures are not percentile rankings.</p>}
+      </header>
 
       <div className="grid grid-cols-2 gap-3">
         {[
@@ -154,7 +140,7 @@ export default async function AssessPage({
 
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
         <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">
-          BASIC scores
+          BASIC measures
         </h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {basicsArray.map((b) => (
@@ -220,12 +206,12 @@ export default async function AssessPage({
 
       {existingClient ? (
         <div className="rounded-xl border border-green-200 bg-green-50 p-5">
-          <h2 className="text-sm font-semibold text-green-800">Already a SafeScore client</h2>
+          <h2 className="text-sm font-semibold text-green-800">Already a client</h2>
           <p className="mt-1 text-xs text-green-700">
             {existingClient.name} is already enrolled. This assessment will not create or change its service tier.
           </p>
-          <Link href={`/console/clients/${existingClient.id}`} className="mt-4 inline-flex rounded-lg bg-[#1B2D4F] px-3 py-2 text-xs font-medium text-white hover:bg-[#2A4270]">
-            View client file
+          <Link href={`/console/clients/${existingClient.id}`} className="btn-primary mt-4 inline-flex min-h-11 items-center">
+            Open file →
           </Link>
         </div>
       ) : (

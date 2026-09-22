@@ -104,7 +104,7 @@ export function AddClientForm({ dot, mc, name, city, state, fleetSize, driverCou
       <button
         type="submit"
         disabled={loading || !values.name.trim() || !values.dotNumber.trim()}
-        className="px-5 py-2.5 bg-[#C67A1E] text-white rounded-lg text-sm font-medium hover:bg-[#B86E18] transition-colors disabled:opacity-50"
+        className="btn-primary min-h-11 disabled:opacity-50"
       >
         {loading ? "Adding client..." : "Add as SafeScore client"}
       </button>
