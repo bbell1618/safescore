@@ -1,3 +1,4 @@
+import { PlaybookPrograms } from "@/components/portal/playbook-programs";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
@@ -154,30 +155,21 @@ export default async function PlaybookPage({
     null;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 p-6">
-      <Link
-        href={`/console/clients/${id}/plan`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-[#9A5A14]"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Remediation
-      </Link>
-
+    <div className="mx-auto max-w-7xl space-y-5">
       <header className="rounded-2xl border border-[#E7DDCE] bg-[#FBF7F0] p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8B5E2B]">
-              Lane C coaching system
+              Coaching programs
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-[#1E1C1A]">
+            <h2 className="mt-2 font-heading text-2xl text-navy">
               Safety playbook
-            </h1>
+            </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
               {client.name}
               {" \u00B7 "}
-              USDOT {client.dot_number}. The structure and
-              installments are deterministic; AI supplies only bounded coaching
-              language grounded in the live Lane C record.
+              USDOT {client.dot_number}. Programs turn recurring safety issues into
+              specific routines, owner responsibilities and monthly installments.
             </p>
           </div>
           <PlaybookGenerationControl
@@ -238,11 +230,6 @@ export default async function PlaybookPage({
 
             <dl className="mt-5 grid gap-3 border-t border-[#F0E8DA] pt-4 sm:grid-cols-2 lg:grid-cols-4">
               <Metric
-                label="Lane C burden"
-                value={`${selected.source_snapshot.laneCWeightedPoints} pts`}
-                detail={`${selected.source_snapshot.laneCViolationCount} violations`}
-              />
-              <Metric
                 label="Active programs"
                 value={String(selected.family_programs.length)}
                 detail="Families present only"
@@ -264,12 +251,14 @@ export default async function PlaybookPage({
             </dl>
           </section>
 
+          <section className="space-y-4"><h2 className="font-heading text-2xl text-navy">Family programs</h2><PlaybookPrograms programs={[...selected.family_programs].sort((a, b) => b.priorityScore - a.priorityScore).map(program => ({ id: `program-${program.familyKey}`, familyName: program.familyName, count: program.count, points: program.points, inflowRatePerMonth: program.inflowRatePerMonth, trailingWindowDays: program.trailingWindowDays, riskContext: program.riskContext, program: program.program, workingWhen: program.workingWhen, installments: program.installments, introduction: program.introduction, coachingLanguage: program.coachingLanguage }))} /><details className="rounded-xl border border-sand bg-warm-white p-5"><summary className="min-h-11 cursor-pointer font-heading text-lg">Stored source facts by family</summary><div className="space-y-4">{selected.family_programs.map(program => <FamilyProgramCard key={program.familyKey} program={program} />)}</div></details></section>
+
           <section className="space-y-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E2B]">
                 Part A
               </p>
-              <h2 className="mt-1 text-lg font-bold text-[#1E1C1A]">
+              <h2 className="mt-1 font-heading text-xl text-navy">
                 Owner curriculum
               </h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -312,7 +301,7 @@ export default async function PlaybookPage({
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E2B]">
                 Installment plan
               </p>
-              <h2 className="mt-1 text-lg font-bold text-[#1E1C1A]">
+              <h2 className="mt-1 font-heading text-xl text-navy">
                 Twelve-month calendar
               </h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -330,26 +319,7 @@ export default async function PlaybookPage({
             </ol>
           </section>
 
-          <section className="space-y-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B5E2B]">
-                Part B
-              </p>
-              <h2 className="mt-1 text-lg font-bold text-[#1E1C1A]">
-                Family programs
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Only families present in the current scored Lane C burden are
-                included. Each program tracks rolling inflow from actual
-                inspection dates.
-              </p>
-            </div>
-            <div className="space-y-4">
-              {selected.family_programs.map((program) => (
-                <FamilyProgramCard key={program.familyKey} program={program} />
-              ))}
-            </div>
-          </section>
+
         </>
       ) : (
         <section className="rounded-xl border border-dashed border-[#DCCCB5] bg-white px-6 py-12 text-center">
@@ -383,7 +353,7 @@ function Metric({
   return (
     <div className="rounded-lg bg-[#FBF7F0] p-3">
       <dt className="text-xs text-gray-400">{label}</dt>
-      <dd className="mt-1 text-lg font-bold text-[#1E1C1A]">{value}</dd>
+      <dd className="mt-1 font-heading text-xl text-navy">{value}</dd>
       <dd className="mt-0.5 text-xs text-gray-500">{detail}</dd>
     </div>
   );
@@ -450,7 +420,7 @@ function InstallmentCard({
 function FamilyProgramCard({ program }: { program: PlaybookFamilyProgram }) {
   return (
     <article
-      id={`program-${program.familyKey}`}
+      id={`source-${program.familyKey}`}
       className="scroll-mt-6 overflow-hidden rounded-xl border border-[#E7DDCE] bg-white"
     >
       <header className="border-b border-[#F0E8DA] bg-[#FBF7F0] p-5">
@@ -462,7 +432,7 @@ function FamilyProgramCard({ program }: { program: PlaybookFamilyProgram }) {
                 <Badge variant="warning">Mapping review needed</Badge>
               )}
             </div>
-            <h3 className="mt-2 text-lg font-bold text-[#1E1C1A]">
+            <h3 className="mt-2 font-heading text-xl text-navy">
               {program.familyName}
             </h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-600">

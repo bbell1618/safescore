@@ -380,12 +380,12 @@ export default async function CompliancePage({
   });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 p-6">
+    <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#1E1C1A]">
-            Compliance manager
-          </h1>
+          <h2 className="font-heading text-2xl text-navy">
+            Compliance workspace
+          </h2>
           <p className="mt-0.5 text-sm text-gray-500">
             Operational driver, fleet, Clearinghouse, and audit-readiness records
           </p>
@@ -412,6 +412,8 @@ export default async function CompliancePage({
           ) : null}
         </div>
       </div>
+
+      <p className="rounded-lg border border-amber/30 bg-amber-subtle p-4 text-sm text-amber-dark">Setup in progress. This workspace provides the roster, documents and review tools for GEIA to build the compliance record.</p>
 
       {!tierHasFeature(clientTier, "compliance_layer") ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">

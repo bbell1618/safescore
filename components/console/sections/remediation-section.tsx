@@ -264,11 +264,11 @@ export default async function RemediationPage({
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="bg-warm-white rounded-xl border border-sand shadow-sm p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#1E1C1A]">Remediation queue</h1>
+            <h2 className="font-heading text-2xl text-navy">Remediation queue</h2>
             <p className="text-sm text-gray-500 mt-1">
               In-window weighted violation burden:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.totalPoints} pts</span>.
@@ -437,7 +437,7 @@ export default async function RemediationPage({
         <div className="flex flex-col gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-medium text-gray-600">Lane C family programs</h2>
+              <h2 className="text-sm font-medium text-gray-600">Operational families</h2>
               <ServiceTierChip tier={clientTier} feature="playbook_coach" />
             </div>
             <p className="mt-1 text-xs text-gray-400">Operational burden is grouped at the root-cause level. The remedy is coaching, maintenance, and stopping new inflow while SafeScore monitors the 24-month decay.</p>
@@ -446,7 +446,7 @@ export default async function RemediationPage({
             href={`/console/clients/${id}/plan#playbook`}
             className="inline-flex shrink-0 items-center justify-center rounded-lg border border-[#DCCCB5] bg-white px-3 py-2 text-xs font-semibold text-[#8B5E2B] transition-colors hover:border-[#C67A1E] hover:bg-[#FDF4E7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A1E] focus-visible:ring-offset-2"
           >
-            Open safety playbook &rarr;
+            View coaching programs &darr;
           </Link>
         </div>
         <div className="grid gap-3 p-4 lg:grid-cols-2">
