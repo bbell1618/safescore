@@ -1,4 +1,4 @@
-import { portalCopy } from "@/lib/portal/copy";
+import { ownerCopy as portalCopy } from "@/components/portal/owner-copy";
 import { NeededFromYouSection } from "@/components/portal/needed-from-you";
 import { loadPortalRequests } from "@/lib/portal/requests-server";
 import Link from "next/link";
@@ -105,8 +105,12 @@ async function BasicPressureSection({
         <div>
           <p className="mono-label text-amber">24-month scoring window</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
-            BASIC pressure
+            Safety categories
           </h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-warm-mid">
+            Related violations are grouped below. Major, moderate and minor
+            describe each category&apos;s share of your violation points.
+          </p>
         </div>
         {latest ? (
           <p className="text-sm text-warm-mid">
@@ -125,7 +129,7 @@ async function BasicPressureSection({
       ) : (
         <div className="mt-6 rounded-lg border border-sand bg-cream px-6 py-10 text-center">
           <p className="font-heading text-lg font-semibold text-warm-dark">
-            Your first BASIC snapshot is being prepared
+            Your first safety-category check is being prepared
           </p>
           <p className="mt-1 text-sm text-warm-mid">
             GEIA will show each active pressure area once the first monitoring
@@ -210,19 +214,17 @@ function CaseCard({ caseRow }: { caseRow: PortalHomeCase }) {
     >
       <div>
         <p className="font-heading text-base font-semibold text-warm-dark">
-          {caseRow.caseType}{" "}
+          {portalCopy(caseRow.caseType)}{" "}
           <span className="font-mono text-sm">
             {caseRow.caseNumber ?? "number pending"}
           </span>
         </p>
-        <p className="mt-1 text-xs text-warm-gray">
-          {caseRow.filedDate
-            ? `Filed ${formatDate(caseRow.filedDate)}`
-            : "GEIA is preparing the next step"}
-        </p>
+        {caseRow.filedDate ? <p className="mt-1 text-xs text-warm-gray">
+          Filed {formatDate(caseRow.filedDate)}
+        </p> : null}
       </div>
       <span className="rounded-full bg-info-light px-3 py-1 font-mono text-[11px] font-semibold text-info">
-        {portalCaseStatus(caseRow.status)}
+        {portalCopy(portalCaseStatus(caseRow.status))}
       </span>
     </PortalMotionListItem>
   );
@@ -263,7 +265,7 @@ async function HandlingSection({
         <div className="mt-6 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
           <div>
             <h3 className="font-heading text-base font-semibold text-warm-dark">
-              Open filings
+              Reviews in progress
             </h3>
             {handling.cases.length > 0 ? (
               <ul className="mt-3 space-y-3">
@@ -274,7 +276,7 @@ async function HandlingSection({
             ) : (
               <div className="mt-3 rounded-lg border border-sand bg-cream p-5">
                 <p className="font-heading text-base font-semibold text-warm-dark">
-                  No filing is waiting on FMCSA
+                  No filing is waiting on the federal truck safety agency
                 </p>
                 <p className="mt-1 text-sm text-warm-mid">
                   We will open a case only when the record supports a genuine
@@ -306,9 +308,9 @@ async function HandlingSection({
               while evidence is pending.
             </p>
             <p className="mt-4 border-t border-amber/20 pt-4 text-xs leading-5 text-warm-mid">
-              Only genuine data errors and crash-preventability are
-              challengeable. Under investigation means evidence is still
-              needed; it does not mean a violation is removable.
+              We review incorrect records and crashes your driver may not have
+              been able to avoid. Evidence is still needed here; these points
+              are not confirmed for removal.
             </p>
           </div>
         </div>
@@ -327,7 +329,7 @@ async function HandlingSection({
                 delay={Math.min(index * 0.06, 0.18)}
                 key={note.id}
               >
-                <p className="text-sm leading-6 text-warm-mid">{note.text}</p>
+                <p className="text-sm leading-6 text-warm-mid">{portalCopy(note.text)}</p>
                 <p className="mt-3 font-mono text-[11px] text-warm-gray">
                   {formatDate(note.createdAt)}
                 </p>
@@ -385,7 +387,7 @@ async function CarrierIdentityFooter({
         </span>
         {authority ? (
           <span className="text-xs text-warm-white/65">
-            {authority.sourceLabel} · checked {formatDate(authority.fetchedAt)}
+            {authority.sourceLabel} (federal registration record) · checked {formatDate(authority.fetchedAt)}
           </span>
         ) : null}
       </div>
@@ -456,7 +458,7 @@ export default async function PortalHomePage() {
                   {latest.total_points.toLocaleString("en-US")}
                 </h1>
                 <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
-                  weighted points
+                  violation points
                 </p>
               </>
             ) : (
@@ -496,8 +498,8 @@ export default async function PortalHomePage() {
             </span>
           </div>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-warm-white/80">
-            FMCSA publishes no percentiles for low-volume carriers; this is the
-            weighted burden driving the BASIC measures.
+            This total adds up violation points, giving more weight to serious
+            and recent violations. It is not a ranking against other companies.
           </p>
         </div>
 
@@ -506,7 +508,7 @@ export default async function PortalHomePage() {
             <>
               <div className="flex items-center justify-between gap-4">
                 <p className="font-heading font-semibold text-warm-white">
-                  Violation burden trend
+                  Violation points over time
                 </p>
                 <p className="font-mono text-[11px] text-warm-white/60">
                   {plural(snapshots.length, "snapshot")}
@@ -552,7 +554,7 @@ export default async function PortalHomePage() {
       <PortalPageBody contentClassName="min-w-0 space-y-6 pt-6 sm:space-y-12 sm:pt-10">
       <Suspense fallback={null}><NeededFromYouSection requestPromise={requestsPromise} requestFeatureLocked={false} hideWhenEmpty /></Suspense>
 
-      <Suspense fallback={<SectionFallback label="BASIC pressure" />}>
+      <Suspense fallback={<SectionFallback label="Safety categories" />}>
         <BasicPressureSection
           latest={latest}
           promise={pressureDetailsPromise}

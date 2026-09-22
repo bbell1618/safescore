@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ownerCopy } from "@/components/portal/owner-copy";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -256,7 +257,7 @@ export function BasicPressureList({
                 >
                   <div className="mt-3 border-t border-sand pb-2 pt-4">
                     <p className="font-heading text-sm font-semibold text-warm-dark">
-                      Highest-point violations in this BASIC
+                      Highest-point violations in this category
                     </p>
                     {detail?.topViolations.length ? (
                       <ol className="mt-3 grid gap-2">
@@ -269,7 +270,7 @@ export function BasicPressureList({
                               {violation.code}
                             </span>
                             <span className="text-sm leading-5 text-warm-mid">
-                              {violation.description}
+                              {ownerCopy(violation.description)}
                             </span>
                             <span className="flex items-center justify-between gap-4 font-mono text-[11px] text-warm-gray sm:block sm:text-right">
                               <span>{shortDate(violation.inspectionDate)}</span>

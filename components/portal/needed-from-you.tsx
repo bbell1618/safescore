@@ -1,4 +1,4 @@
-import { portalCopy } from "@/lib/portal/copy";
+import { ownerCopy as portalCopy } from "@/components/portal/owner-copy";
 import Link from "next/link";
 import { CalendarClock, CircleCheck, FileCheck2, FolderOpen, LockKeyhole, MessageCircleQuestion } from "lucide-react";
 import { PortalMotionArticle, PortalMotionSection } from "@/components/portal/motion";
@@ -99,7 +99,9 @@ function uniqueRequestCopy(value: string | null | undefined, seen: Set<string>) 
     .trim()
     .split(/(?<=[.!?])\s+/)
     .filter((sentence) => {
-      const key = sentence.toLowerCase().replace(/\s+/g, " ").trim();
+      const key = sentence.toLowerCase().replace(/\s+/g, " ").trim()
+        .replace(/^if the records confirm the error, this could remove (\d+) points?\.$/, "conditional removal: $1")
+        .replace(/^this could remove (\d+) points? if the evidence confirms the issue\.$/, "conditional removal: $1");
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -244,7 +246,9 @@ export async function NeededFromYouSection({
             const seenCopy = new Set<string>();
             const description = uniqueRequestCopy(request.description, seenCopy);
             const whyCopy = uniqueRequestCopy(request.why_copy, seenCopy);
-            const statusCopy = uniqueRequestCopy(status.copy, seenCopy);
+            const statusCopy = request.request_type === "roster_collection" && description
+              ? ""
+              : uniqueRequestCopy(status.copy, seenCopy);
             const items = requestedEvidenceItems(request.requested_items).map(
               (item) => ({
                 ...item,
@@ -277,7 +281,7 @@ export async function NeededFromYouSection({
                 delay={Math.min(index * 0.06, 0.18)}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 basis-full flex-1 sm:basis-auto">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       {request.evidence_class ? (
                         <span className="rounded-full border border-sand bg-warm-white px-2.5 py-1 text-[11px] font-semibold text-navy">
@@ -384,9 +388,6 @@ export async function NeededFromYouSection({
 
                 {isRosterCollection ? (
                   <div className="mt-4 rounded-lg border border-gold/30 bg-amber-subtle/55 p-4">
-                    <p className="text-sm font-semibold text-warm-dark">
-                      Add names, CDL numbers, and optional photos in the secure driver-list page.
-                    </p>
                     <p className="mt-1 text-xs leading-5 text-warm-mid">
                       No extra password is needed. You can save a few drivers, leave, and come back with this link.
                     </p>
