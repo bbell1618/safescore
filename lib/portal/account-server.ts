@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/server";
+import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
 
 export type PortalAccountData = {
   company: {
@@ -42,12 +43,12 @@ export async function loadPortalAccountData(input: {
 }): Promise<PortalAccountData> {
   const service = await createServiceClient();
 
-  const [companyResult, saferResult, subscriptionResult, usersResult] =
+  const [companyResult, saferResult, subscriptionResult, usersResult, billableDrivers] =
     await Promise.all([
       service
         .from("clients")
         .select(
-          "address, city, state, zip, phone, email, driver_count"
+          "address, city, state, zip, phone, email"
         )
         .eq("id", input.clientId)
         .single(),
@@ -73,6 +74,7 @@ export async function loadPortalAccountData(input: {
         .eq("client_id", input.clientId)
         .eq("role", "client_user")
         .order("created_at", { ascending: true }),
+      getBillableDriverCount(service, input.clientId),
     ]);
 
   fail("Unable to load portal company information", companyResult.error);
@@ -96,7 +98,7 @@ export async function loadPortalAccountData(input: {
       zip: company.zip,
       phone: company.phone,
       email: company.email,
-      servicePlanDrivers: company.driver_count,
+      servicePlanDrivers: billableDrivers.billable,
     },
     safer: safer
       ? {

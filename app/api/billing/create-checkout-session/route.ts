@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe/client";
 import Stripe from "stripe";
 import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { isSubscriptionTier } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
 import { missingOnboardingProfileFields } from "@/lib/onboarding/completeness";
+import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
 
 const TIER_PRICE_ENV: Record<
   Exclude<ClientTier, "assessment">,
@@ -125,9 +126,17 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
-  if (
-    (!Number.isInteger(client.driver_count) || (client.driver_count ?? 0) < 1)
-  ) {
+  let billableDrivers: number | null;
+  try {
+    // The authenticated lookup above owns clientId; attested profiles are staff-only.
+    billableDrivers = (await getBillableDriverCount(await createServiceClient(), clientId)).billable;
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
+  if (billableDrivers === null) {
     return NextResponse.json(
       {
         error:
@@ -138,7 +147,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const missingProfileFields = missingOnboardingProfileFields(client);
+  const missingProfileFields = missingOnboardingProfileFields({ ...client, driver_count: billableDrivers });
   if (missingProfileFields.length > 0) {
     return NextResponse.json(
       {
@@ -174,10 +183,10 @@ export async function POST(request: Request) {
   ];
 
   // Total Safety tier adds a per-driver line item
-  if (tier === "total_safety" && driverAddonPrice && client.driver_count) {
+  if (tier === "total_safety" && driverAddonPrice && billableDrivers) {
     lineItems.push({
       price: driverAddonPrice,
-      quantity: client.driver_count,
+      quantity: billableDrivers,
     });
   }
 

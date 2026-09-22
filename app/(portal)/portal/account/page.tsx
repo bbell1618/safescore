@@ -312,13 +312,16 @@ async function AccountCards({
               <p className="mt-2 font-mono text-lg font-medium leading-7 text-warm-dark">
                 {fleet.servicePlan}
               </p>
+              <p className="mt-2 text-sm leading-6 text-warm-mid">
+                Billed on the highest driver count on record (your FMCSA filing, your safety profile, or your driver list).
+              </p>
             </div>
           </div>
 
           <p className="mt-5 border-t border-sand pt-5 text-sm leading-6 text-warm-mid">
             These counts come from separate records and may differ. The public
             count comes from your carrier registration form; your service plan
-            uses the driver count your company gave GEIA for service and billing.
+            uses the highest driver count on record.
           </p>
           </div>
         </Surface>

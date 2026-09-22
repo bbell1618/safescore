@@ -14,6 +14,7 @@ import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
 import { normalizeClientTier, tierBadgeVariant, tierDisplayLabel, tierHasFeature } from "@/lib/tiers";
 import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { createClient } from "@/lib/supabase/server";
+import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
@@ -110,6 +111,7 @@ export default async function ClientOverviewPage({
     reconciliation,
     monitoringSnapshots,
     enrichmentResult, pinResult, pinRequestResult, unassessedResult,
+    billableDrivers,
   ] = await Promise.all([
     clientPromise,
     supabase
@@ -133,6 +135,7 @@ export default async function ClientOverviewPage({
     supabase.from("client_credentials").select("id", { count: "exact", head: true }).eq("client_id", id).not("fmcsa_pin_encrypted", "is", null),
     supabase.from("client_requests").select("id").eq("client_id", id).eq("category", "fmcsa_portal_pin").eq("status", "open").limit(1).maybeSingle(),
     scopePromise.then(({ inspectionIds }) => supabase.from("violations").select("id", { count: "exact", head: true }).eq("client_id", id).in("inspection_id", inspectionIds).is("ai_assessed_at", null)),
+    getBillableDriverCount(supabase, id),
   ]);
 
   if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load client profile: ${clientError.message}`);
@@ -270,7 +273,7 @@ export default async function ClientOverviewPage({
       </section>
 
       </details>
-      <AuthorityInsuranceSection clientId={id} billingDriverCount={client.driver_count ?? null} rows={enrichmentRows} />
+      <AuthorityInsuranceSection clientId={id} billingDriverCount={billableDrivers.billable} rows={enrichmentRows} />
       <section className="rounded-xl border border-sand bg-warm-white p-5"><h2 className="font-heading text-2xl text-navy">Carrier credentials</h2><div className="mt-4 flex flex-wrap items-center gap-3"><FmcsaAccessBadge hasAccess={client.fmcsa_authorized === true} /><Badge variant={(pinResult.count ?? 0) > 0 ? "success" : "warning"}>{(pinResult.count ?? 0) > 0 ? "Portal PIN on file" : "Portal PIN needed"}</Badge><FmcsaPinRequestControl clientId={id} requestAlreadyOpen={!!pinRequestResult.data} /></div></section>
       {tierHasFeature(tier, "truth_up_service") ? <Mcs150TruthUpSection clientId={id} /> : <TierUpgradeNote feature="truth_up_service" currentTier={tier} title="MCS-150 review" headingLevel="h2" />}
 
@@ -382,4 +385,3 @@ async function ProfilePressure({ clientId, promise, basics, totalPoints }: { cli
   const details = await promise;
   return <BasicPressureList basics={basics} details={details} totalPoints={totalPoints} planHref={`/console/clients/${clientId}/plan`} />;
 }
-

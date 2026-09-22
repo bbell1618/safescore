@@ -14,8 +14,17 @@ import { FmcsaPinRequestControl } from "@/components/console/fmcsa-pin-request-c
 import { createClient } from "@/lib/supabase/server";
 import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
+import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
+import type { BillableDriverSource } from "@/lib/billing/billable-drivers-types";
 
 export const dynamic = "force-dynamic";
+
+const DRIVER_SOURCE_LABELS: Record<BillableDriverSource, string> = {
+  client_stated: "Client-stated count",
+  fmcsa_mcs150: "FMCSA filing (MCS-150)",
+  attested: "Attested profile",
+  active_roster: "Active roster",
+};
 
 type AccountClient = Record<string, unknown> & {
   id: string;
@@ -76,6 +85,7 @@ export default async function AccountPage({
     { count: credentialPinCount, error: credentialPinError },
     { data: openPinRequest, error: openPinRequestError },
     { data: enrichmentRows, error: enrichmentError },
+    billableDrivers,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -111,6 +121,7 @@ export default async function AccountPage({
       )
       .eq("client_id", id)
       .order("source", { ascending: true }),
+    getBillableDriverCount(supabase, id),
   ]);
 
   for (const error of [clientError, subscriptionsError, credentialsError]) if (error && error.code !== "PGRST116") throw new Error(`Unable to load account: ${error.message}`);
@@ -146,6 +157,21 @@ export default async function AccountPage({
         <section className="bg-warm-white rounded-xl border border-sand p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-2xl text-navy">Service</h2><Badge variant="gold">{tierDisplayLabel(account.tier)}</Badge></div>
           {isStaffManualActivationCandidate({ tier: client.tier, status: client.status, serviceAgreementAccepted: client.service_agreement_accepted === true }) && <div className="mt-4"><ClientActivationControl clientId={id} status={client.status} tier={client.tier} serviceAgreementAccepted={client.service_agreement_accepted === true} /></div>}
+          <div className="mt-5 border-t border-sand pt-4">
+            <Field label="Billed drivers" value={billableDrivers.billable?.toLocaleString("en-US") ?? "Not recorded"} />
+            <p className="mt-1 text-xs text-warm-gray">Highest of FMCSA filing, attested profile, active roster, and client-stated count.</p>
+            <ul className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              {billableDrivers.sources.map((source) => (
+                <li key={source.source} className="min-w-0 rounded-lg border border-sand p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{DRIVER_SOURCE_LABELS[source.source]}: <strong>{source.value?.toLocaleString("en-US") ?? "Not recorded"}</strong></span>
+                    {billableDrivers.winningSource === source.source && <Badge variant="gold">Used for billing</Badge>}
+                  </div>
+                  <p className="mt-1 text-xs text-warm-gray">As of: {source.asOf ? formatDate(source.asOf) : "Not recorded"}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
           {subscription ? (
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
               <Field label="Tier" value={tierDisplayLabel(subscription.tier)} />
@@ -179,11 +205,7 @@ export default async function AccountPage({
 
       <AuthorityInsuranceSection
         clientId={id}
-        billingDriverCount={
-          typeof account.driver_count === "number"
-            ? account.driver_count
-            : null
-        }
+        billingDriverCount={billableDrivers.billable}
         rows={authorityInsuranceRows}
       />
 
