@@ -491,8 +491,8 @@ export default async function PortalHomePage() {
             <span className="inline-flex items-center gap-2 text-xs text-warm-white/70">
               <CalendarClock className="h-3.5 w-3.5" />
               {latest
-                ? `As of ${formatDate(latest.snapshot_date)}`
-                : "As-of date pending"}
+                ? `Last snapshot ${formatDate(latest.snapshot_date)}`
+                : "Snapshot date pending"}
             </span>
           </div>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-warm-white/80">

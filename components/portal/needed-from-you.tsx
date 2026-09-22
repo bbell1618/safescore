@@ -93,6 +93,20 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+/** Keep distinct instructions while suppressing repeated sentences within a card. */
+function uniqueRequestCopy(value: string | null | undefined, seen: Set<string>) {
+  return portalCopy(value)
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => {
+      const key = sentence.toLowerCase().replace(/\s+/g, " ").trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(" ");
+}
+
 function requestedEvidenceItems(value: unknown): RequestedEvidenceItem[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item): RequestedEvidenceItem[] => {
@@ -226,8 +240,17 @@ export async function NeededFromYouSection({
       ) : (
         <div className="space-y-4">
           {requests.map((request, index) => {
-            const items = requestedEvidenceItems(request.requested_items);
             const status = statusPresentation(request);
+            const seenCopy = new Set<string>();
+            const description = uniqueRequestCopy(request.description, seenCopy);
+            const whyCopy = uniqueRequestCopy(request.why_copy, seenCopy);
+            const statusCopy = uniqueRequestCopy(status.copy, seenCopy);
+            const items = requestedEvidenceItems(request.requested_items).map(
+              (item) => ({
+                ...item,
+                contextNote: uniqueRequestCopy(item.contextNote, seenCopy),
+              })
+            );
             const isQuestion = request.request_type === "question";
             const isRosterCollection =
               request.request_type === "roster_collection";
@@ -274,14 +297,14 @@ export async function NeededFromYouSection({
                     <h3 className="font-heading text-base font-semibold text-warm-dark">
                       {portalCopy(request.title)}
                     </h3>
-                    {request.description ? (
+                    {description ? (
                       <p className="mt-1 text-sm leading-6 text-warm-mid">
-                        {portalCopy(request.description)}
+                        {description}
                       </p>
                     ) : null}
-                    {request.why_copy || request.potential_points !== null ? (
+                    {whyCopy || (!request.why_copy && request.potential_points !== null) ? (
                       <p className="mt-2 text-sm font-medium leading-6 text-amber-dark">
-                        {request.why_copy ? portalCopy(request.why_copy) :
+                        {whyCopy ? whyCopy :
                           `Evidence review covers ${request.potential_points} weighted point${
                             request.potential_points === 1 ? "" : "s"
                           }. Removal is not established.`}
@@ -310,19 +333,19 @@ export async function NeededFromYouSection({
                   </span>
                 </div>
 
-                <div
-                  className="mt-4 flex items-start gap-2 rounded-lg border border-sand bg-warm-white px-3 py-2.5"
-                >
-                  <CircleCheck
-                    className={`mt-0.5 h-4 w-4 shrink-0 ${
-                      status.tone === "green" ? "text-success" : "text-amber"
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <p className="text-xs leading-5 text-warm-mid">
-                    {portalCopy(status.copy)}
-                  </p>
-                </div>
+                {statusCopy ? (
+                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-sand bg-warm-white px-3 py-2.5">
+                    <CircleCheck
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${
+                        status.tone === "green" ? "text-success" : "text-amber"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <p className="text-xs leading-5 text-warm-mid">
+                      {statusCopy}
+                    </p>
+                  </div>
+                ) : null}
 
                 {isFmcsaPinRequest ? (
                   <div className="mt-4 rounded-lg border border-navy/15 bg-navy-subtle p-4">
@@ -417,4 +440,3 @@ export async function NeededFromYouSection({
     </ZoneFrame>
   );
 }
-
