@@ -35,9 +35,9 @@ export default async function ConsoleLayout({
   }
 
   return (
-    <div className="portal-brand-root portal-warm-texture flex h-screen overflow-hidden">
+    <div className="portal-brand-root portal-warm-texture flex h-dvh flex-col overflow-hidden md:flex-row">
       <ConsoleSidebar userEmail={user.email} />
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
         {children}
       </main>
     </div>

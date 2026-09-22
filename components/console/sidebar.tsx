@@ -44,9 +44,9 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-[#1B2D4F] flex flex-col h-screen sticky top-0">
+    <aside className="flex w-full shrink-0 flex-col bg-navy md:sticky md:top-0 md:h-dvh md:w-56">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/10">
+      <div className="hidden border-b border-white/10 px-5 py-5 md:block">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-md bg-[#C67A1E] flex items-center justify-center shrink-0">
             <ShieldCheck className="w-4 h-4 text-white" />
@@ -68,7 +68,15 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
+      <details className="border-b border-white/10 px-4 text-white md:hidden">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">SafeScore · Console account</summary>
+        <p className="break-all text-xs text-white/70">{userEmail}</p>
+        <button onClick={handleSignOut} disabled={signingOut} className="min-h-11 py-2 text-sm">
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+        {signOutError ? <p role="alert" className="pb-3 text-xs text-red-200">{signOutError}</p> : null}
+      </details>
+      <nav aria-label="Console navigation" className="grid grid-cols-4 gap-0.5 px-2 py-1 md:flex md:flex-1 md:flex-col md:overflow-y-auto md:px-3 md:py-4">
         {navItems.map((item) => {
           const active = item.exact
             ? pathname === item.href
@@ -79,7 +87,7 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 px-3 py-2 border-l-2 text-sm transition-colors",
+                "flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-1 py-2 text-sm transition-colors md:justify-start md:gap-2.5 md:border-b-0 md:border-l-2 md:px-3",
                 active
                   ? "border-gold text-white font-medium"
                   : "border-transparent text-white/60 hover:text-white hover:bg-white/5"
@@ -93,7 +101,7 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-white/10">
+      <div className="hidden border-t border-white/10 px-3 py-4 md:block">
         {userEmail && (
           <p className="text-white/40 text-xs px-3 mb-2 truncate">{userEmail}</p>
         )}
