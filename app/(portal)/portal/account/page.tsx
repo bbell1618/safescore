@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Building2,
   CalendarDays,
@@ -207,7 +208,7 @@ async function AccountCards({
   return (
     <div className="space-y-8">
       <div className="grid gap-6 lg:grid-cols-2">
-        <Surface labelledBy="account-company-heading">
+        <Surface labelledBy="account-company-heading" className="lg:col-span-2">
           <CardHeading
             id="account-company-heading"
             icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
@@ -276,20 +277,18 @@ async function AccountCards({
                   <AccountSourceInfo
                     className="mt-1"
                     label={`${address.source.label}${sourceAsOf ? ` · as of ${sourceAsOf}` : ""}`}
-                    explanation="FMCSA SAFER is the public carrier snapshot used when your SafeScore company record does not include an address."
+                    explanation="This address comes from the stored FMCSA SAFER Company Snapshot because your company record has no address. It has not been entered or changed by your company in SafeScore."
                   />
                 ) : null}
               </div>
             </div>
           </div>
-        </Surface>
-
-        <Surface labelledBy="account-fleet-heading">
+          <div className="mt-6 border-t border-sand pt-6">
           <CardHeading
             id="account-fleet-heading"
             icon={<Truck className="h-5 w-5" aria-hidden="true" />}
-            title="Fleet"
-            description="Two sources are shown separately so the numbers never imply the same thing."
+            title="Fleet and service plan"
+            description="FMCSA census figures describe the public record. Your service-plan driver count is recorded separately."
           />
 
           <div className="mt-6 space-y-4">
@@ -320,6 +319,7 @@ async function AccountCards({
             service plan uses the driver count your company gave GEIA for
             service and billing.
           </p>
+          </div>
         </Surface>
       </div>
 
@@ -465,6 +465,7 @@ export default async function PortalAccountPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs text-warm-white/75">
+          <Link href="/terms" className="inline-flex min-h-11 items-center text-warm-white underline">Service terms</Link>
           <span>USDOT {context.dotNumber}</span>
           <span>
             {context.mcNumber
