@@ -1,4 +1,4 @@
-import { portalCopy } from "@/lib/portal/copy";
+import { ownerCopy as portalCopy } from "@/components/portal/owner-copy";
 import { Suspense } from "react";
 import {
   Bell,
@@ -70,7 +70,7 @@ function caseStatus(caseRow: PortalProgressCase): {
       caseRow.status
     )
   ) {
-    return { label: "Filed / Pending FMCSA", tone: "info" };
+    return { label: "Filed / Awaiting agency review", tone: "info" };
   }
   if (caseRow.status === "draft") {
     return { label: "GEIA is preparing", tone: "info" };
@@ -177,16 +177,17 @@ async function TrendSection({
         <div>
           <p className="mono-label text-amber">Complete history</p>
           <h2 className="mt-2 font-heading text-2xl font-semibold tracking-tight text-warm-dark">
-            Violation burden trend
+            Violation points over time
           </h2>
           <p className="mt-2 text-sm leading-6 text-warm-mid">
-            Every stored check stays in the record, including temporary spikes.
+            Points give more weight to serious and recent violations. Every
+            stored check stays in this history, including temporary increases.
           </p>
         </div>
         {latest ? (
           <dl className="text-right">
             <dt className="font-mono text-[10px] uppercase tracking-wider text-warm-gray">
-              Latest violation burden
+              Latest violation points
             </dt>
             <dd className="mt-1 font-mono text-3xl font-semibold text-warm-dark">
               {latest.totalPoints.toLocaleString("en-US")}
@@ -221,6 +222,11 @@ async function AlertsSection({
           Alerts history
         </h2>
       </header>
+      <p className="border-b border-sand px-5 py-3 text-sm leading-6 text-warm-mid sm:px-6">
+        Out of service means an inspector required the driver or vehicle to stop
+        operating until a safety problem was resolved. A rate is the percentage
+        of inspections with that result.
+      </p>
       {alerts.length > 0 ? (
         <ul className="divide-y divide-sand">
           {alerts.map((alert) => {
@@ -240,7 +246,7 @@ async function AlertsSection({
                       </span>
                       {!alert.readAt ? (
                         <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-dark">
-                          New
+                          Unread
                         </span>
                       ) : null}
                     </div>
@@ -272,7 +278,7 @@ async function AlertsSection({
             No active alerts
           </h3>
           <p className="mt-1 text-sm text-warm-mid">
-            GEIA will flag a meaningful FMCSA change here when one appears.
+            GEIA will flag a meaningful change to your federal safety record here when one appears.
           </p>
         </div>
       )}
@@ -282,7 +288,7 @@ async function AlertsSection({
 
 function CaseTimeline({ caseRow }: { caseRow: PortalProgressCase }) {
   if (caseRow.filedDate && !caseRow.decisionDate && ["filed", "pending", "pending_state", "pending_fmcsa"].includes(caseRow.status)) {
-    if (caseRow.caseType === "cpdp") return <>Filed {formatDate(caseRow.filedDate)} · FMCSA currently reports about 90 days on average for review; this is not a deadline.</>;
+    if (caseRow.caseType === "cpdp") return <>Filed {formatDate(caseRow.filedDate)} · The federal truck safety agency currently reports about 90 days on average for review; this is not a deadline.</>;
     return <>Filed {formatDate(caseRow.filedDate)} · {caseRow.responseDeadline ? `Recorded response deadline ${formatDate(caseRow.responseDeadline)}` : "Determination date not recorded"}</>;
   }
   if (caseRow.decisionDate) {
@@ -315,11 +321,11 @@ async function CasesSection({ promise, group }: { promise: Promise<PortalProgres
           </h2>
         </div>
         <p className="mt-1 text-sm leading-6 text-warm-mid">
-          DataQ record reviews and crash-preventability filings GEIA is
-          handling for you.
-        </p>
-        <p className="mt-2 text-xs leading-5 text-warm-gray">
-          Only genuine data errors and crash-preventability are challengeable.
+          {group === "wins"
+            ? "Recorded decisions in your company’s favor."
+            : group === "progress"
+              ? "Requests GEIA has filed that are awaiting a decision."
+              : "Work being prepared and cases with other recorded outcomes."}
         </p>
       </header>
       {cases.length > 0 ? (
@@ -339,8 +345,8 @@ async function CasesSection({ promise, group }: { promise: Promise<PortalProgres
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-info-light px-2.5 py-1 font-mono text-[10px] font-semibold text-info">
                         {caseRow.caseType === "dataq"
-                          ? "DataQ record review"
-                          : "Crash Preventability"}
+                          ? "Record correction"
+                          : "Crash review"}
                       </span>
                       {caseRow.caseNumber ? (
                         <span className="font-mono text-[10px] text-warm-gray">
@@ -356,7 +362,7 @@ async function CasesSection({ promise, group }: { promise: Promise<PortalProgres
                         {portalCopy(caseRow.detail)}
                       </p>
                     ) : null}
-                    {group === "wins" && <p className="mt-3 text-sm leading-6 text-warm-mid">{caseRow.outcome === "not_preventable" ? <>FMCSA excludes crashes with this determination from Crash Indicator scoring; the crash remains visible on the public record. <a className="inline-flex min-h-11 items-center underline" href="https://www.fmcsa.dot.gov/safety/crash-preventability-determination-program-faqs" target="_blank" rel="noreferrer">How this determination works</a></> : "The record review was approved. The exact correction and points removed are not recorded in this view."}</p>}
+                    {group === "wins" && <p className="mt-3 text-sm leading-6 text-warm-mid">{caseRow.outcome === "not_preventable" ? <>The federal truck safety agency found this crash was not reasonably avoidable by your driver. It excludes the crash from its crash-related safety scoring, but the crash remains visible on the public record. <a className="inline-flex min-h-11 items-center underline" href="https://www.fmcsa.dot.gov/safety/crash-preventability-determination-program-faqs" target="_blank" rel="noreferrer">How this decision works</a></> : "The record review was approved. The exact correction and points removed are not recorded in this view."}</p>}
                     <p className="mt-3 font-mono text-[11px] text-warm-mid">
                       <CaseTimeline caseRow={caseRow} />
                     </p>
@@ -455,7 +461,7 @@ export default async function PortalActivityPage() {
         <PortalHeroBand
           eyebrow="Monitoring record"
           title="What we've done for you"
-          description="Follow your violation burden, recorded results, and the work GEIA is doing for you."
+          description="Follow your violation points, recorded results, and the work GEIA is doing for you."
         />
         <PortalSectionDivider transition="navy-to-warm" />
         <PortalPageBody>
@@ -498,7 +504,7 @@ export default async function PortalActivityPage() {
       <PortalHeroBand
         eyebrow="Monitoring record"
         title="What we've done for you"
-        description="Follow your violation burden, recorded results, and the work GEIA is doing for you."
+        description="Follow your violation points, recorded results, and the work GEIA is doing for you."
       >
         <Suspense
           fallback={

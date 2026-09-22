@@ -68,6 +68,11 @@ export function InteractiveBurdenHistoryChart({
   const activePoint = activeIndex === null ? null : points[activeIndex] ?? null;
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (container) container.scrollLeft = container.scrollWidth;
+  }, [points.length]);
+
+  useEffect(() => {
     if (pinnedIndex === null && focusedIndex === null) return;
     const dismiss = (event: globalThis.PointerEvent) => {
       if (
@@ -138,6 +143,17 @@ export function InteractiveBurdenHistoryChart({
 
   return (
     <figure>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button type="button" className="btn-secondary min-h-11" onClick={() => containerRef.current?.scrollTo({ left: 0 })}>
+          Earliest checks
+        </button>
+        <button type="button" className="btn-secondary min-h-11" onClick={() => {
+          const container = containerRef.current;
+          if (container) container.scrollTo({ left: container.scrollWidth });
+        }}>
+          Latest check
+        </button>
+      </div>
       <div
         ref={containerRef}
         className="relative overflow-x-auto rounded-lg border border-sand bg-cream"
