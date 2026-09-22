@@ -172,7 +172,7 @@ export default function DocumentVault({
           onChange={(event) =>
             setUploadCategory(event.target.value as VaultCategory)
           }
-          className="mt-1 w-full rounded-lg border border-sand bg-warm-white px-3 py-2 text-sm text-warm-dark focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold"
+          className="mt-1 min-h-11 w-full rounded-lg border border-sand bg-warm-white px-3 py-2 text-sm text-warm-dark focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold"
         >
           {CATEGORIES.filter(
             (category) => category.value !== "report"
@@ -218,7 +218,7 @@ export default function DocumentVault({
           >
             {uploading
               ? "Uploading your document…"
-              : "Drop a file here or choose a file"}
+              : "Add a photo or PDF"}
           </button>
           <span className="mt-1 block text-xs text-warm-mid">
             PDF, Word, Excel, CSV, PNG, or JPG — up to 25 MB
@@ -230,9 +230,11 @@ export default function DocumentVault({
           className="sr-only"
           onChange={handleFileInput}
           disabled={uploading}
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx"
+          accept="image/*,application/pdf"
         />
 
+        <label className="btn-secondary mt-3 inline-flex min-h-11 cursor-pointer items-center focus-within:outline-2 focus-within:outline-gold has-[:disabled]:opacity-60">Choose another file type<input type="file" className="sr-only" disabled={uploading} onChange={handleFileInput} accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx" /></label>
+        <p className="mt-2 text-xs text-warm-mid">Choose a photo from your phone or use its camera when offered. Keep every page readable.</p>
         {uploadError ? (
           <div
             className="mt-3 flex items-start gap-2 rounded-lg border border-error bg-error-light px-4 py-3"

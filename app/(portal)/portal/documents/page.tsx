@@ -201,7 +201,7 @@ async function VaultSection({
     return (
       <ZoneFrame
         id="vault"
-        title="Your document vault"
+        title="Your vault"
         description="Keep your compliance records organized in one secure place."
       >
         <ZoneLocked
@@ -216,7 +216,7 @@ async function VaultSection({
   return (
     <ZoneFrame
       id="vault"
-      title="Your document vault"
+      title="Your vault"
       description="Keep your compliance records organized in one secure place."
     >
       <DocumentVault initialDocuments={documents} />
@@ -324,7 +324,9 @@ export default async function PortalDocumentsPage() {
         eyebrow="Your shared workspace"
         title="Documents"
         description="Send what GEIA needs, keep your records organized, and open reports we have sent to your company."
-      />
+      >
+        <nav aria-label="Document sections" className="mt-6 flex flex-wrap gap-3">{[["#needed-from-you", "Needed from you"], ["#vault", "Your vault"], ["#from-geia", "From GEIA"]].map(([href, label]) => <Link key={href} href={href} className="inline-flex min-h-11 items-center rounded-lg border border-warm-white/25 px-4 text-sm text-warm-white">{label}</Link>)}</nav>
+      </PortalHeroBand>
       <PortalSectionDivider transition="navy-to-warm" />
 
       <PortalPageBody contentClassName="space-y-12">
