@@ -100,7 +100,7 @@ function StatusTracker({
     normalizedStatus === "filed" ? cpdpFiledTimelineLabel(filedDate) : null;
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-0 w-full overflow-x-auto pb-1">
+      <div className="flex items-start gap-0 w-full pb-1">
         {STATUS_STEPS.map((step, i) => {
           const done = i < currentIdx;
           const active = i === currentIdx;
@@ -114,7 +114,7 @@ function StatusTracker({
                   {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
                 </div>
                 <span
-                  className={`text-[10px] text-center leading-tight truncate w-full px-1 ${
+                  className={`text-[10px] text-center leading-tight break-words w-full px-1 ${
                     active ? "text-[#C67A1E] font-semibold" : done ? "text-green-600" : "text-gray-400"
                   }`}
                 >
@@ -123,7 +123,7 @@ function StatusTracker({
               </div>
               {i < STATUS_STEPS.length - 1 && (
                 <div
-                  className={`h-0.5 flex-shrink-0 w-6 mx-1 ${
+                  className={`hidden sm:block h-0.5 flex-shrink-0 w-6 mx-1 ${
                     i < currentIdx ? "bg-green-400" : "bg-gray-200"
                   }`}
                 />
@@ -1564,7 +1564,7 @@ export function CpdpCaseEditor({
         </div>
       )}
 
-      {status === "determination_made" && (
+      {isResolved && (
         <div className="bg-white rounded-xl border border-[#F0E8DA] p-5 space-y-3">
           <h2 className="font-semibold text-[#1E1C1A] text-sm">5. Determination</h2>
           {cpdpCase.outcome && (
@@ -1591,13 +1591,15 @@ export function CpdpCaseEditor({
               )}
             </div>
           )}
-          <button
-            onClick={() => advanceStatus("closed")}
-            disabled={saving}
-            className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
-          >
-            Close case
-          </button>
+          {status === "determination_made" && (
+            <button
+              onClick={() => advanceStatus("closed")}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium border border-[#F0E8DA] rounded-lg hover:border-[#C67A1E] hover:text-[#C67A1E] disabled:opacity-50 transition-colors"
+            >
+              Close case
+            </button>
+          )}
         </div>
       )}
 
