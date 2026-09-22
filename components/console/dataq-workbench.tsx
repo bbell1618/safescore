@@ -87,6 +87,7 @@ export interface EvidenceItem {
 }
 
 interface Props {
+  initialExpandedId?: string;
   clientId: string;
   clientTier: ClientTier;
   filingAuthorized: boolean;
@@ -183,6 +184,7 @@ function evidenceAcquisitionClass(method: string | null) {
 }
 
 export function DataqWorkbench({
+  initialExpandedId,
   clientId,
   clientTier,
   filingAuthorized,
@@ -191,7 +193,7 @@ export function DataqWorkbench({
   cases,
   evidenceMap,
 }: Props) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId ?? null);
   const [narratives, setNarratives] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<Record<string, string>>({});
@@ -686,6 +688,15 @@ export function DataqWorkbench({
             {/* Case header */}
             <div
               className="px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-[#FBF7F0] transition-colors"
+              role="button"
+              tabIndex={0}
+              aria-expanded={isExpanded}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setExpandedId(isExpanded ? null : c.id);
+                }
+              }}
               onClick={() => setExpandedId(isExpanded ? null : c.id)}
             >
               <div className="flex-1 min-w-0">
@@ -726,7 +737,7 @@ export function DataqWorkbench({
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-[#1E1C1A] truncate">
+                <p className="text-sm text-[#1E1C1A] break-words">
                   {isOrphaned
                     ? "Violation data lost — re-run analysis or re-link manually"
                     : (c.violations?.violation_description ?? "Unknown violation")}

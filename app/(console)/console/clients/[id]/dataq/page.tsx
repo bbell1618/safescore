@@ -10,10 +10,12 @@ export const dynamic = "force-dynamic";
 
 export default async function DataqPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ case?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const supabase = await createClient();
 
 
@@ -116,7 +118,7 @@ export default async function DataqPage({
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-1 text-xs text-gray-400">
         <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
@@ -124,13 +126,13 @@ export default async function DataqPage({
         <span className="text-[#1E1C1A] font-medium">DataQs workbench</span>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[#1E1C1A]">
             DataQs workbench
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {cases?.length ?? 0} cases {"\u00B7"}{" "}
+            {cases?.length ?? 0} case{cases?.length === 1 ? "" : "s"} {"\u00B7"}{" "}
             <span className="text-green-600 font-medium">{counts.approved ?? 0} approved</span>
             {" "}{"\u00B7"}{" "}
             <span className="text-[#C67A1E] font-medium">{counts.denied ?? 0} denied</span>
@@ -148,7 +150,7 @@ export default async function DataqPage({
       </div>
 
       {/* Pipeline summary */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
         {[
           { status: "investigating", label: "Investigating" },
           { status: "draft", label: "Draft" },
@@ -157,10 +159,11 @@ export default async function DataqPage({
           { status: "pending_fmcsa", label: "Pending FMCSA" },
           { status: "approved", label: "Approved" },
           { status: "denied", label: "Denied" },
+          { status: "closed", label: "Closed" },
         ].map((s) => (
           <div
             key={s.status}
-            className="flex-1 min-w-[100px] bg-[#FBF7F0] border border-[#F0E8DA] rounded-xl p-3 text-center"
+            className="min-w-0 bg-[#FBF7F0] border border-[#F0E8DA] rounded-xl p-3 text-center"
           >
             <p className="text-xl font-bold text-[#1E1C1A]">
               {counts[s.status] ?? 0}
@@ -171,6 +174,8 @@ export default async function DataqPage({
       </div>
 
       <DataqWorkbench
+        key={query.case ?? "all"}
+        initialExpandedId={cases?.some((row) => row.id === query.case) ? query.case : undefined}
         clientId={id}
         clientTier={clientTier}
         filingAuthorized={(client.filing_authorized as boolean | null) ?? false}
