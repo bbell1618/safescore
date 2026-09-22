@@ -1,2 +1,3 @@
-import { ConsolePageSkeleton } from "@/components/console/page-skeleton";
-export default function Loading() { return <ConsolePageSkeleton shape="work" />; }
+export default function Loading() {
+  return <div role="status" aria-label="Loading client work" className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6"><div className="portal-navy-texture rounded-2xl p-6"><div className="h-4 w-32 rounded bg-warm-white/20" /><div className="mt-4 h-10 w-3/4 rounded bg-warm-white/20" /><div className="mt-6 flex flex-wrap gap-3">{[0, 1, 2].map(i => <div key={i} className="h-12 w-36 rounded bg-amber/20" />)}</div></div><div className="h-11 w-3/4 rounded bg-sand" /><div className="divide-y divide-sand rounded-xl border border-sand bg-warm-white">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="flex gap-4 p-5 motion-safe:animate-pulse"><div className="h-4 w-2/3 rounded bg-sand" /><div className="ml-auto h-4 w-20 rounded bg-sand" /></div>)}</div></div>;
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { workItemHref } from "@/components/console/work-item-row";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertCircle,
   Check,
@@ -34,7 +34,7 @@ type ChecklistPayload = {
   error?: string;
 };
 
-type PendingAction =
+export type PendingAction =
   | `ack:${string}`
   | `manual:${string}`
   | `roster:${string}`
@@ -241,7 +241,7 @@ function ChecklistCard({
   );
 }
 
-function ManualItems({
+export function ManualItems({
   clientId,
   items,
   pending,
@@ -404,14 +404,25 @@ function ManualItems({
   );
 }
 
+export type ChecklistRenderState = {
+  items: ChecklistItem[]; manualItems: OperatorManualItem[]; pending: PendingAction;
+  error: string | null; message: string | null;
+  acknowledge: (item: ChecklistItem, action: "done" | "snooze") => Promise<void>;
+  runDerivedAction: (item: ChecklistItem) => Promise<void>;
+  createManual: (title: string, dueDate: string) => Promise<boolean>;
+  updateManual: (item: OperatorManualItem, action: "toggle" | "delete") => Promise<void>;
+};
+
 export function OperatorChecklist({
   clientId,
   initialItems,
   initialManualItems,
+  render,
 }: {
   clientId: string;
   initialItems: ChecklistItem[];
   initialManualItems: OperatorManualItem[];
+  render?: (state: ChecklistRenderState) => ReactNode;
 }) {
   const [items, setItems] = useState(initialItems);
   const [manualItems, setManualItems] = useState(initialManualItems);
@@ -623,6 +634,8 @@ export function OperatorChecklist({
       setPending(null);
     }
   }
+
+  if (render) return render({ items, manualItems, pending, error, message, acknowledge, runDerivedAction, createManual, updateManual });
 
   return (
     <div className="space-y-7">
