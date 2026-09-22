@@ -62,14 +62,14 @@ export function RequestAnswer({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="btn-primary min-h-10 min-w-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none"
+          className="btn-primary min-h-11 min-w-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none"
           onClick={() => void answer("yes")}
         >
           {busyAnswer === "yes" ? "Saving…" : "Yes"}
         </button>
         <button
           type="button"
-          className="btn-secondary min-h-10 min-w-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none"
+          className="btn-secondary min-h-11 min-w-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none"
           onClick={() => void answer("no")}
         >
           {busyAnswer === "no" ? "Saving…" : "No"}

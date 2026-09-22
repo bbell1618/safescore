@@ -199,6 +199,7 @@ body:has(.portal-brand-root) {
  * scoped so console controls are untouched.
  */
 .portal-brand-root .btn-primary {
+  min-height: 44px;
   background: var(--color-amber);
   color: white;
   font-family: var(--font-sans);
@@ -237,6 +238,7 @@ body:has(.portal-brand-root) {
 }
 
 .portal-brand-root .btn-secondary {
+  min-height: 44px;
   background: transparent;
   color: var(--color-button-navy);
   border: 2px solid var(--color-button-navy);

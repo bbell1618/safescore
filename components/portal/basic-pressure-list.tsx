@@ -64,7 +64,7 @@ export function BasicPressureList({
   basics,
   details,
   totalPoints,
-  planHref = "/portal/playbook",
+  planHref = "/portal/plan",
 }: {
   basics: PortalHomeBasic[];
   details: PortalHomePressureDetail[];
@@ -153,7 +153,7 @@ export function BasicPressureList({
                   )}, ${share}% of total burden. ${
                     expanded ? "Collapse" : "Expand"
                   } top violations.`}
-                  className="group flex min-h-10 w-full touch-manipulation items-center gap-3 rounded-lg px-2 transition-colors hover:bg-warm-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 active:scale-[0.995] active:bg-sand/70 motion-reduce:transform-none motion-reduce:transition-none"
+                  className="group flex min-h-11 w-full touch-manipulation items-center gap-3 rounded-lg px-2 transition-colors hover:bg-warm-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 active:scale-[0.995] active:bg-sand/70 motion-reduce:transform-none motion-reduce:transition-none"
                   onBlur={() => setTooltipBasic(null)}
                   onClick={() => {
                     setExpandedBasic((current) =>
@@ -291,7 +291,7 @@ export function BasicPressureList({
 
                     {detail?.hasCoachingPlan ? (
                       <Link
-                        className="btn-secondary mt-4 inline-flex min-h-10 items-center gap-2"
+                        className="btn-secondary mt-4 inline-flex min-h-11 items-center gap-2"
                         href={planHref}
                       >
                         See your coaching plan

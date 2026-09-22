@@ -100,7 +100,7 @@ async function BasicPressureSection({
   const inWindowCount = latest ? inWindowViolationCount(latest) : 0;
 
   return (
-    <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">
+    <PortalMotionSection className="min-w-0 rounded-xl border border-sand bg-warm-white p-5 shadow-sm sm:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mono-label text-amber">24-month scoring window</p>
@@ -251,7 +251,7 @@ async function HandlingSection({
         {canSeeCases && handling.cases.length > 0 ? (
           <Link
             className="btn-secondary inline-flex items-center gap-2"
-            href="/portal/activity#cases"
+            href="/portal/progress#cases"
           >
             View case activity
             <ArrowRight className="h-4 w-4" />
@@ -446,12 +446,12 @@ export default async function PortalHomePage() {
     <div>
       <section className="portal-navy-texture overflow-hidden text-warm-white shadow-[var(--shadow-md)]">
         <div className="mx-auto grid w-full max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="p-6 sm:p-8 lg:p-10">
+        <div className="min-w-0 p-5 sm:p-8 lg:p-10">
           <p className="mono-label text-gold-light">Where you stand</p>
           <div className="mt-4 flex flex-wrap items-end gap-4">
             {latest ? (
               <>
-                <h1 className="font-heading text-7xl font-semibold tracking-tight text-amber-light sm:text-8xl">
+                <h1 className="max-w-full break-words font-heading text-[clamp(3rem,15vw,6rem)] font-semibold leading-none tracking-tight text-amber-light">
                   <span className="sr-only">Current weighted burden: </span>
                   <PortalAnimatedNumber value={latest.total_points} />
                 </h1>
@@ -501,19 +501,20 @@ export default async function PortalHomePage() {
           </p>
         </div>
 
-        <div className="flex flex-col justify-center border-t border-warm-white/10 bg-navy-light/35 p-6 sm:p-8 lg:border-l lg:border-t-0">
+        <div className="flex min-w-0 flex-col justify-center border-t border-warm-white/10 bg-navy-light/35 p-6 sm:p-8 lg:border-l lg:border-t-0">
           {canSeeTrend ? (
             <>
               <div className="flex items-center justify-between gap-4">
                 <p className="font-heading font-semibold text-warm-white">
-                  Burden trend
+                  Violation burden trend
                 </p>
                 <p className="font-mono text-[11px] text-warm-white/60">
                   {plural(snapshots.length, "snapshot")}
                 </p>
               </div>
-              <div className="mt-4 overflow-x-auto pb-1">
+              <div className="mt-4 min-w-0 pb-1">
                 <BurdenSparkline
+                  fitContainer
                   label={`Weighted burden across ${plural(
                     snapshots.length,
                     "snapshot"
@@ -548,7 +549,7 @@ export default async function PortalHomePage() {
         </div>
       </section>
       <PortalSectionDivider transition="navy-to-warm" />
-      <PortalPageBody contentClassName="space-y-12 pt-8 sm:pt-10">
+      <PortalPageBody contentClassName="min-w-0 space-y-6 pt-6 sm:space-y-12 sm:pt-10">
       <Suspense fallback={null}><NeededFromYouSection requestPromise={requestsPromise} requestFeatureLocked={false} hideWhenEmpty /></Suspense>
 
       <Suspense fallback={<SectionFallback label="BASIC pressure" />}>

@@ -27,16 +27,18 @@ type SparklinePoint = BurdenSparklineSnapshot & {
 
 const MINIMUM_WIDTH = 240;
 const HEIGHT = 72;
-const POINT_TARGET_RADIUS = 20;
+const POINT_TARGET_RADIUS = 22;
 const HORIZONTAL_PADDING = POINT_TARGET_RADIUS;
 const MINIMUM_POINT_SPACING = POINT_TARGET_RADIUS * 2;
 
 export function BurdenSparkline({
   snapshots,
   label,
+  fitContainer = false,
 }: {
   snapshots: BurdenSparklineSnapshot[];
   label: string;
+  fitContainer?: boolean;
 }) {
   const containerRef = useRef<HTMLElement>(null);
   const tooltipId = useId();
@@ -137,13 +139,13 @@ export function BurdenSparkline({
   return (
     <figure
       ref={containerRef}
-      className="relative"
-      style={{ width: `${width}px`, minWidth: "100%" }}
+      className="relative min-w-0"
+      style={fitContainer ? { width: "100%" } : { width: `${width}px`, minWidth: "100%" }}
       onPointerLeave={() => setHoveredIndex(null)}
       onPointerDown={(event) => {
         if (
           !(event.target instanceof Element) ||
-          !event.target.closest("[data-sparkline-point]")
+          !event.target.closest("[data-sparkline-point], [data-sparkline-control]")
         ) {
           setPinnedIndex(null);
           setFocusedIndex(null);
@@ -218,11 +220,12 @@ export function BurdenSparkline({
               key={point.id}
               aria-describedby={active ? tooltipId : undefined}
               aria-label={pointLabel}
-              aria-pressed={pinnedIndex === index}
+              aria-pressed={fitContainer ? undefined : pinnedIndex === index}
               className="cursor-crosshair focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
               data-sparkline-point={point.id}
-              role="button"
-              tabIndex={0}
+              role={fitContainer ? undefined : "button"}
+              pointerEvents={fitContainer ? "none" : undefined}
+              tabIndex={fitContainer ? -1 : 0}
               onBlur={() => setFocusedIndex(null)}
               onClick={() => pinPoint(index)}
               onFocus={() => setFocusedIndex(index)}
@@ -254,12 +257,17 @@ export function BurdenSparkline({
         })}
       </svg>
 
+      {fitContainer && <div data-sparkline-control className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-warm-white/80">
+        <button type="button" className="min-h-11 min-w-11 rounded-lg border border-warm-white/25 px-3 disabled:opacity-40" disabled={activeIndex === 0} onClick={() => setPinnedIndex(Math.max(0, (activeIndex ?? ordered.length) - 1))}>Earlier</button>
+        <span className="font-mono">{activeIndex === null ? "Explore snapshots" : `${activeIndex + 1} of ${ordered.length}`}</span>
+        <button type="button" className="min-h-11 min-w-11 rounded-lg border border-warm-white/25 px-3 disabled:opacity-40" disabled={activeIndex === ordered.length - 1} onClick={() => setPinnedIndex(Math.min(ordered.length - 1, (activeIndex ?? -1) + 1))}>Later</button>
+      </div>}
       {activePoint ? (
         <div
           id={tooltipId}
           role="tooltip"
-          className="pointer-events-none absolute top-1 z-20 w-48 rounded-lg border border-gold/35 bg-navy px-3 py-2 text-left shadow-[var(--shadow-md)]"
-          style={{
+          className={fitContainer ? "mt-3 rounded-lg border border-gold/35 bg-navy px-3 py-2 text-left" : "pointer-events-none absolute top-1 z-20 w-48 rounded-lg border border-gold/35 bg-navy px-3 py-2 text-left shadow-[var(--shadow-md)]"}
+          style={fitContainer ? undefined : {
             left: `${(activePoint.x / width) * 100}%`,
             transform: tooltipAlignment,
           }}
@@ -285,8 +293,7 @@ export function BurdenSparkline({
       ) : null}
 
       <figcaption className="sr-only">
-        {label}. Hover, tap, or focus a point for its captured time, change, and
-        source.
+        {label}. {fitContainer ? "Use Earlier and Later to inspect each snapshot." : "Hover, tap, or focus a point for its captured time, change, and source."}
       </figcaption>
     </figure>
   );

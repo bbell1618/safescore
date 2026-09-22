@@ -83,7 +83,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
         <div className="flex h-16 items-center justify-between">
           <Link
             href="/portal"
-            className="flex shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
+            className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
             aria-label="SafeScore home"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber shadow-[var(--shadow-md)]">
@@ -173,7 +173,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
 
           <button
             type="button"
-            className="rounded-lg p-2 text-warm-white/80 transition-colors duration-150 hover:bg-warm-white/10 hover:text-warm-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold md:hidden"
+            className="min-h-11 min-w-11 rounded-lg p-2 text-warm-white/80 transition-colors duration-150 hover:bg-warm-white/10 hover:text-warm-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
             aria-label="Toggle portal menu"
             aria-expanded={mobileOpen}
@@ -210,7 +210,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
                     aria-current={active ? "page" : undefined}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "relative block rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",
+                      "relative block min-h-11 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",
                       active
                         ? "bg-warm-white/5 text-gold"
                         : "text-warm-white/80 hover:bg-warm-white/5 hover:text-warm-white"
@@ -231,7 +231,7 @@ export function PortalNav({ userEmail, companyName, tier }: PortalNavProps) {
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-warm-white transition-colors duration-150 hover:bg-amber/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-warm-white transition-colors duration-150 hover:bg-amber/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <LogOut className="h-3.5 w-3.5 text-amber-light" />
                 {signingOut ? "Signing out…" : "Sign out"}
