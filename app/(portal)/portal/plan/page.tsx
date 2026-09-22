@@ -1,3 +1,5 @@
+import { SafetyDepartmentSection } from "@/components/portal/safety-department";
+import { tierHasFeature } from "@/lib/tiers";
 import { Suspense } from "react";
 import {
   CheckCircle2,
@@ -276,7 +278,7 @@ async function PlaybookContent({
         </div>
         {playbook.family_programs.length > 0 ? (
           <PlaybookPrograms
-            programs={playbook.family_programs.map((program, index) => ({
+            programs={[...playbook.family_programs].sort((a, b) => a.familyPriority - b.familyPriority || b.priorityScore - a.priorityScore || a.familyName.localeCompare(b.familyName)).map((program, index) => ({
               id: `playbook-program-${index + 1}`,
               familyName: program.familyName,
               count: program.count,
@@ -306,8 +308,8 @@ async function PlaybookContent({
         )}
       </PortalMotionSection>
 
-      <InstallmentCalendar playbook={playbook} />
       <OwnerCurriculum playbook={playbook} />
+      <InstallmentCalendar playbook={playbook} />
     </>
   );
 }
@@ -340,9 +342,9 @@ export default async function PortalPlaybookPage() {
     return (
       <div className="overflow-hidden">
         <PortalHeroBand
-          eyebrow="Coaching system"
-          title="Your safety playbook"
-          description="Bite-size operating changes, built from your current safety record and arranged in the order that matters most."
+          eyebrow="Your next operating habit"
+          title="Your plan for safer operations"
+          description="Start with the highest-priority pattern, practice one change at a time, and keep proof of the work."
         />
         <PortalSectionDivider transition="navy-to-warm" />
         <PortalPageBody>
@@ -378,9 +380,9 @@ export default async function PortalPlaybookPage() {
   return (
     <div className="overflow-hidden">
       <PortalHeroBand
-        eyebrow="Coaching system"
-        title="Your safety playbook"
-        description="Bite-size operating changes, built from your current safety record and arranged in the order that matters most."
+        eyebrow="Your next operating habit"
+        title="Your plan for safer operations"
+        description="Start with the highest-priority pattern, practice one change at a time, and keep proof of the work."
       >
         <Suspense
           fallback={
@@ -404,6 +406,7 @@ export default async function PortalPlaybookPage() {
             <PlaybookContent promise={playbookPromise} />
           </div>
         </Suspense>
+        {tierHasFeature(access.tier, "compliance_layer") && <Suspense fallback={<PlaybookBodyFallback />}><div className="mt-12"><SafetyDepartmentSection /></div></Suspense>}
       </PortalPageBody>
 
       <PortalSectionDivider transition="warm-to-navy" />
