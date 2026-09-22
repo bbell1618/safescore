@@ -22,6 +22,9 @@ export function ownerCopy(value: string | null | undefined): string {
     .replace(/\bConspicuity\b/gi, "Reflective tape and visibility")
     .replace(/\bweighted violation burden\b/gi, "violation points")
     .replace(/\bviolation burden\b/gi, "violation points")
+    .replace(/\bReview its challengeability\b/gi, "Review whether the record can be corrected")
     .replace(/\bchallengeability\b/gi, "whether the record can be corrected")
-    .replace(/\binflow rate\b/gi, "rate of new violations");
+    .replace(/\binflow rate\b/gi, "rate of new violations")
+    .replace(/\ban driving and work hours\b/g, "a driving and work hours")
+    .replace(/^the federal truck safety agency/, "The federal truck safety agency");
 }

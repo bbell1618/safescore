@@ -23,6 +23,15 @@ const CATEGORIES = [
 ] as const;
 
 type VaultCategory = (typeof CATEGORIES)[number]["value"];
+const CATEGORY_HELP: Record<VaultCategory, string> = {
+  dqf: "Documents showing a driver is qualified, such as a commercial driver's license and medical certificate.",
+  maintenance: "Vehicle inspection, maintenance, and repair records.",
+  clearinghouse: "The Clearinghouse is the federal database of commercial-driver drug-and-alcohol violations. Use this category for registration and completed record-check documents.",
+  auth_agreement: "Insurance policies and documents showing your coverage.",
+  evidence: "Documents GEIA needs to support a review of your safety record.",
+  report: "Copies of previously prepared reports.",
+  other: "Company records that do not fit another category.",
+};
 type DocumentReviewStatus =
   | "pending_review"
   | "reviewed"
@@ -168,6 +177,7 @@ export default function DocumentVault({
         </label>
         <select
           id="vault-category"
+          aria-describedby="vault-category-help"
           value={uploadCategory}
           onChange={(event) =>
             setUploadCategory(event.target.value as VaultCategory)
@@ -182,6 +192,9 @@ export default function DocumentVault({
             </option>
           ))}
         </select>
+        <p id="vault-category-help" className="mt-2 text-xs leading-5 text-warm-mid">
+          {CATEGORY_HELP[uploadCategory]}
+        </p>
 
         <motion.div
           className={`mt-4 w-full rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-150 ${
