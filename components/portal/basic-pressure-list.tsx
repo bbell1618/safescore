@@ -64,10 +64,12 @@ export function BasicPressureList({
   basics,
   details,
   totalPoints,
+  planHref = "/portal/playbook",
 }: {
   basics: PortalHomeBasic[];
   details: PortalHomePressureDetail[];
   totalPoints: number;
+  planHref?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const [expandedBasic, setExpandedBasic] = useState<string | null>(null);
@@ -290,7 +292,7 @@ export function BasicPressureList({
                     {detail?.hasCoachingPlan ? (
                       <Link
                         className="btn-secondary mt-4 inline-flex min-h-10 items-center gap-2"
-                        href="/portal/playbook"
+                        href={planHref}
                       >
                         See your coaching plan
                         <ArrowRight className="h-4 w-4" />

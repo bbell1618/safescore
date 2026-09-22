@@ -1,3 +1,18 @@
+import { Suspense } from "react";
+import { Badge } from "@/components/ui/badge";
+import { BurdenSparkline } from "@/components/portal/burden-sparkline";
+import { BasicPressureList } from "@/components/portal/basic-pressure-list";
+import { loadPortalHomePressureDetails } from "@/lib/portal/home-server";
+import { preferredAuthorityStatus } from "@/lib/portal/home";
+import { AuthorityInsuranceSection, type CarrierProfileEnrichmentRow } from "@/components/console/authority-insurance-section";
+import { Mcs150TruthUpSection } from "@/components/console/mcs150-truth-up-section";
+import { FmcsaAccessBadge } from "@/components/console/fmcsa-access-badge";
+import { FmcsaPinRequestControl } from "@/components/console/fmcsa-pin-request-control";
+import { RunAnalysisButton } from "@/components/console/run-analysis-button";
+import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
+import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
+import { normalizeClientTier, tierBadgeVariant, tierDisplayLabel, tierHasFeature } from "@/lib/tiers";
+import { TierUpgradeNote } from "@/components/portal/tier-upgrade-note";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -83,10 +98,11 @@ export default async function ClientOverviewPage({
     { count: cpdpCount },
     reconciliation,
     monitoringSnapshots,
+    enrichmentResult, pinResult, pinRequestResult, unassessedResult,
   ] = await Promise.all([
     supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, dot_number, mc_number, tier, driver_count, fmcsa_authorized")
     .eq("id", id)
     .single(),
     supabase
@@ -105,12 +121,22 @@ export default async function ClientOverviewPage({
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("cpdp_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     getClientBasicReconciliation(id),
-    getRecentSnapshots(id, 2),
+    getRecentSnapshots(id, 12),
+    supabase.from("carrier_profile_enrichments").select("id,client_id,source,source_url,source_as_of,fetched_at,currentness,data,parser_version,created_at,updated_at").eq("client_id", id).order("fetched_at", { ascending: false }),
+    supabase.from("client_credentials").select("id", { count: "exact", head: true }).eq("client_id", id).not("fmcsa_pin_encrypted", "is", null),
+    supabase.from("client_requests").select("id").eq("client_id", id).eq("category", "fmcsa_portal_pin").eq("status", "open").limit(1).maybeSingle(),
+    scopePromise.then(({ inspectionIds }) => supabase.from("violations").select("id", { count: "exact", head: true }).eq("client_id", id).in("inspection_id", inspectionIds).is("ai_assessed_at", null)),
   ]);
 
   if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load client profile: ${clientError.message}`);
   if (!client) notFound();
 
+  for (const [label, result] of [["enrichment", enrichmentResult], ["PIN status", pinResult], ["PIN request", pinRequestResult], ["unassessed violations", unassessedResult]] as const) if (result.error) throw new Error(`Unable to load profile ${label}: ${result.error.message}`);
+  const tier = normalizeClientTier(client.tier);
+  const enrichmentRows = (enrichmentResult.data ?? []) as unknown as CarrierProfileEnrichmentRow[];
+  const motus = enrichmentRows.find(row => row.source === "fmcsa_motus");
+  const authority = motus && Array.isArray(motus.data.authorities) ? preferredAuthorityStatus(motus.data.authorities) : null;
+  const filings = motus && Array.isArray(motus.data.insuranceFilings) ? motus.data.insuranceFilings.length : null;
   const cp = carrierProfile as Record<string, unknown> | null;
   const crashes = (crashRows ?? []) as CrashRow[];
   const burden = reconciliation.burden;
@@ -119,7 +145,17 @@ export default async function ClientOverviewPage({
   const previousSnapshot = monitoringSnapshots[1] ?? null;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
+      <header className="portal-navy-texture overflow-hidden rounded-2xl p-6 text-warm-white sm:p-8">
+        <p className="font-mono text-xs uppercase tracking-widest text-gold-light">Carrier profile · USDOT {client.dot_number}{client.mc_number ? ` · MC ${client.mc_number}` : ""}</p>
+        <h1 className="mt-3 font-heading text-3xl sm:text-5xl">{client.name}</h1>
+        <div className="mt-4 flex flex-wrap gap-2"><Badge variant={tierBadgeVariant(tier)}>{tierDisplayLabel(client.tier)}</Badge><Badge variant="info">Stored authority: {authority ?? "Not recorded"}</Badge><Badge variant="info">{filings == null ? "Insurance filings not recorded" : `${filings} insurance filings on record`}</Badge></div>
+        {motus && <p className="mt-2 text-xs text-warm-white/65">FMCSA source as of {formatDate(motus.source_as_of ?? motus.fetched_at)} · {motus.currentness}. Filing records do not establish current coverage.</p>}
+        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline label="Recorded burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
+        <p className="mt-6 max-w-3xl text-sm text-warm-white/75">FMCSA does not publish public percentile rankings for low-volume carriers; this is the corrected weighted burden in the 24-month window.</p>
+        <div className="mt-6 flex flex-wrap items-start gap-3"><RunAnalysisButton clientId={id} dotNumber={client.dot_number} hasData={(violationCount ?? 0) > 0} hasFmcsaAccess={client.fmcsa_authorized === true} /><ChallengeabilityAnalysisButton clientId={id} totalCount={violationCount ?? 0} unassessedCount={unassessedResult.count ?? 0} /><FmcsaExportUpload clientId={id} dotNumber={client.dot_number} /></div>
+      </header>
+      <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm"><h2 className="font-heading text-2xl text-navy">BASIC pressure</h2><p className="mt-2 text-sm text-warm-mid">{formatViolationWindowSummary(violationCount ?? 0, reconciliation.queryTrace.inWindowViolationCount)}</p><Suspense fallback={<p className="py-8 text-sm text-warm-mid">Loading pressure details…</p>}><ProfilePressure clientId={id} tier={tier} asOf={burden.asOf} basics={burden.perBasic.map(row => ({ basic_category: row.basicCategory, violation_count: row.violationCount, weighted_points: row.weightedPoints }))} totalPoints={burden.totalPoints} /></Suspense></section>
       <section className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
         <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-2">
           Safety summary
@@ -136,7 +172,7 @@ export default async function ClientOverviewPage({
 
       {cp && (
         <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm mb-4">Carrier snapshot</h2>
+          <h2 className="font-heading text-2xl text-navy mb-4">Carrier snapshot</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <SnapshotStat label="Power Units" value={cp.power_units} tooltip={TT.POWER_UNITS} />
             <SnapshotStat label="Drivers" value={cp.drivers} tooltip={TT.DRIVERS} />
@@ -162,7 +198,7 @@ export default async function ClientOverviewPage({
         </section>
       )}
 
-      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
+      <details className="rounded-xl border border-sand bg-warm-white overflow-x-auto"><summary className="min-h-11 cursor-pointer p-5 font-heading text-xl text-navy">Detailed point reconciliation</summary><section>
         <div className="px-5 py-4 border-b border-[#F0E8DA] flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="font-semibold text-[#1E1C1A] text-sm">
@@ -225,6 +261,11 @@ export default async function ClientOverviewPage({
         )}
       </section>
 
+      </details>
+      <AuthorityInsuranceSection clientId={id} billingDriverCount={client.driver_count ?? null} rows={enrichmentRows} />
+      <section className="rounded-xl border border-sand bg-warm-white p-5"><h2 className="font-heading text-2xl text-navy">FMCSA access</h2><div className="mt-4 flex flex-wrap items-center gap-3"><FmcsaAccessBadge hasAccess={client.fmcsa_authorized === true} /><Badge variant={(pinResult.count ?? 0) > 0 ? "success" : "warning"}>{(pinResult.count ?? 0) > 0 ? "Portal PIN on file" : "Portal PIN needed"}</Badge><FmcsaPinRequestControl clientId={id} requestAlreadyOpen={!!pinRequestResult.data} /></div></section>
+      {tierHasFeature(tier, "truth_up_service") ? <Mcs150TruthUpSection clientId={id} /> : <TierUpgradeNote feature="truth_up_service" currentTier={tier} title="MCS-150 review" headingLevel="h2" />}
+
       <p className="text-xs text-gray-500 -mt-3">
         Potential removal impact includes only strong/moderate evidence-based challenge candidates and assumes a successful correction. Investigate items are excluded. Unknown BASIC rows are counted but cannot receive burden or removal-impact points until classified.
       </p>
@@ -247,7 +288,7 @@ export default async function ClientOverviewPage({
           title="Remediation"
           value="Operational vs challengeable work"
           body="Removability is separate from weighted burden; the queue estimates what can be acted on."
-          href={`/console/clients/${id}/remediation`}
+          href={`/console/clients/${id}/plan`}
           linkText="View in Remediation"
         />
         <SummaryLink
@@ -269,7 +310,7 @@ export default async function ClientOverviewPage({
               ? "Change tracking is active with at least two snapshots."
               : "Tracking begins once the next refresh creates a comparison snapshot."
           }
-          href={`/console/clients/${id}/monitoring`}
+          href={`/console/clients/${id}/work#monitoring`}
           linkText="View monitoring"
         />
       </div>
@@ -327,4 +368,9 @@ function SummaryLink({
       </Link>
     </section>
   );
+}
+
+async function ProfilePressure({ clientId, tier, asOf, basics, totalPoints }: { clientId: string; tier: ReturnType<typeof normalizeClientTier>; asOf: string; basics: import("@/lib/portal/home").PortalHomeBasic[]; totalPoints: number }) {
+  const details = await loadPortalHomePressureDetails({ clientId, tier, snapshotCapturedAt: asOf });
+  return <BasicPressureList basics={basics} details={details} totalPoints={totalPoints} planHref={`/console/clients/${clientId}/plan`} />;
 }

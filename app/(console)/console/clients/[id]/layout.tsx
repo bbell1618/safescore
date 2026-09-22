@@ -3,10 +3,6 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClientTabs } from "@/components/console/client-tabs";
-import { RunAnalysisButton } from "@/components/console/run-analysis-button";
-import { FmcsaExportUpload } from "@/components/console/fmcsa-export-upload";
-import { getCanonicalInspectionScope } from "@/lib/fmcsa/canonical-inspection-scope";
-import { ChallengeabilityAnalysisButton } from "@/components/console/challengeability-analysis-button";
 import { ClientActivationControl } from "@/components/console/client-activation-control";
 import { isStaffManualActivationCandidate } from "@/lib/activation/staff-manual-activation";
 import {
@@ -46,22 +42,9 @@ export default async function ClientFileLayout({
 
 
 
-  const scopePromise = getCanonicalInspectionScope(id, supabase);
-  const violationCountQuery = supabase
-    .from("violations")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", id);
-  const unassessedCountQuery = supabase
-    .from("violations")
-    .select("*", { count: "exact", head: true })
-    .eq("client_id", id)
-    .is("ai_assessed_at", null);
-
   const [
     { data: client, error: clientError },
     { data: carrierProfile },
-    { count: violationCount },
-    { count: unassessedCount },
     { data: latestTierChange, error: tierChangeError },
   ] = await Promise.all([
     supabase
@@ -78,8 +61,6 @@ export default async function ClientFileLayout({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    scopePromise.then(({ inspectionIds }) => violationCountQuery.in("inspection_id", inspectionIds)),
-    scopePromise.then(({ inspectionIds }) => unassessedCountQuery.in("inspection_id", inspectionIds)),
     supabase
       .from("activity_log")
       .select("id, description, metadata, created_at")
@@ -114,12 +95,12 @@ export default async function ClientFileLayout({
   });
 
   return (
-    <div className="min-h-screen bg-[#FEFCF8]">
+    <div className="min-h-screen">
       <div className="px-6 pt-6 max-w-7xl mx-auto">
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
           <div className="p-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-[#1E1C1A] truncate">{client.name}</h1>
+              <p className="font-heading text-xl text-navy truncate">{client.name}</p>
               <p className="text-xs text-gray-500 mt-1">
                 USDOT {client.dot_number}
                 {client.mc_number ? ` | MC ${client.mc_number}` : ""}
@@ -150,21 +131,7 @@ export default async function ClientFileLayout({
               </div>
             </div>
 
-            <div className="shrink-0 space-y-3">
-              <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">Action</p>
-              <RunAnalysisButton
-                clientId={id}
-                dotNumber={client.dot_number}
-                hasData={(violationCount ?? 0) > 0}
-                hasFmcsaAccess={false}
-              />
-              <ChallengeabilityAnalysisButton
-                clientId={id}
-                totalCount={violationCount ?? 0}
-                unassessedCount={unassessedCount ?? 0}
-              />
-              <FmcsaExportUpload clientId={id} dotNumber={client.dot_number} />
-            </div>
+
           </div>
           {latestTierChange ? (
             <div
