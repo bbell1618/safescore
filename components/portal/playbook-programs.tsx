@@ -155,9 +155,12 @@ function ProgramCard({
               }}
             >
               <div className="border-t border-sand/70 p-5 sm:p-6">
-                <p className="max-w-3xl text-sm leading-6 text-warm-mid">
-                  {program.introduction}
-                </p>
+                {program.introduction.trim().replace(/\s+/g, " ") !==
+                program.riskContext.trim().replace(/\s+/g, " ") ? (
+                  <p className="max-w-3xl text-sm leading-6 text-warm-mid">
+                    {program.introduction}
+                  </p>
+                ) : null}
                 <p className="mt-3 font-mono text-[10px] text-warm-gray">
                   New-violation rate uses the latest {program.trailingWindowDays}
                   -day window.
