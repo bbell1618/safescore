@@ -18,7 +18,7 @@ import {
   Search,
 } from "lucide-react";
 
-interface ViolationRow {
+export interface ViolationRow {
   id: string;
   violation_code: string | null;
   violation_description: string | null;
@@ -52,20 +52,22 @@ interface Props {
   clientId: string;
   violations: ViolationRow[];
   dataqCases: DataqCaseRow[];
+  initialFilters?: { basic: string; severity: string; tier: string; from: string; to: string; q: string };
+  sourceTierCounts?: ReturnType<typeof countViolationTiers>;
 }
 
 type SeverityFilter = "all" | "8plus" | "5plus" | "under5" | "unscored";
 type SortField = "date" | "points" | "severity";
 type SortDirection = "asc" | "desc";
 
-export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
+export function ViolationAnalyzer({ clientId, violations, dataqCases, initialFilters, sourceTierCounts }: Props) {
   const router = useRouter();
-  const [tierFilter, setTierFilter] = useState<ViolationTierFilter>("all");
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
-  const [searchText, setSearchText] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [basicFilter, setBasicFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState<ViolationTierFilter>((initialFilters?.tier as ViolationTierFilter) ?? "all");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>((initialFilters?.severity as SeverityFilter) ?? "all");
+  const [searchText, setSearchText] = useState(initialFilters?.q ?? "");
+  const [dateFrom, setDateFrom] = useState(initialFilters?.from ?? "");
+  const [dateTo, setDateTo] = useState(initialFilters?.to ?? "");
+  const [basicFilter, setBasicFilter] = useState(initialFilters?.basic ?? "all");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
@@ -120,13 +122,13 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
   }, [violations, asOf]);
 
   const tierCounts = useMemo(
-    () => countViolationTiers(scoredViolations.map(({ challengeScore }) => challengeScore.label)),
-    [scoredViolations]
+    () => sourceTierCounts ?? countViolationTiers(scoredViolations.map(({ challengeScore }) => challengeScore.label)),
+    [scoredViolations, sourceTierCounts]
   );
 
   const basicOptions = useMemo(() => {
     return Array.from(
-      new Set(violations.map((violation) => violation.basic_category).filter(Boolean) as string[])
+      new Set([...Object.keys(BASIC_LABELS), ...violations.map((violation) => violation.basic_category).filter(Boolean) as string[]])
     ).sort();
   }, [violations]);
 
@@ -219,6 +221,12 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
     setSortDirection(field === "date" ? "desc" : "desc");
   }
 
+  function applyFilters() {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({ basic: basicFilter, severity: severityFilter, tier: tierFilter, from: dateFrom, to: dateTo, q: searchText })) if (value && value !== "all") query.set(key, value);
+    router.push(`/console/clients/${clientId}/violations?${query}`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4 space-y-4">
@@ -235,7 +243,7 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
               type="button"
               key={value}
               onClick={() => setTierFilter(value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 tierFilter === value
                   ? "bg-[#1B2D4F] text-white"
                   : "bg-[#FEFCF8] text-gray-600 hover:bg-gray-200"
@@ -305,14 +313,15 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
           </label>
         </div>
 
+        <div className="flex flex-wrap gap-3"><button type="button" onClick={applyFilters} className="btn-primary min-h-11">Apply filters</button><button type="button" onClick={() => router.push(`/console/clients/${clientId}/violations`)} className="btn-secondary min-h-11">Reset filters</button></div>
         <p className="text-xs text-gray-500">
-          Tiers are computed live. Investigate means evidence is needed, not that the violation is removable.
+          Source filters apply on the server. Tiers are computed live. Investigate means evidence is needed, not that the violation is removable.
         </p>
       </div>
 
-      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-x-auto">
+      <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] max-h-[75vh] overflow-auto">
         <table className="w-full min-w-[1040px] table-fixed text-sm">
-          <thead className="border-b border-[#F0E8DA] bg-[#FEFCF8]">
+          <thead className="sticky top-0 z-10 border-b border-[#F0E8DA] bg-[#FEFCF8]">
             <tr>
               <th className="w-9 px-3 py-3"></th>
               <th className="w-[112px] text-left px-3 py-3 text-xs font-medium text-gray-500">Code</th>
@@ -364,45 +373,45 @@ export function ViolationAnalyzer({ clientId, violations, dataqCases }: Props) {
                       onClick={() => toggleExpanded(violation.id)}
                       onKeyDown={(event) => handleRowKeyDown(event, violation.id)}
                     >
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-2 align-middle">
                         <ChevronDown
                           className={`w-4 h-4 text-gray-400 transition-transform ${
                             isExpanded ? "rotate-180 text-[#C67A1E]" : ""
                           }`}
                         />
                       </td>
-                      <td className="px-3 py-3 align-middle font-mono text-xs font-medium text-[#1E1C1A] whitespace-nowrap">
+                      <td className="px-3 py-2 align-middle font-mono text-xs font-medium text-[#1E1C1A] whitespace-nowrap">
                         {violation.violation_code ?? "--"}
                         {violation.oos_violation && (
                           <span className="ml-1 text-[10px] font-sans text-[#C67A1E] font-medium">OOS</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 align-middle text-[#1E1C1A]">
-                        <p className="line-clamp-2 break-words leading-snug">{violation.violation_description}</p>
+                      <td className="px-3 py-2 align-middle text-[#1E1C1A]">
+                        <p className="line-clamp-1 break-words leading-snug">{violation.violation_description}</p>
                       </td>
-                      <td className="px-3 py-3 align-middle text-xs text-gray-500">
+                      <td className="px-3 py-2 align-middle text-xs text-gray-500">
                         {basicLabel(violation.basic_category)}
                       </td>
-                      <td className="px-3 py-3 align-middle text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-2 align-middle font-mono text-xs text-gray-500 whitespace-nowrap">
                         {violation.inspections?.inspection_date ? formatDate(violation.inspections.inspection_date) : "--"}
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-2 align-middle">
                         <span className={severityClass(violation.severity_weight)}>
                           {violation.severity_weight ?? "--"}
                         </span>
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-2 align-middle">
                         <div className="min-w-0 space-y-1">
                           <div className="flex min-w-0 items-center gap-1.5">
                             {canCreateCase && <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />}
-                            <span className={`text-[10px] font-medium border rounded px-1.5 py-0.5 whitespace-nowrap ${challengeLabelClass(challengeScore.label)}`}>
+                            <span className={`text-[10px] font-mono font-medium border rounded px-1.5 py-0.5 whitespace-nowrap ${challengeLabelClass(challengeScore.label)}`}>
                               {tierLabel(challengeScore.label)} {"\u00B7"} {points} pts
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 truncate">{challengeScore.summary}</p>
                         </div>
                       </td>
-                      <td className="px-3 py-3 align-middle">
+                      <td className="px-3 py-2 align-middle">
                         <div className="flex items-center justify-end gap-3 whitespace-nowrap">
                           {existingCase ? (
                             <a
