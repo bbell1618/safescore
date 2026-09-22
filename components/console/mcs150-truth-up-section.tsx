@@ -154,7 +154,7 @@ function displayValue(
       : "Not available";
   }
   if (typeof value === "number") {
-    return value.toLocaleString("en-US");
+    return field === "mileage_year" ? String(value) : value.toLocaleString("en-US");
   }
   return String(value);
 }

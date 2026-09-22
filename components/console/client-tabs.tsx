@@ -36,12 +36,12 @@ export function ClientTabs({ clientId, tier }: { clientId: string; tier: ClientT
   const base = `/console/clients/${clientId}`;
 
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-[#F0E8DA]" aria-label="Client file tabs">
+    <nav className="grid grid-cols-3 gap-1 sm:flex sm:overflow-x-auto border-b border-[#F0E8DA]" aria-label="Client file tabs">
       {TABS.map((tab) => (
         <Link
           key={tab.key}
           href={`${base}${tab.href}`}
-          className={`px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
+          className={`flex min-h-11 items-center justify-center px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
             active === tab.key
               ? "border-[#C67A1E] text-[#1E1C1A]"
               : "border-transparent text-gray-500 hover:text-[#C67A1E]"

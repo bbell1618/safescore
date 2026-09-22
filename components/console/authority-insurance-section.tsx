@@ -442,7 +442,7 @@ function SaferCard({
   const inspections = asObject(data.inspections);
 
   const mileage = formatNumber(data.mcs150Mileage);
-  const mileageYear = formatNumber(data.mcs150MileageYear);
+  const mileageYear = data.mcs150MileageYear == null ? null : String(data.mcs150MileageYear);
   const filingClock = mcs150Clock(
     data.dotNumber,
     data.mcs150Date,

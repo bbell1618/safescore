@@ -157,9 +157,9 @@ export default async function ClientOverviewPage({
       <header className="portal-navy-texture overflow-hidden rounded-2xl p-6 text-warm-white sm:p-8">
         <p className="font-mono text-xs uppercase tracking-widest text-gold-light">Carrier profile · USDOT {client.dot_number}{client.mc_number ? ` · MC ${client.mc_number}` : ""}</p>
         <h1 className="mt-3 font-heading text-3xl sm:text-5xl">{client.name}</h1>
-        <div className="mt-4 flex flex-wrap gap-2"><Badge variant={tierBadgeVariant(tier)}>{tierDisplayLabel(client.tier)}</Badge><Badge variant="info">Stored authority: {authority ?? "Not recorded"}</Badge><Badge variant="info">{filings == null ? "Insurance filings not recorded" : `${filings} insurance filings on record`}</Badge></div>
+        <div className="mt-4 flex flex-wrap gap-2"><Badge variant={tierBadgeVariant(tier)}>{tierDisplayLabel(client.tier)}</Badge><Badge variant="info">Stored authority: {authority ?? "Not recorded"}</Badge><Badge variant="info">{filings == null ? "Insurance filings not recorded" : `${filings} insurance filing${filings === 1 ? "" : "s"} on record`}</Badge></div>
         {motus && <p className="mt-2 text-xs text-warm-white/65">FMCSA source as of {formatDate(motus.source_as_of ?? motus.fetched_at)} · {motus.currentness}. Filing records do not establish current coverage.</p>}
-        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted violation burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline fitContainer label="Recorded violation burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
+        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted violation burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Live as of {formatDate(burden.asOf)}</p></div><BurdenSparkline fitContainer label="Recorded violation burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
         <p className="mt-6 max-w-3xl text-sm text-warm-white/75">FMCSA does not publish public percentile rankings for low-volume carriers; this is the corrected weighted burden in the 24-month window.</p>
         <div className="mt-6 flex flex-wrap items-start gap-3"><RunAnalysisButton clientId={id} dotNumber={client.dot_number} hasData={(violationCount ?? 0) > 0} hasFmcsaAccess={client.fmcsa_authorized === true} /><ChallengeabilityAnalysisButton clientId={id} totalCount={violationCount ?? 0} unassessedCount={unassessedResult.count ?? 0} /><FmcsaExportUpload clientId={id} dotNumber={client.dot_number} /></div>
       </header>
@@ -271,7 +271,7 @@ export default async function ClientOverviewPage({
 
       </details>
       <AuthorityInsuranceSection clientId={id} billingDriverCount={client.driver_count ?? null} rows={enrichmentRows} />
-      <section className="rounded-xl border border-sand bg-warm-white p-5"><h2 className="font-heading text-2xl text-navy">FMCSA access</h2><div className="mt-4 flex flex-wrap items-center gap-3"><FmcsaAccessBadge hasAccess={client.fmcsa_authorized === true} /><Badge variant={(pinResult.count ?? 0) > 0 ? "success" : "warning"}>{(pinResult.count ?? 0) > 0 ? "Portal PIN on file" : "Portal PIN needed"}</Badge><FmcsaPinRequestControl clientId={id} requestAlreadyOpen={!!pinRequestResult.data} /></div></section>
+      <section className="rounded-xl border border-sand bg-warm-white p-5"><h2 className="font-heading text-2xl text-navy">Carrier credentials</h2><div className="mt-4 flex flex-wrap items-center gap-3"><FmcsaAccessBadge hasAccess={client.fmcsa_authorized === true} /><Badge variant={(pinResult.count ?? 0) > 0 ? "success" : "warning"}>{(pinResult.count ?? 0) > 0 ? "Portal PIN on file" : "Portal PIN needed"}</Badge><FmcsaPinRequestControl clientId={id} requestAlreadyOpen={!!pinRequestResult.data} /></div></section>
       {tierHasFeature(tier, "truth_up_service") ? <Mcs150TruthUpSection clientId={id} /> : <TierUpgradeNote feature="truth_up_service" currentTier={tier} title="MCS-150 review" headingLevel="h2" />}
 
       <p className="text-xs text-gray-500 -mt-3">
@@ -310,7 +310,7 @@ export default async function ClientOverviewPage({
           title="Monitoring"
           value={
             latestSnapshot
-              ? `Baseline ${formatDate(latestSnapshot.snapshot_date)}`
+              ? `Last snapshot ${formatDate(latestSnapshot.snapshot_date)}`
               : "No snapshots yet"
           }
           body={
