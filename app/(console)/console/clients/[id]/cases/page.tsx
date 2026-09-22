@@ -183,7 +183,7 @@ export default async function CasesPage({
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <header className="portal-navy-texture rounded-2xl p-6 text-warm-white"><p className="font-mono text-xs uppercase tracking-widest text-gold-light">Challenge work</p><h1 className="mt-2 font-heading text-4xl">Cases</h1><p className="mt-3 text-sm text-warm-white/75">{unifiedRows.length} records · {openDataq + openCpdp} open reviews</p><div className="mt-5 flex flex-wrap gap-3"><Link className="btn-primary min-h-11" href={`/console/clients/${id}/violations`}>New DataQ</Link><Link className="btn-primary min-h-11" href={`/console/clients/${id}/cpdp`}>New CPDP</Link></div></header>
+      <header className="portal-navy-texture rounded-2xl p-6 text-warm-white"><p className="font-mono text-xs uppercase tracking-widest text-gold-light">Challenge work</p><h1 className="mt-2 font-heading text-4xl">Cases</h1><p className="mt-3 text-sm text-warm-white/75">{unifiedRows.length} records · {openDataq + openCpdp} open review{openDataq + openCpdp === 1 ? "" : "s"}</p><div className="mt-5 flex flex-wrap gap-3"><Link className="btn-primary min-h-11" href={`/console/clients/${id}/violations`}>New DataQ</Link><Link className="btn-primary min-h-11" href={`/console/clients/${id}/cpdp`}>New CPDP</Link></div></header>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
           <p className="text-xs text-gray-500">Open DataQs</p>
@@ -218,7 +218,7 @@ export default async function CasesPage({
         <ul className="divide-y divide-sand bg-warm-white">
           {unifiedRows.map(row => <li key={row.key} className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto]">
             <div><div className="flex flex-wrap items-center gap-2"><Badge variant={row.type === "CPDP" ? "info" : "warning"}>{row.type}</Badge><span className="font-mono text-xs text-warm-gray">{row.label}</span><Badge variant={row.variant} className={row.variant === "danger" ? "bg-error-light text-error" : row.variant === "success" ? "bg-success-light text-success" : "bg-info-light text-info"}>{row.status}</Badge></div><h3 className="mt-2 font-heading text-xl text-navy">{row.subject}</h3><p className="mt-1 text-sm text-warm-mid">{row.detail}</p></div>
-            <div className="text-sm text-warm-mid"><p className="font-mono text-xs">{row.filedDate ? `Filed ${formatDate(row.filedDate)}` : `Created ${formatDate(row.date)} · not filed`}</p><p className="mt-2">{row.expectation}</p><p className="mt-2 font-mono text-xs">{evidenceCounts[row.key] ?? 0} evidence files on record</p></div>
+            <div className="text-sm text-warm-mid"><p className="font-mono text-xs">{row.filedDate ? `Filed ${formatDate(row.filedDate)}` : `Created ${formatDate(row.date)}`}</p><p className="mt-2">{row.expectation}</p><p className="mt-2 font-mono text-xs">{evidenceCounts[row.key] ?? 0} evidence file{evidenceCounts[row.key] === 1 ? "" : "s"} on record</p></div>
             <Link className="inline-flex min-h-11 items-center self-center rounded-lg border border-sand px-4 text-sm font-semibold text-amber-dark hover:bg-amber-subtle" href={row.href}>Open case →</Link>
           </li>)}
           {unifiedRows.length === 0 && <li className="p-8"><h3 className="font-heading text-xl text-navy">No cases on file</h3><p className="mt-2 text-sm text-warm-mid">Start with a violation or crash record to open a review.</p></li>}
