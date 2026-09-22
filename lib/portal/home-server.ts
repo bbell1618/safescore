@@ -1,3 +1,4 @@
+import { loadPortalInspectionScope } from "./inspection-scope-server";
 import "server-only";
 
 import {
@@ -5,7 +6,6 @@ import {
   type ViolationRow,
 } from "@/lib/analysis/basic-measure";
 import {
-  getCanonicalInspectionScope,
   type CanonicalInspectionScope,
 } from "@/lib/fmcsa/canonical-inspection-scope";
 import {
@@ -252,15 +252,8 @@ export async function loadPortalHomePressureDetails(input: {
 
   const service = await createServiceClient();
   const canSeePlaybook = tierHasFeature(input.tier, "playbook_coach");
-  const [scope, playbook] = await Promise.all([
-    getCanonicalInspectionScope(input.clientId, service),
-    canSeePlaybook
-      ? loadLatestPortalPlaybook(input.clientId)
-      : Promise.resolve(null),
-  ]);
-  const presentPlaybookFamilies = new Set(
-    playbook?.family_programs.map((program) => program.familyKey) ?? []
-  );
+  const playbookPromise = canSeePlaybook ? loadLatestPortalPlaybook(input.clientId) : Promise.resolve(null);
+  const scope = await loadPortalInspectionScope(input.clientId);
 
   // One client-scoped violations+inspections query shape supplies every BASIC.
   // It is paged only when the canonical result exceeds PostgREST's row limit.
@@ -301,6 +294,8 @@ export async function loadPortalHomePressureDetails(input: {
     };
   });
 
+  const playbook = await playbookPromise;
+  const presentPlaybookFamilies = new Set(playbook?.family_programs.map(program => program.familyKey) ?? []);
   return buildPortalHomePressureDetails(violationRows, {
     asOf,
     presentPlaybookFamilies,
@@ -323,7 +318,7 @@ export async function loadPortalHomeHandling(input: {
     "monitoring_alerts"
   );
   const inspectionScopePromise: Promise<CanonicalInspectionScope> = canSeeCases
-    ? getCanonicalInspectionScope(input.clientId, service)
+    ? loadPortalInspectionScope(input.clientId)
     : Promise.resolve({ inspectionIds: [], source: "public" as const });
 
   const dataqPromise = canSeeCases

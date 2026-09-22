@@ -22,7 +22,6 @@ import {
   PortalSectionDivider,
 } from "@/components/portal/brand";
 import {
-  PortalAnimatedNumber,
   PortalMotionListItem,
   PortalMotionSection,
 } from "@/components/portal/motion";
@@ -453,7 +452,7 @@ export default async function PortalHomePage() {
               <>
                 <h1 className="max-w-full break-words font-heading text-[clamp(3rem,15vw,6rem)] font-semibold leading-none tracking-tight text-amber-light">
                   <span className="sr-only">Current weighted burden: </span>
-                  <PortalAnimatedNumber value={latest.total_points} />
+                  {latest.total_points.toLocaleString("en-US")}
                 </h1>
                 <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-warm-white/70">
                   weighted points

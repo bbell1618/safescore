@@ -81,6 +81,17 @@ export default async function ClientOverviewPage({
 
 
 
+  const asOf = new Date();
+  const clientPromise = Promise.resolve(supabase
+    .from("clients")
+    .select("id, name, dot_number, mc_number, tier, driver_count, fmcsa_authorized")
+    .eq("id", id)
+    .single());
+  const pressurePromise = clientPromise.then(result => {
+    if (result.error && result.error.code !== "PGRST116") throw new Error(`Unable to load profile pressure client: ${result.error.message}`);
+    if (!result.data) return [];
+    return loadPortalHomePressureDetails({ clientId: id, tier: normalizeClientTier(result.data.tier), snapshotCapturedAt: asOf.toISOString() });
+  });
   const today = new Intl.DateTimeFormat("sv-SE").format(new Date());
   const cutoff24mo = (parseInt(today.slice(0, 4)) - 2).toString() + today.slice(4);
   const scopePromise = getCanonicalInspectionScope(id, supabase);
@@ -91,23 +102,19 @@ export default async function ClientOverviewPage({
 
   const [
     { data: client, error: clientError },
-    { data: carrierProfile },
-    { data: crashRows },
-    { count: violationCount },
-    { count: dataqCount },
-    { count: cpdpCount },
+    { data: carrierProfile, error: profileError },
+    { data: crashRows, error: crashesError },
+    { count: violationCount, error: violationsError },
+    { count: dataqCount, error: dataqError },
+    { count: cpdpCount, error: cpdpError },
     reconciliation,
     monitoringSnapshots,
     enrichmentResult, pinResult, pinRequestResult, unassessedResult,
   ] = await Promise.all([
-    supabase
-    .from("clients")
-    .select("id, name, dot_number, mc_number, tier, driver_count, fmcsa_authorized")
-    .eq("id", id)
-    .single(),
+    clientPromise,
     supabase
       .from("carrier_profiles")
-      .select("*")
+      .select("power_units,drivers,mcs150_date,mcs150_mileage,mcs150_mileage_year,safety_rating,review_type,authority_status,entity_type")
       .eq("client_id", id)
       .order("fetched_at", { ascending: false })
       .limit(1)
@@ -120,7 +127,7 @@ export default async function ClientOverviewPage({
     scopePromise.then(({ inspectionIds }) => violationCountQuery.in("inspection_id", inspectionIds)),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("cpdp_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
-    getClientBasicReconciliation(id),
+    getClientBasicReconciliation(id, undefined, asOf),
     getRecentSnapshots(id, 12),
     supabase.from("carrier_profile_enrichments").select("id,client_id,source,source_url,source_as_of,fetched_at,currentness,data,parser_version,created_at,updated_at").eq("client_id", id).order("fetched_at", { ascending: false }),
     supabase.from("client_credentials").select("id", { count: "exact", head: true }).eq("client_id", id).not("fmcsa_pin_encrypted", "is", null),
@@ -132,6 +139,7 @@ export default async function ClientOverviewPage({
   if (!client) notFound();
 
   for (const [label, result] of [["enrichment", enrichmentResult], ["PIN status", pinResult], ["PIN request", pinRequestResult], ["unassessed violations", unassessedResult]] as const) if (result.error) throw new Error(`Unable to load profile ${label}: ${result.error.message}`);
+  for (const [label, error] of [["carrier snapshot", profileError], ["crashes", crashesError], ["violations", violationsError], ["DataQ count", dataqError], ["CPDP count", cpdpError]] as const) if (error) throw new Error(`Unable to load profile ${label}: ${error.message}`);
   const tier = normalizeClientTier(client.tier);
   const enrichmentRows = (enrichmentResult.data ?? []) as unknown as CarrierProfileEnrichmentRow[];
   const motus = enrichmentRows.find(row => row.source === "fmcsa_motus");
@@ -151,11 +159,11 @@ export default async function ClientOverviewPage({
         <h1 className="mt-3 font-heading text-3xl sm:text-5xl">{client.name}</h1>
         <div className="mt-4 flex flex-wrap gap-2"><Badge variant={tierBadgeVariant(tier)}>{tierDisplayLabel(client.tier)}</Badge><Badge variant="info">Stored authority: {authority ?? "Not recorded"}</Badge><Badge variant="info">{filings == null ? "Insurance filings not recorded" : `${filings} insurance filings on record`}</Badge></div>
         {motus && <p className="mt-2 text-xs text-warm-white/65">FMCSA source as of {formatDate(motus.source_as_of ?? motus.fetched_at)} · {motus.currentness}. Filing records do not establish current coverage.</p>}
-        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline label="Recorded burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
+        <div className="mt-7 grid gap-6 lg:grid-cols-2"><div><p className="text-sm text-warm-white/75">In-window weighted burden</p><p className="mt-1 font-heading text-6xl text-gold-light">{burden.totalPoints.toLocaleString()}</p><p className="mt-3 text-sm text-warm-white/75">{latestSnapshot && previousSnapshot ? latestSnapshot.total_points === previousSnapshot.total_points ? "Unchanged since the previous snapshot" : `${latestSnapshot.total_points - previousSnapshot.total_points > 0 ? "+" : ""}${latestSnapshot.total_points - previousSnapshot.total_points} points since the previous snapshot` : "Comparison begins with the next snapshot"}</p><p className="mt-2 font-mono text-xs text-warm-white/65">Calculated as of {formatDate(burden.asOf)}</p></div><BurdenSparkline fitContainer label="Recorded violation burden trend" snapshots={[...monitoringSnapshots].reverse().map(row => ({ id: row.id, capturedAt: row.captured_at, snapshotDate: row.snapshot_date, source: row.source, totalPoints: row.total_points }))} /></div>
         <p className="mt-6 max-w-3xl text-sm text-warm-white/75">FMCSA does not publish public percentile rankings for low-volume carriers; this is the corrected weighted burden in the 24-month window.</p>
         <div className="mt-6 flex flex-wrap items-start gap-3"><RunAnalysisButton clientId={id} dotNumber={client.dot_number} hasData={(violationCount ?? 0) > 0} hasFmcsaAccess={client.fmcsa_authorized === true} /><ChallengeabilityAnalysisButton clientId={id} totalCount={violationCount ?? 0} unassessedCount={unassessedResult.count ?? 0} /><FmcsaExportUpload clientId={id} dotNumber={client.dot_number} /></div>
       </header>
-      <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm"><h2 className="font-heading text-2xl text-navy">BASIC pressure</h2><p className="mt-2 text-sm text-warm-mid">{formatViolationWindowSummary(violationCount ?? 0, reconciliation.queryTrace.inWindowViolationCount)}</p><Suspense fallback={<p className="py-8 text-sm text-warm-mid">Loading pressure details…</p>}><ProfilePressure clientId={id} tier={tier} asOf={burden.asOf} basics={burden.perBasic.map(row => ({ basic_category: row.basicCategory, violation_count: row.violationCount, weighted_points: row.weightedPoints }))} totalPoints={burden.totalPoints} /></Suspense></section>
+      <section className="rounded-xl border border-sand bg-warm-white p-5 shadow-sm"><h2 className="font-heading text-2xl text-navy">BASIC pressure</h2><p className="mt-2 text-sm text-warm-mid">{formatViolationWindowSummary(violationCount ?? 0, reconciliation.queryTrace.inWindowViolationCount)}</p><Suspense fallback={<p className="py-8 text-sm text-warm-mid">Loading pressure details…</p>}><ProfilePressure clientId={id} promise={pressurePromise} basics={burden.perBasic.map(row => ({ basic_category: row.basicCategory, violation_count: row.violationCount, weighted_points: row.weightedPoints }))} totalPoints={burden.totalPoints} /></Suspense></section>
       <section className="bg-[#FDF4E7] border border-amber-200 rounded-xl p-4">
         <p className="text-xs font-semibold text-[#C67A1E] uppercase tracking-wide mb-2">
           Safety summary
@@ -370,7 +378,8 @@ function SummaryLink({
   );
 }
 
-async function ProfilePressure({ clientId, tier, asOf, basics, totalPoints }: { clientId: string; tier: ReturnType<typeof normalizeClientTier>; asOf: string; basics: import("@/lib/portal/home").PortalHomeBasic[]; totalPoints: number }) {
-  const details = await loadPortalHomePressureDetails({ clientId, tier, snapshotCapturedAt: asOf });
+async function ProfilePressure({ clientId, promise, basics, totalPoints }: { clientId: string; promise: ReturnType<typeof loadPortalHomePressureDetails>; basics: import("@/lib/portal/home").PortalHomeBasic[]; totalPoints: number }) {
+  const details = await promise;
   return <BasicPressureList basics={basics} details={details} totalPoints={totalPoints} planHref={`/console/clients/${clientId}/plan`} />;
 }
+

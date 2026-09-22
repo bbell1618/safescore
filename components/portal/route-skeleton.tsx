@@ -57,7 +57,7 @@ function HeadingHeroSkeleton({ wide = false }: { wide?: boolean }) {
   return (
     <div className={cn("space-y-3", wide ? "max-w-3xl" : "max-w-2xl")}>
       <Bone dark className="h-3 w-28" />
-      <Bone dark className={cn("h-11", wide ? "w-80" : "w-56")} />
+      <Bone dark className={cn("h-11 max-w-full", wide ? "w-80" : "w-56")} />
       <Bone dark className="h-4 w-full" />
       <Bone dark className="h-4 w-4/5" />
     </div>
@@ -147,7 +147,7 @@ function HomeSkeleton() {
       }
     >
       <Surface className="space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Bone className="h-6 w-52" />
           <Bone className="h-4 w-32" />
         </div>
@@ -155,7 +155,7 @@ function HomeSkeleton() {
           {[72, 60, 48, 42, 34, 28, 20].map((width, index) => (
             <div
               key={`${width}-${index}`}
-              className="grid grid-cols-[7rem_1fr_4rem] items-center gap-4"
+              className="grid gap-2 sm:grid-cols-[7rem_1fr_4rem] sm:items-center sm:gap-4"
             >
               <Bone className="h-4 w-full" />
               <div className="h-2.5 overflow-hidden rounded-full bg-cream">
