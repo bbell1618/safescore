@@ -3,8 +3,6 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ClientTabs } from "@/components/console/client-tabs";
-import { ClientActivationControl } from "@/components/console/client-activation-control";
-import { isStaffManualActivationCandidate } from "@/lib/activation/staff-manual-activation";
 import {
   normalizeClientTier,
   isClientTier,
@@ -87,12 +85,6 @@ export default async function ClientFileLayout({
     | null
     | undefined;
   const originalAssignedTier = tierChangeMetadata?.assigned_tier;
-  const showActivationControl = isStaffManualActivationCandidate({
-    tier: client.tier,
-    status: client.status,
-    serviceAgreementAccepted:
-      client.service_agreement_accepted === true,
-  });
 
   return (
     <div className="min-h-screen">
@@ -149,18 +141,6 @@ export default async function ClientFileLayout({
           <ClientTabs clientId={id} tier={clientTier} />
         </div>
       </div>
-      {showActivationControl ? (
-        <div className="mx-auto max-w-7xl px-6 pt-5">
-          <ClientActivationControl
-            clientId={id}
-            status={client.status}
-            tier={client.tier}
-            serviceAgreementAccepted={
-              client.service_agreement_accepted === true
-            }
-          />
-        </div>
-      ) : null}
       {children}
     </div>
   );

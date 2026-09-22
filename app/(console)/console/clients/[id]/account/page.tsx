@@ -1,3 +1,6 @@
+import { ClientActivationControl } from "@/components/console/client-activation-control";
+import { isStaffManualActivationCandidate } from "@/lib/activation/staff-manual-activation";
+import { MonitoringWatchCard } from "@/components/console/monitoring-watch-card";
 import { Suspense } from "react";
 import ReportsSection from "@/components/console/sections/reports-section";
 import { notFound } from "next/navigation";
@@ -67,9 +70,9 @@ export default async function AccountPage({
   const supabase = await createClient();
 
   const [
-    { data: client },
-    { data: subscriptions },
-    { data: credentials },
+    { data: client, error: clientError },
+    { data: subscriptions, error: subscriptionsError },
+    { data: credentials, error: credentialsError },
     { count: credentialPinCount, error: credentialPinError },
     { data: openPinRequest, error: openPinRequestError },
     { data: enrichmentRows, error: enrichmentError },
@@ -110,6 +113,7 @@ export default async function AccountPage({
       .order("source", { ascending: true }),
   ]);
 
+  for (const error of [clientError, subscriptionsError, credentialsError]) if (error && error.code !== "PGRST116") throw new Error(`Unable to load account: ${error.message}`);
   if (!client) notFound();
   if (enrichmentError) {
     throw new Error(
@@ -135,28 +139,17 @@ export default async function AccountPage({
     (enrichmentRows ?? []) as unknown as CarrierProfileEnrichmentRow[];
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-5">
-      <div className="grid gap-5 md:grid-cols-2">
-        <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h1 className="text-xl font-bold text-[#1E1C1A]">Account</h1>
-          <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-            <Field label="Carrier" value={account.name} />
-            <Field label="Status" value={textValue(account.status)} />
-            <Field label="USDOT" value={account.dot_number} />
-            <Field label="MC" value={account.mc_number ?? "Not recorded"} />
-            <Field label="Primary contact" value={account.primary_contact ?? "Not recorded"} />
-            <Field label="Email" value={account.email ?? "Not recorded"} />
-            <Field label="Phone" value={account.phone ?? "Not recorded"} />
-            <Field label="Plan" value={tierDisplayLabel(account.tier)} />
-          </div>
-        </section>
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6"><header className="portal-navy-texture rounded-2xl p-6 text-warm-white"><p className="font-mono text-xs uppercase tracking-widest text-gold-light">Service administration</p><h1 className="mt-2 font-heading text-4xl">Account</h1><p className="mt-3 text-sm text-warm-white/75">{account.name} · USDOT {account.dot_number}</p></header>
+      <div>
 
-        <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-          <h2 className="font-semibold text-[#1E1C1A] text-sm">Subscription</h2>
+
+        <section className="bg-warm-white rounded-xl border border-sand p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-2xl text-navy">Service</h2><Badge variant="gold">{tierDisplayLabel(account.tier)}</Badge></div>
+          {isStaffManualActivationCandidate({ tier: client.tier, status: client.status, serviceAgreementAccepted: client.service_agreement_accepted === true }) && <div className="mt-4"><ClientActivationControl clientId={id} status={client.status} tier={client.tier} serviceAgreementAccepted={client.service_agreement_accepted === true} /></div>}
           {subscription ? (
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
               <Field label="Tier" value={tierDisplayLabel(subscription.tier)} />
-              <Field label="Status" value={subscription.status} />
+              <div><p className="text-xs text-warm-gray">Stripe subscription status on record</p><Badge variant={subscription.status === "active" ? "success" : "warning"}>{subscription.status}</Badge></div>
               <Field label="MRR" value={subscription.mrr == null ? "Not recorded" : `$${subscription.mrr}`} />
               <Field label="Billing cycle" value={subscription.billing_cycle ?? "Not recorded"} />
               <Field label="Current period end" value={formatDate(subscription.current_period_end)} />
@@ -169,6 +162,20 @@ export default async function AccountPage({
       </div>
 
       <PortalAccessCard clientId={id} defaultEmail={account.email} />
+        <section className="bg-warm-white rounded-xl border border-sand p-5 shadow-sm">
+          <h2 className="font-heading text-2xl text-navy">Contacts and company</h2>
+          <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+            <Field label="Carrier" value={account.name} />
+            <Field label="Status" value={textValue(account.status)} />
+            <Field label="USDOT" value={account.dot_number} />
+            <Field label="MC" value={account.mc_number ?? "Not recorded"} />
+            <Field label="Primary contact" value={account.primary_contact ?? "Not recorded"} />
+            <Field label="Email" value={account.email ?? "Not recorded"} />
+            <Field label="Phone" value={account.phone ?? "Not recorded"} />
+            <Field label="Plan" value={tierDisplayLabel(account.tier)} />
+          </div>
+        </section>
+      <Suspense fallback={<p role="status">Loading monitoring settings…</p>}><MonitoringWatchCard clientId={id} /></Suspense>
 
       <AuthorityInsuranceSection
         clientId={id}
@@ -180,8 +187,8 @@ export default async function AccountPage({
         rows={authorityInsuranceRows}
       />
 
-      <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-5">
-        <h2 className="font-semibold text-[#1E1C1A] text-sm">Authorizations</h2>
+      <section className="bg-warm-white rounded-xl border border-sand p-5 shadow-sm">
+        <h2 className="font-heading text-xl text-navy">Authorizations</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="border border-[#F0E8DA] bg-white/60 rounded-lg p-4">
             <p className="text-xs text-gray-500">Service agreement</p>
