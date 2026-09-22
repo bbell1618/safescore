@@ -12,6 +12,7 @@ export default async function PortalLayout({
 }) {
   const context = await loadPortalContext();
   if (context.status === "unauthenticated") redirect("/login");
+  if (context.status === "unlinked") redirect("/access-mismatch");
   if (context.status === "forbidden") {
     return <SessionCollision target="portal" />;
   }

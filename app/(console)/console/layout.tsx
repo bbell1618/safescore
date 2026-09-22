@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ConsoleSidebar } from "@/components/console/sidebar";
 import { SessionCollision } from "@/components/auth/session-collision";
@@ -19,24 +19,25 @@ export default async function ConsoleLayout({
     .from("users")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (roleError || !userRecord) {
+  if (roleError) {
     throw new Error(
       `Unable to verify console access: ${roleError?.message ?? "profile not found"}`
     );
   }
+  if (!userRecord) redirect("/access-mismatch");
   if (userRecord.role === "client_user") {
     return <SessionCollision target="console" />;
   }
   if (userRecord.role !== "geia_admin" && userRecord.role !== "geia_staff") {
-    redirect("/login");
+    redirect("/access-mismatch");
   }
 
   return (
-    <div className="flex h-screen bg-[#FEFCF8] overflow-hidden">
+    <div className="portal-brand-root portal-warm-texture flex h-screen overflow-hidden">
       <ConsoleSidebar userEmail={user.email} />
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         {children}
       </main>
     </div>

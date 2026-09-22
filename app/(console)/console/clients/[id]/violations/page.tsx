@@ -22,31 +22,29 @@ export default async function ViolationsPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", id)
-    .single();
 
-  if (!client) notFound();
 
-  const { inspectionIds: canonicalInspectionIds } =
-    await getCanonicalInspectionScope(id, supabase);
+  const scopedViolationsQuery = getCanonicalInspectionScope(id, supabase).then(({ inspectionIds }) => {
   const violationsQuery = supabase
     .from("violations")
     .select("*, inspections(inspection_date, state, level, facility_name, report_number)")
     .eq("client_id", id)
     .order("created_at", { ascending: false });
-  const scopedViolationsQuery = canonicalInspectionIds.length > 0
-    ? violationsQuery.in("inspection_id", canonicalInspectionIds)
-    : violationsQuery.in("inspection_id", []);
+    return violationsQuery.in("inspection_id", inspectionIds);
+  });
 
   const [
+    { data: client, error: clientError },
     { data: violations },
     { data: cpdpCases },
     { data: dataqCases },
     burden,
   ] = await Promise.all([
+    supabase
+    .from("clients")
+    .select("*")
+    .eq("id", id)
+    .single(),
     scopedViolationsQuery,
     supabase
       .from("cpdp_cases")
@@ -60,6 +58,9 @@ export default async function ViolationsPage({
       .order("created_at", { ascending: false }),
     getClientBurden(id),
   ]);
+
+  if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load violations client: ${clientError.message}`);
+  if (!client) notFound();
 
   const openCases = [
     ...((cpdpCases ?? []) as Array<{ id: string; case_number: string | null; status: string | null }>)

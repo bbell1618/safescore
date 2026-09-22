@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import ReportsSection from "@/components/console/sections/reports-section";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -249,6 +251,7 @@ export default async function AccountPage({
           Secret PIN values are intentionally never displayed in the console.
         </p>
       </section>
+      <section id="reports" className="scroll-mt-6"><Suspense fallback={<p role="status">Loading reports…</p>}><ReportsSection params={params} /></Suspense></section>
     </div>
   );
 }

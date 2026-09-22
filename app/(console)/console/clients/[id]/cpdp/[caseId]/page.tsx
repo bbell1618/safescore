@@ -26,17 +26,13 @@ export default async function CpdpCaseDetailPage({
   const { id, caseId } = await params;
   const supabase = getAdmin();
 
-  // Fetch client
-  const { data: client } = await supabase
+  const [{ data: client, error: clientError }, { data: cpdpCase, error: caseError }, { data: evidenceRows, error: evidenceError }] = await Promise.all([
+    supabase
     .from("clients")
     .select("id, name, dot_number, filing_authorized, filing_authorized_by, filing_authorization_scope")
     .eq("id", id)
-    .single();
-
-  if (!client) notFound();
-
-  // Fetch CPDP case with crash data
-  const { data: cpdpCase } = await supabase
+    .single(),
+    supabase
     .from("cpdp_cases")
     .select(
       `id, status, ai_narrative, final_narrative, filing_notes, case_number,
@@ -61,23 +57,22 @@ export default async function CpdpCaseDetailPage({
     )
     .eq("id", caseId)
     .eq("client_id", id)
-    .single();
-
-  if (!cpdpCase) notFound();
-
-  const crashRaw = cpdpCase.crashes as unknown;
-  const crash = (Array.isArray(crashRaw) ? crashRaw[0] : crashRaw) as CrashRow | null;
-
-  if (!crash) notFound();
-
-  // Fetch evidence
-  const { data: evidenceRows } = await supabase
+    .single(),
+    supabase
     .from("cpdp_evidence")
     .select(
       "id, doc_type, label, context_note, fmcsa_category, required, status, storage_path, uploaded_by"
     )
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true }),
+  ]);
+  for (const error of [clientError, caseError, evidenceError]) {
+    if (error && error.code !== "PGRST116") throw new Error(`Unable to load CPDP case: ${error.message}`);
+  }
+  if (!client || !cpdpCase) notFound();
+  const crashRaw = cpdpCase.crashes as unknown;
+  const crash = (Array.isArray(crashRaw) ? crashRaw[0] : crashRaw) as CrashRow | null;
+  if (!crash) notFound();
 
   const evidence: EvidenceItem[] = (evidenceRows ?? []).map((e) => ({
     id: e.id as string,
@@ -125,7 +120,7 @@ export default async function CpdpCaseDetailPage({
     <div className="p-6 max-w-3xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400 flex-wrap">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
+        <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">
           {client.name}

@@ -44,18 +44,9 @@ export default async function ClientFileLayout({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select(
-      "id, name, tier, status, dot_number, mc_number, service_agreement_accepted"
-    )
-    .eq("id", id)
-    .single();
 
-  if (!client) notFound();
 
-  const { inspectionIds: canonicalInspectionIds } =
-    await getCanonicalInspectionScope(id, supabase);
+  const scopePromise = getCanonicalInspectionScope(id, supabase);
   const violationCountQuery = supabase
     .from("violations")
     .select("*", { count: "exact", head: true })
@@ -67,11 +58,19 @@ export default async function ClientFileLayout({
     .is("ai_assessed_at", null);
 
   const [
+    { data: client, error: clientError },
     { data: carrierProfile },
     { count: violationCount },
     { count: unassessedCount },
     { data: latestTierChange, error: tierChangeError },
   ] = await Promise.all([
+    supabase
+    .from("clients")
+    .select(
+      "id, name, tier, status, dot_number, mc_number, service_agreement_accepted"
+    )
+    .eq("id", id)
+    .single(),
     supabase
       .from("carrier_profiles")
       .select("authority_status, entity_type")
@@ -79,12 +78,8 @@ export default async function ClientFileLayout({
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    canonicalInspectionIds.length > 0
-      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
-      : violationCountQuery.in("inspection_id", []),
-    canonicalInspectionIds.length > 0
-      ? unassessedCountQuery.in("inspection_id", canonicalInspectionIds)
-      : unassessedCountQuery.in("inspection_id", []),
+    scopePromise.then(({ inspectionIds }) => violationCountQuery.in("inspection_id", inspectionIds)),
+    scopePromise.then(({ inspectionIds }) => unassessedCountQuery.in("inspection_id", inspectionIds)),
     supabase
       .from("activity_log")
       .select("id, description, metadata, created_at")
@@ -94,6 +89,9 @@ export default async function ClientFileLayout({
       .limit(1)
       .maybeSingle(),
   ]);
+
+  if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load client file: ${clientError.message}`);
+  if (!client) notFound();
   if (tierChangeError) {
     throw new Error(
       `Unable to load client tier-change follow-up: ${tierChangeError.message}`

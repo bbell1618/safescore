@@ -18,6 +18,12 @@ export default async function AccessMismatchPage({
   }
   if (!user) redirect("/login");
 
-  const { target } = await searchParams;
-  return <SessionCollision target={target === "portal" ? "portal" : "console"} />;
+  const [{ target }, { data: profile, error: profileError }] = await Promise.all([
+    searchParams,
+    supabase.from("users").select("role, client_id").eq("id", user.id).maybeSingle(),
+  ]);
+  if (profileError) throw new Error(`Unable to verify account access: ${profileError.message}`);
+  const assigned = profile?.role === "geia_admin" || profile?.role === "geia_staff" ||
+    (profile?.role === "client_user" && profile.client_id);
+  return <SessionCollision target={!assigned ? "unlinked" : target === "portal" ? "portal" : "console"} />;
 }

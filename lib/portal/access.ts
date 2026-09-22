@@ -54,7 +54,7 @@ export const loadPortalContext = cache(async (): Promise<PortalContext> => {
       "role, client_id, clients(name, dot_number, mc_number, tier, fmcsa_authorized, status, service_agreement_accepted)"
     )
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
   if (userError) {
     throw new Error(`Unable to verify portal account: ${userError.message}`);
   }
@@ -93,8 +93,8 @@ export const loadPortalContext = cache(async (): Promise<PortalContext> => {
 export async function getPortalClientPageContext() {
   const context = await loadPortalContext();
   if (context.status === "unauthenticated") redirect("/login");
-  if (context.status === "forbidden") redirect("/console");
-  if (context.status === "unlinked") redirect("/portal");
+  if (context.status === "forbidden") redirect("/access-mismatch");
+  if (context.status === "unlinked") redirect("/access-mismatch");
   return context;
 }
 

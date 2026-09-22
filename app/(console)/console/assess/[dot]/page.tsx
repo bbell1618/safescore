@@ -52,16 +52,23 @@ export default async function AssessPage({
 }) {
   const { dot } = await params;
 
+  let existingClient: { id: string; name: string } | null = null;
   let carrier = null;
   let basics = null;
   let oos = null;
   let error: string | null = null;
 
   try {
-    [carrier, basics, oos] = await Promise.all([
-      getCarrier(dot),
+    const carrierPromise = getCarrier(dot);
+    [carrier, basics, oos, existingClient] = await Promise.all([
+      carrierPromise,
       getBasics(dot),
       getOosRates(dot),
+      Promise.all([carrierPromise, createClient()]).then(async ([carrier, supabase]) => {
+        const { data, error } = await supabase.from("clients").select("id, name").eq("dot_number", carrier.dotNumber).maybeSingle();
+        if (error) throw new Error(`Unable to check existing SafeScore clients: ${error.message}`);
+        return data;
+      }),
     ]);
   } catch (err) {
     error = err instanceof Error ? err.message : "Failed to fetch carrier data";
@@ -93,19 +100,12 @@ export default async function AssessPage({
   ];
 
   const alerts = basicsArray.filter((b) => b.data?.alert).length;
-  const supabase = await createClient();
-  const { data: existingClient, error: existingClientError } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("dot_number", carrier.dotNumber)
-    .maybeSingle();
-  if (existingClientError) throw new Error(`Unable to check existing SafeScore clients: ${existingClientError.message}`);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-          <a href="/console" className="hover:text-[#C67A1E]">Clients</a>
+          <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
           <span>{"\u203A"}</span>
           <span>Assessment {"\u2014"} DOT {dot}</span>
         </div>

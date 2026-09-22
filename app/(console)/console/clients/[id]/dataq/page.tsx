@@ -16,16 +16,16 @@ export default async function DataqPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+
+
+
+  const [{ data: client, error: clientError }, { data: cases, error: casesError }] = await Promise.all([
+    supabase
     .from("clients")
     .select("*")
     .eq("id", id)
-    .single();
-
-  if (!client) notFound();
-  const clientTier = normalizeClientTier(client.tier);
-
-  const { data: cases } = await supabase
+    .single(),
+    supabase
     .from("dataq_cases")
     .select(
       `*,
@@ -55,7 +55,13 @@ export default async function DataqPage({
       )`
     )
     .eq("client_id", id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }),
+  ]);
+  for (const error of [clientError, casesError]) {
+    if (error && error.code !== "PGRST116") throw new Error(`Unable to load client file: ${error.message}`);
+  }
+  if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   // Fetch evidence for all cases server-side
   const caseIds = (cases ?? []).map((c) => c.id);
@@ -111,7 +117,7 @@ export default async function DataqPage({
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
+        <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />

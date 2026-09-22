@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LogOut, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-type SessionTarget = "console" | "portal";
+type SessionTarget = "console" | "portal" | "unlinked";
 
 export function SessionCollision({ target }: { target: SessionTarget }) {
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +34,10 @@ export function SessionCollision({ target }: { target: SessionTarget }) {
       <div className="mx-auto max-w-lg rounded-2xl border border-[#F0E8DA] bg-[#FBF7F0] p-8 shadow-sm">
         <ShieldAlert className="mb-5 h-10 w-10 text-[#C67A1E]" />
         <h1 className="text-2xl font-bold text-[#1E1C1A]">
-          This account uses a different SafeScore area
+          {target === "unlinked" ? "Account not linked" : "This account uses a different SafeScore area"}
         </h1>
         <p className="mt-3 text-sm leading-6 text-[#5C554E]">
-          {isConsoleTarget
+          {target === "unlinked" ? "This account isn't linked to a SafeScore client or the GEIA team yet. Sign out, or contact info@goldenerainsurance.com." : isConsoleTarget
             ? "Signed in as a portal user — sign out to access the console."
             : "Signed in as a staff user — sign out to access the client portal."}
         </p>
@@ -61,12 +61,12 @@ export function SessionCollision({ target }: { target: SessionTarget }) {
             <LogOut className="h-4 w-4" />
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
-          <Link
+          {target !== "unlinked" && <Link
             href={isConsoleTarget ? "/portal" : "/console"}
             className="inline-flex items-center justify-center rounded-lg border border-[#F0E8DA] px-4 py-2.5 text-sm font-medium text-[#5C554E] hover:bg-white"
           >
             Return to {isConsoleTarget ? "portal" : "console"}
-          </Link>
+          </Link>}
         </div>
       </div>
     </main>

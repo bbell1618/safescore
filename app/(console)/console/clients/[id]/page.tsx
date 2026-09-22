@@ -64,24 +64,18 @@ export default async function ClientOverviewPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("id", id)
-    .single();
 
-  if (!client) notFound();
 
   const today = new Intl.DateTimeFormat("sv-SE").format(new Date());
   const cutoff24mo = (parseInt(today.slice(0, 4)) - 2).toString() + today.slice(4);
-  const { inspectionIds: canonicalInspectionIds } =
-    await getCanonicalInspectionScope(id, supabase);
+  const scopePromise = getCanonicalInspectionScope(id, supabase);
   const violationCountQuery = supabase
     .from("violations")
     .select("*", { count: "exact", head: true })
     .eq("client_id", id);
 
   const [
+    { data: client, error: clientError },
     { data: carrierProfile },
     { data: crashRows },
     { count: violationCount },
@@ -90,6 +84,11 @@ export default async function ClientOverviewPage({
     reconciliation,
     monitoringSnapshots,
   ] = await Promise.all([
+    supabase
+    .from("clients")
+    .select("id, name")
+    .eq("id", id)
+    .single(),
     supabase
       .from("carrier_profiles")
       .select("*")
@@ -102,14 +101,15 @@ export default async function ClientOverviewPage({
       .select("tow_away, fatalities, injuries")
       .eq("client_id", id)
       .gte("crash_date", cutoff24mo),
-    canonicalInspectionIds.length > 0
-      ? violationCountQuery.in("inspection_id", canonicalInspectionIds)
-      : violationCountQuery.in("inspection_id", []),
+    scopePromise.then(({ inspectionIds }) => violationCountQuery.in("inspection_id", inspectionIds)),
     supabase.from("dataq_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     supabase.from("cpdp_cases").select("*", { count: "exact", head: true }).eq("client_id", id),
     getClientBasicReconciliation(id),
     getRecentSnapshots(id, 2),
   ]);
+
+  if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load client profile: ${clientError.message}`);
+  if (!client) notFound();
 
   const cp = carrierProfile as Record<string, unknown> | null;
   const crashes = (crashRows ?? []) as CrashRow[];

@@ -30,9 +30,10 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  const { data: userRecord } = user
+  const { data: userRecord, error: roleError } = user
     ? await supabase.from("users").select("role, client_id").eq("id", user.id).maybeSingle()
-    : { data: null };
+    : { data: null, error: null };
+  if (roleError) return new NextResponse(`Unable to verify account access: ${roleError.message}`, { status: 500 });
   const role = userRecord?.role as string | undefined;
   const isStaff = role === "geia_admin" || role === "geia_staff";
   const isClient = role === "client_user";
@@ -94,6 +95,17 @@ export async function proxy(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // A signed-in account without an assigned application role must have a terminal
+  // destination. Sending it to login would bounce straight back to console.
+  if (user && !isStaff && (!isClient || !userRecord?.client_id) &&
+      (path.startsWith("/login") || path.startsWith("/console") ||
+       path.startsWith("/portal") || path.startsWith("/onboarding"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/access-mismatch";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 

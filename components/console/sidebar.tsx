@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
+  LayoutList,
+  Search,
   Users,
   Activity,
   LogOut,
@@ -13,8 +15,10 @@ import {
 import { useState } from "react";
 
 const navItems = [
-  { href: "/console", label: "Clients", icon: Users, exact: true },
-  { href: "/console/activity", label: "Activity log", icon: Activity },
+  { href: "/console", label: "Today", icon: LayoutList, exact: true },
+  { href: "/console/clients", label: "Clients", icon: Users },
+  { href: "/console/assess", label: "Assess", icon: Search },
+  { href: "/console/activity", label: "Activity", icon: Activity },
 ];
 
 interface SidebarProps {
@@ -73,11 +77,12 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
+                "flex items-center gap-2.5 px-3 py-2 border-l-2 text-sm transition-colors",
                 active
-                  ? "bg-white/10 text-white font-medium"
-                  : "text-white/60 hover:text-white hover:bg-white/5"
+                  ? "border-gold text-white font-medium"
+                  : "border-transparent text-white/60 hover:text-white hover:bg-white/5"
               )}
             >
               <item.icon className="w-4 h-4 shrink-0" />

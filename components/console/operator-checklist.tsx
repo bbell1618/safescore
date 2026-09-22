@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { workItemHref } from "@/components/console/work-item-row";
 import { useState } from "react";
 import {
   AlertCircle,
@@ -135,6 +136,7 @@ function ChecklistCard({
 
   return (
     <article
+      id={`work-item-${item.id}`}
       className={`rounded-xl border p-4 shadow-sm ${
         item.state === "needs_you"
           ? "border-[#E5D3B8] bg-white"
@@ -209,7 +211,7 @@ function ChecklistCard({
           ) : null}
           {item.href.trim() ? (
             <Link
-              href={item.href}
+              href={workItemHref(item.href, clientId)}
               className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[#1B2D4F] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2A4270] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E]"
               aria-label={`Go to ${item.title}`}
             >

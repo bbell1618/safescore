@@ -12,31 +12,22 @@ const TABS: ReadonlyArray<{
   href: string;
   feature?: TierFeature;
 }> = [
-  { key: "checklist", label: "Checklist", href: "/checklist" },
-  { key: "overview", label: "Overview", href: "" },
+  { key: "work", label: "Work", href: "/work" },
+  { key: "profile", label: "Profile", href: "" },
   { key: "violations", label: "Violations", href: "/violations" },
-  { key: "remediation", label: "Remediation", href: "/remediation", feature: "playbook_coach" },
   { key: "cases", label: "Cases", href: "/cases", feature: "case_visibility" },
-  { key: "requests", label: "Requests", href: "/requests", feature: "evidence_requests" },
-  { key: "monitoring", label: "Monitoring", href: "/monitoring", feature: "monitoring_alerts" },
-  { key: "compliance", label: "Compliance", href: "/compliance", feature: "compliance_layer" },
-  { key: "reports", label: "Reports", href: "/reports", feature: "monthly_reports" },
+  { key: "plan", label: "Plan", href: "/plan", feature: "playbook_coach" },
   { key: "account", label: "Account", href: "/account" },
 ];
 
 function activeTab(pathname: string) {
-  if (pathname.includes("/checklist")) return "checklist";
-  if (pathname.includes("/cases") || pathname.includes("/dataq") || pathname.includes("/cpdp")) {
-    return "cases";
-  }
-  if (pathname.includes("/violations")) return "violations";
-  if (pathname.includes("/remediation")) return "remediation";
-  if (pathname.includes("/requests")) return "requests";
-  if (pathname.includes("/monitoring")) return "monitoring";
-  if (pathname.includes("/compliance")) return "compliance";
-  if (pathname.includes("/reports")) return "reports";
-  if (pathname.includes("/account")) return "account";
-  return "overview";
+  const section = pathname.split("/")[4] ?? "";
+  if (["work", "checklist", "requests", "monitoring"].includes(section)) return "work";
+  if (["cases", "dataq", "cpdp"].includes(section)) return "cases";
+  if (["plan", "remediation", "compliance"].includes(section)) return "plan";
+  if (["account", "reports"].includes(section)) return "account";
+  if (section === "violations") return "violations";
+  return "profile";
 }
 
 export function ClientTabs({ clientId, tier }: { clientId: string; tier: ClientTier }) {

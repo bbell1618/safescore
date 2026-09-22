@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -31,26 +31,32 @@ export default async function CpdpPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+
+
+
+
+  const [{ data: client, error: clientError }, { data: crashes, error: crashesError }, { data: cpdpCases, error: cpdpCasesError }] = await Promise.all([
+    supabase
     .from("clients")
     .select("*")
     .eq("id", id)
-    .single();
-
-  if (!client) notFound();
-  const clientTier = normalizeClientTier(client.tier);
-
-  const { data: crashes } = await supabase
+    .single(),
+    supabase
     .from("crashes")
     .select("*, cpdp_cases(*)")
     .eq("client_id", id)
-    .order("crash_date", { ascending: false });
-
-  const { data: cpdpCases } = await supabase
+    .order("crash_date", { ascending: false }),
+    supabase
     .from("cpdp_cases")
     .select("*")
     .eq("client_id", id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }),
+  ]);
+  for (const error of [clientError, crashesError, cpdpCasesError]) {
+    if (error && error.code !== "PGRST116") throw new Error(`Unable to load client file: ${error.message}`);
+  }
+  if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const displayCrashes = (crashes ?? []) as CrashSummary[];
 
@@ -79,7 +85,7 @@ export default async function CpdpPage({
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-xs text-gray-400">
-        <Link href="/console" className="hover:text-[#C67A1E]">Clients</Link>
+        <Link href="/console/clients" className="hover:text-[#C67A1E]">Clients</Link>
         <ChevronRight className="w-3 h-3" />
         <Link href={`/console/clients/${id}`} className="hover:text-[#C67A1E]">{client.name}</Link>
         <ChevronRight className="w-3 h-3" />

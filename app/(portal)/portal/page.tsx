@@ -1,3 +1,5 @@
+import { NeededFromYouSection } from "@/components/portal/needed-from-you";
+import { loadPortalRequests } from "@/lib/portal/requests-server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -5,7 +7,6 @@ import {
   ArrowRight,
   CalendarClock,
   CheckCircle2,
-  ClipboardList,
   FileClock,
   Minus,
   ShieldCheck,
@@ -33,14 +34,12 @@ import {
   snapshotDeltaLabel,
   type PortalHomeAuthority,
   type PortalHomeCase,
-  type PortalHomeRequest,
   type PortalHomeSnapshot,
 } from "@/lib/portal/home";
 import {
   loadPortalHomeAuthority,
   loadPortalHomeHandling,
   loadPortalHomePressureDetails,
-  loadPortalHomeRequests,
   loadPortalHomeSnapshots,
 } from "@/lib/portal/home-server";
 import { loadPortalContext } from "@/lib/portal/access";
@@ -346,66 +345,6 @@ async function HandlingSection({
   );
 }
 
-async function RequestsSection({
-  promise,
-}: {
-  promise: ReturnType<typeof loadPortalHomeRequests>;
-}) {
-  const requests = await promise;
-  if (requests.length === 0) return null;
-  return (
-    <PortalMotionSection
-      interactive
-      className="rounded-xl border border-amber/25 bg-amber-subtle p-6 shadow-sm"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warm-white text-amber-dark">
-          <ClipboardList className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <p className="mono-label text-amber-dark">Action requested</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-warm-dark">
-            Needed from you
-          </h2>
-          <ul className="mt-4 space-y-3">
-            {requests.map((request: PortalHomeRequest, index) => (
-              <PortalMotionListItem
-                interactive
-                className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-amber/20 bg-warm-white p-4 shadow-sm"
-                delay={Math.min(index * 0.06, 0.18)}
-                key={request.id}
-              >
-                <div className="max-w-2xl">
-                  <p className="font-heading font-semibold text-warm-dark">
-                    {request.title}
-                  </p>
-                  {request.description ? (
-                    <p className="mt-1 text-sm leading-6 text-warm-mid">
-                      {request.description}
-                    </p>
-                  ) : null}
-                  {request.dueAt ? (
-                    <p className="mt-2 font-mono text-[11px] text-warm-gray">
-                      Due {formatDate(request.dueAt)}
-                    </p>
-                  ) : null}
-                </div>
-                <Link
-                  className="btn-primary inline-flex items-center gap-2"
-                  href="/portal/documents#needed-from-you"
-                >
-                  Review request
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </PortalMotionListItem>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </PortalMotionSection>
-  );
-}
-
 async function CarrierIdentityFooter({
   promise,
   clientName,
@@ -477,10 +416,7 @@ export default async function PortalHomePage() {
         snapshotPromise,
       })
     : null;
-  const requestsPromise = loadPortalHomeRequests({
-    clientId: context.clientId,
-    tier: context.tier,
-  });
+  const requestsPromise = loadPortalRequests(context.supabase, context.clientId, tierHasFeature(context.tier, "compliance_layer"), tierHasFeature(context.tier, "evidence_requests"), true);
   const authorityPromise = loadPortalHomeAuthority(context.clientId);
 
   const snapshots = await snapshotPromise;
@@ -613,6 +549,7 @@ export default async function PortalHomePage() {
       </section>
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody contentClassName="space-y-12 pt-8 sm:pt-10">
+      <Suspense fallback={null}><NeededFromYouSection requestPromise={requestsPromise} requestFeatureLocked={false} hideWhenEmpty /></Suspense>
 
       <Suspense fallback={<SectionFallback label="BASIC pressure" />}>
         <BasicPressureSection
@@ -630,9 +567,7 @@ export default async function PortalHomePage() {
         </Suspense>
       ) : null}
 
-      <Suspense fallback={<SectionFallback label="requests" />}>
-        <RequestsSection promise={requestsPromise} />
-      </Suspense>
+
 
       {canSeeTrend ? (
         <PortalMotionSection className="rounded-xl border border-sand bg-warm-white p-6 shadow-sm sm:p-8">

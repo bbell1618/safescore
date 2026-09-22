@@ -95,16 +95,14 @@ export default async function CasesPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+
+
+  const [{ data: client, error: clientError }, { data: dataqCases }, { data: cpdpCases }, { data: crashes }] = await Promise.all([
+    supabase
     .from("clients")
     .select("id, tier")
     .eq("id", id)
-    .single();
-
-  if (!client) notFound();
-  const clientTier = normalizeClientTier(client.tier);
-
-  const [{ data: dataqCases }, { data: cpdpCases }, { data: crashes }] = await Promise.all([
+    .single(),
     supabase
       .from("dataq_cases")
       .select(
@@ -125,6 +123,10 @@ export default async function CasesPage({
       .eq("client_id", id)
       .order("crash_date", { ascending: false }),
   ]);
+
+  if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load cases client: ${clientError.message}`);
+  if (!client) notFound();
+  const clientTier = normalizeClientTier(client.tier);
 
   const dataqRows = (dataqCases ?? []) as unknown as DataqCaseRow[];
   const cpdpRows = (cpdpCases ?? []) as unknown as CpdpCaseRow[];

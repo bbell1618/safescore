@@ -18,27 +18,9 @@ const navItems: Array<{
   entitledOnly?: boolean;
 }> = [
   { href: "/portal", label: "Home", exact: true },
-  {
-    href: "/portal/playbook",
-    label: "Playbook",
-    feature: "playbook_coach",
-  },
-  {
-    href: "/portal/activity",
-    label: "Activity",
-    feature: "trend_history",
-  },
-  {
-    href: "/portal/documents",
-    label: "Documents",
-    feature: "monthly_reports",
-  },
-  {
-    href: "/portal/compliance",
-    label: "Compliance",
-    feature: "compliance_layer",
-    entitledOnly: true,
-  },
+  { href: "/portal/progress", label: "Progress", feature: "trend_history" },
+  { href: "/portal/plan", label: "Plan", feature: "playbook_coach" },
+  { href: "/portal/documents", label: "Documents", feature: "monthly_reports" },
   { href: "/portal/account", label: "Account" },
 ];
 
