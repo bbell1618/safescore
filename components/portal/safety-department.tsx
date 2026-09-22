@@ -300,8 +300,8 @@ export async function SafetyDepartmentSection() {
     <header className="rounded-xl border border-sand bg-warm-white p-6">
       <p className="mono-label text-amber">Included with your service</p>
       <h2 className="mt-2 font-heading text-2xl text-warm-dark">Your safety department</h2>
-      <p className="mt-3 text-sm leading-6 text-warm-mid">GEIA helps manage your driver qualification files, credential dates, vehicle inspection records, and Clearinghouse follow-up. Clearinghouse queries are completed outside SafeScore.</p>
-      <p className="mt-2 text-xs text-warm-gray">Roster counts describe operational records and do not change your service-plan billing.</p>
+      <p className="mt-3 text-sm leading-6 text-warm-mid">GEIA helps organize driver eligibility documents, license and medical-card dates, vehicle inspection records, and drug-and-alcohol record checks. The Clearinghouse is the federal database for commercial-driver drug-and-alcohol violations; GEIA completes those checks outside SafeScore.</p>
+      <p className="mt-2 text-xs text-warm-gray">Counts here describe the driver and vehicle records on file. They do not change your service-plan billing.</p>
       <Link href="/portal/documents" className="btn-secondary mt-4 inline-flex min-h-11 items-center">Send or review documents</Link>
     </header>
     {!hasRecords ? <div className="rounded-xl border border-amber/25 bg-amber-subtle p-6"><h3 className="font-heading text-xl text-warm-dark">Setup in progress</h3><p className="mt-2 text-sm leading-6 text-warm-mid">GEIA is collecting and reviewing your driver, vehicle, and compliance records. We will show verified records here as they become available.</p></div> : <>

@@ -323,6 +323,10 @@ export function PlaybookPrograms({
     programId: string
   ) {
     event.preventDefault();
+    showProgram(programId);
+  }
+
+  function showProgram(programId: string) {
     setActiveProgramId(programId);
     setOpenProgramIds((current) => {
       if (current.has(programId)) return current;
@@ -342,7 +346,19 @@ export function PlaybookPrograms({
         aria-label="Playbook program navigation"
         className="sticky top-20 z-20 mt-6 rounded-xl border border-sand bg-cream/95 p-2 shadow-sm backdrop-blur"
       >
-        <ol className="flex gap-2 overflow-x-auto overscroll-x-contain">
+        <select
+          aria-label="Jump to a coaching program"
+          className="min-h-11 w-full rounded-lg border border-sand bg-warm-white px-3 text-sm text-warm-dark sm:hidden"
+          value={activeProgramId}
+          onChange={(event) => showProgram(event.target.value)}
+        >
+          {programs.map((program, index) => (
+            <option key={program.id} value={program.id}>
+              Focus {index + 1}: {program.familyName}
+            </option>
+          ))}
+        </select>
+        <ol className="hidden gap-2 overflow-x-auto overscroll-x-contain sm:flex">
           {programs.map((program, index) => {
             const isActive = activeProgramId === program.id;
             return (

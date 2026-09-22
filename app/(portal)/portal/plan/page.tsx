@@ -1,4 +1,5 @@
 import { SafetyDepartmentSection } from "@/components/portal/safety-department";
+import { ownerCopy } from "@/components/portal/owner-copy";
 import { tierHasFeature } from "@/lib/tiers";
 import { Suspense } from "react";
 import {
@@ -129,12 +130,12 @@ function InstallmentCalendar({
                   Month {installment.month}
                 </p>
                 <h3 className="mt-1 font-heading font-semibold text-warm-dark">
-                  {installment.title}
+                  {ownerCopy(installment.title)}
                 </h3>
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-warm-mid">
-              {installment.objective}
+              {ownerCopy(installment.objective)}
             </p>
             <ul className="mt-4 space-y-2 border-t border-sand pt-4">
               {installment.deliverables.map((deliverable) => (
@@ -146,7 +147,7 @@ function InstallmentCalendar({
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success"
                     aria-hidden="true"
                   />
-                  <span>{deliverable}</span>
+                  <span>{ownerCopy(deliverable)}</span>
                 </li>
               ))}
             </ul>
@@ -184,15 +185,15 @@ function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
                   {module.key}
                 </span>
                 <h3 className="mt-3 font-heading text-xl font-semibold tracking-tight text-warm-dark">
-                  {module.title}
+                  {ownerCopy(module.title)}
                 </h3>
               </div>
               <span className="rounded-full border border-sand bg-cream px-3 py-1 font-mono text-[10px] text-warm-mid">
-                {module.installment}
+                {ownerCopy(module.installment)}
               </span>
             </div>
             <p className="mt-4 text-sm leading-6 text-warm-mid">
-              {module.content}
+              {ownerCopy(module.content)}
             </p>
             <ul className="mt-5 space-y-2 border-t border-sand pt-4">
               {module.deliverables.map((deliverable) => (
@@ -204,7 +205,7 @@ function OwnerCurriculum({ playbook }: { playbook: PortalPlaybook }) {
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success"
                     aria-hidden="true"
                   />
-                  <span>{deliverable}</span>
+                  <span>{ownerCopy(deliverable)}</span>
                 </li>
               ))}
             </ul>
@@ -272,25 +273,30 @@ async function PlaybookContent({
             Coaching programs
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-warm-mid">
-            The strongest recurring patterns come first. Each program connects
-            the live record to a short set of operating changes.
+            The strongest recurring patterns come first. These programs use the
+            record date shown above. Points reflect violation severity and age;
+            new per month is the average number of new violations in the stated window.
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-warm-mid">
+            Out of service means an inspector requires a driver or vehicle to
+            stop operating until a safety problem is resolved.
           </p>
         </div>
         {playbook.family_programs.length > 0 ? (
           <PlaybookPrograms
             programs={[...playbook.family_programs].sort((a, b) => a.familyPriority - b.familyPriority || b.priorityScore - a.priorityScore || a.familyName.localeCompare(b.familyName)).map((program, index) => ({
               id: `playbook-program-${index + 1}`,
-              familyName: program.familyName,
+              familyName: ownerCopy(program.familyName),
               count: program.count,
               points: program.points,
               inflowRatePerMonth: program.inflowRatePerMonth,
               trailingWindowDays: program.trailingWindowDays,
-              riskContext: program.riskContext,
-              program: program.program,
-              workingWhen: program.workingWhen,
-              installments: program.installments,
-              introduction: program.introduction,
-              coachingLanguage: program.coachingLanguage,
+              riskContext: ownerCopy(program.riskContext),
+              program: program.program.map(ownerCopy),
+              workingWhen: program.workingWhen.map(ownerCopy),
+              installments: program.installments.map(ownerCopy),
+              introduction: ownerCopy(program.introduction),
+              coachingLanguage: ownerCopy(program.coachingLanguage),
             }))}
           />
         ) : (
