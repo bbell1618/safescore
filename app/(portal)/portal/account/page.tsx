@@ -21,6 +21,7 @@ import {
   CopyableAccountValue,
 } from "@/components/portal/account-interactions";
 import { PortalMotionSection } from "@/components/portal/motion";
+import { ownerCopy } from "@/components/portal/owner-copy";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
   fleetSourceLines,
@@ -218,14 +219,14 @@ async function AccountCards({
 
           <dl className="mt-6 grid gap-x-6 gap-y-5 sm:grid-cols-2">
             <Fact label="Company">{context.clientName}</Fact>
-            <Fact label="USDOT" mono>
+            <Fact label="USDOT (company ID)" mono>
               <CopyableAccountValue
                 label="USDOT number"
                 value={context.dotNumber}
                 mono
               />
             </Fact>
-            <Fact label="MC number" mono>
+            <Fact label="MC (operating number)" mono>
               {mcNumber ? (
                 <CopyableAccountValue
                   label="MC number"
@@ -276,8 +277,8 @@ async function AccountCards({
                 {address.source ? (
                   <AccountSourceInfo
                     className="mt-1"
-                    label={`${address.source.label}${sourceAsOf ? ` · as of ${sourceAsOf}` : ""}`}
-                    explanation="This address comes from the stored FMCSA SAFER Company Snapshot because your company record has no address. It has not been entered or changed by your company in SafeScore."
+                    label={`Federal public company record (SAFER)${sourceAsOf ? ` · as of ${sourceAsOf}` : ""}`}
+                    explanation="This address comes from the federal truck safety agency's public company record, called SAFER, because your SafeScore company record has no address. Your company has not entered or changed it in SafeScore."
                   />
                 ) : null}
               </div>
@@ -288,20 +289,20 @@ async function AccountCards({
             id="account-fleet-heading"
             icon={<Truck className="h-5 w-5" aria-hidden="true" />}
             title="Fleet and service plan"
-            description="FMCSA census figures describe the public record. Your service-plan driver count is recorded separately."
+            description="Compare the public fleet record with the driver count used for your service plan."
           />
 
           <div className="mt-6 space-y-4">
             <div className="rounded-lg border border-sand bg-cream p-5 shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-amber/30 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none">
-              <p className="mono-label text-warm-gray">Public census</p>
+              <p className="mono-label text-warm-gray">Public fleet record</p>
               <p className="mt-2 font-mono text-lg font-medium leading-7 text-warm-dark">
-                {fleet.fmcsa}
+                {ownerCopy(fleet.fmcsa).replace(/power units?/g, "trucks and tractors").replace("(MCS-150)", "(carrier registration form)")}
               </p>
               {account.safer ? (
                 <AccountSourceInfo
                   className="mt-2"
-                  label={`FMCSA SAFER${formatDate(account.safer.saferAsOf) ? ` · as of ${formatDate(account.safer.saferAsOf)}` : ""}`}
-                  explanation="FMCSA SAFER is the public company snapshot used for power-unit and driver census figures."
+                  label={`Federal public company record (SAFER)${formatDate(account.safer.saferAsOf) ? ` · as of ${formatDate(account.safer.saferAsOf)}` : ""}`}
+                  explanation="SAFER is the federal truck safety agency's public company record. It supplies the truck, tractor, and driver counts shown here."
                 />
               ) : null}
             </div>
@@ -315,9 +316,9 @@ async function AccountCards({
           </div>
 
           <p className="mt-5 border-t border-sand pt-5 text-sm leading-6 text-warm-mid">
-            FMCSA census figures describe the fleet on public record. Your
-            service plan uses the driver count your company gave GEIA for
-            service and billing.
+            These counts come from separate records and may differ. The public
+            count comes from your carrier registration form; your service plan
+            uses the driver count your company gave GEIA for service and billing.
           </p>
           </div>
         </Surface>
@@ -437,7 +438,7 @@ export default async function PortalAccountPage() {
       <PortalHeroBand
         eyebrow="Your account"
         title="Company and service details"
-        description="See the company facts, FMCSA fleet record, service plan, and people who can access your SafeScore portal."
+        description="See your company details, public fleet record, service plan, and people who can access your SafeScore portal."
         contentClassName="max-w-5xl"
       />
       <PortalSectionDivider transition="navy-to-warm" />

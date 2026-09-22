@@ -99,7 +99,7 @@ function ProgramCard({
               <div className="min-w-0">
                 <p className="mono-label text-amber-dark">Focus {index + 1}</p>
                 <h3
-                  className="mt-1 truncate font-heading text-2xl font-semibold tracking-tight text-warm-dark"
+                  className="mt-1 break-words font-heading text-2xl font-semibold tracking-tight text-warm-dark"
                   id={titleId}
                 >
                   {program.familyName}

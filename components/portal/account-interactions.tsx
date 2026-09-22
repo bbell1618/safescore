@@ -55,12 +55,12 @@ export function CopyableAccountValue({
         : null;
 
   return (
-    <span className="relative inline-flex max-w-full items-center">
+    <span className="relative flex min-w-0 max-w-full items-center">
       <button
         type="button"
         onClick={copyValue}
         className={cn(
-          "group/copy inline-flex min-h-10 max-w-full items-center gap-2 rounded-md px-2 -ml-2 text-left text-amber-dark underline decoration-amber/30 underline-offset-2 transition-[color,background-color,transform] duration-150",
+          "group/copy flex min-h-10 w-fit min-w-0 max-w-full items-center gap-2 rounded-md px-2 -ml-2 text-left text-amber-dark underline decoration-amber/30 underline-offset-2 transition-[color,background-color,transform] duration-150",
           "hover:bg-amber-subtle hover:text-amber-hover active:translate-y-px",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",
           "motion-reduce:transform-none motion-reduce:transition-none",
@@ -68,7 +68,7 @@ export function CopyableAccountValue({
         )}
         aria-label={`Copy ${label}: ${value}`}
       >
-        <span className="min-w-0 break-all">{children ?? value}</span>
+        <span className={cn("min-w-0", mono ? "whitespace-nowrap" : "[overflow-wrap:anywhere]")}>{children ?? value}</span>
         {copyState === "copied" ? (
           <Check
             className="h-4 w-4 shrink-0 text-success"
