@@ -1,3 +1,5 @@
+import { cpdpFiledTimelineLabel } from "@/lib/cases/presentation";
+import { loadCaseEvidenceCounts } from "@/lib/console-case-evidence-server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,7 @@ type DataqCaseRow = {
   priority: string | null;
   filed_date: string | null;
   outcome_date: string | null;
+  state_deadline: string | null;
   created_at: string;
   violations:
     | { violation_code: string | null; violation_description: string | null }
@@ -97,7 +100,7 @@ export default async function CasesPage({
 
 
 
-  const [{ data: client, error: clientError }, { data: dataqCases }, { data: cpdpCases }, { data: crashes }] = await Promise.all([
+  const [{ data: client, error: clientError }, { data: dataqCases, error: dataqError }, { data: cpdpCases, error: cpdpError }, { data: crashes, error: crashesError }] = await Promise.all([
     supabase
     .from("clients")
     .select("id, tier")
@@ -106,7 +109,7 @@ export default async function CasesPage({
     supabase
       .from("dataq_cases")
       .select(
-        "id, violation_id, inspection_id, case_number, status, priority, filed_date, outcome_date, created_at, violations(violation_code, violation_description), inspections(inspection_date, state)"
+        "id, violation_id, inspection_id, case_number, status, priority, filed_date, outcome_date, state_deadline, created_at, violations(violation_code, violation_description), inspections(inspection_date, state)"
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
@@ -126,6 +129,7 @@ export default async function CasesPage({
 
   if (clientError && clientError.code !== "PGRST116") throw new Error(`Unable to load cases client: ${clientError.message}`);
   if (!client) notFound();
+  for (const error of [dataqError, cpdpError, crashesError]) if (error) throw new Error(`Unable to load case list: ${error.message}`);
   const clientTier = normalizeClientTier(client.tier);
 
   const dataqRows = (dataqCases ?? []) as unknown as DataqCaseRow[];
@@ -135,6 +139,7 @@ export default async function CasesPage({
     (crash) => !cpdpCrashIds.has(crash.id) && crash.tow_away === true && inCurrentWindow(crash.crash_date)
   );
 
+  const evidenceCounts = await loadCaseEvidenceCounts(dataqRows.map(row => row.id), cpdpRows.map(row => row.id));
   const unifiedRows = [
     ...dataqRows.map((row) => {
       const violation = firstJoin(row.violations);
@@ -142,10 +147,12 @@ export default async function CasesPage({
       return {
         key: `dataq-${row.id}`,
         type: "DataQ",
+        expectation: row.outcome_date ? `Decision ${formatDate(row.outcome_date)}` : row.state_deadline ? `Recorded response deadline ${formatDate(row.state_deadline)}` : row.filed_date ? "Determination date not recorded" : "Not filed",
         label: row.case_number || row.id.slice(0, 8),
         subject: violation?.violation_code ?? "Violation review",
         detail: violation?.violation_description ?? "FMCSA violation challenge",
         date: row.filed_date ?? row.created_at,
+        filedDate: row.filed_date,
         location: inspection?.state ?? "state pending",
         status: caseStatusLabel(row.status),
         variant: caseStatusVariant(row.status),
@@ -157,13 +164,15 @@ export default async function CasesPage({
       return {
         key: `cpdp-${row.id}`,
         type: "CPDP",
+        expectation: row.determination_date ? `Decision ${formatDate(row.determination_date)}` : cpdpFiledTimelineLabel(row.filed_date) ?? "Not filed",
         label: row.case_number || row.id.slice(0, 8),
         subject: "Crash preventability",
         detail: [crash?.city, crash?.state].filter(Boolean).join(", ") || "Crash review",
         date: row.filed_date ?? row.created_at,
+        filedDate: row.filed_date,
         location: crash?.state ?? "state pending",
         status: cpdpStatusLabel(row.status),
-        variant: cpdpStatusVariant(row.status),
+        variant: row.outcome === "preventable" ? "danger" as const : row.outcome === "not_preventable" ? "success" as const : cpdpStatusVariant(row.status),
         href: `/console/clients/${id}/cpdp/${row.id}`,
       };
     }),
@@ -173,7 +182,8 @@ export default async function CasesPage({
   const openCpdp = cpdpRows.filter((row) => !["closed", "determination_made"].includes(row.status)).length;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      <header className="portal-navy-texture rounded-2xl p-6 text-warm-white"><p className="font-mono text-xs uppercase tracking-widest text-gold-light">Challenge work</p><h1 className="mt-2 font-heading text-4xl">Cases</h1><p className="mt-3 text-sm text-warm-white/75">{unifiedRows.length} records · {openDataq + openCpdp} open reviews</p><div className="mt-5 flex flex-wrap gap-3"><Link className="btn-primary min-h-11" href={`/console/clients/${id}/violations`}>New DataQ</Link><Link className="btn-primary min-h-11" href={`/console/clients/${id}/cpdp`}>New CPDP</Link></div></header>
       <div className="grid gap-3 md:grid-cols-3">
         <div className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] p-4">
           <p className="text-xs text-gray-500">Open DataQs</p>
@@ -192,7 +202,7 @@ export default async function CasesPage({
       <section className="bg-[#FBF7F0] rounded-xl border border-[#F0E8DA] overflow-hidden">
         <div className="p-5 border-b border-[#F0E8DA] flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#1E1C1A]">Cases</h1>
+            <h2 className="font-heading text-2xl text-navy">Case register</h2>
             <p className="text-sm text-gray-500 mt-0.5">DataQs violation challenges and CPDP crash reviews in one work queue.</p>
           </div>
           <div className="flex gap-2">
@@ -205,47 +215,14 @@ export default async function CasesPage({
             </Link>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-white/60 text-xs text-gray-500">
-              <tr>
-                <th className="text-left font-medium px-5 py-3">Type</th>
-                <th className="text-left font-medium px-5 py-3">Case</th>
-                <th className="text-left font-medium px-5 py-3">Subject</th>
-                <th className="text-left font-medium px-5 py-3">Date</th>
-                <th className="text-left font-medium px-5 py-3">Status</th>
-                <th className="text-left font-medium px-5 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F0E8DA]">
-              {unifiedRows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">
-                    No cases on file.
-                  </td>
-                </tr>
-              ) : (
-                unifiedRows.map((row) => (
-                  <tr key={row.key}>
-                    <td className="px-5 py-4"><Badge variant={row.type === "CPDP" ? "gold" : "info"}>{row.type}</Badge></td>
-                    <td className="px-5 py-4 font-mono text-xs text-[#1E1C1A]">{row.label}</td>
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-[#1E1C1A]">{row.subject}</div>
-                      <div className="text-xs text-gray-500 max-w-md truncate">{row.detail}</div>
-                    </td>
-                    <td className="px-5 py-4 text-gray-500">{formatDate(row.date)}</td>
-                    <td className="px-5 py-4"><Badge variant={row.variant}>{row.status}</Badge></td>
-                    <td className="px-5 py-4">
-                      <Link className="text-[#C67A1E] hover:underline font-medium" href={row.href}>
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <ul className="divide-y divide-sand bg-warm-white">
+          {unifiedRows.map(row => <li key={row.key} className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto]">
+            <div><div className="flex flex-wrap items-center gap-2"><Badge variant={row.type === "CPDP" ? "info" : "warning"}>{row.type}</Badge><span className="font-mono text-xs text-warm-gray">{row.label}</span><Badge variant={row.variant} className={row.variant === "danger" ? "bg-error-light text-error" : row.variant === "success" ? "bg-success-light text-success" : "bg-info-light text-info"}>{row.status}</Badge></div><h3 className="mt-2 font-heading text-xl text-navy">{row.subject}</h3><p className="mt-1 text-sm text-warm-mid">{row.detail}</p></div>
+            <div className="text-sm text-warm-mid"><p className="font-mono text-xs">{row.filedDate ? `Filed ${formatDate(row.filedDate)}` : `Created ${formatDate(row.date)} · not filed`}</p><p className="mt-2">{row.expectation}</p><p className="mt-2 font-mono text-xs">{evidenceCounts[row.key] ?? 0} evidence files on record</p></div>
+            <Link className="inline-flex min-h-11 items-center self-center rounded-lg border border-sand px-4 text-sm font-semibold text-amber-dark hover:bg-amber-subtle" href={row.href}>Open case →</Link>
+          </li>)}
+          {unifiedRows.length === 0 && <li className="p-8"><h3 className="font-heading text-xl text-navy">No cases on file</h3><p className="mt-2 text-sm text-warm-mid">Start with a violation or crash record to open a review.</p></li>}
+        </ul>
       </section>
 
       {crashCandidates.length > 0 && (
