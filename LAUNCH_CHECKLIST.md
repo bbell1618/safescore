@@ -2,7 +2,7 @@
 
 Use [the ordered human launch runbook](docs/launch-runbook.md). It replaces the old human checklist and separates live evidence from configuration assumptions.
 
-SafeScore is **not yet verified for outside-client launch**. As of September 23, 2026, the runtime email-safety check, new report proof, synthetic-client lifecycle, Total Safety proof, hosted recovery template and human decisions remain open. A READY deployment does not close those gates.
+SafeScore is **not yet verified for outside-client launch**. On September 23, 2026, the exact-true runtime email check, monthly report proof, unpaid TEST Assessment checkout, synthetic staff lifecycle and Total Safety operator proof passed. The synthetic invite/client portal proof and live BASIC persistence retry remain blocked. Hosted recovery, terms approval, secure DataQs access design and real-filing menu capture are parked. A READY deployment does not close those gates.
 
 - [x] Live database audit: zero public tables without RLS; client invitation policy targets only service_role (September 23).
 - [x] Live playbook configuration: new rows default to draft; review metadata/constraints exist; original Nationwide playbook content unchanged (September 23).

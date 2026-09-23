@@ -4,7 +4,7 @@ Prepared September 23, 2026. GoldenDesk project `e642d966-a374-4317-8b10-6c9a003
 
 Production: https://safescore.vercel.app. Vercel project: `safescore` / `prj_Pz8HKt8vV7P8EQPEA4bjDLizZ0Xb`. Supabase: `kzndtvkblfbrsnrnjodf`.
 
-This is a human procedure, not authorization for an agent to send messages, use live Stripe keys, file cases, accept agreements, or change protected client data. Keep `EMAIL_DRY_RUN` exactly `true` and Stripe TEST throughout beta. Never print secrets or put them in GoldenDesk notes. Nationwide writes remain prohibited except this goal's own report drafts. Use only the explicitly named synthetic client for other write-based proofs. Never reset production or modify `bak_` tables.
+This is a human procedure, not authorization for an agent to send messages, use live Stripe keys, file cases, accept agreements, or change protected client data. Keep `EMAIL_DRY_RUN` exactly `true` and Stripe TEST throughout beta. Never print secrets or put them in GoldenDesk notes. Brandon authorized only this goal's own report drafts and NEW dated BASIC rows for Nationwide; never edit or delete existing Nationwide BASIC rows. Use only the explicitly named synthetic client for other write-based proofs. Never reset production or modify `bak_` tables.
 
 ## Live-proven starting points
 
@@ -34,15 +34,14 @@ Invitation anon still has a table SELECT grant, but no applicable RLS policy; th
 
 ## 2. Complete the blocked safe proofs — Brandon with Codex
 
-1. Keep the staff browser signed in for Plan, Work, Records, playbook and agency-request UI checks.
-2. Review the new Nationwide monthly draft created specifically for this loop on Reports after Claude checks its facts.
-3. Move only that draft to reviewed.
-4. Select ZZ TEST — Goal Loop Carrier for the remaining lifecycle proof after gate 1 passes.
-5. Sign in personally as that synthetic client when the portal checkpoint is reached.
-6. Review the synthetic Total Safety gaps in Work and the client portal.
-7. Review the scoped synthetic cleanup preview before its already-authorized execution.
+1. Provide an unused test email in the goal chat for a synthetic client invite; do not provide a password.
+2. Have Codex recreate the explicitly named ZZ TEST — Goal Loop Carrier fixture after checking the previous cleanup receipt.
+3. Have Codex generate the invitation with the exact-true runtime gate rechecked; verify a dry-run receipt without printing the token.
+4. Sign in personally as that synthetic client when the portal checkpoint is reached, using a separate browser session from staff.
+5. Review the published playbook and all four synthetic Total Safety gaps in the portal.
+6. Have Codex run the scoped preview/cleanup script and prove zero fixture rows again.
 
-**Claude verifies:** report text has no tokens; burden, monthly comparison anchor, cases, date and preparer match SQL; no report is sent; only own clearly identified draft outputs are removed; existing reports remain. Prove create → public ingest → analysis → burden → remediation → playbook draft/review/publish → dry-run invite → portal/checklist. Seed only three synthetic drivers/two vehicles; prove expired medical card, CDL due in 20 days, missing qualification document and due Clearinghouse query. Show cleanup counts and zero synthetic rows. No synthetic client or new report was created before this runbook.
+**Already proved September 23:** report 887439ea-58b8-4a4e-89b1-7bb75547ada7 contains no template tokens, matches the 769 → 750 burden comparison and stored case/date facts, is reviewed and unsent; eleven earlier reports were unchanged. Agency step 9 passed including temporary-request cleanup. The synthetic staff flow reached public ingest, analysis (79 points), remediation, playbook draft/review/publish and checklist. Three TEST drivers/two vehicles produced three expiration events, three alerts, two renewal requests and all four operator gaps. The synthetic active status was an explicit fixture, not payment/attestation proof. The client invite and authenticated portal remain NOT VERIFIED because an unused email and human sign-in were unavailable. Staff Plan/Work/Violations proof is separate from client portal proof; the legacy Records route redirects to Violations.
 
 The Nationwide walkthrough is read-only: inspect the existing agency-request card, filter/expand a violation, and inspect Plan/Work states. Do not click analysis, filing, request, playbook-generation or account-save controls for Nationwide.
 
@@ -81,14 +80,14 @@ Later human-only email activation, outside this goal:
 
 1. Confirm the intended Stripe account is in TEST mode in Stripe.
 2. Provide its TEST credentials through the approved secret store.
-3. After gate 1 passes, review the $299 one-time Assessment implementation when Codex prepares it.
+3. Review the deployed $299 one-time Assessment implementation and its TEST receipt.
 4. Confirm the TEST price assigned to STRIPE_PRICE_ASSESSMENT in Vercel.
 5. Open the generated TEST checkout URL without paying.
 6. Review the GEIA-insured waiver on the synthetic client's Account page.
 
 **Claude verifies:** Assessment uses mode: payment, missing price returns clear 503 with no button, waiver records actor/time, recurring tiers remain correct, and checkout is TEST. A $299 USD TEST price and unpaid Checkout session were created September 23; the safe receipt is scratch/goal-assessment-stripe-proof.json. The private checkout link stays in scratch/goal-assessment-stripe-private.json and must not be pasted in logs. No payment was made.
 
-The Account page's GEIA-insured switch waives only the one-time Assessment fee. It stores the staff actor and date. A verified paid Assessment or a recorded waiver allows profile submission for staff activation; it does not auto-activate a client or waive recurring charges. Payment fulfillment is covered by automated guards, but a completed paid transaction remains NOT VERIFIED in this unpaid-only proof.
+The Account page's GEIA-insured switch waives only the one-time Assessment fee. Its staff actor/date were verified on the synthetic client, then the waiver was disabled. A verified paid Assessment or a recorded waiver allows profile submission for staff activation; it does not auto-activate a client or waive recurring charges. Payment fulfillment is covered by automated guards, but a completed paid transaction remains NOT VERIFIED in this unpaid-only proof.
 
 Future live conversion is human-only and outside this goal:
 1. Have the authorized human create live recurring prices, the Total Safety driver add-on and an active one-time $299 USD Assessment price in Stripe.
@@ -101,18 +100,18 @@ Future live conversion is human-only and outside this goal:
 
 ## 6. Monitoring and current federal data — Brandon
 
-1. Record whether a controlled monitoring run may write to Nationwide in the GoldenDesk project.
+1. Keep Nationwide BASIC saving restricted to NEW rows, as Brandon already authorized; never update/delete existing releases.
 2. Confirm a production CRON_SECRET exists through Vercel environment controls without exposing it.
 3. Set a strong secret there only if absent or requiring replacement.
 4. Redeploy after any change.
-5. Authorize a scoped monitoring proof after gate 1 passes.
-6. Open /api/operator/basic-source/2533650 while signed in as staff.
-7. Decide monthly persistence scope in task ecbfb0fe-ecf5-492a-a346-c014bb280c75.
+5. Resume the scoped public-source proof in task 6bf0de3c-bcf8-45da-9e82-0e988614591b when source connectivity is restored; do not run an unrestricted Nationwide refresh.
+6. Verify the insert-only helper returns the existing release without changing its hash on a duplicate.
+7. Observe the next scheduled execution and its public_basic_results; the approved rollout is Nationwide only.
 8. Confirm production FMCSA_API_KEY with its credential owner.
 9. Resolve whether FMCSA_DATAHUB_APP_TOKEN is needed for the selected launch integrations.
 10. Decide whether scripts using legacy SUPABASE_URL/SUPABASE_KEY aliases should be supplied or retired.
 
-**Claude verifies:** safe cron result, scheduled execution, snapshot age/no-change behavior, dry-run reminder receipts, public source identity/date/currentness, no invented private values, only approved persistence. The September 23 public fetch returned the August 28 release. Read-only retrieval exists; scheduled persistence does not. Blank local secret pulls do not establish missing production settings.
+**Claude verifies:** safe cron result, scheduled execution, snapshot age/no-change behavior, dry-run reminder receipts, public source identity/date/currentness, no invented private values, only approved persistence. Commit 47e2d64 added an INSERT-only public-source helper and a Nationwide-only hook in the existing authenticated monitoring schedule. September 23 preview returned the August 28 release; the existing Nationwide row hash stayed 8ccb58ae028fffd2171bca773acf88ba. A new synthetic release inserted successfully. Three source timeouts stopped full live verification under the goal rule; a final in-flight synthetic retry also failed with a database fetch error before a write. Duplicate preservation has unit and SQL hash proof, but the live duplicate return and future scheduled run remain NOT VERIFIED. Blank local secret pulls do not establish missing production settings.
 
 For restricted measures, the designated human:
 1. Signs in to FMCSA Portal.

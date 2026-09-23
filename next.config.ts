@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       {"source":"/portal/activity","destination":"/portal/progress","permanent":false},
       {"source":"/portal/compliance","destination":"/portal/plan","permanent":false},
       {"source":"/console/clients/:id/checklist","destination":"/console/clients/:id/work","permanent":false},
+      {"source":"/console/clients/:id/records","destination":"/console/clients/:id/violations","permanent":false},
       {"source":"/console/clients/:id/requests","destination":"/console/clients/:id/work#requests","permanent":false},
       {"source":"/console/clients/:id/monitoring","destination":"/console/clients/:id/work#monitoring","permanent":false},
       {"source":"/console/clients/:id/remediation","destination":"/console/clients/:id/plan","permanent":false},
