@@ -287,11 +287,15 @@ export async function POST(request: Request, { params }: RouteContext) {
       process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
 
     const emailResult = await sendInviteEmail({
+      clientId: id,
       to: email,
       companyName: client.name,
       contactName: client.primary_contact ?? undefined,
       magicLinkUrl: setupUrl,
     });
+    if (!emailResult.success) {
+      return NextResponse.json({ error: emailResult.error ?? "Invite email delivery failed", inviteId: invite.id }, { status: 502 });
+    }
     const emailStatus = resolveInviteEmailStatus({
       dryRun: emailDryRun,
       deliverySucceeded: emailResult.success,
@@ -301,6 +305,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       success: true,
       emailSent: emailStatus === "sent",
       emailStatus,
+      outboxId: emailResult.dryRun ? emailResult.messageId : undefined,
       setupUrl,
       invite: {
         id: invite.id,
@@ -313,7 +318,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         emailStatus === "sent"
           ? `Invite sent to ${email}`
           : emailStatus === "dry_run"
-            ? "Invite created in email dry-run mode. Share the setup link manually."
+            ? "Invite saved in the staff dry-run outbox. Open /staff/outbox to access the setup link."
             : "Invite created, but email delivery failed. Share the setup link manually.",
     });
   } catch (error) {

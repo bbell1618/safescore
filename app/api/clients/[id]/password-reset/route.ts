@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { sendPasswordRecoveryEmail } from "@/lib/email/client";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -143,19 +144,17 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
-  console.info("[EMAIL_DRY_RUN] Staff password recovery link generated", {
-    clientId,
-    email: portalUser.email,
-    resetUrl,
-  });
+  const delivery = await sendPasswordRecoveryEmail({ to: portalUser.email, resetUrl, clientId });
+  if (!delivery.success) return NextResponse.json({ error: delivery.error }, { status: 502 });
 
   return NextResponse.json({
     success: true,
     dryRun: true,
     emailSent: false,
     email: portalUser.email,
+    outboxId: delivery.messageId,
     resetUrl,
     message:
-      "Recovery link generated in dry-run mode. Copy it and share it securely with the account holder.",
+      "Recovery link saved in the staff dry-run outbox at /staff/outbox.",
   });
 }

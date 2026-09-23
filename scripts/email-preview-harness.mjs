@@ -41,6 +41,7 @@ export async function collectEmailPreviews() {
     ["report-delivery", "sendReportReady", { reportTitle: "Monthly safety update", reportDate: "September 23, 2026" }],
     ["welcome", "sendWelcomeEmail", { userFullName: "Brandon" }],
     ["invite", "sendInviteEmail", { contactName: "Brandon", magicLinkUrl: "https://safescore.vercel.app/login" }],
+    ["password-recovery", "sendPasswordRecoveryEmail", { clientId: "preview-only", resetUrl: "https://safescore.vercel.app/update-password" }],
     ["request-reminder", "sendRequestQueueReminder", { requestTitle, reminderNumber: 1, reminderLimit: 3 }],
     ["court-document", "sendEvidenceRequestCreated", { requestTitle, whyCopy: "This could remove 12 points if the court dismissed or reduced the ticket." }],
     ["court-question", "sendEvidenceIntakeQuestion", { question: "Did the court dismiss or reduce this ticket?" }],

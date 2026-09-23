@@ -24,8 +24,8 @@ async function sendEmail({
   replyTo,
   cc,
   bcc,
-  trigger,
   template,
+  clientId,
 }: {
   to: string;
   subject: string;
@@ -36,11 +36,17 @@ async function sendEmail({
   bcc?: string;
   trigger: string;
   template: string;
+  clientId?: string;
 }): Promise<EmailDeliveryResult> {
   const dryRun = process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
   if (dryRun) {
-    console.log("EMAIL_DRY_RUN", JSON.stringify({ mode: "dry-run", trigger, recipient: to, subject, template }));
-    return { success: true, dryRun: true };
+    try {
+      const { writeDryRunOutbox } = await import("./outbox");
+      const messageId = await writeDryRunOutbox({ to, subject, htmlBody, template, clientId });
+      return { success: true, dryRun: true, messageId };
+    } catch (error) {
+      return { success: false, dryRun: true, error: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   const host = process.env.SMTP_HOST;
@@ -67,7 +73,6 @@ async function sendEmail({
     });
     return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error("SMTP email error:", error instanceof Error ? error.message : "Unknown error");
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -166,6 +171,7 @@ export interface WelcomeEmailData {
 }
 
 export interface InviteEmailData {
+  clientId?: string;
   to: string;
   companyName: string;
   contactName?: string;
@@ -234,6 +240,7 @@ export type OperationsNotificationTrigger =
   | "staff_compliance_expiration_digest";
 
 export interface OperationsNotificationData {
+  clientId?: string;
   trigger: OperationsNotificationTrigger;
   subject: string;
   heading: string;
@@ -289,6 +296,7 @@ export async function sendOperationsNotification(
     htmlBody: html,
     trigger: data.trigger,
     template: "operations_notification",
+    clientId: data.clientId,
   });
 }
 
@@ -532,7 +540,7 @@ export async function sendWelcomeEmail(
 
 export async function sendInviteEmail(
   data: InviteEmailData
-): Promise<{ success: boolean }> {
+): Promise<EmailDeliveryResult> {
   const greeting = data.contactName
     ? `Hi ${data.contactName},`
     : "You have been invited to SafeScore.";
@@ -551,13 +559,20 @@ export async function sendInviteEmail(
     htmlBody: html,
     trigger: "portal_invite",
     template: "portal_invite",
+    clientId: data.clientId,
   });
 
-  if (!result.success) {
-    console.error("sendInviteEmail failed:", result.error);
-  }
+  return result;
+}
 
-  return { success: result.success };
+export async function sendPasswordRecoveryEmail(data: { to: string; resetUrl: string; clientId: string }): Promise<EmailDeliveryResult> {
+  const blocked = explicitDryRunOnly();
+  if (blocked) return blocked;
+  return sendEmail({
+    to: data.to, clientId: data.clientId, template: "password_recovery", trigger: "staff_password_recovery",
+    subject: "Reset your SafeScore password",
+    htmlBody: emailWrapper(`<h2>Reset your password</h2><p>Use this secure link to choose a new SafeScore password. If you did not request a reset, ignore this message.</p><a class="cta" href="${escapeHtml(data.resetUrl)}">Reset password</a>`),
+  });
 }
 
 export async function sendRequestQueueReminder(

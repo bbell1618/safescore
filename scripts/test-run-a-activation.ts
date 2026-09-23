@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  sendFmcsaPinRequestEmail,
-  sendOperationsNotification,
-  sendSafeScoreLiveEmail,
-} from "../lib/email/client";
+import { emailTestRuntime } from "./lib/email-test-runtime";
 import { tierHasFeature } from "../lib/tiers";
 
 const root = process.cwd();
@@ -64,16 +60,11 @@ assert.match(emailSource, /portal sign-in[\s\S]*is ready/);
 assert.doesNotMatch(emailSource, /SafeScore account[^\n]*is now active/);
 
 async function main() {
-  const priorDryRun = process.env.EMAIL_DRY_RUN;
-  const originalLog = console.log;
-  const dryRunEvents: Array<Record<string, unknown>> = [];
-  console.log = (...args: unknown[]) => {
-    if (args[0] !== "EMAIL_DRY_RUN" || typeof args[1] !== "string") return;
-    dryRunEvents.push(JSON.parse(args[1]) as Record<string, unknown>);
-  };
+  const { email, saved: dryRunEvents, logs, runtime } = emailTestRuntime();
+  const { sendFmcsaPinRequestEmail, sendOperationsNotification, sendSafeScoreLiveEmail } = email;
 
   try {
-  process.env.EMAIL_DRY_RUN = "false";
+  runtime.env.EMAIL_DRY_RUN = "false";
   const blocked = await sendOperationsNotification({
     trigger: "staff_client_activated",
     subject: "SafeScore activated — Test Carrier (DOT 0000001)",
@@ -85,7 +76,7 @@ async function main() {
   assert.match(blocked.error ?? "", /EMAIL_DRY_RUN is explicitly true/);
   assert.equal(dryRunEvents.length, 0);
 
-  process.env.EMAIL_DRY_RUN = "true";
+  runtime.env.EMAIL_DRY_RUN = "true";
   const [operations, live, pin] = await Promise.all([
     sendOperationsNotification({
       trigger: "staff_client_activated",
@@ -117,28 +108,26 @@ async function main() {
   assert.ok(
     dryRunEvents.some(
       (event) =>
-        event.recipient === "operations@goldenerainsurance.com" &&
-        event.trigger === "staff_client_activated"
+        event.to === "operations@goldenerainsurance.com" &&
+        event.template === "operations_notification"
     )
   );
   assert.ok(
     dryRunEvents.some(
       (event) =>
-        event.recipient === "client@example.test" &&
-        event.trigger === "client_safescore_live"
+        event.to === "client@example.test" &&
+        event.template === "safescore_live"
     )
   );
   assert.ok(
     dryRunEvents.some(
       (event) =>
         event.subject === "FMCSA Portal PIN requested — Test Carrier" &&
-        event.trigger === "fmcsa_pin_requested"
+        event.template === "fmcsa_pin_request"
     )
   );
   } finally {
-    console.log = originalLog;
-    if (priorDryRun === undefined) delete process.env.EMAIL_DRY_RUN;
-    else process.env.EMAIL_DRY_RUN = priorDryRun;
+    assert.equal(logs.length, 0, "suppressed messages must be saved without logs");
   }
 
   console.log(

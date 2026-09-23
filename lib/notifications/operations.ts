@@ -46,7 +46,7 @@ export async function notifyOperations(
     metadata?: Record<string, unknown>;
   }
 ) {
-  const delivery = await sendOperationsNotification(input.email);
+  const delivery = await sendOperationsNotification({ ...input.email, clientId: input.clientId });
   const deliveryMetadata = emailDeliveryMetadata(delivery);
   const { data: activity, error: activityError } = await service
     .from("activity_log")
