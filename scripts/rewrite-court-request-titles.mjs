@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { loadTs, root } from "./score-copy-runtime.mjs";
 
-const prefix = "Certified court disposition — ";
+const prefixes = ["Certified court disposition — ", "Court paperwork showing how the ticket ended — "];
 const hash = (row) => createHash("sha256").update(JSON.stringify(row)).digest("hex");
 const withoutTitle = (row) => { const copy = { ...row }; delete copy.title; return copy; };
 const { buildLaneBEvidenceRequestCopy, formatLaneBEvidenceViolationContext } = loadTs("lib/evidence-loop/taxonomy.ts");
@@ -26,7 +26,7 @@ async function main() {
       const endpoint = new URL(input);
       const method = init.method ?? "GET";
       if (!["GET", "HEAD"].includes(method)) {
-        if (mode !== "--apply" || method !== "PATCH" || endpoint.pathname !== "/rest/v1/client_requests" || endpoint.searchParams.get("status") !== "eq.open" || !endpoint.searchParams.get("id")?.startsWith("eq.") || !endpoint.searchParams.get("title")?.startsWith(`eq.${prefix}`)) throw new Error("Blocked write outside open request title repair");
+        if (mode !== "--apply" || method !== "PATCH" || endpoint.pathname !== "/rest/v1/client_requests" || endpoint.searchParams.get("status") !== "eq.open" || !endpoint.searchParams.get("id")?.startsWith("eq.") || !prefixes.some((prefix) => endpoint.searchParams.get("title")?.startsWith(`eq.${prefix}`))) throw new Error("Blocked write outside open request title repair");
         assert.deepEqual(Object.keys(JSON.parse(init.body)), ["title"]);
       }
       return fetch(input, init);
@@ -45,7 +45,7 @@ async function main() {
     return rows;
   };
   const rows = await allRequests();
-  const targets = rows.filter((row) => row.status === "open" && row.title.startsWith(prefix));
+  const targets = rows.filter((row) => row.status === "open" && prefixes.some((prefix) => row.title.startsWith(prefix)));
   const changes = [];
   for (const row of targets) {
     if (!row.violation_id) throw new Error(`Request ${row.id} has no linked violation`);

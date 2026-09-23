@@ -150,15 +150,15 @@ const liveLeadCopy = buildLaneBEvidenceRequestCopy("citation-dismissed", 18, {
 });
 assert.equal(
   liveLeadCopy.title,
-  "Certified court disposition \u2014 Vacuum hose restricted, Feb 20, 2026",
+  "Court paperwork showing how the ticket ended \u2014 Vacuum hose restricted, Feb 20, 2026",
 );
 assert.match(liveLeadCopy.whyCopy, /remove 18 points/);
 assert.equal(liveLeadCopy.requestedItems.length, 1);
 assert.equal(liveLeadCopy.requestedItems[0]?.itemKey, "certified-court-disposition");
-assert.match(liveLeadCopy.requestedItems[0]?.contextNote ?? "", /certified court disposition/i);
+assert.match(liveLeadCopy.requestedItems[0]?.contextNote ?? "", /court's final decision/i);
 assert.equal(
   buildLaneBEvidenceRequestCopy("citation-dismissed", 18).title,
-  "Certified court disposition needed",
+  "Court paperwork showing how the ticket ended",
   "missing violation context must retain the truthful generic fallback",
 );
 assert.equal(
@@ -168,7 +168,7 @@ assert.equal(
       "State/Local Laws - Speeding 15 or more miles per hour over the speed limit with additional source detail",
     inspectionDate: "2026-02-24",
   }),
-  "Speeding 15 or more miles per hour over the speed limit with\u2026, Feb 24, 2026",
+  "Speeding 15 or more miles per hour over the speed limit with additional source detail, Feb 24, 2026",
   "long descriptions must be compacted deterministically",
 );
 assert.equal(

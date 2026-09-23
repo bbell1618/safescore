@@ -25,58 +25,63 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
   LaneBEvidenceClassDefinition
 > = {
   "wrong-attribution": {
-    title: "Records showing this violation belongs to someone else",
+    title: "Records showing which company, driver, or truck was involved",
     trigger:
       "The review identifies the wrong carrier, driver, or vehicle as the likely record defect.",
     items: [
-      { itemKey: "registration", label: "Vehicle registration" },
-      { itemKey: "lease", label: "Lease or interchange agreement" },
-      { itemKey: "driver-roster", label: "Driver roster for the inspection date" },
-      { itemKey: "eld-gps", label: "ELD or GPS location records" },
+      { itemKey: "registration", label: "Truck registration showing who owns it" },
+      { itemKey: "lease", label: "Truck lease or agreement to use another company's equipment" },
+      { itemKey: "driver-roster", label: "Driver list from the inspection date" },
+      { itemKey: "eld-gps", label: "Electronic driving logs or truck location records" },
     ],
     ask:
-      "Please upload the records that show which carrier, driver, and vehicle were operating at the inspection time.",
+      "Please upload records showing which company, driver, and truck were involved at the time of the inspection. These help us check whether the violation was assigned to the wrong person or company.",
   },
   duplicate: {
-    title: "Records needed to confirm a duplicate",
+    title: "Truck and trip records showing the same event was listed twice",
     trigger:
       "The review identifies a duplicate inspection or violation as the specific defect.",
     items: [
-      { itemKey: "vin", label: "VIN or unit record" },
-      { itemKey: "inspection-time", label: "Inspection date and time record" },
-      { itemKey: "authenticated-trip-data", label: "Authenticated ELD, GPS, or dispatch record" },
+      { itemKey: "vin", label: "Vehicle identification number or truck number record" },
+      { itemKey: "inspection-time", label: "Paperwork showing the inspection date and time" },
+      { itemKey: "authenticated-trip-data", label: "Driving logs, location records, or dispatch records with a confirmed source" },
     ],
     ask:
-      "Please upload the VIN and time-stamped carrier records that let us compare the two entries precisely.",
+      "Please upload records showing the truck's vehicle identification number and the date and time of the trip or inspection. These help us check whether the same event was recorded twice.",
   },
   "citation-dismissed": {
-    title: "Certified court disposition needed",
+    title: "Court paperwork showing how the ticket ended",
     trigger:
       "A citation exists and its final court disposition is favorable or still unknown.",
     items: [
-      { itemKey: "certified-court-disposition", label: "Certified court disposition" },
+      { itemKey: "certified-court-disposition", label: "Court paperwork showing how the ticket ended" },
     ],
     ask:
-      "Please upload the certified court disposition showing the ticket's final result.",
+      "Please upload the court's final decision about this ticket. Use a copy the court has stamped or signed to confirm it is official.",
   },
   "report-factual-error": {
-    title: "Records needed to prove a report error",
+    title: "Inspection reports, photos, or repair records showing a mistake",
     trigger:
       "The review identifies a specific factual, clerical, or recording error in the inspection report.",
     items: [
-      { itemKey: "driver-copy", label: "Driver's copy of the inspection report" },
-      { itemKey: "photos", label: "Dated photos from the inspection or repair" },
-      { itemKey: "repair-invoices", label: "Repair invoices or work orders" },
+      { itemKey: "driver-copy", label: "Your driver's copy of the inspection report" },
+      { itemKey: "photos", label: "Photos showing the problem and when they were taken" },
+      { itemKey: "repair-invoices", label: "Repair bills or paperwork listing the work done" },
     ],
     ask:
-      "Please upload the driver's report copy and any dated photos or repair records that show the factual error.",
+      "Please upload your driver's inspection report, photos with dates, or repair paperwork that shows what is wrong in the report.",
   },
 };
 
 export const CITATION_DISMISSED_INTAKE_QUESTION =
   "Has any driver fought and beaten a roadside ticket in the last 24 months?";
 
-const SHORT_VIOLATION_DESCRIPTION_MAX = 70;
+const SHORT_VIOLATION_DESCRIPTION_MAX = 90;
+const VIOLATION_DESCRIPTION_WORDS: Record<string, string> = {
+  CMV: "truck",
+  CDL: "commercial driver's license",
+  OOS: "out of service",
+};
 const MONTH_LABELS = [
   "Jan",
   "Feb",
@@ -139,7 +144,10 @@ export function formatLaneBEvidenceViolationContext(
 ) {
   const code = context.violationCode?.replace(/\s+/g, " ").trim() ?? "";
   const description = context.violationDescription
-    ? compactViolationDescription(context.violationDescription)
+    ? compactViolationDescription(context.violationDescription.replace(
+        /\b(CMV|CDL|OOS)\b/gi,
+        (word) => VIOLATION_DESCRIPTION_WORDS[word.toUpperCase()]
+      ))
     : "";
   const inspectionDate = context.inspectionDate
     ? formatInspectionDate(context.inspectionDate)
@@ -302,7 +310,7 @@ export function buildLaneBEvidenceRequestCopy(
   const violationContext = formatLaneBEvidenceViolationContext(context);
   const contextualTitle =
     evidenceClass === "citation-dismissed"
-      ? "Certified court disposition"
+      ? "Court paperwork showing how the ticket ended"
       : definition.title;
   const contextNote = `${definition.ask} If the records confirm the error, this could remove ${pointLabel}.`;
 

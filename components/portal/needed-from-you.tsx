@@ -14,10 +14,10 @@ type RequestedEvidenceItem = {
 };
 
 const EVIDENCE_CLASS_LABELS: Record<LaneBEvidenceClass, string> = {
-  "wrong-attribution": "Wrong attribution",
-  duplicate: "Duplicate record",
-  "citation-dismissed": "Citation disposition",
-  "report-factual-error": "Report factual error",
+  "wrong-attribution": "Wrong company, driver, or truck",
+  duplicate: "Listed twice",
+  "citation-dismissed": "Court result",
+  "report-factual-error": "Mistake in the report",
 };
 
 const REQUEST_STATUS_LABELS: Record<string, string> = {

@@ -3,6 +3,7 @@ import { portalCopy } from "@/lib/portal/copy";
 /** Display-only wording. Stored records, codes, numbers and action payloads stay intact. */
 export function ownerCopy(value: string | null | undefined): string {
   return portalCopy(value)
+    .replace(/\byour FMCSA record\b/g, "your federal truck safety record")
     .replace(/\bFMCSA\b/g, "the federal truck safety agency")
     .replace(/\bDataQs?\b/g, "safety record correction")
     .replace(/\bCPDP\b/g, "crash preventability review")
