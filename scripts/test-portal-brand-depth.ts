@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 function sha256(path: string) {
@@ -21,8 +21,8 @@ const divider = source("components/ui/section-divider.tsx");
 const routeSkeleton = source("components/portal/route-skeleton.tsx");
 const accountSkeleton = source("app/(portal)/portal/account/account-skeleton.tsx");
 const home = source("app/(portal)/portal/page.tsx");
-const playbook = source("app/(portal)/portal/playbook/page.tsx");
-const activity = source("app/(portal)/portal/activity/page.tsx");
+const playbook = source("app/(portal)/portal/plan/page.tsx");
+const activity = source("app/(portal)/portal/progress/page.tsx");
 const documents = source("app/(portal)/portal/documents/page.tsx");
 const account = source("app/(portal)/portal/account/page.tsx");
 const sparkline = source("components/portal/burden-sparkline.tsx");
@@ -92,7 +92,7 @@ for (const [name, page] of Object.entries({
 assert.match(home, /portal-navy-texture/);
 assert.match(home, /text-amber-light/);
 assert.match(home, /<BurdenSparkline/);
-assert.match(home, /FMCSA publishes no percentiles for low-volume carriers/);
+assert.match(home, /It is not a ranking against other companies/);
 assert.match(home, /<PortalPageBody/);
 assert.match(home, /<PortalFooterBand/);
 
@@ -100,7 +100,7 @@ for (const graph of [sparkline, `${chart}\n${interactiveChart}\n${motion}`]) {
   assert.match(graph, /linearGradient/);
   assert.match(graph, /polygon/);
   assert.match(graph, /var\(--color-amber/);
-  assert.match(graph, /var\(--color-gold\)/);
+  assert.match(graph, /var\(--color-gold(?:-light)?\)/);
 }
 assert.match(interactiveChart, /PortalAnimatedActivitySeries/);
 assert.match(motion, /motion\.polyline/);

@@ -129,7 +129,8 @@ for (const expectedCopy of [
 }
 
 const nav = read("components/portal/nav.tsx");
-assert.match(nav, /label: "Compliance"[\s\S]*?feature: "compliance_layer"[\s\S]*?entitledOnly: true/);
+assert.doesNotMatch(nav, /label: "Compliance"/);
+assert.match(read("next.config.ts").replace(/"(source|destination)":/g, "$1: ").replace(/",destination/g, '", destination'), /source: "\/portal\/compliance", destination: "\/portal\/plan"/);
 assert.match(nav, /visibleNavItems = navItems\.filter/);
 
 const upload = read("app/api/portal/requests/[requestId]/upload/route.ts");

@@ -96,7 +96,7 @@ const violationsPageSource = readFileSync(
 );
 assert.ok(
   violationsPageSource.includes(
-    "inspections(inspection_date, state, level, facility_name, report_number)"
+    "inspections!inner(inspection_date, state, level, facility_name, report_number)"
   )
 );
 

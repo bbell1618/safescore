@@ -6,7 +6,7 @@ const read = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
 const monitoringPage = read(
-  "app/(console)/console/clients/[id]/monitoring/page.tsx"
+  "components/console/sections/monitoring-section.tsx"
 );
 
 function tsxFiles(relativeDirectory: string): string[] {

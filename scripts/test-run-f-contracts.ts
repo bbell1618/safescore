@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 const root = process.cwd();
 
 function source(path: string): string {
-  return readFileSync(join(root, path), "utf8");
+  return readFileSync(join(root, path), "utf8").replace(/\r\n/g, "\n");
 }
 
 function assertIncludes(
@@ -58,38 +58,23 @@ function filesUnder(path: string): string[] {
 const clientTabs = source("components/console/client-tabs.tsx");
 assertMatches(
   clientTabs,
-  /const TABS:[\s\S]*?=\s*\[\s*\{\s*key:\s*["']checklist["'],\s*label:\s*["']Checklist["'],\s*href:\s*["']\/checklist["']\s*\}/,
-  "Checklist must be the first client-detail tab"
+  /const TABS:[\s\S]*?=\s*\[\s*\{\s*key:\s*["']work["'],\s*label:\s*["']Work["'],\s*href:\s*["']\/work["']\s*\}/,
+  "Work must be the first client-detail tab"
 );
 assertIncludes(
   clientTabs,
-  'if (pathname.includes("/checklist")) return "checklist";',
+  'if (["work", "checklist", "requests", "monitoring"].includes(section)) return "work";',
   "Checklist tab must resolve as active"
 );
 
-const checklistPage = source(
-  "app/(console)/console/clients/[id]/checklist/page.tsx"
-);
-assertIncludes(
-  checklistPage,
-  'import { getClientChecklist } from "@/lib/operator/checklist-server";',
-  "Checklist page must load the server-derived payload"
-);
-assertIncludes(
-  checklistPage,
-  "<OperatorChecklist",
-  "Checklist page must render the interactive checklist"
-);
-assertOrdered(
-  checklistPage,
-  ["try {", "await getClientChecklist(id)", "} catch (error)", 'role="alert"'],
-  "Checklist context failures must render a loud error rather than an all-clear"
-);
-assertIncludes(
-  checklistPage,
-  "No all-clear is shown.",
-  "Checklist error copy must reject a false empty state"
-);
+const workPage = source("app/(console)/console/clients/[id]/work/page.tsx");
+assertIncludes(workPage, "await loadClientWork(id)", "Work must load the server-derived payload");
+assertIncludes(workPage, "<ClientWorkQueue", "Work must render its queue");
+const workServer = source("lib/console-work-server.ts");
+assertIncludes(workServer, "assembleClientWorkContext(clientId", "Work must load complete context");
+assertIncludes(workServer, "evaluateChecklist(context)", "Work must use derived checklist rules");
+assertIncludes(workServer, "throw new Error(`Unable to load work requests:", "Work request failures must propagate");
+assert.doesNotMatch(workServer, /catch[\s\S]*return[\s\S]*items:\s*\[\]/, "Work must not swallow context failures as an empty queue");
 
 const checklistUi = source("components/console/operator-checklist.tsx");
 assertIncludes(checklistUi, '"use client";', "Checklist UI must be a client component");
@@ -145,21 +130,13 @@ for (const endpoint of [
 }
 
 const consolePage = source("app/(console)/console/page.tsx");
-assertIncludes(
-  consolePage,
-  'import { getOperatorToday } from "@/lib/operator/checklist-server";',
-  "Console home must derive Today server-side"
-);
-assertOrdered(
-  consolePage,
-  ["<OperatorToday", "{/* Header */}", "Client overview", "All clients"],
-  "Today must appear before the existing console overview"
-);
-assertMatches(
-  consolePage,
-  /getOperatorToday\(\)[\s\S]*?catch\(\(error:[\s\S]*?Unknown Today context loading failure/,
-  "Today must preserve context-load errors"
-);
+assertIncludes(consolePage, "<TodayView", "Console home must render Today");
+const todayView = source("components/console/today-view.tsx");
+assertIncludes(todayView, "await loadConsoleToday()", "Today must load complete server context");
+assertOrdered(todayView, ["Work queue", "Waiting on clients", "Recent activity"], "Today must lead with operator work");
+const todayServer = source("lib/console-today-server.ts");
+assertIncludes(todayServer, "assembleClientWorkContext(", "Today uses complete context");
+assertIncludes(todayServer, "evaluateChecklist(context)", "Today uses shared derived rules");
 
 const todayUi = source("components/console/operator-today.tsx");
 for (const requiredCopy of [
@@ -184,7 +161,7 @@ assertIncludes(
 );
 
 const monitoringPage = source(
-  "app/(console)/console/clients/[id]/monitoring/page.tsx"
+  "components/console/sections/monitoring-section.tsx"
 );
 assertIncludes(
   monitoringPage,

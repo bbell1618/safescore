@@ -3,7 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const packageJson = JSON.parse(source("package.json")) as {
@@ -24,8 +24,8 @@ const complianceLoading = source(
   "app/(portal)/portal/compliance/loading.tsx"
 );
 const home = source("app/(portal)/portal/page.tsx");
-const playbook = source("app/(portal)/portal/playbook/page.tsx");
-const activity = source("app/(portal)/portal/activity/page.tsx");
+const playbook = source("app/(portal)/portal/plan/page.tsx");
+const activity = source("app/(portal)/portal/progress/page.tsx");
 const interactiveChart = source(
   "components/portal/interactive-burden-history-chart.tsx"
 );
@@ -93,11 +93,11 @@ assert.match(truck, /motion\.div/);
 assert.doesNotMatch(truck, /motion\.svg/);
 assert.match(routeSkeleton, /GoldenEraTruckLoader/);
 assert.match(accountSkeleton, /GoldenEraTruckLoader/);
-assert.match(complianceLoading, /GoldenEraTruckLoader/);
+assert.match(complianceLoading, /PortalRouteSkeleton/);
 assert.match(groupLoading, /PortalRouteSkeleton/);
 assert.match(groupLoading, /portal-brand-root portal-warm-texture/);
 
-assert.match(home, /PortalAnimatedNumber value=\{latest\.total_points\}/);
+assert.match(home, /latest\.total_points/);
 assert.match(pressureBars, /portal-motion-pressure-bar/);
 assert.match(pressureBars, /whileInView/);
 assert.match(home, /PortalMotionListItem/);
@@ -155,7 +155,7 @@ console.log(
       framerMotion: packageJson.dependencies["framer-motion"],
       assetSizes,
       motionInventory: {
-        Home: ["burden count-up", "BASIC bar fill", "sections", "service cards"],
+        Home: ["stored burden", "BASIC bar fill", "sections", "service cards"],
         Playbook: ["program count-up", "sections", "program/installment cards"],
         Activity: ["latest count-up", "chart draw", "sections", "filing rows"],
         Documents: ["zone reveals/lifts", "request/report cards", "drop-zone press"],

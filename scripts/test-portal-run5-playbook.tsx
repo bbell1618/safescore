@@ -54,11 +54,11 @@ assert.match(html, /min-h-10/);
 assert.match(html, /focus-visible:ring-2/);
 
 function source(path: string): string {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const component = source("components/portal/playbook-programs.tsx");
-const page = source("app/(portal)/portal/playbook/page.tsx");
+const page = source("app/(portal)/portal/plan/page.tsx");
 
 assert.match(component, /new Set\(programs\[0\] \? \[programs\[0\]\.id\] : \[\]\)/);
 assert.match(component, /<AnimatePresence initial=\{false\}>/);
@@ -75,7 +75,7 @@ assert.match(component, /hover:border-sand hover:bg-warm-white/);
 assert.doesNotMatch(component, /localStorage|sessionStorage|fetch\(|\.insert\(|\.update\(|\.upsert\(/);
 
 assert.match(page, /<PlaybookPrograms/);
-assert.match(page, /programs=\{playbook\.family_programs\.map/);
+assert.match(page, /programs=\{\[\.\.\.playbook\.family_programs\]\.sort\([\s\S]*?\)\.map/);
 assert.ok(
   page.indexOf('getPortalPageAccess("playbook_coach")') <
     page.indexOf("loadLatestPortalPlaybook(access.clientId)")

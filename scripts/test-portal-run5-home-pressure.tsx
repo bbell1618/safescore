@@ -124,10 +124,10 @@ const markup = renderToStaticMarkup(
 assert.equal((markup.match(/<button/g) ?? []).length, 2);
 assert.match(markup, /aria-expanded="false"/);
 assert.match(markup, /371 weighted points/);
-assert.match(markup, /67\.6% of total burden/);
+assert.match(markup, /67\.6% of total violation burden/);
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const componentSource = source("components/portal/basic-pressure-list.tsx");
@@ -144,17 +144,17 @@ assert.equal(
   "All BASIC details must come from one violations+inspections query shape"
 );
 assert.doesNotMatch(serverSource, /\.eq\("basic_category"/);
-assert.match(serverSource, /getCanonicalInspectionScope/);
+assert.match(serverSource, /loadPortalInspectionScope/);
 assert.match(serverSource, /snapshotCapturedAt/);
 assert.match(componentSource, /role="tooltip"/);
 assert.match(componentSource, /aria-expanded=\{expanded\}/);
 assert.match(componentSource, /focus-visible:ring-2/);
-assert.match(componentSource, /min-h-10/);
+assert.match(componentSource, /min-h-11/);
 assert.match(componentSource, /document\.addEventListener\("pointerdown"/);
 assert.match(componentSource, /event\.key === "Escape"/);
 assert.match(componentSource, /role="region"/);
 assert.match(componentSource, /useReducedMotion/);
-assert.match(componentSource, /href="\/portal\/playbook"/);
+assert.match(componentSource, /href=\{planHref\}/);
 assert.match(pageSource, /loadPortalHomePressureDetails/);
 assert.match(pageSource, /snapshotCapturedAt: latest\.captured_at/);
 

@@ -4,16 +4,15 @@ import { resolve } from "node:path";
 import { evaluatePortalFeatureGate } from "../lib/portal/feature-gate";
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const nav = source("components/portal/nav.tsx");
 const expectedNav = [
   ["/portal", "Home"],
-  ["/portal/playbook", "Playbook"],
-  ["/portal/activity", "Activity"],
+  ["/portal/progress", "Progress"],
+  ["/portal/plan", "Plan"],
   ["/portal/documents", "Documents"],
-  ["/portal/compliance", "Compliance"],
   ["/portal/account", "Account"],
 ] as const;
 let previousIndex = -1;
@@ -26,8 +25,8 @@ for (const [href, label] of expectedNav) {
   );
   previousIndex = index;
 }
-assert.equal((nav.match(/label:\s*"/g) ?? []).length, 6);
-assert.match(nav, /href: "\/portal\/compliance"[\s\S]{0,180}entitledOnly: true/);
+assert.equal((nav.match(/label:\s*"/g) ?? []).length, 5);
+assert.doesNotMatch(nav, /label: "Compliance"/);
 assert.match(nav, /visibleNavItems = navItems\.filter/);
 for (const retiredLabel of [
   "Dashboard",
@@ -41,12 +40,14 @@ for (const retiredLabel of [
   assert.ok(!nav.includes(`label: "${retiredLabel}"`));
 }
 
-const redirects = source("next.config.ts");
+const redirects = source("next.config.ts").replace(/"(source|destination)":/g, "$1: ");
 const expectedRedirects = {
   "/portal/safety": "/portal",
-  "/portal/plan": "/portal/playbook",
-  "/portal/monitoring": "/portal/activity",
-  "/portal/cases": "/portal/activity",
+  "/portal/playbook": "/portal/plan",
+  "/portal/activity": "/portal/progress",
+  "/portal/compliance": "/portal/plan",
+  "/portal/monitoring": "/portal/progress",
+  "/portal/cases": "/portal/progress",
   "/portal/requests": "/portal/documents",
   "/portal/reports": "/portal/documents",
   "/portal/profile": "/portal/account",
@@ -66,7 +67,7 @@ for (const [from, to] of Object.entries(expectedRedirects)) {
 
 const retiredPages = [
   "app/(portal)/portal/safety/page.tsx",
-  "app/(portal)/portal/plan/page.tsx",
+  "app/(portal)/portal/playbook/page.tsx",
   "app/(portal)/portal/monitoring/page.tsx",
   "app/(portal)/portal/cases/page.tsx",
   "app/(portal)/portal/requests/page.tsx",
@@ -78,10 +79,10 @@ for (const path of retiredPages) {
 }
 
 const currentRoutes = [
-  "app/(portal)/portal/playbook/page.tsx",
-  "app/(portal)/portal/playbook/loading.tsx",
-  "app/(portal)/portal/activity/page.tsx",
-  "app/(portal)/portal/activity/loading.tsx",
+  "app/(portal)/portal/plan/page.tsx",
+  "app/(portal)/portal/plan/loading.tsx",
+  "app/(portal)/portal/progress/page.tsx",
+  "app/(portal)/portal/progress/loading.tsx",
   "app/(portal)/portal/documents/page.tsx",
   "app/(portal)/portal/documents/loading.tsx",
   "app/(portal)/portal/account/page.tsx",
@@ -114,19 +115,19 @@ for (const [tier, expected] of Object.entries(tierMatrix)) {
 }
 
 const home = source("app/(portal)/portal/page.tsx");
-assert.match(home, /href="\/portal\/activity#cases"/);
-assert.match(home, /href="\/portal\/documents#needed-from-you"/);
+assert.match(home, /href="\/portal\/progress#cases"/);
+assert.match(home, /<NeededFromYouSection/);
 assert.match(
   home,
-  /FMCSA publishes no percentiles for low-volume carriers/
+  /It is not a ranking against other companies/
 );
 assert.match(
   home,
-  /Under investigation means evidence is still[\s\S]*it does not mean a violation is removable/
+  /while evidence is pending[\s\S]*are not confirmed for removal/
 );
 
-const playbook = source("app/(portal)/portal/playbook/page.tsx");
-const activity = source("app/(portal)/portal/activity/page.tsx");
+const playbook = source("app/(portal)/portal/plan/page.tsx");
+const activity = source("app/(portal)/portal/progress/page.tsx");
 const documents = source("app/(portal)/portal/documents/page.tsx");
 const account = source("app/(portal)/portal/account/page.tsx");
 for (const [name, file] of Object.entries({
@@ -148,7 +149,7 @@ assert.doesNotMatch(
 );
 assert.match(
   activity,
-  /Only genuine data errors and crash-preventability are challengeable\./
+  /Recorded decisions in your company/
 );
 
 const print = source(

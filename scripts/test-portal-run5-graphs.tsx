@@ -60,7 +60,7 @@ assert.equal((activityHtml.match(/tabindex="0"/g) ?? []).length, 5);
 assert.equal((activityHtml.match(/r="20"/g) ?? []).length, 5);
 assert.match(activityHtml, /Re-analysis/);
 assert.match(activityHtml, /Scheduled check/);
-assert.match(activityHtml, /Interactive weighted burden chart/);
+assert.match(activityHtml, /Interactive weighted violation burden chart/);
 
 const sparklineHtml = renderToStaticMarkup(
   createElement(BurdenSparkline, {
@@ -75,7 +75,7 @@ const sparklineHtml = renderToStaticMarkup(
   })
 );
 assert.equal((sparklineHtml.match(/tabindex="0"/g) ?? []).length, 5);
-assert.equal((sparklineHtml.match(/r="20"/g) ?? []).length, 5);
+assert.equal((sparklineHtml.match(/r="22"/g) ?? []).length, 5);
 assert.equal(
   (sparklineHtml.match(/data-sparkline-marker="endpoint"/g) ?? []).length,
   1
@@ -106,7 +106,7 @@ const eightPointSparkline = renderToStaticMarkup(
     })),
   })
 );
-assert.match(eightPointSparkline, /width:320px;min-width:100%/);
+assert.match(eightPointSparkline, /width:352px;min-width:100%/);
 
 assert.equal(snapshotSourceLabel("rerun"), "Re-analysis");
 assert.equal(snapshotSourceLabel("scheduled_refresh"), "Scheduled check");
@@ -127,7 +127,7 @@ assert.equal(
 );
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const activitySource = source(
@@ -138,7 +138,7 @@ for (const component of [activitySource, sparklineSource]) {
   assert.match(component, /document\.addEventListener\("pointerdown", dismiss\)/);
   assert.match(component, /event\.key === "Enter"/);
   assert.match(component, /event\.key === "Escape"/);
-  assert.match(component, /POINT_TARGET_RADIUS = 20/);
+  assert.match(component, /POINT_TARGET_RADIUS = 2[02]/);
   assert.match(component, /focus-visible:/);
   assert.match(component, /\.closest\("\[data-/);
   assert.match(component, /setFocusedIndex\(null\)/);

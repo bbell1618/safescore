@@ -46,7 +46,7 @@ assert.equal(
 );
 
 const compliancePage = readFileSync(
-  resolve(process.cwd(), "app/(console)/console/clients/[id]/compliance/page.tsx"),
+  resolve(process.cwd(), "components/console/sections/compliance-section.tsx"),
   "utf8"
 );
 const phase3Verification = readFileSync(
@@ -58,7 +58,7 @@ const obsoleteIssueLabel = new RegExp(["live", "issue", "s?"].join("\\s*"), "i")
 assert.doesNotMatch(compliancePage, obsoleteIssueLabel);
 assert.doesNotMatch(phase3Verification, obsoleteIssueLabel);
 assert.match(compliancePage, /formatComplianceBasis\(violations\.length, inWindowViolations\.length\)/);
-assert.match(compliancePage, /formatComplianceIssueStatus\(area\.count, area\.inWindowCount\)/);
+assert.match(compliancePage, /formatComplianceIssueStatus\(\s*area\.count,\s*area\.inWindowCount,?\s*\)/);
 assert.match(compliancePage, /No issues on file/);
 
 console.log(

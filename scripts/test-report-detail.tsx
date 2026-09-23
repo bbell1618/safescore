@@ -220,7 +220,7 @@ assert.match(
 );
 
 const history = source(
-  "app/(console)/console/clients/[id]/reports/page.tsx"
+  "components/console/sections/reports-section.tsx"
 );
 assert.match(
   history,

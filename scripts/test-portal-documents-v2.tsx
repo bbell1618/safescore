@@ -9,7 +9,7 @@ function source(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
-const documentsPage = source("app/(portal)/portal/documents/page.tsx");
+const documentsPage = source("app/(portal)/portal/documents/page.tsx") + source("components/portal/needed-from-you.tsx") + source("lib/portal/requests-server.ts");
 const vault = source(
   "app/(portal)/portal/documents/document-vault.tsx"
 );
@@ -39,7 +39,7 @@ for (const feature of [
     `Documents must gate ${feature} on the server`
   );
 }
-assert.match(documentsPage, /const requestPromise = loadOpenRequests/);
+assert.match(documentsPage, /const requestPromise = loadPortalRequests/);
 assert.match(
   documentsPage,
   /if \(!includeEvidenceRequests\)[\s\S]*?\.eq\("category", "fmcsa_portal_pin"\)/,

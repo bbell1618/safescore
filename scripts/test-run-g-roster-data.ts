@@ -10,7 +10,7 @@ function read(path: string) {
 }
 
 const migration = read(
-  "supabase/migrations/20260817214729_client_roster_collection_flow.sql"
+  "supabase/migrations/20260817222458_client_roster_collection_flow.sql"
 );
 for (const required of [
   "source text",
@@ -139,7 +139,7 @@ console.log(
   JSON.stringify(
     {
       passed: true,
-      migration: "20260817214729_client_roster_collection_flow",
+      migration: "20260817222458_client_roster_collection_flow",
       approvedOnlyConsumersChecked: 6,
       checklistRules: [
         "compliance.roster_empty",

@@ -1,13 +1,12 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import {
-  getMotusCarrierSnapshot,
   parseMotusCarrierSnapshot,
 } from "../lib/fmcsa/motus";
 import { parseSAFERSnapshotHtml } from "../lib/fmcsa/safer";
 
 const dotNumber = "2533650";
-const saferUrl =
-  "https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=2533650";
+
 
 function motusFixture() {
   return {
@@ -82,9 +81,8 @@ function motusFixture() {
 }
 
 async function main() {
-  const saferResponse = await fetch(saferUrl);
-  assert.equal(saferResponse.ok, true);
-  const saferHtml = await saferResponse.text();
+  // Public SAFER snapshot captured 2026-09-23; assertions must not drift with live carrier edits.
+  const saferHtml = readFileSync(new URL("./fixtures/safer-2533650-2026-09-23.html", import.meta.url), "utf8");
   const safer = parseSAFERSnapshotHtml(
     saferHtml,
     dotNumber,
@@ -98,13 +96,12 @@ async function main() {
   assert.deepEqual(safer.cargoTypes, [
     "General Freight",
     "Metal: sheets, coils, rolls",
-    "Building Materials",
     "Fresh Produce",
-    "Meat",
     "Chemicals",
     "Refrigerated Food",
     "Beverages",
     "Paper Products",
+    "Construction",
     "HAZMAT PRODUCTS",
   ]);
   assert.throws(
@@ -146,7 +143,7 @@ async function main() {
     /parser update required/,
   );
 
-  const motus = await getMotusCarrierSnapshot(dotNumber);
+  const motus = parsedFixture;
   assert.equal(motus.legalName, "NATIONWIDE CARRIER INC");
   assert.deepEqual(motus.docketNumbers, ["MC-880750"]);
   assert.equal(motus.authorities[0].status, "Active");

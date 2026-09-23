@@ -12,7 +12,7 @@ const onboardingValidation = read("lib/onboarding/validation.ts");
 const taxonomy = read("lib/evidence-loop/taxonomy.ts");
 const requestAnswer = read("components/portal/request-answer.tsx");
 const requestUpload = read("components/portal/request-upload.tsx");
-const documentsPage = read("app/(portal)/portal/documents/page.tsx");
+const documentsPage = read("app/(portal)/portal/documents/page.tsx") + read("components/portal/needed-from-you.tsx") + read("lib/portal/requests-server.ts");
 const requestsApi = read("app/api/portal/requests/route.ts");
 
 assert.match(
@@ -71,7 +71,7 @@ assert.match(requestAnswer, /type IntakeAnswer = "yes" \| "no"/);
 assert.match(requestAnswer, /router\.refresh\(\)/);
 assert.match(requestAnswer, /certified court disposition/);
 assert.match(requestAnswer, /<fieldset/);
-assert.match(requestAnswer, /min-h-10/);
+assert.match(requestAnswer, /min-h-11/);
 assert.match(requestUpload, /statusCopy/);
 assert.match(requestUpload, /evidenceStatus/);
 
@@ -94,7 +94,7 @@ assert.match(
 );
 assert.match(documentsPage, /lifecycleStatus === "submitted"/);
 assert.match(documentsPage, /lifecycleStatus === "insufficient"/);
-assert.match(documentsPage, /"citation-dismissed": "Citation disposition"/);
+assert.match(documentsPage, /"citation-dismissed": "Court result"/);
 assert.doesNotMatch(documentsPage, /"citation-dismissed": "Citation dismissed"/);
 for (const field of [
   "request_type",

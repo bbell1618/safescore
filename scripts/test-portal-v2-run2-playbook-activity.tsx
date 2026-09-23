@@ -81,12 +81,12 @@ assert.match(chartHtml, /1:30 AM/);
 assert.match(chartHtml, /Every stored monitoring snapshot is shown/);
 
 function source(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
-const playbookPage = source("app/(portal)/portal/playbook/page.tsx");
+const playbookPage = source("app/(portal)/portal/plan/page.tsx");
 const playbookServer = source("lib/portal/playbook-server.ts");
-const activityPage = source("app/(portal)/portal/activity/page.tsx");
+const activityPage = source("app/(portal)/portal/progress/page.tsx");
 const activityServer = source("lib/portal/activity-server.ts");
 const chartSource = source("components/portal/burden-history-chart.tsx");
 
@@ -119,14 +119,14 @@ assert.ok(
 );
 assert.ok(
   activityPage.includes(
-    "canSeeCases\n    ? loadPortalActivityCases(access.clientId)"
+    "canSeeCases\n    ? loadPortalProgressCases(access.clientId)"
   )
 );
-assert.ok(activityPage.includes("cpdpFiledTimelineLabel"));
+assert.ok(activityPage.includes("about 90 days on average for review; this is not a deadline."));
 assert.ok(activityPage.includes("<Suspense"));
 assert.ok(
   activityPage.includes(
-    "Only genuine data errors and crash-preventability are challengeable."
+    "Recorded decisions in your company"
   )
 );
 assert.ok(

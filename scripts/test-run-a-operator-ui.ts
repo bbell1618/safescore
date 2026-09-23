@@ -39,7 +39,7 @@ assert.match(pinRoute, /email_delivery: emailDelivery/);
 assert.match(pinRoute, /PIN_REQUEST_EMAIL_FAILED/);
 assert.match(pinRoute, /Do not send the PIN through ordinary email/);
 
-const portalDocuments = read("app/(portal)/portal/documents/page.tsx");
+const portalDocuments = read("app/(portal)/portal/documents/page.tsx") + read("components/portal/needed-from-you.tsx") + read("lib/portal/requests-server.ts");
 assert.match(portalDocuments, /request\.category === "fmcsa_portal_pin"/);
 assert.match(portalDocuments, /!isFmcsaPinRequest &&/);
 assert.match(
@@ -56,8 +56,8 @@ const activation = read(
 const clientLayout = read("app/(console)/console/clients/[id]/layout.tsx");
 assert.match(activation, /Confirm payment & activate/);
 assert.doesNotMatch(activation, /Confirm payment and activate/);
-assert.match(clientLayout, /<ClientActivationControl/);
-assert.match(clientLayout, /status=\{client\.status\}/);
-assert.doesNotMatch(account, /<ClientActivationControl/);
+assert.match(read("app/(console)/console/clients/[id]/account/page.tsx"), /<ClientActivationControl/);
+assert.match(account, /status=\{client\.status\}/);
+assert.doesNotMatch(clientLayout, /<ClientActivationControl/);
 
 console.log("Run A operator UI contract passed.");

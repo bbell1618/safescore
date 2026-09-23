@@ -3,13 +3,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 function read(path: string) {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n");
 }
 
 const publicPage = read("app/(public)/roster/[token]/page.tsx");
 const wizard = read("components/roster/roster-wizard.tsx");
 const compliancePage = read(
-  "app/(console)/console/clients/[id]/compliance/page.tsx"
+  "components/console/sections/compliance-section.tsx"
 );
 const reviewStrip = read(
   "components/console/compliance/roster-review-strip.tsx"
@@ -18,9 +18,9 @@ const requestControl = read(
   "components/console/compliance/roster-request-control.tsx"
 );
 const requestQueue = read(
-  "app/(console)/console/clients/[id]/requests/page.tsx"
+  "components/console/sections/requests-section.tsx"
 );
-const portalDocuments = read("app/(portal)/portal/documents/page.tsx");
+const portalDocuments = read("app/(portal)/portal/documents/page.tsx") + read("components/portal/needed-from-you.tsx") + read("lib/portal/requests-types.ts") + read("lib/portal/requests-server.ts");
 const portalCompliance = read("app/(portal)/portal/compliance/page.tsx");
 const checklist = read("components/console/operator-checklist.tsx");
 

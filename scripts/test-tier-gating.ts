@@ -66,7 +66,7 @@ assert.ok(!accountSource.includes("value={subscription.tier}"));
 const sharedTierLabelRenderers = {
   "app/page.tsx": "TIER_LABELS[tier.value]",
   "app/onboarding/page.tsx": "TIER_LABELS[assignedTierData.value]",
-  "app/(console)/console/page.tsx": "tierDisplayLabel(client.tier)",
+  "app/(console)/console/clients/page.tsx": "tierDisplayLabel(client.tier)",
   "app/(console)/console/clients/[id]/layout.tsx": "tierDisplayLabel(client.tier)",
   "app/(portal)/portal/account/page.tsx": "tierDisplayLabel(context.tier)",
   "components/console/client-intake-fields.tsx": "TIER_LABELS[tier]",
@@ -125,8 +125,8 @@ for (const tier of CLIENT_TIERS) {
 }
 
 const pageGuards = {
-  "app/(portal)/portal/activity/page.tsx": "trend_history",
-  "app/(portal)/portal/playbook/page.tsx": "playbook_coach",
+  "app/(portal)/portal/progress/page.tsx": "trend_history",
+  "app/(portal)/portal/plan/page.tsx": "playbook_coach",
   "app/(portal)/portal/compliance/page.tsx": "compliance_layer",
 } as const;
 
@@ -143,7 +143,7 @@ for (const [file, feature] of Object.entries(pageGuards)) {
 }
 
 const activitySource = readFileSync(
-  resolve(process.cwd(), "app/(portal)/portal/activity/page.tsx"),
+  resolve(process.cwd(), "app/(portal)/portal/progress/page.tsx"),
   "utf8"
 );
 assert.ok(
@@ -152,7 +152,7 @@ assert.ok(
   )
 );
 assert.ok(
-  /const casesPromise = canSeeCases\s*\?\s*loadPortalActivityCases\(access\.clientId\)/.test(
+  /const casesPromise = canSeeCases\s*\?\s*loadPortalProgressCases\(access\.clientId\)/.test(
     activitySource
   )
 );
@@ -173,7 +173,7 @@ for (const feature of [
 }
 assert.match(
   documentsSource,
-  /const requestPromise = loadOpenRequests\([\s\S]*?canSeeRequests\s*\);/
+  /const requestPromise = loadPortalRequests\([\s\S]*?canSeeRequests\s*\);/
 );
 assert.ok(documentsSource.includes("requestFeatureLocked={!canSeeRequests}"));
 assert.match(documentsSource, /canSeeVault\s*\?\s*loadDocuments/);

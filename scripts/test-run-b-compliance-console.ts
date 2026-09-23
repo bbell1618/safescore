@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { buildComplianceHealth } from "../lib/compliance/health";
 
 const root = process.cwd();
-const read = (path: string) => readFileSync(join(root, path), "utf8");
+const read = (path: string) => readFileSync(join(root, path), "utf8").replace(/\r\n/g, "\n");
 
 const routeFiles = [
   "app/api/clients/[id]/drivers/route.ts",
@@ -68,7 +68,7 @@ const maintenanceRoute = read(
 assert.match(maintenanceRoute, /annual_inspection/);
 assert.match(maintenanceRoute, /annual_inspection_date/);
 
-const page = read("app/(console)/console/clients/[id]/compliance/page.tsx");
+const page = read("components/console/sections/compliance-section.tsx");
 for (const required of [
   "ServiceTierChip",
   "buildComplianceHealth",

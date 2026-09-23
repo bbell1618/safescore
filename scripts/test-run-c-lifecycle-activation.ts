@@ -109,7 +109,7 @@ assert.match(control, /isStaffManualActivationCandidate/);
 assert.match(control, /Confirm payment & activate/);
 assert.match(control, /subscription payment outside Stripe/);
 assert.match(layout, /service_agreement_accepted/);
-assert.match(layout, /showActivationControl/);
+assert.match(read("app/(console)/console/clients/[id]/account/page.tsx"), /ClientActivationControl/);
 
 const postActivation = read("lib/activation/post-activation-server.ts");
 assert.match(postActivation, /notifyOperations\(service/);
