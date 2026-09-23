@@ -24,7 +24,7 @@ function ActivationContent() {
         });
         const data = await r.json();
         if (data.success) {
-          router.replace("/portal");
+          router.replace(data.nextPath === "/onboarding" ? "/onboarding" : "/portal");
         } else {
           setError(data.error ?? "Activation failed. Please contact support.");
         }

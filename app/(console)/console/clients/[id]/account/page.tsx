@@ -16,6 +16,8 @@ import { tierDisplayLabel } from "@/lib/tiers";
 import { formatDate } from "@/lib/utils";
 import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
 import type { BillableDriverSource } from "@/lib/billing/billable-drivers-types";
+import { getAssessmentBilling } from "@/lib/billing/assessment";
+import { AssessmentWaiverControl } from "@/components/console/assessment-waiver-control";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,7 @@ export default async function AccountPage({
     { data: openPinRequest, error: openPinRequestError },
     { data: enrichmentRows, error: enrichmentError },
     billableDrivers,
+    assessmentBilling,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -122,6 +125,7 @@ export default async function AccountPage({
       .eq("client_id", id)
       .order("source", { ascending: true }),
     getBillableDriverCount(supabase, id),
+    getAssessmentBilling(supabase, id),
   ]);
 
   for (const error of [clientError, subscriptionsError, credentialsError]) if (error && error.code !== "PGRST116") throw new Error(`Unable to load account: ${error.message}`);
@@ -143,6 +147,12 @@ export default async function AccountPage({
   }
 
   const account = client as AccountClient;
+  let waiverActor = assessmentBilling?.waived_by ?? null;
+  if (waiverActor) {
+    const { data: actor, error: actorError } = await supabase.from("users").select("full_name").eq("id", waiverActor).maybeSingle();
+    if (actorError) throw new Error(`Unable to load waiver staff name: ${actorError.message}`);
+    waiverActor = actor?.full_name || waiverActor;
+  }
   const subscription = ((subscriptions ?? []) as SubscriptionRow[])[0] ?? null;
   const credential = ((credentials ?? []) as CredentialRow[])[0] ?? null;
   const hasFmcsaPortalPin = (credentialPinCount ?? 0) > 0;
@@ -157,6 +167,7 @@ export default async function AccountPage({
         <section className="bg-warm-white rounded-xl border border-sand p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-2xl text-navy">Service</h2><Badge variant="gold">{tierDisplayLabel(account.tier)}</Badge></div>
           {isStaffManualActivationCandidate({ tier: client.tier, status: client.status, serviceAgreementAccepted: client.service_agreement_accepted === true }) && <div className="mt-4"><ClientActivationControl clientId={id} status={client.status} tier={client.tier} serviceAgreementAccepted={client.service_agreement_accepted === true} /></div>}
+          <AssessmentWaiverControl clientId={id} geiaInsured={assessmentBilling?.geia_insured === true} waivedAt={assessmentBilling?.waived_at ?? null} waivedBy={waiverActor} paidAt={assessmentBilling?.paid_at ?? null} />
           <div className="mt-5 border-t border-sand pt-4">
             <Field label="Billed drivers" value={billableDrivers.billable?.toLocaleString("en-US") ?? "Not recorded"} />
             <p className="mt-1 text-xs text-warm-gray">Highest of FMCSA filing, attested profile, active roster, and client-stated count.</p>

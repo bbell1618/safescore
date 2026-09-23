@@ -132,6 +132,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
       );
     }
 
+    if (client.tier === "assessment") await requireAssessmentCovered(service, id);
     const result =
       client.tier === "assessment"
         ? await activateAssessment(service, id, userId)
@@ -172,3 +173,4 @@ export async function POST(_request: Request, { params }: RouteContext) {
     );
   }
 }
+import { requireAssessmentCovered } from "@/lib/billing/assessment";

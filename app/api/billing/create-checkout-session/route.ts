@@ -7,6 +7,7 @@ import { isSubscriptionTier } from "@/lib/tiers";
 import type { ClientTier } from "@/lib/supabase/types";
 import { missingOnboardingProfileFields } from "@/lib/onboarding/completeness";
 import { getBillableDriverCount } from "@/lib/billing/billable-drivers";
+import { assessmentPriceId, assessmentCovered, getAssessmentBilling } from "@/lib/billing/assessment";
 
 const TIER_PRICE_ENV: Record<
   Exclude<ClientTier, "assessment">,
@@ -39,16 +40,16 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
     | { tier?: unknown }
     | null;
-  if (!body || !isSubscriptionTier(body.tier)) {
+  if (!body || (body.tier !== "assessment" && !isSubscriptionTier(body.tier))) {
     return NextResponse.json(
       {
-        error: "Choose a recurring SafeScore service tier before checkout.",
+        error: "Choose a SafeScore service tier before checkout.",
         code: "INVALID_SUBSCRIPTION_TIER",
       },
       { status: 400 }
     );
   }
-  const tier = body.tier;
+  const tier = body.tier as ClientTier;
 
   const { data: userRecord, error: userRecordError } = await supabase
     .from("users")
@@ -126,6 +127,17 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
+  if (tier === "assessment") {
+    try {
+      const billing = await getAssessmentBilling(await createServiceClient(), clientId);
+      if (assessmentCovered(billing)) return NextResponse.json({ error: "The Assessment is already paid or waived. Submit the profile for activation.", code: "ASSESSMENT_ALREADY_COVERED" }, { status: 409 });
+      if (!assessmentPriceId()) return NextResponse.json({ error: "Assessment checkout is unavailable: STRIPE_PRICE_ASSESSMENT is not configured.", code: "ASSESSMENT_PRICE_NOT_CONFIGURED" }, { status: 503 });
+      const price = await stripe.prices.retrieve(assessmentPriceId()!);
+      if (!price.active || price.type !== "one_time" || price.unit_amount !== 29900 || price.currency !== "usd") return NextResponse.json({ error: "Assessment checkout requires an active one-time $299 USD price.", code: "ASSESSMENT_PRICE_INVALID" }, { status: 503 });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    }
+  }
   let billableDrivers: number | null;
   try {
     // The authenticated lookup above owns clientId; attested profiles are staff-only.
@@ -162,7 +174,7 @@ export async function POST(request: Request) {
   let tierPrice: string;
   let driverAddonPrice: string | null = null;
   try {
-    tierPrice = configuredPrice(TIER_PRICE_ENV[tier]);
+    tierPrice = tier === "assessment" ? configuredPrice("STRIPE_PRICE_ASSESSMENT") : configuredPrice(TIER_PRICE_ENV[tier]);
     driverAddonPrice =
       tier === "total_safety"
         ? configuredPrice("STRIPE_PRICE_DRIVER_ADDON")
@@ -196,7 +208,7 @@ export async function POST(request: Request) {
       throw new Error("NEXT_PUBLIC_APP_URL is not configured");
     }
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
+      mode: tier === "assessment" ? "payment" : "subscription",
       line_items: lineItems,
       success_url: `${appUrl}/onboarding/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/onboarding`,
@@ -206,12 +218,12 @@ export async function POST(request: Request) {
         user_id: user.id,
         tier,
       },
-      subscription_data: {
+      ...(tier === "assessment" ? {} : { subscription_data: {
         metadata: {
           client_id: clientId,
           tier,
         },
-      },
+      } }),
     });
     if (!session.url) {
       throw new Error("Stripe created a checkout session without a redirect URL");

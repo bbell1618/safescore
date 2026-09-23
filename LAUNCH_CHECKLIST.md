@@ -7,7 +7,8 @@ SafeScore is **not yet verified for outside-client launch**. As of September 23,
 - [x] Live database audit: zero public tables without RLS; client invitation policy targets only service_role (September 23).
 - [x] Live playbook configuration: new rows default to draft; review metadata/constraints exist; original Nationwide playbook content unchanged (September 23).
 - [x] Public /terms draft renders with pending-approval banner (September 23).
-- [ ] Brandon signs in as staff for exact production EMAIL_DRY_RUN=true and accumulated verification.
+- [x] Staff runtime email-safety page showed exactly true after Brandon's September 23 redeploy; agency deadline UI and monthly report proofs passed.
+- [ ] Human launch owner replaces TEST Stripe keys/prices with approved LIVE settings, including an active one-time $299 USD STRIPE_PRICE_ASSESSMENT, and separately verifies payment/webhook behavior. This goal uses TEST only and never pays.
 - [ ] Daven approves content/legal/terms-draft.md and onboarding filing authorization before the banner is removed.
 - [ ] Complete remaining runbook gates and record human launch sign-off in GoldenDesk.
 

@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe/client";
 import { isSubscriptionTier } from "@/lib/tiers";
 import { activatePaidSubscription } from "@/lib/billing/activation";
 import { OnboardingRouteFailure } from "@/lib/onboarding/server";
+import { recordPaidAssessment } from "@/lib/billing/assessment";
 
 export const maxDuration = 300;
 
@@ -51,6 +52,11 @@ export async function POST(request: Request) {
     }
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.mode === "payment" && session.metadata?.tier === "assessment") {
+      if (session.metadata?.client_id !== caller.client_id || session.metadata?.user_id !== user.id) return NextResponse.json({ error: "Checkout session does not belong to this portal account" }, { status: 403 });
+      const assessment = await recordPaidAssessment(service, session);
+      return NextResponse.json({ success: true, ...assessment });
+    }
     if (
       session.mode !== "subscription" ||
       session.status !== "complete" ||

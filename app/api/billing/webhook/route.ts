@@ -5,6 +5,7 @@ import { isSubscriptionTier } from "@/lib/tiers";
 import { stripe } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { recordPaidAssessment } from "@/lib/billing/assessment";
 
 export const maxDuration = 300;
 
@@ -25,6 +26,10 @@ async function activateCheckoutSession(
   session: Stripe.Checkout.Session,
   source: "stripe_webhook"
 ) {
+  if (session.mode === "payment" && session.metadata?.tier === "assessment") {
+    if (session.status !== "complete" || session.payment_status !== "paid") return { activated: false as const, reason: "checkout_not_paid" };
+    return { activated: false as const, ...(await recordPaidAssessment(await createServiceClient(), session)) };
+  }
   if (
     session.mode !== "subscription" ||
     session.status !== "complete" ||

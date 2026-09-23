@@ -15,7 +15,7 @@ This is a human procedure, not authorization for an agent to send messages, use 
 | Invitation policy | pg_policies: only Service role only on client_invites, role service_role, command ALL | DONE for policy scope |
 | Playbook review schema | Live review_status default 'draft'::text, metadata and CHECK constraint, staff SELECT-only policy | DONE for schema |
 | Existing Nationwide playbooks | Original-column hashes unchanged; legacy review state NULL | DONE for preservation |
-| Runtime email safety | Staff endpoint deployed; anonymous 401; authenticated boolean unread | NOT VERIFIED |
+| Runtime email safety | Staff /console/email-safety showed exactly true after Brandon's redeploy dpl_5rG6kj818khzDFoExrJ9twxbwKmL | DONE September 23, 14:35 PT |
 | SMTP, cron secret, Stripe mode, OpenRouter funding, provider credentials, app URL, custom DNS | No fresh runtime proof in this loop | NOT VERIFIED |
 
 Invitation anon still has a table SELECT grant, but no applicable RLS policy; this is not a revoked grant. Security advisors were unchanged: 23 informational no-policy objects, two existing security-definer helper warnings, and disabled leaked-password protection. This loop did not change them. Detailed receipts are in scratch/goal-runbook-db-audit.json and scratch/goal-09a-advisors.json.
@@ -25,7 +25,7 @@ Invitation anon still has a table SELECT grant, but no applicable RLS policy; th
 1. Open https://safescore.vercel.app/login in the Codex in-app browser.
 2. Sign in personally with the staff account.
 3. Tell Codex “signed in” in the active goal task.
-4. Open /api/operator/email-safety in that signed-in browser.
+4. Open /console/email-safety in that signed-in browser.
 5. If emailDryRunExactlyTrue is false, set production EMAIL_DRY_RUN to the literal true in Vercel → safescore → Settings → Environment Variables.
 6. Redeploy safescore after any environment change.
 7. Reload the staff endpoint after the deployment is READY.
@@ -86,11 +86,13 @@ Later human-only email activation, outside this goal:
 5. Open the generated TEST checkout URL without paying.
 6. Review the GEIA-insured waiver on the synthetic client's Account page.
 
-**Claude verifies:** Assessment uses mode: payment, missing price returns clear 503 with no button, waiver records actor/time, recurring tiers remain correct, and checkout is TEST. Assessment purchase/price/waiver were not built here because email safety was unread.
+**Claude verifies:** Assessment uses mode: payment, missing price returns clear 503 with no button, waiver records actor/time, recurring tiers remain correct, and checkout is TEST. A $299 USD TEST price and unpaid Checkout session were created September 23; the safe receipt is scratch/goal-assessment-stripe-proof.json. The private checkout link stays in scratch/goal-assessment-stripe-private.json and must not be pasted in logs. No payment was made.
+
+The Account page's GEIA-insured switch waives only the one-time Assessment fee. It stores the staff actor and date. A verified paid Assessment or a recorded waiver allows profile submission for staff activation; it does not auto-activate a client or waive recurring charges. Payment fulfillment is covered by automated guards, but a completed paid transaction remains NOT VERIFIED in this unpaid-only proof.
 
 Future live conversion is human-only and outside this goal:
-1. Have the authorized human create live recurring prices, the Total Safety driver add-on and the one-time Assessment price in Stripe.
-2. Have that human configure matching live secret/price IDs in Vercel.
+1. Have the authorized human create live recurring prices, the Total Safety driver add-on and an active one-time $299 USD Assessment price in Stripe.
+2. Have that human configure matching live secret/price IDs, including STRIPE_PRICE_ASSESSMENT, in Vercel and redeploy. Confirm no TEST receipts remain on real client accounts before launch.
 3. Have that human configure the deployed /api/billing/webhook endpoint and signing secret.
 4. Have that human perform the separately approved live payment.
 5. Record the payment, customer-portal, cancellation and receipt results in GoldenDesk.

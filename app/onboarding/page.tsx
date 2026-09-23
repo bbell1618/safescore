@@ -166,6 +166,8 @@ export default function OnboardingPage() {
   // Step 4 — Checkout
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [assessmentBilling, setAssessmentBilling] = useState<{ available: boolean; covered: boolean; geiaInsured: boolean; paid: boolean } | null>(null);
+  const [assessmentBillingError, setAssessmentBillingError] = useState<string | null>(null);
   const [activationLoading, setActivationLoading] = useState(false);
   const [showTierOptions, setShowTierOptions] = useState(false);
   const [pendingTier, setPendingTier] = useState<ClientTier | null>(null);
@@ -183,6 +185,16 @@ export default function OnboardingPage() {
 
   // Assigned tier from client record (GEIA sets this)
   const assignedTier = isClientTier(client?.tier) ? client.tier : null;
+  useEffect(() => {
+    if (assignedTier !== "assessment") return;
+    let cancelled = false;
+    fetch("/api/billing/assessment-status", { cache: "no-store" }).then(async response => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to check Assessment payment");
+      if (!cancelled) { setAssessmentBilling(result); setAssessmentBillingError(null); }
+    }).catch(error => { if (!cancelled) setAssessmentBillingError(error instanceof Error ? error.message : String(error)); });
+    return () => { cancelled = true; };
+  }, [assignedTier]);
   const assignedTierData = assignedTier
     ? TIERS.find((tier) => tier.value === assignedTier) ?? null
     : null;
@@ -438,12 +450,6 @@ export default function OnboardingPage() {
     if (!assignedTier) {
       setCheckoutError(
         "No service tier is assigned to this account. Contact your GEIA account manager."
-      );
-      return;
-    }
-    if (!hasRecurringSubscription) {
-      setCheckoutError(
-        "Assessment is a one-time diagnostic and does not use recurring subscription checkout."
       );
       return;
     }
@@ -1645,9 +1651,12 @@ export default function OnboardingPage() {
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-[#5C554E]">
                     The $299 Assessment is a one-time diagnostic, not a recurring subscription.
-                    No subscription checkout will be opened. GEIA will confirm the one-time
-                    assessment activation and payment separately.
+                    Pay once through secure checkout. If GEIA has recorded you as an insured
+                    client, the Assessment fee is waived.
                   </p>
+                  {assessmentBillingError ? <p role="alert" className="mt-3 text-sm text-error">{assessmentBillingError}</p> : null}
+                  {assessmentBilling?.covered ? <>
+                  <p className="mt-3 text-sm">{assessmentBilling.paid ? "Assessment payment received." : "GEIA insured — Assessment fee waived."}</p>
                   <button
                     type="button"
                     onClick={() => void handleAssessmentActivation()}
@@ -1658,6 +1667,7 @@ export default function OnboardingPage() {
                       ? "Submitting for activation..."
                       : "Submit profile for activation"}
                   </button>
+                  </> : assessmentBilling?.available ? <button type="button" onClick={() => void handleSubscribe()} disabled={checkoutLoading} className="mt-4 block w-full rounded-xl bg-[#C67A1E] py-3 text-center text-sm font-semibold text-white disabled:opacity-50">{checkoutLoading ? "Opening checkout..." : "Pay $299 once →"}</button> : <p className="mt-3 text-sm">{assessmentBilling ? "Assessment checkout is currently unavailable. Contact GEIA." : "Checking Assessment payment..."}</p>}
                 </div>
               )}
 

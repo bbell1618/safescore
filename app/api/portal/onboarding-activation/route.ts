@@ -4,11 +4,13 @@ import {
   transitionFailure,
 } from "@/lib/onboarding/server";
 import { NextResponse } from "next/server";
+import { requireAssessmentCovered } from "@/lib/billing/assessment";
 
 export async function POST() {
   try {
     const { service, userId, clientId } =
       await requirePortalOnboardingClient();
+    await requireAssessmentCovered(service, clientId);
     const { data, error } = await service
       .rpc("submit_assessment_activation_v1", {
         p_client_id: clientId,

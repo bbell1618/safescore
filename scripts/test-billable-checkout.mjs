@@ -48,6 +48,7 @@ async function run({ stated = 5, billable = 45, failure, signedIn = true } = {})
     "@/lib/auth/access": { isClientPostOnboardingLifecycle: () => false },
     "@/lib/tiers": { isSubscriptionTier: (value) => value === "total_safety" },
     "@/lib/onboarding/completeness": completeness,
+    "@/lib/billing/assessment": {}, // Recurring checkout must not enter Assessment billing.
     "@/lib/billing/billable-drivers": { getBillableDriverCount: async (db, id) => {
       resolutions++;
       assert.equal(db, service); assert.equal(id, "client");
