@@ -5,6 +5,25 @@ import { buildLaneBEvidenceRequestCopy, formatLaneBEvidenceViolationContext, LAN
 const context = { violationCode: "3922SLLS4", inspectionDate: "2026-02-24" };
 const format = (violationDescription: string) => formatLaneBEvidenceViolationContext({ ...context, violationDescription });
 
+for (const [evidenceClass, phrase] of [
+  ["citation-dismissed", "If the court dismissed or reduced the ticket"],
+  ["wrong-attribution", "If the records show it was a different company, driver, or truck"],
+  ["duplicate", "If the records show the same event was listed twice"],
+  ["report-factual-error", "If the records show the report is wrong"],
+] as const) {
+  test(`${evidenceClass} uses its outcome condition with singular and plural points`, () => {
+    for (const points of [1, 18]) {
+      const copy = buildLaneBEvidenceRequestCopy(evidenceClass, points);
+      const pointLabel = `${points} ${points === 1 ? "point" : "points"}`;
+      assert.equal(copy.whyCopy, `This could remove ${pointLabel} ${phrase.toLowerCase()}.`);
+      for (const item of copy.requestedItems) {
+        assert.equal(item.contextNote, `${copy.statusCopy} ${phrase}, this could remove ${pointLabel}.`);
+        assert.doesNotMatch(item.contextNote, /the error/i);
+      }
+    }
+  });
+}
+
 test("request context strips the first category prefix and omits the required code", () => {
   for (const prefix of ["State/Local Laws", "Brake", "License (CDL)"]) {
     assert.equal(format(`${prefix} - Short description`), "Short description, Feb 24, 2026");

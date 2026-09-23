@@ -18,6 +18,7 @@ export type LaneBEvidenceClassDefinition = {
   trigger: string;
   items: readonly Omit<LaneBEvidenceItem, "contextNote">[];
   ask: string;
+  outcomePhrase: string;
 };
 
 export const LANE_B_EVIDENCE_TAXONOMY: Record<
@@ -25,6 +26,7 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
   LaneBEvidenceClassDefinition
 > = {
   "wrong-attribution": {
+    outcomePhrase: "If the records show it was a different company, driver, or truck",
     title: "Records showing which company, driver, or truck was involved",
     trigger:
       "The review identifies the wrong carrier, driver, or vehicle as the likely record defect.",
@@ -38,6 +40,7 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
       "Please upload records showing which company, driver, and truck were involved at the time of the inspection. These help us check whether the violation was assigned to the wrong person or company.",
   },
   duplicate: {
+    outcomePhrase: "If the records show the same event was listed twice",
     title: "Truck and trip records showing the same event was listed twice",
     trigger:
       "The review identifies a duplicate inspection or violation as the specific defect.",
@@ -50,6 +53,7 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
       "Please upload records showing the truck's vehicle identification number and the date and time of the trip or inspection. These help us check whether the same event was recorded twice.",
   },
   "citation-dismissed": {
+    outcomePhrase: "If the court dismissed or reduced the ticket",
     title: "Court paperwork showing how the ticket ended",
     trigger:
       "A citation exists and its final court disposition is favorable or still unknown.",
@@ -60,6 +64,7 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
       "Please upload the court's final decision about this ticket. Use a copy the court has stamped or signed to confirm it is official.",
   },
   "report-factual-error": {
+    outcomePhrase: "If the records show the report is wrong",
     title: "Inspection reports, photos, or repair records showing a mistake",
     trigger:
       "The review identifies a specific factual, clerical, or recording error in the inspection report.",
@@ -312,13 +317,13 @@ export function buildLaneBEvidenceRequestCopy(
     evidenceClass === "citation-dismissed"
       ? "Court paperwork showing how the ticket ended"
       : definition.title;
-  const contextNote = `${definition.ask} If the records confirm the error, this could remove ${pointLabel}.`;
+  const contextNote = `${definition.ask} ${definition.outcomePhrase}, this could remove ${pointLabel}.`;
 
   return {
     title: violationContext
       ? `${contextualTitle} \u2014 ${violationContext}`
       : definition.title,
-    whyCopy: `This could remove ${pointLabel} if the evidence confirms the issue.`,
+    whyCopy: `This could remove ${pointLabel} ${definition.outcomePhrase.toLowerCase()}.`,
     statusCopy: definition.ask,
     requestedItems: definition.items.map((item) => ({
       ...item,

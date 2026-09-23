@@ -101,7 +101,9 @@ function uniqueRequestCopy(value: string | null | undefined, seen: Set<string>) 
     .filter((sentence) => {
       const key = sentence.toLowerCase().replace(/\s+/g, " ").trim()
         .replace(/^if the records confirm the error, this could remove (\d+) points?\.$/, "conditional removal: $1")
-        .replace(/^this could remove (\d+) points? if the evidence confirms the issue\.$/, "conditional removal: $1");
+        .replace(/^this could remove (\d+) points? if the evidence confirms the issue\.$/, "conditional removal: $1")
+        .replace(/^if (.+), this could remove (\d+) (points?)\.$/, "conditional removal: $2 $3 if $1")
+        .replace(/^this could remove (\d+) (points?) if (.+)\.$/, "conditional removal: $1 $2 if $3");
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -244,7 +246,13 @@ export async function NeededFromYouSection({
           {requests.map((request, index) => {
             const status = statusPresentation(request);
             const seenCopy = new Set<string>();
-            const description = uniqueRequestCopy(request.description, seenCopy);
+            // Open evidence instructions live in status_copy; description can retain older copy.
+            const instruction = request.request_type === "evidence" &&
+              request.status === "open" &&
+              (request.evidence_status ?? "open") === "open"
+                ? request.status_copy ?? request.description
+                : request.description;
+            const description = uniqueRequestCopy(instruction, seenCopy);
             const whyCopy = uniqueRequestCopy(request.why_copy, seenCopy);
             const statusCopy = request.request_type === "roster_collection" && description
               ? ""
