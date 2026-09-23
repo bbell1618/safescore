@@ -373,6 +373,8 @@ For service tiers entitled to evidence collection, qualifying investigation find
 
 ### The four evidence classes
 
+**Lane I is investigation:** evidence is needed before a correction can be supported. The path is **Lane I → evidence received and reassessed → Lane B if supported → staff-reviewed DataQs filing**. An upload alone does not guarantee graduation, and neither an investigation nor a request is a promise that points can be removed. Insufficient evidence stays in investigation; unsupported correction grounds do not become filings.
+
 | Class | When it applies | What SafeScore asks the carrier for |
 | --- | --- | --- |
 | Wrong attribution | The inspection/violation may belong to the wrong carrier, driver, or vehicle | Vehicle registration; lease/interchange agreement; driver roster for the inspection date; ELD/GPS location records |

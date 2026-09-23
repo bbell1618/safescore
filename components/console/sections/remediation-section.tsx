@@ -331,7 +331,11 @@ export default async function RemediationPage({
             {nextStep.action} &rarr;
           </Link>
         </div>
-        <div className="mt-5 grid gap-2 border-t border-[#EAD8BC] pt-4 text-xs md:grid-cols-3">
+        <div className="mt-5 grid gap-2 border-t border-[#EAD8BC] pt-4 text-xs md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
+            <p className="font-semibold text-[#1E1C1A]">Evidence investigation (Lane I)</p>
+            <p className="text-gray-500 mt-1">Collect and check the missing records first. If they support a correction, the item can move to record review (Lane B). Staff then review and prepare a DataQs filing. Evidence requested does not mean evidence received or points removable.</p>
+          </div>
           <div className="rounded-lg bg-white/70 border border-[#F0E8DA] p-3">
             <p className="font-semibold text-[#1E1C1A]">Crash preventability review</p>
             <p className="text-gray-500 mt-1">Review eligible crashes for documented non-preventability.</p>

@@ -9,7 +9,7 @@ export default async function WorkPage({ params }: { params: Promise<{ id: strin
   const data = await loadClientWork(id);
   return <div className="mx-auto max-w-7xl space-y-8 p-4 sm:p-6">
     <ClientWorkQueue clientId={id} data={data} />
-    <details id="requests" className="scroll-mt-24 rounded-xl border border-sand bg-warm-white p-5"><summary className="min-h-11 cursor-pointer font-heading text-xl">Request history</summary><Suspense fallback={<p role="status">Loading history…</p>}><RequestsSection params={params} /></Suspense></details>
+    <details className="rounded-xl border border-sand bg-warm-white p-5"><summary className="min-h-11 cursor-pointer font-heading text-xl">Request history</summary><Suspense fallback={<p role="status">Loading history…</p>}><RequestsSection params={params} /></Suspense></details>
     <details className="rounded-xl border border-sand bg-warm-white p-5"><summary className="min-h-11 cursor-pointer font-heading text-xl">Watch status and monitoring history</summary><Suspense fallback={<p role="status">Loading monitoring…</p>}><MonitoringSection params={params} /></Suspense></details>
   </div>;
 }
