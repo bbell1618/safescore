@@ -212,7 +212,7 @@ export function ClientIntakeFields({
           className="mt-0.5 rounded border-gray-300 text-[#C67A1E] focus:ring-[#C67A1E]"
         />
         <label htmlFor={`${idPrefix}-geia-client`} className="text-sm text-gray-700">
-          Existing GEIA insurance client (waives assessment fee)
+          Existing GEIA insurance client (record the Assessment waiver on Account)
         </label>
       </div>
     </div>

@@ -56,9 +56,8 @@ export function PlaybookGenerationControl({
       }
 
       router.push(
-        `/console/clients/${clientId}/remediation/playbook?version=${payload.version}`
+        `/console/clients/${clientId}/plan?version=${payload.version}#playbook`
       );
-      router.refresh();
     } catch (generationError) {
       setError(
         generationError instanceof Error
