@@ -383,7 +383,7 @@ The **What next** summary distinguishes correction items needing action from cli
 | --- | --- | --- |
 | Wrong attribution | The inspection/violation may belong to the wrong carrier, driver, or vehicle | Vehicle registration; lease/interchange agreement; driver roster for the inspection date; ELD/GPS location records |
 | Duplicate | The same inspection or violation may have been recorded twice | VIN or unit record; inspection date/time record; authenticated ELD/GPS/dispatch record |
-| Citation dismissed | A citation exists and its final disposition may support the challenge | Certified court disposition |
+| Citation dismissed | A ticket's final court result may support the challenge | Court paperwork showing how the ticket ended; a copy stamped or signed by the court |
 | Report factual error | A clerical, recording, or observable factual error may exist | Driver’s inspection report; dated photos; repair invoices/work orders |
 
 Unmapped actionable findings and open-case fallback use Report factual error; do not force a stronger class without evidence.
@@ -405,10 +405,10 @@ For an entitled client, SafeScore automatically creates a typed request when cha
 - links the request to the violation and, when applicable, the case;
 - prevents a second open request for the same violation and class;
 - includes the potential removable points;
-- gives the request a contextual title such as `Certified court disposition — {code} ({short description}, {inspection date})`;
+- gives the request a plain title beginning `Court paperwork showing how the ticket ended`, with the short description and inspection date when context is complete;
 - gives the carrier a plain-language reason for the ask.
 
-Before contacting the carrier, verify the title’s code, description, date, and linked violation. Repeated generic titles are a defect signal.
+Before contacting the carrier, verify the description, date, and linked violation against the staff record. Client titles intentionally omit the regulation code. If context is incomplete, a generic title is expected; inspect the source before treating repeated titles as a defect.
 
 ### Request lifecycle
 
