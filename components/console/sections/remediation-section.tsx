@@ -423,7 +423,9 @@ export default async function RemediationPage({
                       <td className="px-5 py-4 text-gray-500">{item.basicLabel}</td>
                       <td className="px-5 py-4 font-semibold text-[#1E1C1A]">{item.points} pts</td>
                       <td className="px-5 py-4 text-gray-600">
-                        Investigate evidence - Auto {item.evidenceSummary.auto} / Client {item.evidenceSummary.client} / Manual {item.evidenceSummary.manual}
+                        <p>Collect and review the missing evidence.</p>
+                        <p className="mt-1 text-xs">Evidence plan: {item.evidenceSummary.auto} from connected records; {item.evidenceSummary.client} from the client; {item.evidenceSummary.manual} for staff to obtain.</p>
+                        <p className="mt-1 text-xs text-gray-500">These are source counts, not confirmation that files have arrived.</p>
                       </td>
                       <td className="px-5 py-4">{renderInvestigationStatus(openRequests, item, id)}</td>
                       <td className="px-5 py-4">
