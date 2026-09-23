@@ -3,6 +3,7 @@ import { OnboardingRouteFailure, requireStaffOnboardingUser } from "@/lib/onboar
 import { fetchPublicBasicMeasures } from "@/lib/fmcsa/public-basic-measures";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ dot: string }> }) {
   try {

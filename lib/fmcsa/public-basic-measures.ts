@@ -56,10 +56,42 @@ export function parsePublicBasicMeasures(html: string, dotNumber: string, now = 
   return { dotNumber, source: "public_sms_profile" as const, sourceUrl, smsRunDate: isoDate, ...classifyBasicsCurrentness(isoDate, now), measures };
 }
 
-export async function fetchPublicBasicMeasures(dotNumber: string) {
-  const response = await fetch(publicBasicProfileUrl(dotNumber), {
-    cache: "no-store", signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) throw new Error(`Public SMS profile request failed with HTTP ${response.status}`);
-  return parsePublicBasicMeasures(await response.text(), dotNumber);
+type FetchDependencies = {
+  fetcher?: typeof fetch;
+  sleep?: (milliseconds: number) => Promise<void>;
+  timeoutMs?: number;
+  logFailure?: (message: string, details: Record<string, unknown>) => void;
+};
+
+export async function fetchPublicBasicMeasures(dotNumber: string, dependencies: FetchDependencies = {}) {
+  const url = publicBasicProfileUrl(dotNumber);
+  const fetcher = dependencies.fetcher ?? fetch;
+  const sleep = dependencies.sleep ?? (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)));
+  const timeoutMs = dependencies.timeoutMs ?? 20_000;
+  const logFailure = dependencies.logFailure ?? console.error;
+  const backoff = [2_000, 6_000, 15_000];
+  const failures: string[] = [];
+  for (let attempt = 0; attempt <= backoff.length; attempt++) {
+    if (attempt > 0) await sleep(backoff[attempt - 1]);
+    let html: string;
+    try {
+      const response = await fetcher(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) throw new Error(`Public SMS profile request failed with HTTP ${response.status}`);
+      // The request's abort signal remains active while the response body is read.
+      html = await response.text();
+    } catch (error) {
+      const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      failures.push(`attempt ${attempt + 1}: ${reason}`);
+      logFailure("Public BASIC capture request failed", { dotNumber, attempt: attempt + 1, maxAttempts: 4, timeoutMs, reason });
+      continue;
+    }
+    try {
+      return parsePublicBasicMeasures(html, dotNumber);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      logFailure("Public BASIC capture validation failed", { dotNumber, reason });
+      throw error;
+    }
+  }
+  throw new Error(`Public SMS capture failed for USDOT ${dotNumber} after 4 attempts: ${failures.join("; ")}`);
 }
