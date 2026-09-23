@@ -23,7 +23,7 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   {
     prefix: "39111B2Q",
     familyKey: "driver_qualification",
-    basis: "English-language proficiency / driver qualification",
+    basis: "Speaking and reading English / driver qualifications",
   },
   {
     prefix: "3922SLLMF",
@@ -53,7 +53,7 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   {
     prefix: "3929A2C",
     familyKey: "cargo_securement",
-    basis: "Cargo component and dunnage securement",
+    basis: "Cargo component and packing and bracing materials securement",
   },
   {
     prefix: "39311A1LCL",
@@ -63,12 +63,12 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   {
     prefix: "39311A1C",
     familyKey: "conspicuity_body",
-    basis: "Truck-tractor conspicuity sheeting",
+    basis: "Truck-tractor reflective sheeting",
   },
   {
     prefix: "39313C3C",
     familyKey: "conspicuity_body",
-    basis: "Trailer conspicuity sheeting",
+    basis: "Trailer reflective sheeting",
   },
   {
     prefix: "393207",
@@ -93,7 +93,7 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   {
     prefix: "39355",
     familyKey: "brakes_air",
-    basis: "ABS warning systems",
+    basis: "Anti-lock braking system warnings",
   },
   {
     prefix: "39365C",
@@ -123,37 +123,37 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   {
     prefix: "39522",
     familyKey: "eld_hygiene",
-    basis: "ELD mounting",
+    basis: "electronic driving log mounting",
   },
   {
     prefix: "39524",
     familyKey: "eld_hygiene",
-    basis: "ELD form, transfer, and shipping-document data",
+    basis: "electronic driving log form, transfer, and shipping-document data",
   },
   {
     prefix: "39530",
     familyKey: "eld_hygiene",
-    basis: "ELD review and certification",
+    basis: "electronic driving log review and certification",
   },
   {
     prefix: "39532",
     familyKey: "eld_hygiene",
-    basis: "ELD unassigned-driving-time review",
+    basis: "electronic driving log unassigned-driving-time review",
   },
   {
     prefix: "3958E",
     familyKey: "log_integrity",
-    basis: "False record of duty status",
+    basis: "False driving log",
   },
   {
     prefix: "3958A",
     familyKey: "eld_hygiene",
-    basis: "Log form and manner",
+    basis: "Required driving log details",
   },
   {
     prefix: "3958",
     familyKey: "eld_hygiene",
-    basis: "General record-of-duty-status hygiene",
+    basis: "Routine driving log checks",
   },
   {
     prefix: "3953",

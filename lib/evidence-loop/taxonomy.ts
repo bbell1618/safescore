@@ -76,7 +76,7 @@ export const LANE_B_EVIDENCE_TAXONOMY: Record<
 export const CITATION_DISMISSED_INTAKE_QUESTION =
   "Has any driver fought and beaten a roadside ticket in the last 24 months?";
 
-const SHORT_VIOLATION_DESCRIPTION_MAX = 72;
+const SHORT_VIOLATION_DESCRIPTION_MAX = 70;
 const MONTH_LABELS = [
   "Jan",
   "Feb",
@@ -100,15 +100,15 @@ export type LaneBEvidenceViolationContext = {
 
 function compactViolationDescription(value: string) {
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= SHORT_VIOLATION_DESCRIPTION_MAX) return normalized;
-  const clipped = normalized
-    .slice(0, SHORT_VIOLATION_DESCRIPTION_MAX - 1)
-    .trimEnd();
-  const finalSpace = clipped.lastIndexOf(" ");
-  const wordSafe =
-    finalSpace >= Math.floor(SHORT_VIOLATION_DESCRIPTION_MAX * 0.6)
-      ? clipped.slice(0, finalSpace)
-      : clipped;
+  const prefixEnd = normalized.indexOf(" - ");
+  const description = (prefixEnd < 0 ? normalized : normalized.slice(prefixEnd + 3)).trim();
+  const trimSeparator = (text: string) => text.replace(/[\s\-–—…]+$/u, "");
+  if (description.length <= SHORT_VIOLATION_DESCRIPTION_MAX) return trimSeparator(description);
+  // Include the next character to distinguish a complete word at the boundary.
+  const clipped = description.slice(0, SHORT_VIOLATION_DESCRIPTION_MAX + 1);
+  const wordSafe = trimSeparator(clipped.slice(0, clipped.lastIndexOf(" ")));
+  // A single oversized word has no safe compact context; retain the generic title.
+  if (clipped.lastIndexOf(" ") < 0 || !wordSafe) return "";
   return `${wordSafe}\u2026`;
 }
 
@@ -145,7 +145,7 @@ export function formatLaneBEvidenceViolationContext(
     ? formatInspectionDate(context.inspectionDate)
     : null;
   if (!code || !description || !inspectionDate) return null;
-  return `${code} (${description}, ${inspectionDate})`;
+  return `${description}, ${inspectionDate}`;
 }
 
 export type LaneBViolationClassificationInput = {

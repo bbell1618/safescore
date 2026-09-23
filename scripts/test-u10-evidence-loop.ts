@@ -150,7 +150,7 @@ const liveLeadCopy = buildLaneBEvidenceRequestCopy("citation-dismissed", 18, {
 });
 assert.equal(
   liveLeadCopy.title,
-  "Certified court disposition \u2014 39345B2BVAC (Brake - Vacuum hose restricted, Feb 20, 2026)",
+  "Certified court disposition \u2014 Vacuum hose restricted, Feb 20, 2026",
 );
 assert.match(liveLeadCopy.whyCopy, /remove 18 points/);
 assert.equal(liveLeadCopy.requestedItems.length, 1);
@@ -168,7 +168,7 @@ assert.equal(
       "State/Local Laws - Speeding 15 or more miles per hour over the speed limit with additional source detail",
     inspectionDate: "2026-02-24",
   }),
-  "3922SLLS4 (State/Local Laws - Speeding 15 or more miles per hour over the speed\u2026, Feb 24, 2026)",
+  "Speeding 15 or more miles per hour over the speed limit with\u2026, Feb 24, 2026",
   "long descriptions must be compacted deterministically",
 );
 assert.equal(

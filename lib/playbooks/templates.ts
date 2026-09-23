@@ -14,7 +14,7 @@ export const OWNER_CURRICULUM: readonly PlaybookOwnerModule[] = [
     title: "How your score actually works",
     installment: "One-pager",
     content:
-      "Every roadside violation carries 1-10 severity points, plus 2 if it puts the truck out of service, multiplied by 3 for the first 12 months. Nothing the carrier fixes removes old points; they fade with time and are gone at 24 months only if new ones stop arriving. Insurance is priced from this record. The controllable lever is the inflow rate: fewer new violations lets the record heal.",
+      "Each roadside violation is worth 1-10 points, plus 2 if the truck or driver was put out of service. Newer violations count more: triple for the first 6 months, double from 6 to 12 months, and normal from 12 to 24 months. Every violation drops off completely after 24 months, whether or not new violations occur. Insurance is priced from this record. What you control is getting fewer new violations.",
     deliverables: ["Score-mechanics one-pager"],
   },
   {
@@ -22,7 +22,7 @@ export const OWNER_CURRICULUM: readonly PlaybookOwnerModule[] = [
     title: "The weekly safety block",
     installment: "One-pager and recurring checklist",
     content:
-      "Reserve 30 minutes at the same time every week. Review every new inspection report, assign each defect to one person with a deadline, check the preventive-maintenance due list, and record repeating driver or unit patterns. Every family program depends on this habit.",
+      "Reserve 30 minutes at the same time every week. Review every new inspection report, assign each defect to one person with a deadline, check the preventive-maintenance due list, and record repeated problems with the same driver or vehicle. Every safety program depends on this habit.",
     deliverables: ["Weekly safety-block one-pager", "Recurring checklist"],
   },
   {
@@ -30,16 +30,16 @@ export const OWNER_CURRICULUM: readonly PlaybookOwnerModule[] = [
     title: "Driver accountability system",
     installment: "One-pager and policy template",
     content:
-      "Use a written policy every driver signs that defines coaching, written warning, and consequences for a first, second, and third violation. Log falsification has zero tolerance. Without written accountability, the family programs are suggestions rather than a management system.",
+      "Use a written policy every driver signs that defines coaching, written warning, and consequences for a first, second, and third violation. Do not allow false entries in driving logs. A written policy makes these safety programs enforceable.",
     deliverables: ["Accountability one-pager", "Driver policy template"],
   },
   {
     key: "A4",
-    title: "A real PM program",
-    installment: "One-pager and PM schedule template",
+    title: "A real preventive maintenance program",
+    installment: "One-pager and preventive maintenance schedule template",
     content:
-      "Put every unit on a mileage- or time-based preventive-maintenance schedule and retain documented periodic inspections. The PM interval is where brakes, tires, lights, hoses, steering, and suspension are caught before an inspector finds them.",
-    deliverables: ["Preventive-maintenance one-pager", "PM schedule template"],
+      "Put every vehicle on a mileage- or time-based preventive-maintenance schedule and retain documented periodic inspections. Scheduled preventive maintenance catches problems with brakes, tires, lights, hoses, steering, and suspension before an inspector finds them.",
+    deliverables: ["Preventive-maintenance one-pager", "preventive maintenance schedule template"],
   },
 ] as const;
 
@@ -57,11 +57,11 @@ export const FAMILY_DEFINITIONS: Readonly<
       "Use a calibrated tread-depth gauge and pressure check at every fueling; log the three-minute check.",
       "Set the internal replacement threshold at 4/32 inch instead of riding to the legal 2/32 inch minimum.",
       "Verify automatic tire-inflation systems at every preventive-maintenance service.",
-      "Add an oil-streak wheel-seal visual to the pre-trip inspection.",
+      "Before each trip, look for oil streaks that could mean a leaking wheel seal.",
     ],
     workingWhen: [
       "Zero new tire or wheel violations in a rolling 90-day window.",
-      "Fueling-card completion above 90 percent.",
+      "Complete the fueling checklist more than 90 percent of the time.",
     ],
     installments: [
       "One-pager: Tires fail inspections before they fail you",
@@ -74,15 +74,15 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Lighting & Electrical",
     priority: 2,
     riskContext:
-      "Lamp and wiring defects are common, inexpensive to prevent, and directly observable in a disciplined pre-trip or yard audit.",
+      "Light and wiring defects are common, inexpensive to prevent, and visible during careful checks before a trip or in the yard.",
     program: [
       "Run a two-person 90-second lamp check in pre-trip; solo drivers use a reflection or phone-video walk.",
       "Stock every tractor with a spare bulb and fuse kit for yard repairs.",
-      "Run and log an all-unit yard light audit on the first Friday of each month.",
+      "Check and record the lights on every vehicle in the yard on the first Friday of each month.",
       "Convert dangling, loose, or chafed wiring found in pre-trip into a same-day repair ticket.",
     ],
     workingWhen: [
-      "Clean inspections stop listing lamps or wiring.",
+      "Inspection reports stop listing light or wiring defects.",
       "Zero new lighting violations in a rolling 90-day window.",
     ],
     installments: [
@@ -94,23 +94,23 @@ export const FAMILY_DEFINITIONS: Readonly<
   log_integrity: {
     key: "log_integrity",
     code: "B3",
-    name: "Log Integrity (False Logs)",
+    name: "Accurate Driving Logs",
     priority: 3,
     riskContext:
-      "False records of duty status are not paperwork mistakes. Repetition and out-of-service findings create company-level audit and safety-rating exposure.",
+      "False driving logs are more than paperwork mistakes. Repeated violations and orders to stop driving can lead to a company safety review and affect its safety rating.",
     program: [
-      "Adopt a signed zero-tolerance falsification policy tied to the driver-accountability module.",
-      "During the weekly safety block, review the ELD unassigned-driving-time and edit reports.",
-      "Audit whether dispatch schedules can be completed legally instead of pushing drivers toward falsification.",
+      "Have every driver sign a policy that prohibits false driving logs and explains the consequences.",
+      "During the weekly safety block, review the electronic driving log unassigned-driving-time and edit reports.",
+      "Check that dispatch schedules allow drivers to finish within legal driving hours, without making false log entries.",
       "Document every audit and corrective conversation.",
     ],
     workingWhen: [
-      "Zero new falsification violations.",
-      "Any single new violation triggers immediate company-level escalation.",
+      "Zero new violations for false driving logs.",
+      "Report any new violation immediately to the company owner or safety manager.",
     ],
     installments: [
       "One-pager: What a false log actually costs",
-      "Weekly ELD back-office audit checklist",
+      "Weekly electronic driving log back-office audit checklist",
       "Driver policy signature form",
     ],
   },
@@ -120,38 +120,38 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Brakes & Air System",
     priority: 4,
     riskContext:
-      "Brake hoses, air leaks, ABS warnings, and brake-stroke defects are preventive-maintenance catches with serious out-of-service exposure.",
+      "Problems with brake hoses, air leaks, anti-lock braking system warnings, or brake travel can lead to an order to stop operating. Preventive maintenance should catch them.",
     program: [
-      "At every PM, inspect hose routing, securement, chafe points, brake stroke, and adjustment.",
+      "At every preventive maintenance service, inspect hose routing, attachments, rubbing, brake travel, and adjustment.",
       "Require same-day reporting and repair for any audible air leak.",
-      "Treat every ABS warning lamp as a repair ticket rather than a cosmetic light.",
+      "Treat every anti-lock braking system warning lamp as a repair ticket rather than a cosmetic light.",
       "Check brake stroke and adjustment at each preventive-maintenance service.",
     ],
-    workingWhen: ["Zero hose, leak, or ABS citations in 120 days."],
+    workingWhen: ["Zero hose, leak, or anti-lock braking system violations in 120 days."],
     installments: [
       "Brakes and air one-pager",
-      "PM brake and hose checklist insert",
+      "Preventive maintenance brake and hose checklist insert",
       "Toolbox talk: the leak you can hear is the violation you will get",
     ],
   },
   eld_hygiene: {
     key: "eld_hygiene",
     code: "B5",
-    name: "ELD Hygiene",
+    name: "Electronic Driving Log Routines",
     priority: 5,
     riskContext:
-      "Certification, unassigned driving, transfer, form-and-manner, document-number, and mounting failures create persistent low-severity noise and signal weak controls.",
+      "Unsigned logs, driving time with no driver assigned, missing required details, failed record transfers, and poorly mounted log devices cause repeated paperwork violations and show that daily checks need attention.",
     program: [
-      "Teach an end-of-day 60-second routine: certify the prior log, claim or annotate unassigned time, and verify the shipping-document number.",
-      "Have every driver practice the ELD transfer-to-officer function.",
-      "Add the portable-ELD mount to pre-trip.",
-      "Clear unassigned driving time in the back office each week with the same report used for log-integrity review.",
+      "Teach a 60-second routine at the end of each day: confirm and sign the prior driving log, assign driving time to the right driver or explain it, and check the shipping document number.",
+      "Have every driver practice sending electronic driving logs to an inspection officer.",
+      "Before each trip, check that the portable electronic driving log device is securely mounted.",
+      "Clear unassigned driving time in the back office each week with the same report used for driving log accuracy review.",
     ],
-    workingWhen: ["Zero ELD-family citations across two consecutive quarters."],
+    workingWhen: ["Zero electronic driving log violations across two consecutive quarters."],
     installments: [
       "Driver pocket card: 60 seconds before you sleep",
       "Four-minute video script",
-      "Back-office weekly checklist shared with Log Integrity",
+      "Weekly office checklist shared with Accurate Driving Logs",
     ],
   },
   driver_behavior: {
@@ -160,10 +160,10 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Driver Behavior on the Road",
     priority: 6,
     riskContext:
-      "Speed, traffic-control, phone, seat-belt, lane, and warning-signal behavior produces expensive points and severe loss optics.",
+      "Violations for speeding, traffic signals, phone use, seat belts, lane use, and warning signals add points and raise serious safety concerns.",
     program: [
       "Use a signed speed policy with a hard cap and a target of five miles per hour below the posted limit.",
-      "Enable and review telematics speed alerts during the weekly safety block when available.",
+      "Enable and review vehicle tracking system speed alerts during the weekly safety block when available.",
       "Require hands-free phone use and apply the same progressive consequences as the accountability policy.",
       "Coach the named drivers on the inspection record and track repeat behavior by driver.",
     ],
@@ -196,18 +196,18 @@ export const FAMILY_DEFINITIONS: Readonly<
   conspicuity_body: {
     key: "conspicuity_body",
     code: "B8",
-    name: "Conspicuity & Body",
+    name: "Reflective Tape & Body",
     priority: 8,
     riskContext:
-      "Reflective sheeting, mud flaps, seasonal equipment, and body or tank securement are low-cost inspection-readiness controls.",
+      "Checking reflective tape, mud flaps, seasonal equipment, and body or tank attachments is a low-cost way to prepare for inspections.",
     program: [
-      "Inspect and replace worn conspicuity tape at preventive-maintenance service.",
+      "Inspect and replace worn reflective tape at preventive-maintenance service.",
       "Add mud-flap and body-securement checks to pre-trip.",
       "Use a dispatch calendar reminder to carry required chains during mountain-route season.",
     ],
-    workingWhen: ["Zero new conspicuity or body violations for 12 months."],
+    workingWhen: ["Zero new reflective tape or body violations for 12 months."],
     installments: [
-      "PM checklist insert",
+      "Preventive maintenance checklist insert",
       "Seasonal dispatch reminder",
     ],
   },
@@ -217,13 +217,13 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Steering & Suspension",
     priority: 9,
     riskContext:
-      "Steering and suspension defects may be infrequent, but their outcome and out-of-service severity demand a preventive-maintenance control.",
+      "Steering and suspension problems may be uncommon, but they can cause serious harm and orders to stop operating. Check them during preventive maintenance.",
     program: [
-      "Add steering and suspension torque, coupling, and leak checks to every PM.",
+      "At every preventive maintenance service, check steering and suspension fastener tightness, connections, and leaks.",
       "Require same-day driver reporting of wander, pull, or abnormal steering feel.",
     ],
     workingWhen: ["Zero recurrence."],
-    installments: ["PM checklist insert"],
+    installments: ["Preventive maintenance checklist insert"],
   },
   hours_limits: {
     key: "hours_limits",
@@ -231,13 +231,13 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Hours Limits",
     priority: 10,
     riskContext:
-      "A true over-hours finding can indicate dispatch pressure, especially when it appears beside false-log history.",
+      "Driving beyond allowed hours can signal pressure from dispatch, especially when there is also a history of false driving logs.",
     program: [
-      "Cover hours limits in the dispatch-pressure audit and the driver's daily ELD routine.",
+      "Cover hours limits in the dispatch-pressure audit and the driver's daily electronic driving log routine.",
       "Create a separate corrective program only if the violation recurs.",
     ],
     workingWhen: ["Zero new hours-limit violations."],
-    installments: ["No standalone installment unless the family recurs"],
+    installments: ["No separate lesson unless this type of violation happens again"],
   },
   cargo_securement: {
     key: "cargo_securement",
@@ -245,30 +245,30 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "Cargo Securement",
     priority: 11,
     riskContext:
-      "Unsecured cargo components or dunnage are direct pre-trip and loading-control failures with out-of-service potential.",
+      "Loose cargo parts or packing and bracing materials should be caught during loading and checks before a trip. They can lead to an order to stop operating.",
     program: [
-      "Add dunnage and vehicle-component securement to pre-trip and loading checks.",
-      "Run a focused toolbox talk if the family recurs.",
+      "Add packing and bracing materials and vehicle-component securement to pre-trip and loading checks.",
+      "Run a focused toolbox talk if this type of violation happens again.",
     ],
     workingWhen: ["Zero new cargo-securement violations."],
-    installments: ["Pre-trip checklist line", "Toolbox talk if the family recurs"],
+    installments: ["Pre-trip checklist line", "Toolbox talk if this type of violation happens again"],
   },
   driver_qualification: {
     key: "driver_qualification",
     code: "B12",
-    name: "Driver Qualification (English Language Proficiency)",
+    name: "Driver Qualifications: Speaking and Reading English",
     priority: 12,
     riskContext:
-      "English-language-proficiency findings create a driver-level out-of-service risk and belong in hiring and qualification controls.",
+      "A driver who cannot meet the requirements for speaking and reading English may be ordered to stop driving. Check these skills when hiring and reviewing drivers.",
     program: [
-      "Assess current drivers against FMCSA English-language-proficiency guidance for basic conversation and road-sign comprehension.",
-      "Add English-language proficiency to the hiring checklist.",
-      "Give the cited driver targeted support or route planning until the exposure is resolved.",
+      "Check current drivers against federal truck safety agency guidance on speaking English in basic conversations and understanding road signs.",
+      "Add speaking and reading English to the hiring checklist.",
+      "Give the driver targeted help or plan appropriate routes until the problem is resolved.",
     ],
-    workingWhen: ["No new English-language-proficiency citations and the hiring check is active."],
+    workingWhen: ["No new violations for speaking or reading English, and these skills are checked during hiring."],
     installments: [
       "Hiring-checklist update",
-      "Manager one-pager on current English-language-proficiency enforcement",
+      "Manager one-pager on current checks for speaking and reading English",
     ],
   },
   general_safety: {
@@ -277,17 +277,17 @@ export const FAMILY_DEFINITIONS: Readonly<
     name: "General Safety",
     priority: 99,
     riskContext:
-      "This family contains only unmapped violation codes. The mapping must be extended before a specific curated program can replace this general control.",
+      "These violations have not yet been assigned to a specific safety program. The SafeScore team must review them before choosing the right program.",
     program: [
-      "Review each unmapped code during the weekly safety block.",
-      "Assign a specific corrective owner and deadline from the inspection facts.",
-      "Extend the curated family mapping after operator review; do not guess from AI output.",
+      "Review each violation that has no assigned safety program during the weekly safety block.",
+      "Use the inspection facts to assign each correction to one person with a deadline.",
+      "Have the SafeScore team review the facts and assign the right safety program; do not rely on an unchecked computer suggestion.",
     ],
     workingWhen: [
-      "Every unmapped code is reviewed and added to a curated family.",
-      "Zero new recurrence while the mapping is pending.",
+      "Every violation is reviewed and assigned to a specific safety program.",
+      "No repeat violations while the safety program review is pending.",
     ],
-    installments: ["Operator mapping review", "General corrective-action checklist"],
+    installments: ["SafeScore team review of the right safety program", "General corrective-action checklist"],
   },
 } as const;
 
@@ -353,7 +353,7 @@ export function buildInstallmentCalendar(
       title: "Score mechanics, weekly safety block, and Tires",
       ownerModuleKeys: ["A1", "A2"],
       familyKeys: filteredFamilyKeys(present, ["tires_wheels"]),
-      objective: "Install the weekly operating cadence and stop the most recent tire and wheel inflow.",
+      objective: "Start the weekly safety routine and prevent new tire and wheel violations.",
       deliverables: [
         ...OWNER_CURRICULUM[0].deliverables,
         ...OWNER_CURRICULUM[1].deliverables,
@@ -375,10 +375,10 @@ export function buildInstallmentCalendar(
     }),
     installment({
       month: 3,
-      title: "Accountability and log integrity",
+      title: "Accountability and accurate driving logs",
       ownerModuleKeys: ["A3"],
       familyKeys: filteredFamilyKeys(present, ["log_integrity"]),
-      objective: "Make log integrity an enforceable management system.",
+      objective: "Set clear rules and consequences for keeping accurate driving logs.",
       deliverables: [
         ...OWNER_CURRICULUM[2].deliverables,
         ...presentFamilyDeliverables(present, ["log_integrity"]),
@@ -392,7 +392,7 @@ export function buildInstallmentCalendar(
         "brakes_air",
         "steering_suspension",
       ]),
-      objective: "Put PM-catchable safety defects on a documented inspection schedule.",
+      objective: "Use a written inspection schedule to catch safety defects during preventive maintenance.",
       deliverables: [
         ...OWNER_CURRICULUM[3].deliverables,
         ...presentFamilyDeliverables(present, [
@@ -403,16 +403,16 @@ export function buildInstallmentCalendar(
     }),
     installment({
       month: 5,
-      title: "ELD hygiene",
+      title: "Electronic driving log routines",
       familyKeys: filteredFamilyKeys(present, ["eld_hygiene"]),
-      objective: "End recurring ELD certification, transfer, and form-and-manner noise.",
+      objective: "Stop repeated problems with signing electronic driving logs, sending them to officers, and filling in required details.",
       deliverables: presentFamilyDeliverables(present, ["eld_hygiene"]),
     }),
     installment({
       month: 6,
       title: "Driver behavior and quarterly score-impact review",
       familyKeys: filteredFamilyKeys(present, ["driver_behavior"]),
-      objective: "Coach the named moving-violation patterns and review six months of inflow.",
+      objective: "Coach drivers on their repeated driving violations and review new violations from the last six months.",
       deliverables: [
         ...presentFamilyDeliverables(present, ["driver_behavior"]),
         "Quarterly score-impact review",
@@ -420,7 +420,7 @@ export function buildInstallmentCalendar(
     }),
     installment({
       month: 7,
-      title: "Conspicuity and body",
+      title: "Reflective tape and body",
       familyKeys: filteredFamilyKeys(present, ["conspicuity_body"]),
       objective: "Close visible body, tape, mud-flap, and seasonal-equipment defects.",
       deliverables: presentFamilyDeliverables(present, ["conspicuity_body"]),
@@ -429,53 +429,53 @@ export function buildInstallmentCalendar(
       month: 8,
       title: "Driver qualification",
       familyKeys: filteredFamilyKeys(present, ["driver_qualification"]),
-      objective: "Put English-language proficiency into qualification and hiring controls.",
+      objective: "Check speaking and reading English when hiring and reviewing drivers.",
       deliverables: presentFamilyDeliverables(present, [
         "driver_qualification",
       ]),
     }),
     installment({
       month: 9,
-      title: "Weakest-family reinforcement",
+      title: "More practice in the safety area with the most new violations",
       familyKeys: weakestFamilyKeys,
       objective:
-        "Reinforce the family with the highest live inflow rate and review its leading indicator.",
+        "Focus on the safety area with the highest rate of new violations and check its early signs of progress.",
       deliverables: [
         ...weakestFamilyDeliverables,
-        "Monthly inflow and adherence review",
+        "Monthly review of new violations and completion of safety routines",
       ],
     }),
     installment({
       month: 10,
-      title: "Weakest-family re-audit",
+      title: "Recheck the safety area with the most new violations",
       familyKeys: weakestFamilyKeys,
       objective:
-        "Re-audit the weakest live family and correct any lapse in the installed program.",
+        "Recheck the safety area with the highest rate of new violations and correct any missed steps in its program.",
       deliverables: [
         ...weakestFamilyDeliverables,
-        "Monthly inflow and adherence review",
+        "Monthly review of new violations and completion of safety routines",
       ],
     }),
     installment({
       month: 11,
-      title: "Weakest-family reinforcement",
+      title: "More practice in the safety area with the most new violations",
       familyKeys: weakestFamilyKeys,
       objective:
-        "Repeat the weakest-family review against the newest inspection inflow.",
+        "Review the safety area with the highest rate of new violations using the latest inspection results.",
       deliverables: [
         ...weakestFamilyDeliverables,
-        "Monthly inflow and adherence review",
+        "Monthly review of new violations and completion of safety routines",
       ],
     }),
     installment({
       month: 12,
-      title: "Weakest-family annual re-audit",
+      title: "Annual recheck of the safety area with the most new violations",
       familyKeys: weakestFamilyKeys,
       objective:
-        "Re-audit the weakest live family, close the annual cycle, and set the next sequence.",
+        "Recheck the safety area with the highest rate of new violations, finish the annual review, and plan the next steps.",
       deliverables: [
         ...weakestFamilyDeliverables,
-        "Annual inflow and adherence review",
+        "Annual review of new violations and completion of safety routines",
       ],
     }),
   ].map((entry) =>
@@ -486,8 +486,8 @@ export function buildInstallmentCalendar(
           ...entry,
           title: "Monthly safety-program review",
           objective:
-            "Review current family inflow and reinforce the active installments.",
-          deliverables: ["Monthly inflow and adherence review"],
+            "Review new violations in each safety area and practice the steps in the current lessons.",
+          deliverables: ["Monthly review of new violations and completion of safety routines"],
         }
       : entry
   );

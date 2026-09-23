@@ -23,6 +23,22 @@ import {
   type PlaybookViolationInput,
 } from "@/lib/playbooks/types";
 
+test("A1 teaches the canonical violation points and aging rules", () => {
+  const content = OWNER_CURRICULUM.find((entry) => entry.key === "A1")?.content;
+  assert.ok(content);
+  assert.doesNotMatch(content, /first 12 months|only if new ones stop/i);
+  for (const fact of [
+    "1-10 points, plus 2 if the truck or driver was put out of service",
+    "triple for the first 6 months",
+    "double from 6 to 12 months",
+    "normal from 12 to 24 months",
+    "Every violation drops off completely after 24 months",
+    "whether or not new violations occur",
+    "Insurance is priced from this record.",
+    "fewer new violations",
+  ]) assert.ok(content.includes(fact), `Missing scoring explanation: ${fact}`);
+});
+
 const NATIONWIDE_CODE_EXPECTATIONS: Record<string, PlaybookFamilyKey> = {
   "39111B2Q": "driver_qualification",
   "39216AD": "driver_behavior",
