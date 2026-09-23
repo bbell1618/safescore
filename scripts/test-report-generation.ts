@@ -862,6 +862,29 @@ assert.ok(
 );
 
 async function testRetryAndPrint() {
+  for (const token of [
+    "[Insert Date]",
+    "[Your Name]",
+    "[increased/decreased/remained steady]",
+    "[X]",
+    "[briefly describe issue\nusing the stored case facts]",
+    `[briefly describe issue ${"from the case record ".repeat(8)}]`,
+    "[]",
+  ]) {
+    assert.deepEqual(findReportPlaceholders(token), [token]);
+    assert.ok(
+      validateGeneratedReport(`${assembleGeneratedReport(validModelBody(validMonthly), validMonthly)}\n${token}`, validMonthly)
+        .some((issue) => issue.includes("forbidden bracketed token")),
+      `Must reject placeholder: ${token}`
+    );
+  }
+  const wrappedRetry = await generateValidatedReport(
+    buildReportPrompts(validMonthly), validMonthly,
+    async ({ attempt }) => attempt === 1
+      ? `${validModelBody(validMonthly)}\n[describe the stored case\nwithout adding facts ${"fill in ".repeat(20)}]`
+      : validModelBody(validMonthly)
+  );
+  assert.equal(wrappedRetry.attempts, 2, "Wrapped/long placeholders must trigger regeneration");
   const events: string[] = [];
   const generated = await generateValidatedReport(
     buildReportPrompts(validMonthly),

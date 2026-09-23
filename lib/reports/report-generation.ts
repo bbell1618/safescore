@@ -20,7 +20,8 @@ export const ASSESSMENT_NEXT_STEPS_COPY =
   "SafeScore will watch your public safety record each day and summarize progress in monthly reports. When Golden Era needs a document or answer to evaluate a potential challenge, the request will appear in your portal with the exact next step. Your team can respond or upload evidence there, and Golden Era will review it before any filing decision.";
 export const UNDERWRITER_TOTAL_SAFETY_COPY =
   "Under Total Safety, Golden Era SafeScore continuously monitors the carrier's public safety record and manages driver qualification files, vehicle maintenance and inspection tracking, and Clearinghouse query tracking. This ongoing management supports timely follow-up and audit readiness while underwriting and regulatory decisions remain with the applicable organizations.";
-export const REPORT_PLACEHOLDER_PATTERN = /\[[^\]\n]{1,80}\]/g;
+// Template instructions can be long or wrap across lines. Neither makes them safe.
+export const REPORT_PLACEHOLDER_PATTERN = /\[[^\]]*\]/g;
 
 export const REPORT_SECTION_HEADINGS = {
   safetyProfileOverview: "Safety Profile Overview",
