@@ -39,37 +39,43 @@ function textWithoutInventedTagWhitespace(html: string): string {
 }
 
 const expectedTerms = [
-  'SafeScore is a safety data and advocacy service provided by Golden Era Insurance Agency ("GEIA"). We analyze your carrier\'s FMCSA safety record, monitor it for changes, and \u2014 on qualifying plans \u2014 prepare and submit data challenges and crash preventability requests on your behalf, and coach your team through a prioritized safety improvement plan.',
-  "SafeScore is not an insurance policy and does not provide, replace, or guarantee insurance coverage. It is not legal advice. Decisions on data challenges and crash preventability rest solely with FMCSA and its reviewers.",
-  "We commit to the quality of our work, not to outcomes we don't control. We do not guarantee that any score, measure, violation, or crash record will change, or that any challenge will be accepted.",
-  "Services and pricing are stated on your subscription confirmation. Monthly plans bill in advance each month. Total Safety pricing includes a per-driver component based on the driver count you provide and keep current. You can cancel any time; cancellation stops future billing at the end of the current period.",
-  "Depending on your plan and the boxes you check during setup, you authorize GEIA to: access your carrier's FMCSA safety data; and prepare and submit DataQ Requests for Data Review and Crash Preventability Determination Program requests to FMCSA on your carrier's behalf. FMCSA notifies a carrier's officials of requests filed on its USDOT number. You can revoke authorizations by written notice; revocation may limit the services we can deliver.",
-  "Provide accurate information (including your current driver count), respond to evidence requests in a timely way, and keep your contact details current. Our work product is only as good as the information you give us.",
-  "We collect your FMCSA safety data and the information you provide in order to deliver the service. We do not sell your data. Documents you upload are used for the challenges and services you've authorized.",
-  "We improve SafeScore continuously and may modify features. If we materially reduce what your plan includes, we'll notify you before your next billing cycle.",
-  "To the maximum extent permitted by law, GEIA's total liability arising from SafeScore is limited to the amounts you paid for the service in the three months preceding the claim.",
-  "We may update these terms; the current version always lives at this page with its version date. Continued use after an update constitutes acceptance.",
-  "Golden Era Insurance Agency, 200 Brown Rd Suite 203, Fremont, CA 94539 \u00b7 info@goldenerainsurance.com.",
+  "SafeScore is a safety-record review and support service provided by Golden Era Insurance Agency (GEIA). We help trucking companies understand the records held by the Federal Motor Carrier Safety Administration (FMCSA), the federal trucking safety agency. Your selected plan determines the work included.",
+  "Assessment is a one-time review of your company's safety record with findings and recommended next steps. Its listed price is $299 unless GEIA records an approved waiver. It does not include ongoing monitoring or filing work. Monitor includes checks for changes to your public safety record, alerts, monthly reports and a history of changes. It does not include filing requests to correct records. Remediate includes Monitor plus review of possible record corrections, document requests, preparation and submission of authorized requests, and a prioritized safety improvement plan. GEIA evaluates the evidence before deciding whether a request is supported. Total Safety includes Remediate plus tracking of driver qualification documents, vehicle maintenance and inspection records, and required drug-and-alcohol database query dates. Tracking does not replace your company's duty to keep records, perform checks, maintain equipment and operate safely.",
+  "SafeScore is not an insurance policy and does not provide, replace, or guarantee insurance coverage. It is not legal advice. Federal and state reviewers decide whether records should change; insurers make their own coverage and pricing decisions.",
+  "We do not guarantee a lower score, removal of a violation or crash, acceptance of a correction request, a particular review time, or lower insurance costs. Reports depend on available records and may lag behind an agency's latest information.",
+  "If your plan includes filing work and you give the required authorization, you authorize GEIA to access your company's safety data and prepare and submit requests on your company's behalf. These may include a Request for Data Review through DataQs (asking the agency to correct a record) or a Crash Preventability Determination Program request (asking whether a crash could have been prevented). FMCSA may notify the officials listed for your company when a request is filed under its USDOT number. You may revoke authorization by written notice to GEIA; this may prevent further filing work and does not withdraw a request already submitted.",
+  "You must provide complete, accurate records and tell GEIA promptly if information is wrong or has changed. Review facts and supporting documents when asked. Authorizing GEIA to file does not transfer your responsibility for truthful information to GEIA. Federal law, including 18 U.S.C. 1001, prohibits knowingly and willfully making materially false statements or using materially false documents in matters within federal jurisdiction. This duty remains with you and also applies to anyone making a covered submission; the authorization does not excuse GEIA from its own duties.",
+  "Some records have separate agency or provider charges, such as a police department's fee for a crash report. These are third-party pass-through costs, separate from the SafeScore service price. GEIA will identify any proposed charge and obtain your approval before ordering a paid record on your behalf. A provider's fee does not guarantee that a record is available or that a filing will succeed.",
+  "The Assessment is a one-time purchase. Monthly plans bill in advance at the price shown before you subscribe. Total Safety also has a per-driver charge; the billed count uses the highest supported count from your current federal filing, confirmed company information, approved active driver roster or stated count. Tell GEIA when your count changes so it can be checked. You can cancel a monthly plan through the billing portal or by contacting GEIA; cancellation stops future renewals at the end of the paid period. Any refund or exception must be confirmed by GEIA; this draft does not promise one.",
+  "We use public safety records, account information and documents you provide to deliver the services you authorize. GEIA staff and service providers may process that information for the service. Authorized filings may share relevant records with government reviewers. We do not sell your data. Keep access to your account secure and upload only information you are entitled to share. Contact GEIA with access, correction or deletion requests; legal and recordkeeping duties may limit what can be deleted. GEIA must approve the detailed retention and privacy terms before launch.",
+  "GEIA will identify material changes to your plan or these terms before asking you to accept them or renewing at changed terms. This draft remains subject to GEIA approval. Daven must approve both these terms and the filing authorization wording before the draft banner is removed and new customers are asked to rely on them.",
+  "Golden Era Insurance Agency, 200 Brown Rd Suite 203, Fremont, CA 94539. Contact info@goldenerainsurance.com for service, billing, cancellation or data questions."
 ] as const;
 
 const expectedTitles = [
   "What SafeScore is",
+  "Services by plan",
   "What SafeScore is not",
   "No outcome guarantees",
-  "Your plan and billing",
-  "Authorizations you grant",
-  "Your responsibilities",
+  "Filing authorization",
+  "Accurate information and your responsibilities",
+  "Third-party costs",
+  "Billing and cancellation",
   "Data handling",
-  "Service changes",
-  "Liability",
-  "Terms updates",
-  "Contact",
+  "Service and terms changes",
+  "Contact"
 ] as const;
 
 assert.match(termsText, /SafeScore Terms of Service/);
+assert.match(termsText, /Draft — pending GEIA approval/);
+assert.match(termsText, /18 U\.S\.C\. 1001/);
+assert.match(termsText, /third-party pass-through costs/);
+assert.match(termsText, /Assessment is a one-time/);
+assert.match(termsText, /highest supported count/);
+assert.match(termsMarkup, /aria-label="Draft approval status"/);
 assert.ok(
   termsText.includes(
-    "Version 1.0 \u2014 August 2026 \u00b7 Golden Era Insurance Agency"
+    "Draft version — September 2026 · Golden Era Insurance Agency"
   )
 );
 for (const [index, term] of expectedTerms.entries()) {

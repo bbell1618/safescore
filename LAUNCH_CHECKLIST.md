@@ -70,6 +70,8 @@ Every item below requires a human credential, external-service action, productio
 
 ## Final human launch sign-off
 
+- [ ] Daven approves `content/legal/terms-draft.md` and the onboarding filing-authorization wording, including truthfulness, third-party fees, billing and data handling. Record approval before removing the visible "Draft — pending GEIA approval" banner from `/terms`; decide whether outside counsel review is needed before a real client agrees.
+
 - [ ] Accepted gap: DataQs/CPDP requests filed outside SafeScore are not monitored. Every filing for a SafeScore client must be created as a SafeScore case first.
 
 - [ ] Brandon confirms all beta routes and the Request Queue in the production UI.

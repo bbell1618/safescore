@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   PortalHeroBand,
   PortalPageBody,
@@ -10,55 +12,12 @@ export const metadata: Metadata = {
   description: "SafeScore Terms of Service from Golden Era Insurance Agency.",
 };
 
-const VERSION_LINE =
-  "Version 1.0 \u2014 August 2026 \u00b7 Golden Era Insurance Agency";
-
-const TERMS = [
-  {
-    title: "What SafeScore is",
-    body: 'SafeScore is a safety data and advocacy service provided by Golden Era Insurance Agency ("GEIA"). We analyze your carrier\'s FMCSA safety record, monitor it for changes, and \u2014 on qualifying plans \u2014 prepare and submit data challenges and crash preventability requests on your behalf, and coach your team through a prioritized safety improvement plan.',
-  },
-  {
-    title: "What SafeScore is not",
-    body: "SafeScore is not an insurance policy and does not provide, replace, or guarantee insurance coverage. It is not legal advice. Decisions on data challenges and crash preventability rest solely with FMCSA and its reviewers.",
-  },
-  {
-    title: "No outcome guarantees",
-    body: "We commit to the quality of our work, not to outcomes we don't control. We do not guarantee that any score, measure, violation, or crash record will change, or that any challenge will be accepted.",
-  },
-  {
-    title: "Your plan and billing",
-    body: "Services and pricing are stated on your subscription confirmation. Monthly plans bill in advance each month. Total Safety pricing includes a per-driver component based on the driver count you provide and keep current. You can cancel any time; cancellation stops future billing at the end of the current period.",
-  },
-  {
-    title: "Authorizations you grant",
-    body: "Depending on your plan and the boxes you check during setup, you authorize GEIA to: access your carrier's FMCSA safety data; and prepare and submit DataQ Requests for Data Review and Crash Preventability Determination Program requests to FMCSA on your carrier's behalf. FMCSA notifies a carrier's officials of requests filed on its USDOT number. You can revoke authorizations by written notice; revocation may limit the services we can deliver.",
-  },
-  {
-    title: "Your responsibilities",
-    body: "Provide accurate information (including your current driver count), respond to evidence requests in a timely way, and keep your contact details current. Our work product is only as good as the information you give us.",
-  },
-  {
-    title: "Data handling",
-    body: "We collect your FMCSA safety data and the information you provide in order to deliver the service. We do not sell your data. Documents you upload are used for the challenges and services you've authorized.",
-  },
-  {
-    title: "Service changes",
-    body: "We improve SafeScore continuously and may modify features. If we materially reduce what your plan includes, we'll notify you before your next billing cycle.",
-  },
-  {
-    title: "Liability",
-    body: "To the maximum extent permitted by law, GEIA's total liability arising from SafeScore is limited to the amounts you paid for the service in the three months preceding the claim.",
-  },
-  {
-    title: "Terms updates",
-    body: "We may update these terms; the current version always lives at this page with its version date. Continued use after an update constitutes acceptance.",
-  },
-  {
-    title: "Contact",
-    body: "Golden Era Insurance Agency, 200 Brown Rd Suite 203, Fremont, CA 94539 \u00b7 info@goldenerainsurance.com.",
-  },
-] as const;
+const draft = readFileSync(join(process.cwd(), "content/legal/terms-draft.md"), "utf8").replaceAll("\r\n", "\n");
+const VERSION_LINE = "Draft version — September 2026 · Golden Era Insurance Agency";
+const TERMS = draft.split(/^## /m).slice(1).map((section) => {
+  const [title, ...body] = section.trim().split("\n");
+  return { title, paragraphs: body.join("\n").trim().split(/\n\s*\n/) };
+});
 
 export default function TermsPage() {
   return (
@@ -85,6 +44,10 @@ export default function TermsPage() {
           <p className="mt-2 text-sm text-black">{VERSION_LINE}</p>
         </header>
 
+        <aside aria-label="Draft approval status" className="mb-6 rounded-xl border-2 border-amber bg-warm-white p-5 print:border-black">
+          <p className="text-lg font-semibold text-navy">Draft — pending GEIA approval</p>
+          <p className="mt-2 text-sm leading-6 text-warm-mid">This draft is for GEIA review. It is not legal advice or final, approved terms for a new customer agreement.</p>
+        </aside>
         <article
           aria-label="SafeScore Terms of Service"
           className="font-heading text-warm-dark"
@@ -102,10 +65,12 @@ export default function TermsPage() {
                   {" "}
                   {term.title}
                 </h2>
-                <p className="mt-2 text-base leading-7 text-warm-mid print:text-black">
-                  <span aria-hidden="true">{"\u2014"} </span>
-                  {term.body}
-                </p>
+                {term.paragraphs.map((paragraph, paragraphIndex) => (
+                  <p key={paragraphIndex} className="mt-2 text-base leading-7 text-warm-mid print:text-black">
+                    {paragraphIndex === 0 && <span aria-hidden="true">{"\u2014"} </span>}
+                    {paragraph}
+                  </p>
+                ))}
               </li>
             ))}
           </ol>
