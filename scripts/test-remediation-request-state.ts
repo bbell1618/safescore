@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import { investigationRequestState, type RemediationRequest } from "../lib/analysis/remediation-request-state";
+
+const row: RemediationRequest = { id: "r1", violation_id: "v1", case_id: null, case_type: null, responsibility: "client", request_type: "evidence", created_at: "2026-08-01T12:00:00Z", reminder_count: 2, escalated_at: null, evidence_status: "open", response: null };
+assert.equal(investigationRequestState([], "v1", null), null);
+assert.equal(investigationRequestState([row], "different", null), null);
+assert.deepEqual(investigationRequestState([row], "v1", null), { state: "waiting", label: "Awaiting client evidence", since: row.created_at, reminders: 2, requestCount: 1 });
+assert.equal(investigationRequestState([{ ...row, escalated_at: "2026-09-01" }], "v1", null)?.state, "escalated");
+assert.equal(investigationRequestState([{ ...row, response: { received: true }, escalated_at: "2026-09-01" }], "v1", null)?.state, "needs_review");
+assert.equal(investigationRequestState([{ ...row, evidence_status: "submitted" }], "v1", null)?.state, "needs_review");
+assert.equal(investigationRequestState([{ ...row, evidence_status: "insufficient" }], "v1", null)?.state, "waiting");
+assert.equal(investigationRequestState([{ ...row, evidence_status: "insufficient", response: { previousUpload: true } }], "v1", null)?.state, "waiting");
+const caseRequest = { ...row, violation_id: null, case_id: "case1", case_type: "dataq" };
+assert.equal(investigationRequestState([caseRequest], "v1", "case1")?.state, "waiting");
+assert.equal(investigationRequestState([{ ...caseRequest, case_type: "cpdp" }], "v1", "case1"), null);
+assert.equal(investigationRequestState([{ ...caseRequest, violation_id: "different" }], "v1", "case1"), null);
+assert.equal(investigationRequestState([{ ...row, responsibility: "geia" }], "v1", null), null);
+assert.equal(investigationRequestState([{ ...row, request_type: "roster_collection" }], "v1", null), null);
+const multi = investigationRequestState([row, { ...row, id: "r2", created_at: "2026-07-01T12:00:00Z", reminder_count: 1 }], "v1", null);
+assert.equal(multi?.requestCount, 2);
+assert.equal(multi?.reminders, 3);
+assert.equal(multi?.since, "2026-07-01T12:00:00Z");
+console.log("Remediation request state tests passed");

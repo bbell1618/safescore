@@ -14,6 +14,7 @@ import { getRemediationNextStep } from "@/lib/analysis/remediation-next-step";
 import { summarizeInvestigationBurden } from "@/lib/analysis/remediation-presentation";
 import { buildLaneCFamilyGroups } from "@/lib/playbooks/families";
 import { FAMILY_DEFINITIONS } from "@/lib/playbooks/templates";
+import { investigationRequestState, type RemediationRequest } from "@/lib/analysis/remediation-request-state";
 
 
 type ViolationRow = {
@@ -105,6 +106,21 @@ type LaneAItem = {
 
 type RemediationSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
+async function loadOpenRequests(supabase: RemediationSupabaseClient, clientId: string): Promise<RemediationRequest[]> {
+  const rows: RemediationRequest[] = [];
+  for (;;) {
+    const result = await supabase.from("client_requests")
+      .select("id,violation_id,case_id,case_type,responsibility,request_type,created_at,reminder_count,escalated_at,evidence_status,response", { count: "exact" })
+      .eq("client_id", clientId).eq("status", "open").order("id")
+      .range(rows.length, rows.length + 999);
+    if (result.error) throw new Error(`Unable to load remediation requests: ${result.error.message}`);
+    if (result.count === null) throw new Error("Unable to verify remediation request count");
+    rows.push(...(result.data ?? []));
+    if (rows.length === result.count) return rows;
+    if (!result.data?.length || rows.length > result.count) throw new Error("Remediation requests changed while loading; reload the page");
+  }
+}
+
 async function loadCanonicalViolations(
   supabase: RemediationSupabaseClient,
   clientId: string,
@@ -164,6 +180,7 @@ export default async function RemediationPage({
     crashesResult,
     dataqCasesResult,
     cpdpCasesResult,
+    openRequests,
   ] = await Promise.all([
     supabase
     .from("clients")
@@ -184,6 +201,7 @@ export default async function RemediationPage({
       .from("cpdp_cases")
       .select("id, crash_id, status, case_number")
       .eq("client_id", id),
+    loadOpenRequests(supabase, id),
   ]);
 
   if (clientError && clientError.code !== "PGRST116") {
@@ -407,7 +425,7 @@ export default async function RemediationPage({
                       <td className="px-5 py-4 text-gray-600">
                         Investigate evidence - Auto {item.evidenceSummary.auto} / Client {item.evidenceSummary.client} / Manual {item.evidenceSummary.manual}
                       </td>
-                      <td className="px-5 py-4">{renderDataqStatus(item.caseRow)}</td>
+                      <td className="px-5 py-4">{renderInvestigationStatus(openRequests, item, id)}</td>
                       <td className="px-5 py-4">
                         <Link className="text-[#C67A1E] hover:underline font-medium" href={item.caseRow ? `/console/clients/${id}/dataq?case=${item.caseRow.id}` : `/console/clients/${id}/violations`}>
                           Open
@@ -717,6 +735,16 @@ function renderDataqStatus(caseRow: DataqCaseRow | null) {
       {caseRow.case_number && <span className="text-xs text-gray-400">{caseRow.case_number}</span>}
     </div>
   );
+}
+
+function renderInvestigationStatus(requests: RemediationRequest[], item: LaneInvestigateItem, clientId: string) {
+  const request = investigationRequestState(requests, item.violation.id, item.caseRow?.id ?? null);
+  if (!request) return renderDataqStatus(item.caseRow);
+  return <div className="min-w-48 space-y-1">
+    <p className={request.state === "waiting" ? "text-gray-600" : "font-medium text-amber-800"}>{request.label}</p>
+    <p className="text-xs text-gray-500">{request.requestCount === 1 ? "Request open" : `${request.requestCount} requests open; oldest`} since {formatDate(request.since)} · {request.reminders} reminder{request.reminders === 1 ? "" : "s"}</p>
+    <Link className="inline-flex min-h-11 items-center text-xs font-semibold text-gold-dark hover:underline" href={`/console/clients/${clientId}/work#requests`}>View request follow-up</Link>
+  </div>;
 }
 
 function renderCpdpStatus(caseRow: CpdpCaseRow | null) {
