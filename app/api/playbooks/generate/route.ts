@@ -543,6 +543,7 @@ export async function POST(request: Request) {
         source_snapshot: playbookData.sourceSnapshot,
         generated_by: user.id,
         generated_at: generatedAt.toISOString(),
+        review_status: "draft",
       })
       .select("id, version, generated_at")
       .single();

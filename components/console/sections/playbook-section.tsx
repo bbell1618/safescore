@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { PlaybookGenerationControl } from "@/components/console/playbook-generation-control";
+import { PlaybookReviewControl } from "@/components/console/playbook-review-control";
 import { Badge } from "@/components/ui/badge";
 import type {
   PlaybookFamilyProgram,
@@ -40,6 +41,7 @@ type ClientPlaybookRow = {
   source_snapshot: PlaybookSourceSnapshot;
   generated_by: string;
   generated_at: string;
+  review_status: "draft" | "reviewed" | "published" | null;
 };
 
 function formatTimestamp(value: string) {
@@ -228,6 +230,7 @@ export default async function PlaybookPage({
               )}
             </div>
 
+            <PlaybookReviewControl id={selected.id} status={selected.review_status} />
             <dl className="mt-5 grid gap-3 border-t border-[#F0E8DA] pt-4 sm:grid-cols-2 lg:grid-cols-4">
               <Metric
                 label="Active programs"

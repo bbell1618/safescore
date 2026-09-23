@@ -112,8 +112,8 @@ export function PlaybookGenerationControl({
       </button>
       <p className="text-xs text-gray-500">
         {hasPlaybook
-          ? "Regeneration creates a new immutable version from the current operational safety record."
-          : "Build the owner curriculum, family programs, and 12-month installment plan from the current operational safety record."}
+          ? "Regeneration creates a new draft version. Review and publish it before the client can see it."
+          : "Build a draft of the owner curriculum, family programs, and 12-month plan. Review and publish it before the client can see it."}
       </p>
       {error && (
         <p

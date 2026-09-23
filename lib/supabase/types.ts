@@ -837,12 +837,22 @@ export interface Database {
           source_snapshot: unknown;
           generated_by: string;
           generated_at: string;
+          review_status: "draft" | "reviewed" | "published" | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          published_by: string | null;
+          published_at: string | null;
         };
         Insert: Omit<
           Database["public"]["Tables"]["client_playbooks"]["Row"],
-          "id" | "generated_at"
+          "id" | "generated_at" | "review_status" | "reviewed_by" | "reviewed_at" | "published_by" | "published_at"
         > & {
           generated_at?: string;
+          review_status?: "draft" | "reviewed" | "published" | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          published_by?: string | null;
+          published_at?: string | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["client_playbooks"]["Insert"]

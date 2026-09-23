@@ -218,6 +218,7 @@ export async function loadLatestPortalPlaybook(
       "id, version, source_as_of, generated_at, owner_curriculum, family_programs, installment_calendar"
     )
     .eq("client_id", clientId)
+    .or("review_status.is.null,review_status.eq.published")
     .order("version", { ascending: false })
     .limit(1)
     .maybeSingle();
