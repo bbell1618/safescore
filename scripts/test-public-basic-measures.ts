@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { parsePublicBasicMeasures, publicBasicProfileUrl } from "../lib/fmcsa/public-basic-measures";
+
+const html = readFileSync("scripts/fixtures/public-basic-measures.html", "utf8");
+const now = new Date("2026-09-23T12:00:00Z");
+const parsed = parsePublicBasicMeasures(html, "2533650", now);
+assert.equal(parsed.smsRunDate, "2026-08-28");
+assert.equal(parsed.currentness, "current");
+assert.equal(parsed.measures.unsafe_driving.measure, 7.61);
+assert.equal(parsed.measures.hos_compliance.measure, 1.43);
+assert.equal(parsed.measures.vehicle_maintenance.measure, 5.15);
+assert.equal(parsed.measures.controlled_substance.measure, 0);
+assert.equal(parsed.measures.driver_fitness.measure, 1.04);
+assert.equal(parsed.measures.crash_indicator.measure, null);
+assert.equal(parsed.measures.hazmat_compliance.measure, null);
+assert.ok(Object.values(parsed.measures).every(row => row.percentile === null && row.alert === null));
+assert.equal(parsePublicBasicMeasures(html, "2533650", new Date("2026-11-01")).currentness, "stale");
+assert.throws(() => parsePublicBasicMeasures(html, "12345", now), /confirm.*USDOT/);
+assert.throws(() => parsePublicBasicMeasures(html.replace("August 28, 2026", "no date"), "2533650", now), /release date/);
+assert.throws(() => parsePublicBasicMeasures(html.replace("August 28, 2026", "February 31, 2026"), "2533650", now), /invalid.*date/);
+assert.throws(() => parsePublicBasicMeasures(html.replace("August 28, 2026", "December 28, 2026"), "2533650", now), /future.*date/);
+assert.throws(() => parsePublicBasicMeasures(html.replace("7.61", "NaN"), "2533650", now), /Invalid public measure/);
+assert.throws(() => parsePublicBasicMeasures(html.replaceAll("Not Public", "New layout"), "2533650", now), /Unrecognized/);
+assert.throws(() => parsePublicBasicMeasures(html.replaceAll("DriverFitness.aspx", "Unknown.aspx"), "2533650", now), /headings changed/);
+assert.throws(() => publicBasicProfileUrl("../secret"), /numeric USDOT/);
+assert.throws(() => parsePublicBasicMeasures("<title>Access denied</title>", "2533650", now), /confirm/);
+console.log("PASS: dated public measures, explicit zero/private nulls, carrier identity, structure, dates and numeric failures");
