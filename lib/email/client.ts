@@ -3,6 +3,7 @@
 // Required for a future live switch: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD.
 
 import nodemailer from "nodemailer";
+import { emailCaseStatus, emailSafetyCategory, plainEmailText } from "./copy";
 
 const DEFAULT_SENDER = "Golden Era SafeScore";
 const DEFAULT_REPLY_TO = "info@goldenerainsurance.com";
@@ -341,7 +342,7 @@ export async function sendFmcsaPinRequestEmail({
 
   const html = emailWrapper(`
     <h2>FMCSA Portal PIN requested</h2>
-    <p>SafeScore needs the FMCSA Portal PIN for <strong>${escapeHtml(
+    <p>SafeScore needs the account PIN for the Federal Motor Carrier Safety Administration (FMCSA), the federal trucking safety agency, for <strong>${escapeHtml(
       companyName
     )}</strong>.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
@@ -368,8 +369,8 @@ export async function sendDriverRosterRequestEmail(
     <h2>We need your driver list</h2>
     <p>Golden Era&apos;s safety program tracks driver credentials for <strong>${escapeHtml(
       data.companyName
-    )}</strong> so nothing expires unnoticed.</p>
-    <p>Tap the link, add each driver&apos;s name and CDL number, then snap a photo of the CDL and medical card. It takes about a minute per driver.</p>
+    )}</strong> to help you spot upcoming renewals.</p>
+    <p>Open the link, add each driver&apos;s name and commercial driver&apos;s license number, then add photos of the license and medical card.</p>
     <p>Your progress saves as you go, so you can leave and come back anytime. Reply to this email if you have questions.</p>
     <a href="${escapeHtml(data.rosterUrl)}" class="cta">Add your driver list</a>
     <p style="margin-top:20px;font-size:12px;color:#6B6B6B;">No login or password is needed for this secure link.</p>
@@ -389,31 +390,27 @@ export async function sendNewViolationAlert(
 ): Promise<{ success: boolean }> {
   const html = emailWrapper(`
     <h2>New violation added</h2>
-    <p>A new violation has been added to DOT ${data.dotNumber} — ${data.companyName}.</p>
+    <p>A new violation has been added to the safety record for ${escapeHtml(data.companyName)} (DOT ${escapeHtml(data.dotNumber)}).</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
       <div class="detail-row">
-        <div class="label">Violation code</div>
-        <div class="value" style="font-family:monospace;">${data.violationCode}</div>
-      </div>
-      <div class="detail-row">
         <div class="label">Description</div>
-        <div class="value">${data.description}</div>
+        <div class="value">${escapeHtml(plainEmailText(data.description))}</div>
       </div>
       <div class="detail-row">
         <div class="label">Inspection date</div>
-        <div class="value">${data.inspectionDate}</div>
+        <div class="value">${escapeHtml(data.inspectionDate)}</div>
       </div>
       <div class="detail-row">
-        <div class="label">BASIC category</div>
-        <div class="value">${data.basicCategory.replace(/_/g, " ")}</div>
+        <div class="label">Safety category</div>
+        <div class="value">${emailSafetyCategory(data.basicCategory)}</div>
       </div>
       <div class="detail-row">
-        <div class="label">Severity weight</div>
+        <div class="label">Seriousness points assigned by the federal trucking safety agency</div>
         <div class="value"><span class="${data.severityWeight >= 8 ? "badge-red" : "badge-gold"}">${data.severityWeight}</span></div>
       </div>
     </div>
     <p>Log in to your SafeScore portal to review this violation and its impact on your safety profile.</p>
-    <a href="${data.portalUrl}" class="cta">View in portal</a>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">View in portal</a>
   `);
 
   const result = await sendEmail({
@@ -434,26 +431,27 @@ export async function sendNewViolationAlert(
 export async function sendCaseStatusChange(
   data: CaseStatusEmailData
 ): Promise<{ success: boolean }> {
+  const caseLabel = data.caseType === "CPDP" ? "Crash preventability review" : "Safety record correction";
   const html = emailWrapper(`
-    <h2>${data.caseType} case status update</h2>
-    <p>The status of a ${data.caseType} case for ${data.companyName} has changed.</p>
+    <h2>${caseLabel} update</h2>
+    <p>There is an update on the ${caseLabel.toLowerCase()} for ${escapeHtml(data.companyName)}.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      ${data.caseNumber ? `<div class="detail-row"><div class="label">Case number</div><div class="value">${data.caseNumber}</div></div>` : ""}
+      ${data.caseNumber ? `<div class="detail-row"><div class="label">Agency reference number</div><div class="value">${escapeHtml(data.caseNumber)}</div></div>` : ""}
       <div class="detail-row">
         <div class="label">Previous status</div>
-        <div class="value">${data.oldStatus.replace(/_/g, " ")}</div>
+        <div class="value">${escapeHtml(emailCaseStatus(data.oldStatus))}</div>
       </div>
       <div class="detail-row">
         <div class="label">New status</div>
-        <div class="value"><span class="badge-gold">${data.newStatus.replace(/_/g, " ")}</span></div>
+        <div class="value"><span class="badge-gold">${escapeHtml(emailCaseStatus(data.newStatus))}</span></div>
       </div>
     </div>
-    <a href="${data.portalUrl}" class="cta">View case</a>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">View update</a>
   `);
 
   const result = await sendEmail({
     to: data.to,
-    subject: `${data.caseType} case update — ${data.companyName}`,
+    subject: `${caseLabel} update — ${data.companyName}`,
     htmlBody: html,
     trigger: "case_status_change",
     template: "case_status_change",
@@ -471,19 +469,19 @@ export async function sendReportReady(
 ): Promise<EmailDeliveryResult> {
   const html = emailWrapper(`
     <h2>Your safety report is ready</h2>
-    <p>A new report has been prepared for ${data.companyName}.</p>
+    <p>A new report has been prepared for ${escapeHtml(data.companyName)}.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
       <div class="detail-row">
         <div class="label">Report</div>
-        <div class="value">${data.reportTitle}</div>
+        <div class="value">${escapeHtml(plainEmailText(data.reportTitle))}</div>
       </div>
       <div class="detail-row">
         <div class="label">Date</div>
-        <div class="value">${data.reportDate}</div>
+        <div class="value">${escapeHtml(data.reportDate)}</div>
       </div>
     </div>
     <p>Log in to your SafeScore portal to view and download your report.</p>
-    <a href="${data.portalUrl}" class="cta">View report</a>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">View report</a>
   `);
 
   const result = await sendEmail({
@@ -507,14 +505,14 @@ export async function sendWelcomeEmail(
   const greeting = data.userFullName ? `Hi ${data.userFullName},` : "Welcome to SafeScore,";
 
   const html = emailWrapper(`
-    <h2>${greeting}</h2>
-    <p>Your SafeScore portal sign-in for <strong>${data.companyName}</strong> (DOT ${data.dotNumber}) is ready.</p>
+    <h2>${escapeHtml(greeting)}</h2>
+    <p>Your SafeScore portal sign-in for <strong>${escapeHtml(data.companyName)}</strong> (DOT ${data.dotNumber}) is ready.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <div class="detail-row"><div class="label">Company</div><div class="value">${data.companyName}</div></div>
-      <div class="detail-row"><div class="label">DOT number</div><div class="value">${data.dotNumber}</div></div>
+      <div class="detail-row"><div class="label">Company</div><div class="value">${escapeHtml(data.companyName)}</div></div>
+      <div class="detail-row"><div class="label">DOT number</div><div class="value">${escapeHtml(data.dotNumber)}</div></div>
     </div>
-    <p>Sign in to finish any remaining onboarding or activation steps. SafeScore will send a separate notice when the first analysis is live.</p>
-    <a href="${data.portalUrl}" class="cta">Continue to SafeScore</a>
+    <p>Sign in to finish setting up your account. We will let you know when your first safety-record review is ready.</p>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">Continue to SafeScore</a>
   `);
 
   const result = await sendEmail({
@@ -540,11 +538,11 @@ export async function sendInviteEmail(
     : "You have been invited to SafeScore.";
 
   const html = emailWrapper(`
-    <h2>${greeting}</h2>
-    <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for <strong>${data.companyName}</strong>.</p>
-    <p>Click the button below to set up your account and view your safety dashboard.</p>
-    <a href="${data.magicLinkUrl}" class="cta">Access your portal</a>
-    <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 7 days. If it expires, contact your GEIA representative to request a new one.</p>
+    <h2>${escapeHtml(greeting)}</h2>
+    <p>Golden Era Insurance Agency has invited you to access the SafeScore safety portal for <strong>${escapeHtml(data.companyName)}</strong>.</p>
+    <p>Use the button below to set up your account and see your company's safety information.</p>
+    <a href="${escapeHtml(data.magicLinkUrl)}" class="cta">Access your portal</a>
+    <p style="margin-top:24px;font-size:12px;color:#6B6B6B;">This link expires in 7 days. If it expires, contact your Golden Era Insurance Agency representative for a new one.</p>
   `);
 
   const result = await sendEmail({
@@ -570,14 +568,14 @@ export async function sendRequestQueueReminder(
     <h2>Document request reminder</h2>
     <p>${escapeHtml(data.companyName)} has an open SafeScore request.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <div class="detail-row"><div class="label">Request</div><div class="value">${escapeHtml(data.requestTitle)}</div></div>
+      <div class="detail-row"><div class="label">Request</div><div class="value">${escapeHtml(plainEmailText(data.requestTitle))}</div></div>
       <div class="detail-row"><div class="label">Reminder</div><div class="value">${data.reminderNumber} of ${reminderLimit}</div></div>
     </div>
     <a href="${escapeHtml(data.portalUrl)}" class="cta">Review request</a>
   `);
   return sendEmail({
     to: data.to,
-    subject: `SafeScore request reminder: ${data.requestTitle}`,
+    subject: `SafeScore request reminder: ${plainEmailText(data.requestTitle)}`,
     htmlBody: html,
     trigger: "request_queue_reminder",
     template: "request_queue_reminder",
@@ -594,17 +592,17 @@ export async function sendEvidenceRequestCreated(
 }> {
   const html = emailWrapper(`
     <h2>SafeScore needs one item from you</h2>
-    <p>A new evidence request is ready for <strong>${data.companyName}</strong>.</p>
+    <p>We need a document or answer from <strong>${escapeHtml(data.companyName)}</strong>.</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <div class="detail-row"><div class="label">Request</div><div class="value">${data.requestTitle}</div></div>
-      <div class="detail-row"><div class="label">Why it matters</div><div class="value">${data.whyCopy}</div></div>
+      <div class="detail-row"><div class="label">Request</div><div class="value">${escapeHtml(plainEmailText(data.requestTitle))}</div></div>
+      <div class="detail-row"><div class="label">Why it matters</div><div class="value">${escapeHtml(plainEmailText(data.whyCopy))}</div></div>
     </div>
     <p>Open Documents in your SafeScore portal to review the request and upload the records.</p>
-    <a href="${data.portalUrl}" class="cta">Review request</a>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">Review request</a>
   `);
   return sendEmail({
     to: data.to,
-    subject: `SafeScore evidence request: ${data.requestTitle}`,
+    subject: `SafeScore document request: ${plainEmailText(data.requestTitle)}`,
     htmlBody: html,
     trigger: "lane_b_evidence_request_created",
     template: "lane_b_evidence_request",
@@ -621,16 +619,16 @@ export async function sendEvidenceIntakeQuestion(
 }> {
   const html = emailWrapper(`
     <h2>SafeScore has one question for you</h2>
-    <p>Please answer this question for <strong>${data.companyName}</strong>:</p>
+    <p>Please answer this question for <strong>${escapeHtml(data.companyName)}</strong>:</p>
     <div style="background:#F4F4F4;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <div class="value">${data.question}</div>
+      <div class="value">${escapeHtml(plainEmailText(data.question))}</div>
     </div>
-    <p>Your answer helps SafeScore identify whether a court record could support a challenge.</p>
-    <a href="${data.portalUrl}" class="cta">Answer in Documents</a>
+    <p>Your answer helps us check whether a court record could support a request to correct your safety record.</p>
+    <a href="${escapeHtml(data.portalUrl)}" class="cta">Answer in Documents</a>
   `);
   return sendEmail({
     to: data.to,
-    subject: "One SafeScore intake question",
+    subject: "One question about your safety record",
     htmlBody: html,
     trigger: "lane_b_intake_question_created",
     template: "lane_b_intake_question",
