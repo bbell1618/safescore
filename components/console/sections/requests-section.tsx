@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 import { RosterLinkCopy } from "@/components/console/roster-link-copy";
+import Link from "next/link";
 
 export default async function ClientRequestsPage({
   params,
@@ -33,6 +34,7 @@ export default async function ClientRequestsPage({
           Oldest requests appear first, with weekly reminder count, escalation
           state, and evidence workload.
         </p>
+        <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-gold-dark hover:underline" href={`/console/clients/${id}/plan#remediation`}>View all correction candidates in Plan &rarr;</Link>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#F0E8DA] bg-white">
         <table className="w-full text-sm">

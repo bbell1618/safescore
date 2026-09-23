@@ -355,6 +355,22 @@ The current **Record determination** action only moves the status to Determinati
 
 ## 5. Working Lane B — Evidence Loop
 
+### Start in Plan: the challengeability board
+
+Open **Plan → Remediation** (`/console/clients/{client_id}/plan#remediation`). This is the Lane B board; **Work → Request history** shows the downstream asks already in motion. Each surface links to the other. The crash-review count describes crashes only; zero does not mean there are no possible violation corrections.
+
+The five challenge tiers describe evidence, not promised point reductions:
+
+| Tier | Operator meaning |
+| --- | --- |
+| Strong | Evidence supports a correction; review it before preparing a filing. |
+| Moderate | A plausible correction needs careful evidence review. |
+| Investigate | Evidence is still needed before deciding whether a correction is supported. |
+| Not challengeable | No supported correction ground is currently identified. |
+| Operational | Address the underlying driving, maintenance, or recordkeeping issue. |
+
+For service tiers entitled to evidence collection, qualifying investigation findings automatically create typed requests. There is no separate manual “pursue” step for a supported citation-dismissed request. A qualifying client answer can create the court-record request; an upload triggers reassessment, and staff still review before any filing. A request is an ask for evidence, not proof that it has arrived.
+
 ### The four evidence classes
 
 | Class | When it applies | What SafeScore asks the carrier for |

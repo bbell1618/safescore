@@ -269,6 +269,8 @@ export default async function RemediationPage({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="font-heading text-2xl text-navy">Remediation queue</h2>
+            <p className="mt-1 text-sm text-gray-600">This is the challengeability board: review possible record corrections, evidence still needed, and operational improvements.</p>
+            <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-gold-dark hover:underline" href={`/console/clients/${id}/work#requests`}>View requests and follow-up in Work &rarr;</Link>
             <p className="text-sm text-gray-500 mt-1">
               In-window weighted violation burden:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.totalPoints} pts</span>.
@@ -277,7 +279,7 @@ export default async function RemediationPage({
               {" "}Operational violation burden that needs coaching, maintenance, or time decay:{" "}
               <span className="font-semibold text-[#1E1C1A]">{queue.laneCPoints} pts ({laneCPercent}%)</span>.
               {" "}Plus <span className="font-semibold text-[#1E1C1A]">{queue.laneA.length}</span>{" "}
-              crash{queue.laneA.length === 1 ? "" : "es"} flagged for CPDP review.
+              crash{queue.laneA.length === 1 ? "" : "es"} in the current crash-review queue. This is a crash count, not a count of possible violation corrections.
             </p>
             <p className="text-sm text-gray-500 mt-2">
               Most carriers&apos; burden is operational and reduces as violations age out of the 24-month window; only genuine data errors and crash-preventability are challengeable.
