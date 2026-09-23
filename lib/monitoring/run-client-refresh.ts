@@ -341,7 +341,7 @@ export async function runClientRefresh(
       source_url: null,
       measures,
       captured_by: "monitoring-refresh",
-    }, { onConflict: "client_id,sms_run_date,source" });
+    }, { onConflict: "client_id,sms_run_date,source", ignoreDuplicates: true });
     if (error) throw dbError("Unable to persist BASIC measure release", error);
   }
 

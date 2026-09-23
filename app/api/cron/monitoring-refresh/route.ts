@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PUBLIC_BASIC_ROLLOUT_CLIENT, savePublicBasicMeasures, type PublicBasicSaveResult } from "@/lib/fmcsa/save-public-basic-measures";
 import { runChallengeabilityAssessment } from "@/lib/analysis/challengeability-assessment-server";
 import {
   emitRefreshAlerts,
@@ -159,6 +160,7 @@ export async function GET(request: Request) {
   const mcs150Results: Mcs150CronResult[] = [];
   const carrierEnrichmentResults: CarrierEnrichmentCronResult[] = [];
   const complianceResults: ComplianceCronResult[] = [];
+  const publicBasicResults: PublicBasicSaveResult[] = [];
   let requestReminderResults: ClientRequestReminderRunResult | null = null;
 
   // Process the lightweight request queue before public-source refreshes so a
@@ -189,6 +191,15 @@ export async function GET(request: Request) {
   }
 
   for (const client of (data ?? []) as ActiveClient[]) {
+    // Save new monthly public releases on the existing daily schedule. The unique
+    // release key and insert-only helper keep repeated checks from editing history.
+    if (client.id === PUBLIC_BASIC_ROLLOUT_CLIENT) {
+      try {
+        publicBasicResults.push(await savePublicBasicMeasures(supabase, client.id, client.dot_number, "monitoring-public-basic-source"));
+      } catch (sourceError) {
+        errors.push({ client_id: client.id, error: `Public BASIC source: ${errorMessage(sourceError)}` });
+      }
+    }
     try {
       const shouldAssessChallengeability = tierHasFeature(
         client.tier,
@@ -553,6 +564,7 @@ export async function GET(request: Request) {
       ? {
           ...summary,
           mcs150_results: mcs150Results,
+          public_basic_results: publicBasicResults,
           carrier_enrichment_results: carrierEnrichmentResults,
           compliance_results: complianceResults,
           request_reminder_results: requestReminderResults,
@@ -561,6 +573,7 @@ export async function GET(request: Request) {
       : {
           ...summary,
           mcs150_results: mcs150Results,
+          public_basic_results: publicBasicResults,
           carrier_enrichment_results: carrierEnrichmentResults,
           compliance_results: complianceResults,
           request_reminder_results: requestReminderResults,
