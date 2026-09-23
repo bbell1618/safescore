@@ -1,3 +1,4 @@
+import { responseClock, responseClockText } from "@/lib/cases/agency-request-clock";
 import {
   buildComplianceHealth,
   deriveAnnualDueDate,
@@ -401,6 +402,36 @@ const casesStaleDraft: ChecklistRule = {
   },
 };
 
+const casesAgencyRequestOpen: ChecklistRule = {
+  ruleKey: "cases.agency_request_open",
+  evaluate(context) {
+    return context.agencyRequests.filter(request => request.status === "open").map(request => {
+      const reportCase = context.cases.find(row => row.id === request.case_id && row.kind.toLowerCase() === request.case_kind);
+      if (!reportCase) throw new Error(`Agency request ${request.id} has no matching case in the operator context`);
+      const clock = responseClock(request, context.now);
+      return item({
+        ruleKey: this.ruleKey,
+        contextKey: request.id,
+        family: "cases",
+        state: "needs_you",
+        priority: 0,
+        title: clock.state === "overdue"
+          ? `OVERDUE: answer ${request.requesting_agency} on case ${caseLabel(reportCase)}`
+          : `Answer ${request.requesting_agency} on case ${caseLabel(reportCase)} — due ${formatDate(request.response_due)}`,
+        why: `${request.request_text.slice(0, 160)} · ${responseClockText(request, context.now)}`,
+        instructions: [
+          "Read the full request on the case page.",
+          "Gather what they asked for and respond through DataQs.",
+          "Mark the request answered on the case page with what you sent.",
+        ],
+        href: caseHref(context, reportCase),
+        canMarkDone: false,
+        canSnooze: false,
+      });
+    });
+  },
+};
+
 const casesDeterminationCheck: ChecklistRule = {
   ruleKey: "cases.determination_check",
   evaluate(context) {
@@ -421,6 +452,7 @@ const casesDeterminationCheck: ChecklistRule = {
           title: `Check DataQs for determination — case ${caseLabel(reportCase)}`,
           why: `${reportCase.kind} case ${caseLabel(reportCase)} was filed ${formatDate(reportCase.filedDate!)} and has no recorded determination.`,
           instructions: [
+            "Check DataQs and info@ for any agency request on this case; if there is one, log it on the case page.",
             "Open the FMCSA DataQs system and check the filed case.",
             `Record the determination on the ${reportCase.kind} case when received.`,
             "Follow SOP §4 for CPDP handling or SOP §5 for DataQ handling.",
@@ -428,7 +460,7 @@ const casesDeterminationCheck: ChecklistRule = {
           href: caseHref(context, reportCase),
           canMarkDone: false,
           canSnooze: true,
-          defaultSnoozeDays: 14,
+          defaultSnoozeDays: 5,
         })
       );
   },
@@ -797,6 +829,7 @@ const serviceQuarterlyReview: ChecklistRule = {
 };
 
 export const CHECKLIST_RULES: readonly ChecklistRule[] = [
+  casesAgencyRequestOpen,
   monitoringUnreadAlerts,
   reportingMonthlyDue,
   reportingStackedDrafts,
@@ -838,6 +871,7 @@ export function evaluateChecklist(context: OperatorWorkContext): ChecklistItem[]
   return sortChecklistItems(
     derived.filter(
       (itemValue) =>
+        itemValue.ruleKey === "cases.agency_request_open" ||
         !hasSuppressingAck(itemValue, context.acknowledgements, nowTime)
     )
   );

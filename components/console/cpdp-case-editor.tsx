@@ -1,5 +1,7 @@
 "use client";
 
+import { AgencyRequestsCard, AgencyWaitingStatus } from "./agency-requests-card";
+import type { AgencyRequest } from "@/lib/cases/agency-request-clock";
 import { useState, useRef, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
@@ -221,6 +223,7 @@ export interface EvidenceItem {
 }
 
 interface Props {
+  initialAgencyRequests: AgencyRequest[];
   clientId: string;
   clientDotNumber: string | null;
   filingAuthorized: boolean;
@@ -295,9 +298,11 @@ export function CpdpCaseEditor({
   cpdpCase,
   crash,
   initialEvidence,
+  initialAgencyRequests,
   parRetrievalStatus,
 }: Props) {
   const router = useRouter();
+  const [agencyRequests, setAgencyRequests] = useState(initialAgencyRequests);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -675,6 +680,7 @@ export function CpdpCaseEditor({
       {/* ── Status Tracker ─────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-[#F0E8DA] p-5">
         <StatusTracker status={status} filedDate={cpdpCase.filed_date} />
+        <AgencyWaitingStatus requests={agencyRequests} filed={status === "filed" || status === "pending"} />
       </div>
 
       {/* ── Case Summary ───────────────────────────────────────────────────── */}
@@ -1130,6 +1136,8 @@ export function CpdpCaseEditor({
           </button>
         </div>
       </div>
+
+      <AgencyRequestsCard caseKind="cpdp" caseId={caseId} requests={agencyRequests} onChange={setAgencyRequests} />
 
       {/* ── Section 4: Filing ──────────────────────────────────────────────── */}
       {!isResolved && (

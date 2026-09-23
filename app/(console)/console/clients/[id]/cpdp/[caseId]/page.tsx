@@ -1,3 +1,4 @@
+import { listAgencyRequests } from "@/lib/cases/agency-requests";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -143,6 +144,7 @@ export default async function CpdpCaseDetailPage({
       </div>
 
       <CpdpCaseEditor
+        initialAgencyRequests={await listAgencyRequests("cpdp", caseId)}
         clientId={id}
         clientDotNumber={(client.dot_number as string | number | null)?.toString() ?? null}
         filingAuthorized={(client.filing_authorized as boolean | null) ?? false}

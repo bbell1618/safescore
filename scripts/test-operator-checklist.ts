@@ -66,6 +66,7 @@ function baseContext(): OperatorWorkContext {
     ],
     requests: [],
     cases: [],
+    agencyRequests: [],
     compliance: {
       available: true,
       drivers: [],
@@ -108,6 +109,7 @@ function one(context: OperatorWorkContext, ruleKey: string): ChecklistItem {
 }
 
 const expectedRuleKeys = [
+  "cases.agency_request_open",
   "monitoring.unread_alerts",
   "reporting.monthly_due",
   "reporting.stacked_drafts",
@@ -130,6 +132,42 @@ assert.deepEqual(
   expectedRuleKeys
 );
 assert.deepEqual(evaluateChecklist(baseContext()), []);
+
+// Agency response deadlines cannot be suppressed by a checklist acknowledgement.
+{
+  const context = baseContext();
+  context.cases = [{ id: "case-1", kind: "DataQ", caseNumber: "6103911", status: "filed", createdAt: daysBefore(20), filedDate: daysBefore(10), determinationOutcome: null }];
+  const request = {
+    id: "agency-1", client_id: CLIENT_ID, case_kind: "dataq" as const, case_id: "case-1",
+    requested_on: "2026-08-10", response_due: "2026-08-19", requesting_agency: "Agency test",
+    contact_name: null, contact_phone: null, contact_email: null, request_text: "Request text ".repeat(20),
+    status: "open" as const, responded_on: null, response_notes: null, created_by: null,
+    created_at: daysBefore(7), updated_at: daysBefore(7),
+  };
+  context.agencyRequests = [request];
+  const result = evaluateChecklist(context);
+  assert.equal(result[0].ruleKey, "cases.agency_request_open");
+  assert.equal(result[0].priority, 0);
+  assert.equal(result[0].state, "needs_you");
+  assert.equal(result[0].contextKey, request.id);
+  assert.equal(result[0].canMarkDone, false);
+  assert.equal(result[0].canSnooze, false);
+  assert.match(result[0].title, /Answer Agency test on case 6103911/);
+  assert.ok(result[0].why.startsWith(request.request_text.slice(0, 160) + " · "));
+  assert.match(result[0].href, /dataq\?case=case-1$/);
+  assert.equal(result[1].ruleKey, "cases.determination_check");
+  for (const status of ["responded", "lapsed"] as const) {
+    context.agencyRequests = [{ ...request, status }];
+    assert.equal(evaluateChecklist(context).some(row => row.ruleKey === "cases.agency_request_open"), false);
+  }
+  context.agencyRequests = [{ ...request, response_due: "2026-08-16" }];
+  assert.equal(evaluateChecklist(context)[0].title, "OVERDUE: answer Agency test on case 6103911");
+  context.acknowledgements.push({ id: "impossible-ack", ruleKey: "cases.agency_request_open", contextKey: request.id, action: "done", snoozedUntil: null, createdAt: NOW });
+  assert.equal(evaluateChecklist(context)[0].ruleKey, "cases.agency_request_open");
+  context.cases[0].kind = "CPDP";
+  context.agencyRequests[0].case_kind = "cpdp";
+  assert.match(evaluateChecklist(context)[0].href, /cpdp\/case-1$/);
+}
 
 // Monitoring: aggregate only unacknowledged alerts and use the oldest date.
 {
@@ -398,7 +436,7 @@ assert.deepEqual(evaluateChecklist(baseContext()), []);
   );
   assert.equal(determination.canSnooze, true);
   assert.equal(determination.canMarkDone, false);
-  assert.equal(determination.defaultSnoozeDays, 14);
+  assert.equal(determination.defaultSnoozeDays, 5);
 
   context.acknowledgements.push({
     id: "case-snooze",

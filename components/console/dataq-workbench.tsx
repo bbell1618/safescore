@@ -1,5 +1,7 @@
 "use client";
 
+import { AgencyRequestsCard, AgencyWaitingStatus } from "./agency-requests-card";
+import type { AgencyRequest } from "@/lib/cases/agency-request-clock";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -88,6 +90,7 @@ export interface EvidenceItem {
 
 interface Props {
   initialExpandedId?: string;
+  initialAgencyRequests: Record<string, AgencyRequest[]>;
   clientId: string;
   clientTier: ClientTier;
   filingAuthorized: boolean;
@@ -185,6 +188,7 @@ function evidenceAcquisitionClass(method: string | null) {
 
 export function DataqWorkbench({
   initialExpandedId,
+  initialAgencyRequests,
   clientId,
   clientTier,
   filingAuthorized,
@@ -193,6 +197,7 @@ export function DataqWorkbench({
   cases,
   evidenceMap,
 }: Props) {
+  const [agencyRequests, setAgencyRequests] = useState(initialAgencyRequests);
   const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId ?? null);
   const [narratives, setNarratives] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState<string | null>(null);
@@ -700,6 +705,7 @@ export function DataqWorkbench({
               onClick={() => setExpandedId(isExpanded ? null : c.id)}
             >
               <div className="flex-1 min-w-0">
+                <AgencyWaitingStatus requests={agencyRequests[c.id] ?? []} filed={isFiled} />
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                   <p className="font-mono text-xs font-semibold text-[#1E1C1A]">
                     {isOrphaned ? "—" : (c.violations?.violation_code ?? "—")}
@@ -762,6 +768,7 @@ export function DataqWorkbench({
             {/* Expanded detail */}
             {isExpanded && (
               <div className="border-t border-[#F0E8DA] px-5 py-5 space-y-5">
+                <AgencyRequestsCard caseKind="dataq" caseId={c.id} requests={agencyRequests[c.id] ?? []} onChange={rows => setAgencyRequests(previous => ({ ...previous, [c.id]: rows }))} />
 
                 {/* ===================== DRAFT PHASE ===================== */}
                 {isDraft && (

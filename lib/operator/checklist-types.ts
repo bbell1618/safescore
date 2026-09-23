@@ -1,3 +1,4 @@
+import type { AgencyRequest } from "@/lib/cases/agency-request-clock";
 import type {
   ComplianceHealthClearinghouseInput,
   ComplianceHealthDriverDocumentInput,
@@ -21,7 +22,7 @@ export type ChecklistItemState =
   | "waiting_client"
   | "waiting_gate";
 
-export type ChecklistPriority = 1 | 2 | 3;
+export type ChecklistPriority = 0 | 1 | 2 | 3;
 
 export type ChecklistItemAction = {
   kind: "request_driver_roster" | "copy_roster_link";
@@ -162,6 +163,7 @@ export type OperatorWorkContext = {
   reports: ChecklistReportContext[];
   requests: ChecklistRequestContext[];
   cases: ChecklistCaseContext[];
+  agencyRequests: AgencyRequest[];
   compliance: ChecklistComplianceContext;
   portalUsers: ChecklistPortalUserContext[];
   manualItems: OperatorManualItem[];

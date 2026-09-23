@@ -1,3 +1,4 @@
+import { listAgencyRequests } from "@/lib/cases/agency-requests";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -174,6 +175,7 @@ export default async function DataqPage({
       </div>
 
       <DataqWorkbench
+        initialAgencyRequests={Object.fromEntries(await Promise.all((cases ?? []).map(async row => [row.id, await listAgencyRequests("dataq", row.id)])))}
         key={query.case ?? "all"}
         initialExpandedId={cases?.some((row) => row.id === query.case) ? query.case : undefined}
         clientId={id}

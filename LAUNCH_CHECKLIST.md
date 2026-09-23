@@ -70,6 +70,8 @@ Every item below requires a human credential, external-service action, productio
 
 ## Final human launch sign-off
 
+- [ ] Accepted gap: DataQs/CPDP requests filed outside SafeScore are not monitored. Every filing for a SafeScore client must be created as a SafeScore case first.
+
 - [ ] Brandon confirms all beta routes and the Request Queue in the production UI.
 - [ ] Daven approves licensed/final filing workflow and client-facing positioning.
 - [ ] Brandon confirms Stripe is intentionally in TEST or LIVE mode and records the decision.

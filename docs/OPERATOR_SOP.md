@@ -366,6 +366,16 @@ The current **Record determination** action only moves the status to Determinati
 
 Unmapped actionable findings and open-case fallback use Report factual error; do not force a stronger class without evidence.
 
+### Agency requests
+
+When DataQs or an agency emails info@ asking for information, log the request on the matching SafeScore DataQ or CPDP case that same day. Copy the full request verbatim and record the agency, contact details, and requested date. Respond by defaults to ten calendar days later; adjust it to an earlier agency deadline when needed.
+
+Check DataQs and info@ whenever reviewing a filed case. An open agency request appears first on Today and client Work and cannot be marked done or snoozed there. Amber means three days or fewer remain; red means the response is overdue and the case may auto-close.
+
+Gather the requested information and respond through DataQs before the due date. Then use **Mark answered** on the case, recording the date and what was sent. If the request auto-closed without a response, use **Mark lapsed** and explain what happened. A lapse is not a determination on the merits; do not invent a case outcome. SafeScore sends no email or SMS for these entries.
+
+Filings made outside SafeScore are not monitored. Create every filing for a SafeScore client as a SafeScore case first. Filed-case determination checks can be snoozed for five days; agency requests cannot be snoozed.
+
 ### Automatic request creation
 
 For an entitled client, SafeScore automatically creates a typed request when challengeability is actionable or a qualifying case opens. It:

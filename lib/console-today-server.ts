@@ -1,4 +1,5 @@
 import "server-only";
+import { responseClock } from "@/lib/cases/agency-request-clock";
 import { createServiceClient } from "@/lib/supabase/server";
 import { assembleClientWorkContext, systemGateContextFromEnvironment } from "@/lib/operator/checklist-server";
 import { evaluateChecklist, evaluateSystemGates } from "@/lib/operator/checklist-rules";
@@ -6,6 +7,11 @@ import { isSubscriptionTier } from "@/lib/tiers";
 import type { ChecklistItem, OperatorWorkContext } from "@/lib/operator/checklist-types";
 
 function itemTiming(context: OperatorWorkContext, item: ChecklistItem) {
+  const request = context.agencyRequests.find(row => row.id === item.contextKey);
+  if (request) {
+    const { daysLeft } = responseClock(request, context.now);
+    return daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`;
+  }
   const record = context.cases.find(value => item.contextKey.includes(value.id));
   const requests = context.requests.filter(value =>
     value.status === "open" && value.responsibility === "client" &&
@@ -57,7 +63,7 @@ export async function loadConsoleToday() {
           : item.href || `/console/clients/${context.client.id}/work#requests`,
       })),
       manualItems: context.manualItems.filter(item => item.status === "open" && !item.deletedAt),
-    })),
+    })).sort((a, b) => Number(b.items.some(item => item.priority === 0)) - Number(a.items.some(item => item.priority === 0))),
     alerts: [...(alertsResult.data ?? [])].sort((a, b) => Number(a.read_at !== null) - Number(b.read_at !== null)),
     requests: requestsResult.data ?? [], activity: activityResult.data ?? [],
     gates: evaluateSystemGates(systemGateContextFromEnvironment()),

@@ -1,4 +1,5 @@
 import "server-only";
+import { listOpenAgencyRequestsForClient } from "@/lib/cases/agency-requests";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateChecklist, evaluateSystemGates } from "@/lib/operator/checklist-rules";
@@ -128,6 +129,7 @@ export async function assembleClientWorkContext(
     manualItemsResult,
     acknowledgementsResult,
     authUsers,
+    agencyRequests,
   ] = await Promise.all([
     service
       .from("clients")
@@ -241,6 +243,7 @@ export async function assembleClientWorkContext(
       .order("created_at", { ascending: false })
       .range(0, MAX_BATCH_ROWS - 1),
     authUsersPromise,
+    listOpenAgencyRequestsForClient(clientId),
   ]);
 
   if (clientResult.error) {
@@ -488,6 +491,7 @@ export async function assembleClientWorkContext(
     reports: reportFacts,
     requests: requestFacts,
     cases: caseFacts,
+    agencyRequests,
     compliance: {
       available: true,
       drivers,
