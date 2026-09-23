@@ -41,3 +41,25 @@ const failure = await compiled.exports.GET();
 assert.equal(failure.status, 500);
 assert.equal((await failure.json()).error, "Staff lookup unavailable");
 console.log("PASS: exact runtime equality, boolean-only response, no-store, staff gate before env read, real failures");
+
+const pageCode = ts.transpileModule(readFileSync("app/(console)/console/email-safety/page.tsx", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+const pageModule = { exports: {} };
+const pageRequire = name => name === "@/app/api/operator/email-safety/route"
+  ? compiled.exports
+  : nativeRequire(name);
+vm.runInThisContext(`(function(require,module,exports){${pageCode}\n})`)(pageRequire, pageModule, pageModule.exports);
+const { renderToStaticMarkup } = nativeRequire("react-dom/server");
+staffError = null;
+for (const value of ["true", "TRUE", undefined]) {
+  setting = value;
+  const html = renderToStaticMarkup(await pageModule.exports.default());
+  assert.match(html, new RegExp(`font-semibold">${value === "true" ? "true" : "false"}</p>`));
+  assert.doesNotMatch(html, /role="alert"/);
+}
+staffError = new Error("Staff lookup unavailable");
+const errorHtml = renderToStaticMarkup(await pageModule.exports.default());
+assert.match(errorHtml, /role="alert">Email safety check failed: Staff lookup unavailable/);
+assert.doesNotMatch(errorHtml, /font-semibold">(?:true|false)<\/p>/);
+console.log("PASS: browser HTML uses the authenticated runtime response and displays true, false, and real errors");
