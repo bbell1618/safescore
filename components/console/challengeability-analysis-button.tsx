@@ -51,7 +51,7 @@ export function ChallengeabilityAnalysisButton({
       setMessage(
         requested === 0
           ? "Every violation is already assessed."
-          : `Assessed ${assessed} violation${assessed === 1 ? "" : "s"}; ${challengeable} flagged for review.`
+          : `Assessed ${assessed} violation${assessed === 1 ? "" : "s"}; ${challengeable} with strong or moderate evidence for a correction. Other items may still need investigation in Plan.`
       );
       router.refresh();
     } catch (caught) {
