@@ -377,6 +377,8 @@ For service tiers entitled to evidence collection, qualifying investigation find
 
 The row's **Evidence plan** describes where records must come from: connected records SafeScore can collect, records the client supplies, or records staff must obtain. Those counts are not a received-file checklist. Read the request status and inspect the actual attachments before deciding that the evidence is in hand.
 
+The **What next** summary distinguishes correction items needing action from client evidence, missing police reports, and filed cases awaiting decisions. Closed cases do not count as waiting. A missing police report is not proof that anyone ordered it. Escalations and submitted evidence require attention; the separate Work count preserves agency deadlines and other operator checklist items even when the correction queue itself is waiting. The two counts can overlap. Use Work for the actual staff actions; do not infer that an old all-waiting example describes today's carrier.
+
 | Class | When it applies | What SafeScore asks the carrier for |
 | --- | --- | --- |
 | Wrong attribution | The inspection/violation may belong to the wrong carrier, driver, or vehicle | Vehicle registration; lease/interchange agreement; driver roster for the inspection date; ELD/GPS location records |

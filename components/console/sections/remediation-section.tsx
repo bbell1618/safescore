@@ -15,6 +15,9 @@ import { summarizeInvestigationBurden } from "@/lib/analysis/remediation-present
 import { buildLaneCFamilyGroups } from "@/lib/playbooks/families";
 import { FAMILY_DEFINITIONS } from "@/lib/playbooks/templates";
 import { investigationRequestState, type RemediationRequest } from "@/lib/analysis/remediation-request-state";
+import { summarizeCorrectionWork } from "@/lib/analysis/remediation-operator-state";
+import { assembleClientWorkContext } from "@/lib/operator/checklist-server";
+import { evaluateChecklist } from "@/lib/operator/checklist-rules";
 
 
 type ViolationRow = {
@@ -35,6 +38,7 @@ type ViolationRow = {
 
 type CrashRow = {
   id: string;
+  par_document_id: string | null;
   crash_date: string | null;
   state: string | null;
   city?: string | null;
@@ -181,6 +185,7 @@ export default async function RemediationPage({
     dataqCasesResult,
     cpdpCasesResult,
     openRequests,
+    workContext,
   ] = await Promise.all([
     supabase
     .from("clients")
@@ -190,7 +195,7 @@ export default async function RemediationPage({
     getCanonicalInspectionScope(id, supabase).then(({ inspectionIds }) => loadCanonicalViolations(supabase, id, inspectionIds)),
     supabase
       .from("crashes")
-      .select("id, crash_date, state, city, tow_away, injuries, fatalities")
+      .select("id, crash_date, state, city, tow_away, injuries, fatalities, par_document_id")
       .eq("client_id", id)
       .order("crash_date", { ascending: false }),
     supabase
@@ -202,6 +207,7 @@ export default async function RemediationPage({
       .select("id, crash_id, status, case_number")
       .eq("client_id", id),
     loadOpenRequests(supabase, id),
+    assembleClientWorkContext(id),
   ]);
 
   if (clientError && clientError.code !== "PGRST116") {
@@ -280,6 +286,15 @@ export default async function RemediationPage({
     actionCount: queue.priorityRows.length + laneCFamilyGroups.length,
     openCaseCount,
   });
+  const workActionCount = evaluateChecklist(workContext).filter(item => item.state === "needs_you").length
+    + workContext.manualItems.filter(item => item.status === "open" && !item.deletedAt).length;
+  const operatorState = summarizeCorrectionWork(queue.priorityRows.map(item => ({
+    lane: item.lane,
+    caseStatus: item.caseRow?.status ?? null,
+    requestState: item.lane === "A" ? null : investigationRequestState(openRequests, item.violation.id, item.caseRow?.id ?? null)?.state ?? null,
+    hasPoliceReport: item.lane === "A" && item.crash.par_document_id !== null,
+  })), workActionCount);
+  const hasRecords = violationRows.length + (crashes?.length ?? 0) > 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
@@ -337,16 +352,20 @@ export default async function RemediationPage({
           <div>
             <div className="flex items-center gap-2">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8B5E2B]">What next</p>
-              <Badge variant="outline">{nextStep.label}</Badge>
+              <Badge variant="outline">{hasRecords ? operatorState.label : nextStep.label}</Badge>
             </div>
-            <h2 className="mt-2 text-xl font-bold text-[#1E1C1A]">{nextStep.title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">{nextStep.detail}</p>
+            <h2 className="mt-2 text-xl font-bold text-[#1E1C1A]">{hasRecords ? operatorState.title : nextStep.title}</h2>
+            {hasRecords ? <div className="mt-2 max-w-3xl space-y-2 text-sm leading-6 text-gray-600">
+              <p>{operatorState.waitingClient} awaiting client evidence · {operatorState.missingPoliceReports} police reports not on file · {operatorState.waitingAgency} awaiting agency decisions · {operatorState.completed} completed cases.</p>
+              <p>{queue.laneCPoints} operational points need coaching, maintenance, or time to age out. Missing police reports are prerequisites; this does not confirm that an order has been placed.</p>
+              <p>Work lists {workActionCount} staff action{workActionCount === 1 ? "" : "s"}, including any escalated requests, agency deadlines, or scheduled reviews. These can overlap the correction items above.</p>
+            </div> : <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">{nextStep.detail}</p>}
           </div>
           <Link
-            href={`/console/clients/${id}${nextStep.hrefSuffix}`}
+            href={`/console/clients/${id}${hasRecords ? "/work#work-list" : nextStep.hrefSuffix}`}
             className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[#C67A1E] px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#B86E18] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A1E] focus-visible:ring-offset-2"
           >
-            {nextStep.action} &rarr;
+            {hasRecords ? "Open current work" : nextStep.action} &rarr;
           </Link>
         </div>
         <div className="mt-5 grid gap-2 border-t border-[#EAD8BC] pt-4 text-xs md:grid-cols-2 xl:grid-cols-4">
