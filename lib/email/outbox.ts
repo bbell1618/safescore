@@ -2,7 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 export type OutboxMessage = {
-  to: string; template: string; subject: string; htmlBody: string; clientId?: string;
+  to: string; template: string; subject: string; htmlBody: string; clientId?: string | null;
 };
 export type OutboxActionLink = { label: string; href: string };
 
@@ -33,7 +33,7 @@ export async function writeDryRunOutbox(message: OutboxMessage) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   let clientId = message.clientId ?? null;
-  if (!clientId) {
+  if (message.clientId === undefined) {
     const match = await service.from("clients").select("id").eq("email", message.to.trim().toLowerCase()).limit(2);
     if (match.error) throw new Error(`Unable to associate dry-run email: ${match.error.message}`);
     if (match.data?.length === 1) clientId = match.data[0].id;

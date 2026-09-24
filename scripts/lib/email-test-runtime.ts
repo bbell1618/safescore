@@ -18,6 +18,7 @@ export function emailTestRuntime() {
     console: Object.fromEntries(["log", "info", "warn", "error"].map(key => [key, (...args: unknown[]) => logs.push(args)])),
     require: (name: string) => {
       if (name === "./copy") return copy.exports;
+      if (name === "./staff-test-policy") return { isStaffTestRecipient: (to: unknown) => ["brandonbell@goldenerainsurance.com", "operations@goldenerainsurance.com"].includes(String(to)) };
       if (name === "nodemailer") return { createTransport: () => { throw new Error("SMTP forbidden in tests"); } };
       if (name === "./outbox") return { writeDryRunOutbox: async (message: Record<string, unknown>) => {
         if (failure) throw new Error(failure);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireStaffOnboardingUser, OnboardingRouteFailure } from "@/lib/onboarding/server";
 import type { OutboxActionLink } from "@/lib/email/outbox";
+import { StaffEmailTest } from "@/components/console/staff-email-test";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function StaffOutboxPage() {
   return <main className="mx-auto max-w-6xl space-y-5 p-6">
     <Link href="/console" className="underline">Back to Today</Link>
     <h1 className="text-2xl font-semibold">Dry-run email outbox</h1>
+    <StaffEmailTest dryRun={process.env.EMAIL_DRY_RUN === "true"} />
     <p>Last 50 suppressed emails. Nothing here was sent. Account links are private: open only the intended test account.</p>
     {error ? <p role="alert">Unable to load outbox: {error.message}</p> : !data?.length ? <p>No dry-run emails saved yet.</p> :
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">

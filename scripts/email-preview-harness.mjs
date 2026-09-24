@@ -21,6 +21,7 @@ export async function collectEmailPreviews() {
     require: name => {
       if (name === "nodemailer") return { createTransport: denied };
       if (name === "./copy") return copyModule.exports;
+      if (name === "./staff-test-policy") return { isStaffTestRecipient: () => false }; // Internal-only probe covered by its route/transport tests.
       throw new Error(`Unexpected preview import: ${name}`);
     },
     captureSend: async message => { captures.push(message); return { success: true, dryRun: true }; },
@@ -47,7 +48,7 @@ export async function collectEmailPreviews() {
     ["court-question", "sendEvidenceIntakeQuestion", { question: "Did the court dismiss or reduce this ticket?" }],
   ];
   assert.deepEqual(
-    Object.keys(templateModule.exports).filter(name => name.startsWith("send") && name !== "sendOperationsNotification").sort(),
+    Object.keys(templateModule.exports).filter(name => name.startsWith("send") && !["sendOperationsNotification", "sendStaffTestEmail"].includes(name)).sort(),
     [...new Set(fixtures.map(([, name]) => name))].sort(),
     "Every client-facing application email must have a preview"
   );

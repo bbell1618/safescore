@@ -4,6 +4,7 @@
 
 import nodemailer from "nodemailer";
 import { emailCaseStatus, emailSafetyCategory, plainEmailText } from "./copy";
+import { isStaffTestRecipient } from "./staff-test-policy";
 
 const DEFAULT_SENDER = "Golden Era SafeScore";
 const DEFAULT_REPLY_TO = "info@goldenerainsurance.com";
@@ -26,6 +27,7 @@ async function sendEmail({
   bcc,
   template,
   clientId,
+  staffTest = false,
 }: {
   to: string;
   subject: string;
@@ -36,9 +38,13 @@ async function sendEmail({
   bcc?: string;
   trigger: string;
   template: string;
-  clientId?: string;
+  clientId?: string | null;
+  staffTest?: boolean;
 }): Promise<EmailDeliveryResult> {
-  const dryRun = process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
+  // The explicit staff probe follows the requested literal-true contract.
+  // Ordinary application mail retains its existing fail-closed default.
+  const dryRun = staffTest ? process.env.EMAIL_DRY_RUN === "true"
+    : process.env.EMAIL_DRY_RUN?.trim().toLowerCase() !== "false";
   if (dryRun) {
     try {
       const { writeDryRunOutbox } = await import("./outbox");
@@ -78,6 +84,16 @@ async function sendEmail({
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+/** Fixed internal probe only; callers cannot supply content, CC, BCC or account links. */
+export async function sendStaffTestEmail(to: string): Promise<EmailDeliveryResult> {
+  if (!isStaffTestRecipient(to)) return { success: false, error: "Recipient is not allowed for the staff email test" };
+  return sendEmail({
+    to, subject: "SafeScore staff email test",
+    htmlBody: emailWrapper("<h2>SafeScore email test</h2><p>This is a fixed internal delivery test requested by a SafeScore staff member. No client action is needed.</p>"),
+    trigger: "staff_email_test", template: "staff_email_test", clientId: null, staffTest: true,
+  });
 }
 
 // ── Shared HTML wrapper ────────────────────────────────────────────────────
