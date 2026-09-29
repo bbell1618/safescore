@@ -11,9 +11,10 @@ export async function answerCard(id: string, userId: string | null, value: strin
   if (error) throw new DecisionError(error.message, 500);
   const row = data as OutboundRow | null;
   if (!row) throw new DecisionError("Card not found.", 404);
-  if (row.status !== "pending" || row.kind !== "needs_info") throw new DecisionError("This card does not take an answer.", 400);
+  if (row.status !== "pending" || (row.kind !== "needs_info" && row.kind !== "filing_packet")) throw new DecisionError("This card does not take an answer.", 400);
 
   const field = row.payload?.field;
+  if (field === "fmcsa_case_number") return recordFiling(row, userId, value);
   if (field !== "contact_email") throw new DecisionError("Unknown question on this card.", 400);
   const email = value.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new DecisionError("Enter a valid email address.");
@@ -57,4 +58,38 @@ export async function answerCard(id: string, userId: string | null, value: strin
     contactName: (client.primary_contact as string | null) ?? null,
   });
   return { status: "answered", cardId };
+}
+
+/** The one manual step: Brandon filed in DataQs and pastes the request number. */
+async function recordFiling(row: OutboundRow, userId: string | null, value: string) {
+  const service = serviceClient();
+  const caseNumber = value.trim();
+  if (!/^[A-Za-z0-9-]{4,40}$/.test(caseNumber)) throw new DecisionError("Paste the DataQs request number (letters, numbers and dashes only).");
+  const table = row.payload?.caseKind === "CPDP" ? "cpdp_cases" : "dataq_cases";
+  const caseId = String(row.payload?.caseId ?? "");
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await service
+    .from(table)
+    .update({ status: "filed", case_number: caseNumber, filed_date: today, updated_at: new Date().toISOString() })
+    .eq("id", caseId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new DecisionError(error.message, 500);
+  if (!data) throw new DecisionError("That case is no longer a draft. Reload the Inbox.", 409);
+  await service
+    .from("outbound_queue")
+    .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: userId, decision_note: `Filed in DataQs as ${caseNumber}` })
+    .eq("id", row.id)
+    .eq("status", "pending");
+  await service.from("activity_log").insert({
+    client_id: row.client_id,
+    user_id: userId,
+    action_type: "case_filed",
+    entity_type: table,
+    entity_id: caseId,
+    description: `Filed with FMCSA DataQs as ${caseNumber}`,
+    metadata: { via: "autopilot_inbox", caseNumber },
+  });
+  return { status: "filed", caseNumber };
 }

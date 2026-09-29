@@ -70,7 +70,7 @@ export function AutopilotInbox({ initial }: { initial: InboxPayload }) {
       tone: result.status === "failed" ? "error" : "ok",
       text:
         action === "reject" ? "Rejected. Nothing was sent."
-        : action === "answer" ? "Saved. The next step was drafted for you."
+        : action === "answer" ? (result.status === "filed" ? "Recorded as filed. SafeScore now watches for FMCSA's decision." : "Saved. The next step was drafted for you.")
         : result.status === "failed" ? `Approved, but delivery failed: ${result.error ?? "unknown error"}`
         : result.dryRun ? "Approved. Live email is off, so it was recorded instead of delivered."
         : "Approved and sent.",
@@ -134,15 +134,23 @@ export function AutopilotInbox({ initial }: { initial: InboxPayload }) {
           <div className="space-y-4 px-5 py-5">
             {card.why && <p className="rounded-lg bg-amber-subtle px-4 py-3 text-sm text-navy"><span className="font-semibold">Why: </span>{card.why}</p>}
 
-            {card.kind === "needs_info" ? (
+            {card.kind === "needs_info" || card.kind === "filing_packet" ? (
               <div className="space-y-3">
-                <label className="block text-sm font-medium text-navy" htmlFor="answer">Contact email</label>
-                <input id="answer" type="email" value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })}
-                  className="w-full rounded-lg border border-sand px-3 py-2 text-sm" placeholder="owner@company.com" />
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => decide("answer")} disabled={busy || !draft.value.trim()} primary>Save and draft the email</Button>
-                  <Button onClick={() => setRejecting(true)} disabled={busy}>Dismiss</Button>
-                </div>
+                {card.body_text && <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-lg border border-sand bg-cream p-4 text-sm leading-6">{card.body_text}</pre>}
+                <label className="block text-sm font-medium text-navy" htmlFor="answer">
+                  {card.kind === "filing_packet" ? "DataQs request number (after you file)" : "Contact email"}
+                </label>
+                <input id="answer" type={card.kind === "filing_packet" ? "text" : "email"} value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+                  className="w-full rounded-lg border border-sand px-3 py-2 text-sm" placeholder={card.kind === "filing_packet" ? "e.g. 6123719" : "owner@company.com"} />
+                {!rejecting && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => decide("answer")} disabled={busy || !draft.value.trim()} primary>
+                      {card.kind === "filing_packet" ? "I filed it" : "Save and draft the email"}
+                    </Button>
+                    <Button onClick={() => setRejecting(true)} disabled={busy}>{card.kind === "filing_packet" ? "Don't file" : "Dismiss"}</Button>
+                    {pending.length > 1 && <Button onClick={() => setIndex((i) => (i + 1) % pending.length)} disabled={busy}>Skip for now</Button>}
+                  </div>
+                )}
               </div>
             ) : (
               <>

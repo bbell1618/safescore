@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaffUserId } from "@/lib/autopilot/staff";
 import { queueReportCards, runWeeklyAutopilot } from "@/lib/autopilot/weekly";
+import { runDailySweep } from "@/lib/autopilot/sweep";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
   try {
     const weekly = await runWeeklyAutopilot({ onlyClientId: body.clientId });
     const reports = body.clientId ? 0 : await queueReportCards();
-    return NextResponse.json({ weekly, reportCardsQueued: reports });
+    const sweep = body.clientId ? null : await runDailySweep();
+    return NextResponse.json({ weekly, reportCardsQueued: reports, sweep });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }

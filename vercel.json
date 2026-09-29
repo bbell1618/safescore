@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/autopilot",
-      "schedule": "30 15 * * 1"
+      "schedule": "30 15 * * *"
     }
   ]
 }

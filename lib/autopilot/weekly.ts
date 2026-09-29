@@ -325,11 +325,17 @@ export async function queueReportCards(): Promise<number> {
   const { data: reports, error } = await service
     .from("reports")
     .select("id, client_id, title, type, status, final_content, ai_content, created_at, clients(name, email, plan_token)")
-    .in("status", ["reviewed"])
+    .in("status", ["draft", "reviewed"])
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   let queued = 0;
+  const seen = new Set<string>();
   for (const report of reports ?? []) {
+    // Newest unsent report per carrier; older drafts stay in the console.
+    if (seen.has(report.client_id as string)) continue;
+    seen.add(report.client_id as string);
+    const done = await service.from("outbound_queue").select("id", { count: "exact", head: true }).eq("dedupe_key", `report:${report.id}`).in("status", ["approved", "sent", "rejected"]);
+    if ((done.count ?? 0) > 0) continue;
     const client = (Array.isArray(report.clients) ? report.clients[0] : report.clients) as { name: string; email: string | null; plan_token: string } | null;
     if (!client?.email) continue;
     const body = `Hello,\n\nYour ${String(report.type)} safety report for ${client.name} is ready. Open your plan page to read it.\n\nReply to this email with any question.`;
@@ -339,7 +345,7 @@ export async function queueReportCards(): Promise<number> {
       kind: "report_send",
       template: "autopilot_report",
       title: `Send ${String(report.type)} report to ${client.name}`,
-      why: "The report is written and reviewed. Approving marks it sent, makes it visible to the carrier, and emails them.",
+      why: "The report is written. Read it below. Approving marks it reviewed and sent, makes it visible to the carrier, and emails them.",
       toAddress: client.email,
       subject: `${client.name}: your safety report is ready`,
       bodyText: body,
