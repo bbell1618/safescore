@@ -6,9 +6,22 @@ export function isPublicRosterPagePath(path: string): boolean {
   return /^\/roster\/[^/]+$/.test(path);
 }
 
+export function isPublicPlanPagePath(path: string): boolean {
+  return /^\/plan\/[^/]+\/?$/.test(path);
+}
+
+/** The carrier's no-password plan link actions. Each route validates the token itself. */
+export function isPublicPlanApiPath(path: string): boolean {
+  return (
+    /^\/api\/plan\/[^/]+\/(sign|eld|roster|checkout)$/.test(path) ||
+    /^\/api\/plan\/[^/]+\/requests\/[^/]+\/upload$/.test(path)
+  );
+}
+
 export function isPublicUnauthenticatedPagePath(path: string): boolean {
   return (
     path === "/terms" ||
+    isPublicPlanPagePath(path) ||
     path === "/terms/" ||
     isPublicEvidencePagePath(path) ||
     isPublicRosterPagePath(path)

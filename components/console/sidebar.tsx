@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutList,
+  Inbox,
   Search,
   Users,
   Activity,
@@ -15,7 +16,8 @@ import {
 import { useState } from "react";
 
 const navItems = [
-  { href: "/console", label: "Today", icon: LayoutList, exact: true },
+  { href: "/console", label: "Inbox", icon: Inbox, exact: true },
+  { href: "/console/today", label: "Work", icon: LayoutList },
   { href: "/console/clients", label: "Clients", icon: Users },
   { href: "/console/assess", label: "Assess", icon: Search },
   { href: "/console/activity", label: "Activity", icon: Activity },
@@ -76,7 +78,7 @@ export function ConsoleSidebar({ userEmail }: SidebarProps) {
         </button>
         {signOutError ? <p role="alert" className="pb-3 text-xs text-red-200">{signOutError}</p> : null}
       </details>
-      <nav aria-label="Console navigation" className="grid grid-cols-4 gap-0.5 px-2 py-1 md:flex md:flex-1 md:flex-col md:overflow-y-auto md:px-3 md:py-4">
+      <nav aria-label="Console navigation" className="grid grid-cols-5 gap-0.5 px-2 py-1 md:flex md:flex-1 md:flex-col md:overflow-y-auto md:px-3 md:py-4">
         {navItems.map((item) => {
           const active = item.exact
             ? pathname === item.href

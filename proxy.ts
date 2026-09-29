@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   isPublicEvidenceUploadPath,
+  isPublicPlanApiPath,
   isPublicRosterApiPath,
   isPublicUnauthenticatedPagePath,
 } from "@/lib/auth/public-paths";
@@ -41,6 +42,7 @@ export async function proxy(request: NextRequest) {
   if (path.startsWith("/api/")) {
     const publicApiExactPaths = new Set([
       "/api/cron/monitoring-refresh",
+      "/api/cron/autopilot",
       "/api/auth/password-reset",
       "/api/integrations/lexisnexis/par",
     ]);
@@ -52,6 +54,7 @@ export async function proxy(request: NextRequest) {
     const isPublicEvidenceUpload = isPublicEvidenceUploadPath(path);
     const isPublicRosterApi = isPublicRosterApiPath(path);
     if (
+      isPublicPlanApiPath(path) ||
       isPublicEvidenceUpload ||
       isPublicRosterApi ||
       publicApiExactPaths.has(path) ||
@@ -68,6 +71,7 @@ export async function proxy(request: NextRequest) {
       "/api/requests/",
       "/api/violations/",
       "/api/playbooks/",
+      "/api/autopilot/",
     ];
     const staffOnlyExact = isStaffReportActionPath(path);
     if ((staffOnlyExact || staffOnlyPrefixes.some((prefix) => path.startsWith(prefix))) && !isStaff) {

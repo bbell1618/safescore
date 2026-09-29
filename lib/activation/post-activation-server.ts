@@ -90,7 +90,9 @@ function appBaseUrl(): string {
 function emailDeliveryMetadata(result: EmailDeliveryResult) {
   return {
     status: result.success
-      ? result.dryRun
+      ? result.queued
+        ? "queued_for_approval"
+        : result.dryRun
         ? "dry_run"
         : "sent"
       : "failed",

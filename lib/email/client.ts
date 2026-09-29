@@ -15,7 +15,23 @@ export type EmailDeliveryResult = {
   messageId?: string;
   error?: string;
   dryRun?: boolean;
+  /** True when the message was held in the approval Inbox instead of sent. */
+  queued?: boolean;
+  queueId?: string;
 };
+
+/**
+ * Autopilot rule: nothing client-facing leaves GEIA without an approved Inbox
+ * card. Only these internal/user-initiated templates bypass the gate.
+ */
+const UNGATED_TEMPLATES = new Set([
+  "operations_notification",
+  "staff_email_test",
+  "password_recovery",
+]);
+
+export const SUNNY_SENDER_NAME = "Sunny Kapoor | Golden Era SafeScore";
+export const SUNNY_ADDRESS = "sunnykapoor@goldenerainsurance.com";
 
 async function sendEmail({
   to,
@@ -28,6 +44,8 @@ async function sendEmail({
   template,
   clientId,
   staffTest = false,
+  approvedDelivery = false,
+  trigger,
 }: {
   to: string;
   subject: string;
@@ -40,7 +58,18 @@ async function sendEmail({
   template: string;
   clientId?: string | null;
   staffTest?: boolean;
+  approvedDelivery?: boolean;
 }): Promise<EmailDeliveryResult> {
+  if (!approvedDelivery && !staffTest && !UNGATED_TEMPLATES.has(template)) {
+    try {
+      const { enqueueLegacyEmail } = await import("@/lib/autopilot/queue");
+      const queueId = await enqueueLegacyEmail({ to, cc, subject, htmlBody, template, trigger, clientId: clientId ?? null });
+      return { success: true, queued: true, queueId, messageId: queueId };
+    } catch (error) {
+      // Fail closed: a message that cannot be queued is never sent.
+      return { success: false, error: `Unable to queue for approval: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
   // The explicit staff probe follows the requested literal-true contract.
   // Ordinary application mail retains its existing fail-closed default.
   const dryRun = staffTest ? process.env.EMAIL_DRY_RUN === "true"
@@ -138,8 +167,8 @@ function emailWrapper(content: string): string {
       ${content}
     </div>
     <div class="footer">
-      <p>Golden Era Insurance Agency | SafeScore | Confidential</p>
-      <p style="margin-top:4px;">You are receiving this message about your SafeScore account.</p>
+      <p>Golden Era Insurance Agency | SafeScore | 200 Brown Rd, Suite 203, Fremont, CA 94539</p>
+      <p style="margin-top:4px;">Questions? Just reply to this email.</p>
     </div>
   </div>
 </body>
@@ -664,4 +693,75 @@ export async function sendEvidenceIntakeQuestion(
     trigger: "lane_b_intake_question_created",
     template: "lane_b_intake_question",
   });
+}
+
+// ── Autopilot (approval Inbox) ─────────────────────────────────────────────
+
+/** Sends a message Brandon approved in the Inbox. EMAIL_DRY_RUN still applies. */
+export async function deliverApprovedEmail(message: {
+  to: string;
+  cc?: string | null;
+  subject: string;
+  htmlBody: string;
+  template: string;
+  clientId?: string | null;
+  fromIdentity?: string | null;
+}): Promise<EmailDeliveryResult> {
+  const sunny = (message.fromIdentity ?? "sunny") === "sunny";
+  return sendEmail({
+    to: message.to,
+    cc: message.cc ?? undefined,
+    subject: message.subject,
+    htmlBody: message.htmlBody,
+    template: message.template,
+    trigger: "autopilot_approved",
+    clientId: message.clientId ?? null,
+    senderName: sunny ? SUNNY_SENDER_NAME : undefined,
+    replyTo: sunny ? SUNNY_ADDRESS : undefined,
+    approvedDelivery: true,
+  });
+}
+
+export const SUNNY_SIGNATURE_TEXT =
+  "Sunny Kapoor · AI Assistant\nGolden Era Insurance Agency\nsunnykapoor@goldenerainsurance.com";
+
+function paragraphsToHtml(text: string): string {
+  return text
+    .trim()
+    .split(/\n{2,}/)
+    .map((block) => {
+      const lines = block.split("\n");
+      const isList = lines.every((line) => /^\s*(\d+[.)]|[-•])\s+/.test(line));
+      if (isList) {
+        const ordered = /^\s*\d/.test(lines[0]);
+        const items = lines
+          .map((line) => `<li style="margin-bottom:6px;">${escapeHtml(line.replace(/^\s*(\d+[.)]|[-•])\s+/, ""))}</li>`)
+          .join("");
+        return ordered
+          ? `<ol style="padding-left:20px;margin-bottom:16px;font-size:14px;line-height:1.6;">${items}</ol>`
+          : `<ul style="padding-left:20px;margin-bottom:16px;font-size:14px;line-height:1.6;">${items}</ul>`;
+      }
+      return `<p>${lines.map(escapeHtml).join("<br />")}</p>`;
+    })
+    .join("");
+}
+
+/**
+ * Renders an autopilot-authored plain-text email. Plain text is the editable
+ * source of truth; HTML is always re-rendered from it, so an edit in the Inbox
+ * can never break layout. The disclosed-AI signature is appended for Sunny.
+ */
+export function renderAutopilotEmail(input: {
+  bodyText: string;
+  cta?: { label: string; href: string } | null;
+  fromIdentity?: string | null;
+}): string {
+  const sunny = (input.fromIdentity ?? "sunny") === "sunny";
+  const cta = input.cta
+    ? `<p><a href="${escapeHtml(input.cta.href)}" class="cta">${escapeHtml(input.cta.label)}</a></p>`
+    : "";
+  const signature = sunny
+    ? `<p style="margin-top:24px;color:#5C554E;font-size:13px;">${SUNNY_SIGNATURE_TEXT.split("\n").map(escapeHtml).join("<br />")}</p>`
+    : "";
+  return emailWrapper(`${paragraphsToHtml(input.bodyText)}${cta}${signature}`);
 }

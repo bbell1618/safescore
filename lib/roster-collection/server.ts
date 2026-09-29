@@ -147,7 +147,9 @@ export async function resolveOpenRosterRequest(
       "ROSTER_CLIENT_LOOKUP_FAILED"
     );
   }
-  if (!client || client.tier !== "total_safety") {
+  // Autopilot collects the driver list from every carrier (coaching needs it);
+  // only a missing company invalidates the link.
+  if (!client) {
     throw new RosterRouteFailure(
       "This driver-list link is not available for this service plan.",
       403,
