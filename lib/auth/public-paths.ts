@@ -14,7 +14,7 @@ export function isPublicPlanPagePath(path: string): boolean {
 export function isPublicPlanApiPath(path: string): boolean {
   return (
     /^\/api\/plan\/[^/]+\/(sign|eld|roster|checkout)$/.test(path) ||
-    /^\/api\/plan\/[^/]+\/requests\/[^/]+\/upload$/.test(path)
+    /^\/api\/plan\/[^/]+\/requests\/[^/]+\/(upload|answer)$/.test(path)
   );
 }
 

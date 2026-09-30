@@ -40,6 +40,7 @@ export type PlanRequest = {
   upload_token: string;
   created_at: string;
   requested_items: unknown;
+  category?: string | null;
 };
 
 export type PlanRequestItem = { key: string; label: string };
@@ -96,7 +97,7 @@ export async function loadPlanPage(token: string): Promise<PlanPageData | null> 
       .maybeSingle(),
     service
       .from("client_requests")
-      .select("id, title, description, why_copy, request_type, upload_token, created_at, requested_items")
+      .select("id, title, description, why_copy, request_type, upload_token, created_at, requested_items, category")
       .eq("client_id", client.id)
       .eq("status", "open")
       .eq("responsibility", "client")
@@ -200,4 +201,65 @@ export async function ensureRosterRequest(service: SupabaseClient, clientId: str
     .single();
   if (insertError || !data) throw new Error(insertError?.message ?? "Unable to create the driver list request");
   return data.upload_token as string;
+}
+
+export type PlanRequestView = {
+  id: string;
+  title: string;
+  why: string | null;
+  question: boolean;
+  items: PlanRequestItem[];
+};
+
+export type PlanRequestGroup = {
+  key: string;
+  title: string;
+  why: string;
+  requests: PlanRequestView[];
+};
+
+function shortTicketLabel(title: string) {
+  // "Court paperwork showing how the ticket ended — <violation>, <date>"
+  const parts = title.split(" — ");
+  return parts.length > 1 ? parts.slice(1).join(" — ") : title;
+}
+
+/**
+ * Carrier-facing wording for open requests. Internal staff text (long MCS-150
+ * notes, regulation names) never reaches the plan page, and many
+ * same-kind asks collapse into one card.
+ */
+export function planRequestGroups(requests: PlanRequest[], categories: Map<string, string | null>): PlanRequestGroup[] {
+  const groups = new Map<string, PlanRequestGroup>();
+  const add = (key: string, title: string, why: string, view: PlanRequestView) => {
+    const group = groups.get(key) ?? { key, title, why, requests: [] };
+    group.requests.push(view);
+    groups.set(key, group);
+  };
+  for (const r of requests) {
+    const category = categories.get(r.id) ?? null;
+    const items = requestItems(r.requested_items);
+    const question = r.request_type === "question";
+    if (category === "lane_b_evidence" && /court paperwork/i.test(r.title)) {
+      add("court", "Court papers for tickets your drivers fought", "If a driver won a ticket in court, the court papers can get that violation removed from your record. Upload what you have. If you don't have them, reply and tell us which court.", {
+        id: r.id, title: shortTicketLabel(r.title), why: null, question: false, items,
+      });
+    } else if (category === "lane_b_evidence") {
+      add("evidence", "Proof we need to challenge violations", "These papers help us ask FMCSA to fix mistakes on your record.", {
+        id: r.id, title: r.title, why: r.why_copy, question: false, items,
+      });
+    } else if (category === "mcs150_truth_up") {
+      add(`single:${r.id}`, "Update your DOT registration (MCS-150)", "Your DOT registration looks out of date. Send us your current number of trucks and drivers, and your yearly miles (your IFTA report is fine). We fill in the form. You sign it.", {
+        id: r.id, title: "Trucks, drivers and miles (IFTA report or a photo of your numbers)", why: null, question: false, items,
+      });
+    } else if (question) {
+      add(`single:${r.id}`, r.title, "Tap Yes or No.", { id: r.id, title: r.title, why: null, question: true, items });
+    } else {
+      const why = r.why_copy ?? r.description;
+      add(`single:${r.id}`, r.title, why && why.length <= 220 ? why : "Upload the document. A phone photo is fine.", {
+        id: r.id, title: items.length ? r.title : "Upload the document (a phone photo is fine)", why: null, question: false, items,
+      });
+    }
+  }
+  return [...groups.values()];
 }

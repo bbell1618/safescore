@@ -18,7 +18,12 @@ type Props = {
     phone: string | null;
     driverCount: number | null;
   };
-  requests: Array<{ id: string; title: string; why: string | null; question: boolean; items: Array<{ key: string; label: string }> }>;
+  groups: Array<{
+    key: string;
+    title: string;
+    why: string;
+    requests: Array<{ id: string; title: string; why: string | null; question: boolean; items: Array<{ key: string; label: string }> }>;
+  }>;
   rosterUrl: string | null;
   rosterDriverCount: number;
   eldConnected: boolean;
@@ -46,7 +51,7 @@ export function PlanActions(props: Props) {
       <SignCard token={props.token} signedBy={props.client.signedBy} signedAt={props.client.signedAt} defaultName={props.client.primaryContact} />
       <DriversCard token={props.token} rosterUrl={props.rosterUrl} count={props.rosterDriverCount} />
       <EldCard token={props.token} provider={props.client.eldProvider} connected={props.eldConnected} />
-      {props.requests.map((request) => <RequestCard key={request.id} token={props.token} request={request} />)}
+      {props.groups.map((group) => <RequestGroupCard key={group.key} token={props.token} group={group} />)}
       {props.client.status !== "active" && <StartCard token={props.token} client={props.client} signed={signed} />}
     </section>
   );
@@ -172,7 +177,26 @@ function EldCard({ token, provider, connected }: { token: string; provider: stri
   );
 }
 
-function RequestCard({ token, request }: { token: string; request: Props["requests"][number] }) {
+type RequestView = Props["groups"][number]["requests"][number];
+
+function RequestGroupCard({ token, group }: { token: string; group: Props["groups"][number] }) {
+  const many = group.requests.length > 1;
+  return (
+    <Card title={many ? `${group.title} (${group.requests.length})` : group.title}>
+      <p className="text-warm-mid">{group.why}</p>
+      {many ? (
+        <details className="rounded-lg border border-sand">
+          <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-navy">Show the {group.requests.length} items</summary>
+          <div className="space-y-2 p-3 pt-0">{group.requests.map((r) => <RequestRow key={r.id} token={token} request={r} />)}</div>
+        </details>
+      ) : (
+        <RequestRow token={token} request={group.requests[0]} />
+      )}
+    </Card>
+  );
+}
+
+function RequestRow({ token, request }: { token: string; request: RequestView }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,30 +212,45 @@ function RequestCard({ token, request }: { token: string; request: Props["reques
     else { setSent((s) => [...s, itemKey ?? "file"]); router.refresh(); }
     setBusy(null);
   }
-  const targets = request.items.length ? request.items : [{ key: "", label: "Upload the document (a phone photo is fine)" }];
+  async function answer(value: "yes" | "no") {
+    setBusy(value); setError(null);
+    try { await post(`/api/plan/${token}/requests/${request.id}/answer`, { answer: value }); setSent(["answered"]); router.refresh(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    setBusy(null);
+  }
+  if (request.question) {
+    return (
+      <div className="space-y-2">
+        {sent.includes("answered") ? <p className="text-sm text-success">Thank you. Answer saved ✓</p> : (
+          <div className="flex gap-2">
+            <Button disabled={busy !== null} onClick={() => answer("yes")}>Yes</Button>
+            <Button secondary disabled={busy !== null} onClick={() => answer("no")}>No</Button>
+          </div>
+        )}
+        <ErrorText text={error} />
+      </div>
+    );
+  }
+  const targets = request.items.length ? request.items : [{ key: "", label: request.title }];
   return (
-    <Card title={request.title}>
-      {request.why && <p className="text-warm-mid">{request.why}</p>}
-      {request.question ? (
-        <p className="text-sm text-warm-mid">Please answer by replying to our email.</p>
-      ) : (
-        <ul className="space-y-2">
-          {targets.map((item) => (
-            <li key={item.key || "file"} className="flex flex-col gap-2 rounded-lg border border-sand p-3 sm:flex-row sm:items-center">
-              <span className="flex-1 text-sm">{item.label}</span>
-              {sent.includes(item.key || "file") ? <span className="text-sm text-success">Received ✓</span> : (
-                <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber px-4 text-sm font-semibold text-white">
-                  {busy === (item.key || "file") ? "Uploading…" : "Upload or take photo"}
-                  <input type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" disabled={busy !== null}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f, item.key || undefined); }} />
-                </label>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="space-y-2">
+      {request.items.length > 0 && request.title && <p className="text-sm font-medium text-navy">{request.title}</p>}
+      <ul className="space-y-2">
+        {targets.map((item) => (
+          <li key={item.key || "file"} className="flex flex-col gap-2 rounded-lg border border-sand p-3 sm:flex-row sm:items-center">
+            <span className="flex-1 text-sm">{item.label}</span>
+            {sent.includes(item.key || "file") ? <span className="text-sm text-success">Received ✓</span> : (
+              <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg bg-amber px-4 text-sm font-semibold text-white">
+                {busy === (item.key || "file") ? "Uploading…" : "Upload or take photo"}
+                <input type="file" accept="image/*,application/pdf" className="sr-only" disabled={busy !== null}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f, item.key || undefined); }} />
+              </label>
+            )}
+          </li>
+        ))}
+      </ul>
       <ErrorText text={error} />
-    </Card>
+    </div>
   );
 }
 

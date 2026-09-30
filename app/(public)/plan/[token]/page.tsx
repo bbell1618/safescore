@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { loadPlanPage, recordPlanView, requestItems } from "@/lib/autopilot/plan-page-server";
+import { loadPlanPage, planRequestGroups, recordPlanView } from "@/lib/autopilot/plan-page-server";
 import { PlanActions } from "./plan-actions";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +116,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             phone: client.phone,
             driverCount: client.driver_count,
           }}
-          requests={data.requests.map((r) => ({ id: r.id, title: r.title, why: r.why_copy ?? r.description, question: r.request_type === "question", items: requestItems(r.requested_items) }))}
+          groups={planRequestGroups(data.requests, new Map(data.requests.map((r) => [r.id, r.category ?? null])))}
           rosterUrl={data.rosterUrl}
           rosterDriverCount={data.rosterDriverCount}
           eldConnected={data.eldConnected}
