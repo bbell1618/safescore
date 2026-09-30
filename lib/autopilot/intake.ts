@@ -128,7 +128,7 @@ export async function queueIntroCard(
  * DOT in, everything else automatic: create the carrier, pull FMCSA, compute
  * the record, write the plan, and queue the first email for approval.
  */
-export async function runDotIntake(dotInput: unknown, options: { email?: string | null } = {}): Promise<IntakeResult> {
+export async function runDotIntake(dotInput: unknown, options: { email?: string | null; geiaInsured?: boolean } = {}): Promise<IntakeResult> {
   const dot = normalizeDot(dotInput);
   if (!dot) throw new Error("Enter a valid USDOT number (digits only).");
   const service = serviceClient();
@@ -154,7 +154,8 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     planToken = existing.plan_token as string;
     contact = await findCarrierContact(dot);
     email = options.email?.trim().toLowerCase() || (existing.email as string | null) || contact.email;
-    geiaClient = Boolean(existing.geia_client) || contact.geiaClient;
+    geiaClient = Boolean(existing.geia_client) || contact.geiaClient || options.geiaInsured === true;
+    if (geiaClient && !existing.geia_client) await service.from("clients").update({ geia_client: true }).eq("id", existing.id);
     contactName = (existing.primary_contact as string | null) ?? contact.contactName;
     steps.push(`Already in SafeScore: ${company}. Rebuilt the plan from today's data.`);
   } else {
@@ -162,7 +163,7 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     if (!carrier || !carrier.legalName) throw new Error(`FMCSA has no carrier for USDOT ${dot}.`);
     contact = await findCarrierContact(dot);
     email = options.email?.trim().toLowerCase() || contact.email;
-    geiaClient = contact.geiaClient;
+    geiaClient = contact.geiaClient || options.geiaInsured === true;
     contactName = contact.contactName;
     company = carrier.legalName;
     const { data: inserted, error } = await service
@@ -194,7 +195,9 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     planToken = inserted.plan_token as string;
     steps.push(`Created ${company} (USDOT ${dot})${geiaClient ? ", a GEIA insured" : ""}.`);
     steps.push(
-      contact.source === "goldendesk"
+      options.email?.trim()
+        ? `Contact email you entered: ${email}${contactName ? ` (name from ${contact.source === "goldendesk" ? "GoldenDesk" : "the FMCSA census"}: ${contactName})` : ""}.`
+        : contact.source === "goldendesk"
         ? `Contact from GoldenDesk: ${contactName ?? "no name"}${email ? ` <${email}>` : ", no email"}.`
         : contact.source === "fmcsa_census"
           ? `Contact from the FMCSA census${email ? `: ${email}` : ""}.`

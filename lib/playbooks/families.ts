@@ -202,6 +202,8 @@ export const FAMILY_PREFIX_MAP: readonly ViolationFamilyPrefix[] = [
   { prefix: "382", familyKey: "driver_qualification", basis: "Drug and alcohol testing (Part 382)" },
   { prefix: "383", familyKey: "driver_qualification", basis: "Commercial driver's license (Part 383)" },
   { prefix: "39021", familyKey: "conspicuity_body", basis: "Vehicle marking (390.21)" },
+  { prefix: "3963A1B", familyKey: "brakes_air", basis: "Brake defects found under 396.3(a)(1)" },
+  { prefix: "3963A1T", familyKey: "tires_wheels", basis: "Tire defects found under 396.3(a)(1)" },
 ] as const;
 
 const PREFIXES_LONGEST_FIRST = [...FAMILY_PREFIX_MAP].sort(

@@ -240,6 +240,7 @@ function RecentList({ cards }: { cards: InboxCard[] }) {
 function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
   const [dot, setDot] = useState("");
   const [email, setEmail] = useState("");
+  const [geiaInsured, setGeiaInsured] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; lines: string[] } | null>(null);
 
@@ -249,7 +250,7 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
     const response = await fetch("/api/autopilot/intake", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dot, email: email || null }),
+      body: JSON.stringify({ dot, email: email || null, geiaInsured }),
     });
     const body = (await response.json().catch(() => ({}))) as { error?: string; steps?: string[] };
     setRunning(false);
@@ -257,6 +258,7 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
     if (response.ok) {
       setDot("");
       setEmail("");
+      setGeiaInsured(false);
       await onDone();
     }
   }
@@ -273,6 +275,10 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
         <label className="flex flex-col text-sm">
           <span className="mb-1 text-warm-gray">Contact email (optional)</span>
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-64 rounded-lg border border-sand px-3 py-2" placeholder="Found automatically if blank" disabled={running} />
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={geiaInsured} onChange={(e) => setGeiaInsured(e.target.checked)} disabled={running} className="h-4 w-4" />
+          GEIA insured (CC Daven + info@)
         </label>
         <Button type="submit" disabled={running || !dot.trim()} primary>{running ? "Working… (about a minute)" : "Run"}</Button>
       </form>
