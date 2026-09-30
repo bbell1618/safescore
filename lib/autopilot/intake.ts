@@ -154,6 +154,11 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     planToken = existing.plan_token as string;
     contact = await findCarrierContact(dot);
     email = options.email?.trim().toLowerCase() || (existing.email as string | null) || contact.email;
+    // An email the operator types is the truth for this carrier from now on.
+    if (options.email?.trim() && email !== existing.email) {
+      await service.from("clients").update({ email, contact_source: "operator" }).eq("id", existing.id);
+      steps.push(`Saved ${email} as the carrier's contact email.`);
+    }
     geiaClient = Boolean(existing.geia_client) || contact.geiaClient || options.geiaInsured === true;
     if (geiaClient && !existing.geia_client) await service.from("clients").update({ geia_client: true }).eq("id", existing.id);
     contactName = (existing.primary_contact as string | null) ?? contact.contactName;
