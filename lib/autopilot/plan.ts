@@ -199,7 +199,10 @@ function validateModelOutput(output: ModelOutput, facts: CarrierFacts, familyKey
 }
 
 export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext): Promise<PlanBundle> {
-  const topFamilies = facts.families.filter((f) => f.points > 0).slice(0, 3);
+  // "General safety" is the catch-all for codes with no program; it is never
+  // an actionable fix on its own, so it only appears when nothing else does.
+  const specific = facts.families.filter((f) => f.points > 0 && f.key !== "general_safety");
+  const topFamilies = (specific.length ? specific : facts.families.filter((f) => f.points > 0)).slice(0, 3);
   const standing = standingLines(facts);
   const base: Omit<SafetyPlanContent, "headline" | "fixes"> = { standing, weDo: weDoLines(facts), needs: needsLines() };
   const fallback: PlanBundle = {
