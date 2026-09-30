@@ -38,6 +38,7 @@ export type CarrierFacts = {
   families: FamilyFact[];
   crashes: Array<{ date: string; state: string | null; towAway: boolean; injuries: number; fatalities: number; ageMonths: number }>;
   crashReviewCandidates: number;
+  crashesRuledNotPreventable?: number;
   oos: {
     vehicleRate: number | null;
     driverRate: number | null;
@@ -118,9 +119,13 @@ export async function buildCarrierFacts(
   if (inspectionError) throw new Error(`Unable to load inspections: ${inspectionError.message}`);
   let lastInspectionDate: string | null = null;
   let inspectionsWithOos = 0;
+  let inspectionsInWindow = 0;
   for (const inspection of inspections ?? []) {
     const date = inspection.inspection_date as string | null;
     if (date && (!lastInspectionDate || date > lastInspectionDate)) lastInspectionDate = date;
+    // Only the 24-month SMS window counts toward the score.
+    if (timeWeightFor(date, now) === 0) continue;
+    inspectionsInWindow += 1;
     if (Number(inspection.oos_violations ?? 0) > 0) inspectionsWithOos += 1;
   }
 
@@ -198,7 +203,7 @@ export async function buildCarrierFacts(
     drivers: (profile?.drivers as number | null) ?? null,
     totalPoints,
     violationCount: inWindow,
-    inspectionCount: inspectionIds.length,
+    inspectionCount: inspectionsInWindow,
     oosViolationCount,
     lastInspectionDate,
     perBasic: [...perBasicMap.entries()]
@@ -207,13 +212,14 @@ export async function buildCarrierFacts(
     families,
     crashes: crashes.map(({ notPreventable: _n, ...rest }) => rest),
     crashReviewCandidates: crashes.filter((c) => c.towAway && !c.notPreventable).length,
+    crashesRuledNotPreventable: crashes.filter((c) => c.notPreventable).length,
     oos: {
       vehicleRate: oosInput?.vehicleOosRate ?? null,
       driverRate: oosInput?.driverOosRate ?? null,
       nationalVehicleRate: oosInput?.nationalVehicleOosRate ?? (profile?.national_vehicle_oos_rate as number | null) ?? 22.26,
       nationalDriverRate: oosInput?.nationalDriverOosRate ?? (profile?.national_driver_oos_rate as number | null) ?? 6.67,
-      inspectionsWithOosShare: (inspections?.length ?? 0) > 0 ? round1((inspectionsWithOos / (inspections?.length ?? 1)) * 100) : null,
+      inspectionsWithOosShare: inspectionsInWindow > 0 ? round1((inspectionsWithOos / inspectionsInWindow) * 100) : null,
     },
-    hasRecord: inspectionIds.length > 0 || crashes.length > 0,
+    hasRecord: inspectionsInWindow > 0 || crashes.length > 0,
   };
 }

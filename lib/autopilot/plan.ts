@@ -69,11 +69,18 @@ export function standingLines(facts: CarrierFacts): string[] {
     lines.push(`${pct(driverRate)} of your driver inspections end with the driver put out of service. The national average is ${pct(nationalDriverRate)}.`);
   }
   if (facts.crashes.length > 0) {
-    lines.push(
-      facts.crashReviewCandidates > 0
-        ? `You have ${facts.crashes.length} crash${facts.crashes.length === 1 ? "" : "es"} on record. We will check if ${facts.crashReviewCandidates === 1 ? "it" : "any"} can be marked "not your fault".`
-        : `You have ${facts.crashes.length} crash${facts.crashes.length === 1 ? "" : "es"} on record.`
-    );
+    const total = facts.crashes.length;
+    const won = facts.crashesRuledNotPreventable ?? 0;
+    const review = facts.crashReviewCandidates;
+    const parts = [`You have ${total} crash${total === 1 ? "" : "es"} on record.`];
+    if (won > 0) parts.push(`FMCSA already ruled ${won === 1 ? "1 of them" : `${won} of them`} not your fault.`);
+    if (review > 0) {
+      const which = won > 0
+        ? (review === 1 ? "the other one" : `the other ${review}`)
+        : total === 1 ? "it" : review === total ? "any of them" : `${review} of them`;
+      parts.push(`We will check if ${which} can be marked "not your fault".`);
+    }
+    lines.push(parts.join(" "));
   }
   return lines;
 }
@@ -143,6 +150,7 @@ function allowedNumbers(facts: CarrierFacts): Set<string> {
   add(facts.oosViolationCount);
   add(facts.crashes.length);
   add(facts.crashReviewCandidates);
+  add(facts.crashesRuledNotPreventable ?? null);
   add(facts.powerUnits);
   add(facts.drivers);
   add(facts.oos.vehicleRate);
