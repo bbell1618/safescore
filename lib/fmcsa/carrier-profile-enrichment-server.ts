@@ -1,4 +1,5 @@
 import "server-only";
+import { fmcsaDot } from "@/lib/fmcsa/practice";
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -236,6 +237,7 @@ export async function refreshCarrierProfileEnrichment(
   },
   adminClient?: SupabaseClient,
 ): Promise<CarrierProfileEnrichmentResult> {
+  input = { ...input, dotNumber: fmcsaDot(input.dotNumber) };
   const supabase = adminClient ?? (await createServiceClient());
   const now = input.now ?? new Date();
   if (Number.isNaN(now.getTime())) {

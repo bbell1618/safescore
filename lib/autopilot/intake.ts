@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCarrier, getOosRates } from "@/lib/fmcsa/client";
+import { fmcsaDot, practiceDot } from "@/lib/fmcsa/practice";
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { renderAutopilotEmail } from "@/lib/email/client";
@@ -56,7 +57,7 @@ export async function buildAndStorePlan(
   ctx: { contactName: string | null; introducedBy: string | null }
 ): Promise<{ planId: string; version: number; bundle: PlanBundle; facts: CarrierFacts }> {
   const { data: client } = await service.from("clients").select("dot_number").eq("id", clientId).single();
-  const oos = client?.dot_number ? await getOosRates(client.dot_number as string).catch(() => null) : null;
+  const oos = client?.dot_number ? await getOosRates(fmcsaDot(client.dot_number as string)).catch(() => null) : null;
   const facts = await buildCarrierFacts(service, clientId, oos
     ? { vehicleOosRate: oos.vehicleOosRate, driverOosRate: oos.driverOosRate, nationalVehicleOosRate: oos.nationalVehicleOosRate, nationalDriverOosRate: oos.nationalDriverOosRate }
     : null);
@@ -81,7 +82,7 @@ export async function buildAndStorePlan(
 /** Queues the first-contact email for approval, or a needs-info card when no email exists. */
 export async function queueIntroCard(
   service: SupabaseClient,
-  input: { clientId: string; company: string; planToken: string; planId: string; email: string | null; geiaClient: boolean; bundle: PlanBundle; contactName: string | null }
+  input: { clientId: string; company: string; planToken: string; planId: string; email: string | null; geiaClient: boolean; bundle: PlanBundle; contactName: string | null; practice?: boolean }
 ): Promise<string> {
   if (!input.email) {
     return enqueueCard({
@@ -94,7 +95,8 @@ export async function queueIntroCard(
       dedupeKey: `intro:${input.clientId}`,
     }, service);
   }
-  const cc = input.geiaClient ? `${DAVEN_EMAIL}, ${INFO_EMAIL}` : null;
+  // Practice copies never copy Daven or info@: the rehearsal mail goes only to Brandon.
+  const cc = input.geiaClient && !input.practice ? `${DAVEN_EMAIL}, ${INFO_EMAIL}` : null;
   const bodyHtml = renderAutopilotEmail({
     bodyText: input.bundle.intro.bodyText,
     cta: { label: "Open your safety plan", href: planUrl(input.planToken) },
@@ -103,7 +105,7 @@ export async function queueIntroCard(
     clientId: input.clientId,
     kind: "email",
     template: "autopilot_intro",
-    title: `Send ${input.company} their safety plan`,
+    title: `${input.practice ? "PRACTICE: " : ""}Send ${input.company} their safety plan`,
     why: input.geiaClient
       ? "First contact. This carrier is a GEIA insured, so Daven and info@ are CC'd to show the request comes from him."
       : "First contact. The plan page is how the carrier signs up, sends what we need, and sees what to fix.",
@@ -128,16 +130,19 @@ export async function queueIntroCard(
  * DOT in, everything else automatic: create the carrier, pull FMCSA, compute
  * the record, write the plan, and queue the first email for approval.
  */
-export async function runDotIntake(dotInput: unknown, options: { email?: string | null; geiaInsured?: boolean } = {}): Promise<IntakeResult> {
+export async function runDotIntake(dotInput: unknown, options: { email?: string | null; geiaInsured?: boolean; practice?: boolean } = {}): Promise<IntakeResult> {
   const dot = normalizeDot(dotInput);
   if (!dot) throw new Error("Enter a valid USDOT number (digits only).");
   const service = serviceClient();
   const steps: string[] = [];
 
+  const practice = options.practice === true;
+  const storedDot = practice ? practiceDot(dot) : dot;
+  if (practice) options = { ...options, email: options.email ?? null };
   const { data: existing } = await service
     .from("clients")
     .select("id, name, plan_token, email, geia_client, primary_contact")
-    .eq("dot_number", dot)
+    .eq("dot_number", storedDot)
     .maybeSingle();
 
   let clientId: string;
@@ -155,7 +160,7 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     contact = await findCarrierContact(dot);
     email = options.email?.trim().toLowerCase() || (existing.email as string | null) || contact.email;
     // An email the operator types is the truth for this carrier from now on.
-    if (options.email?.trim() && email !== existing.email) {
+    if (!practice && options.email?.trim() && email !== existing.email) {
       await service.from("clients").update({ email, contact_source: "operator" }).eq("id", existing.id);
       steps.push(`Saved ${email} as the carrier's contact email.`);
     }
@@ -167,15 +172,18 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     const carrier = await getCarrier(dot).catch(() => null);
     if (!carrier || !carrier.legalName) throw new Error(`FMCSA has no carrier for USDOT ${dot}.`);
     contact = await findCarrierContact(dot);
-    email = options.email?.trim().toLowerCase() || contact.email;
-    geiaClient = contact.geiaClient || options.geiaInsured === true;
+    email = practice
+      ? `brandonbell+practice${dot}@goldenerainsurance.com`
+      : options.email?.trim().toLowerCase() || contact.email;
+    geiaClient = contact.geiaClient || options.geiaInsured === true || practice;
     contactName = contact.contactName;
-    company = carrier.legalName;
+    company = practice ? `ZZ PRACTICE — ${carrier.legalName}` : carrier.legalName;
     const { data: inserted, error } = await service
       .from("clients")
       .insert({
-        name: carrier.legalName,
-        dot_number: dot,
+        name: company,
+        dot_number: storedDot,
+        is_practice: practice,
         mc_number: carrier.mcNumber,
         address: carrier.phyStreet || null,
         city: carrier.phyCity || null,
@@ -189,7 +197,7 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
         tier: "assessment",
         status: "prospect",
         geia_client: geiaClient,
-        intake_source: "dot_intake",
+        intake_source: practice ? "practice_copy" : "dot_intake",
         contact_source: contact.source,
         goldendesk_client_id: contact.goldendeskClientId,
       })
@@ -198,7 +206,11 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     if (error || !inserted) throw new Error(`Unable to create carrier: ${error?.message}`);
     clientId = inserted.id as string;
     planToken = inserted.plan_token as string;
-    steps.push(`Created ${company} (USDOT ${dot})${geiaClient ? ", a GEIA insured" : ""}.`);
+    steps.push(
+      practice
+        ? `Created a practice copy of ${carrier.legalName} (USDOT ${dot}). The real carrier's file is untouched; its mail goes only to ${email}.`
+        : `Created ${company} (USDOT ${dot})${geiaClient ? ", a GEIA insured" : ""}.`
+    );
     steps.push(
       options.email?.trim()
         ? `Contact email you entered: ${email}${contactName ? ` (name from ${contact.source === "goldendesk" ? "GoldenDesk" : "the FMCSA census"}: ${contactName})` : ""}.`
@@ -211,7 +223,7 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     await log(service, clientId, "autopilot_intake_created", `Created from DOT ${dot} by Autopilot`, { contactSource: contact.source });
   }
 
-  const refresh = await runClientRefresh({ clientId, dotNumber: dot }, service);
+  const refresh = await runClientRefresh({ clientId, dotNumber: storedDot }, service);
   steps.push(`Pulled FMCSA: ${refresh.inspectionsPulled} inspections, ${refresh.violationsProcessed} violations, ${refresh.crashesPulled} crashes.`);
   await captureBurdenSnapshot(clientId, existing ? "rerun" : "intake", service).catch((error) => {
     steps.push(`Snapshot skipped: ${error instanceof Error ? error.message : String(error)}`);
@@ -223,7 +235,7 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
   });
   steps.push(`Wrote plan v${version}: ${facts.totalPoints} points; top area ${facts.families[0]?.name ?? "none"}${bundle.usedFallback ? " (template wording)" : ""}.`);
 
-  const cardId = await queueIntroCard(service, { clientId, company, planToken, planId, email, geiaClient, bundle, contactName });
+  const cardId = await queueIntroCard(service, { clientId, company, planToken, planId, email, geiaClient, bundle, contactName, practice });
   steps.push(email ? "Intro email is waiting in your Inbox." : "Needs a contact email (card in your Inbox).");
   await log(service, clientId, "autopilot_intake_completed", `Plan v${version} written; intro card queued`, { planId, cardId, usedFallback: bundle.usedFallback });
 

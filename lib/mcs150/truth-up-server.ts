@@ -1,4 +1,5 @@
 import "server-only";
+import { fmcsaDot } from "@/lib/fmcsa/practice";
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -637,6 +638,7 @@ export async function runMcs150TruthUp(
   input: RunMcs150TruthUpInput,
   supabase: SupabaseClient,
 ): Promise<Mcs150TruthUpRunResult> {
+  input = { ...input, dotNumber: fmcsaDot(input.dotNumber) };
   const now = input.now ?? new Date();
   const quarterKey = mcs150QuarterKey(now);
   if (!input.complianceIncluded) {

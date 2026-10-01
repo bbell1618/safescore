@@ -24,7 +24,7 @@ export async function answerCard(id: string, userId: string | null, value: strin
     .from("clients")
     .update({ email, contact_source: "operator" })
     .eq("id", row.client_id)
-    .select("id, name, plan_token, geia_client, primary_contact")
+    .select("id, name, plan_token, geia_client, primary_contact, is_practice")
     .single();
   if (clientError || !client) throw new DecisionError(clientError?.message ?? "Carrier not found", 500);
 
@@ -56,6 +56,7 @@ export async function answerCard(id: string, userId: string | null, value: strin
     geiaClient: Boolean(client.geia_client),
     bundle,
     contactName: (client.primary_contact as string | null) ?? null,
+    practice: Boolean(client.is_practice),
   });
   return { status: "answered", cardId };
 }

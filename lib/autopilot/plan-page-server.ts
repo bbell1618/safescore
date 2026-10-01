@@ -29,6 +29,7 @@ export type PlanClient = {
   vehicle_types: string[] | null;
   citation_dismissed_last_24_months: boolean | null;
   geia_client: boolean | null;
+  is_practice: boolean | null;
 };
 
 export type PlanRequest = {
@@ -71,7 +72,7 @@ export type PlanPageData = {
 };
 
 const CLIENT_COLUMNS =
-  "id, name, dot_number, tier, status, primary_contact, primary_contact_title, phone, email, driver_count, eld_provider, filing_authorized, filing_authorized_by, filing_authorized_at, service_agreement_accepted, operating_states, operating_radius, vehicle_types, citation_dismissed_last_24_months, geia_client";
+  "id, name, dot_number, tier, status, primary_contact, primary_contact_title, phone, email, driver_count, eld_provider, filing_authorized, filing_authorized_by, filing_authorized_at, service_agreement_accepted, operating_states, operating_radius, vehicle_types, citation_dismissed_last_24_months, geia_client, is_practice";
 
 export async function clientForPlanToken(token: string, service: SupabaseClient = serviceClient()): Promise<PlanClient | null> {
   if (!PLAN_TOKEN_PATTERN.test(token)) return null;

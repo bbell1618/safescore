@@ -241,6 +241,7 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
   const [dot, setDot] = useState("");
   const [email, setEmail] = useState("");
   const [geiaInsured, setGeiaInsured] = useState(false);
+  const [practice, setPractice] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; lines: string[] } | null>(null);
 
@@ -250,7 +251,7 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
     const response = await fetch("/api/autopilot/intake", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dot, email: email || null, geiaInsured }),
+      body: JSON.stringify({ dot, email: email || null, geiaInsured, practice }),
     });
     const body = (await response.json().catch(() => ({}))) as { error?: string; steps?: string[] };
     setRunning(false);
@@ -259,6 +260,7 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
       setDot("");
       setEmail("");
       setGeiaInsured(false);
+      setPractice(false);
       await onDone();
     }
   }
@@ -279,6 +281,10 @@ function AddCarrier({ onDone }: { onDone: () => Promise<void> }) {
         <label className="flex min-h-11 items-center gap-2 text-sm">
           <input type="checkbox" checked={geiaInsured} onChange={(e) => setGeiaInsured(e.target.checked)} disabled={running} className="h-4 w-4" />
           GEIA insured (CC Daven + info@)
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={practice} onChange={(e) => setPractice(e.target.checked)} disabled={running} className="h-4 w-4" />
+          Practice copy (rehearse as the carrier; real file untouched)
         </label>
         <Button type="submit" disabled={running || !dot.trim()} primary>{running ? "Working… (about a minute)" : "Run"}</Button>
       </form>

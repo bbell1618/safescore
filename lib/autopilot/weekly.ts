@@ -244,7 +244,7 @@ export async function runWeeklyAutopilot(options: { onlyClientId?: string; now?:
     .from("clients")
     .select("id, name, dot_number, status, tier, email, primary_contact, geia_client, plan_token, plan_first_viewed_at, plan_last_viewed_at, service_agreement_accepted, filing_authorized, eld_provider")
     .in("status", ["prospect", "onboarding", "awaiting_activation", "active"])
-    .not("name", "ilike", "ZZ %");
+    .or("is_practice.eq.true,name.not.ilike.ZZ %");
   if (options.onlyClientId) query = query.eq("id", options.onlyClientId);
   const { data: clients, error } = await query;
   if (error) throw new Error(error.message);
@@ -297,17 +297,18 @@ export async function runWeeklyAutopilot(options: { onlyClientId?: string; now?:
     }
   }
 
-  if (!options.onlyClientId && weeks.length) {
-    const body = davenSummary(weeks, weekKey);
+  const realWeeks = weeks.filter((w) => !w.client.name.startsWith("ZZ "));
+  if (!options.onlyClientId && realWeeks.length) {
+    const body = davenSummary(realWeeks, weekKey);
     result.davenCardId = await enqueueCard({
       clientId: null,
       kind: "email",
       template: "autopilot_daven_weekly",
-      title: `Weekly SafeScore update to Daven (${weeks.length} carrier${weeks.length === 1 ? "" : "s"})`,
+      title: `Weekly SafeScore update to Daven (${realWeeks.length} carrier${realWeeks.length === 1 ? "" : "s"})`,
       why: "Daven asked for a weekly update: what was done, how scores moved, and why.",
       toAddress: DAVEN_EMAIL,
       cc: INFO_EMAIL,
-      subject: `SafeScore weekly update: ${weeks.map((w) => w.client.name).join(", ")}`.slice(0, 180),
+      subject: `SafeScore weekly update: ${realWeeks.map((w) => w.client.name).join(", ")}`.slice(0, 180),
       bodyText: body,
       bodyHtml: renderAutopilotEmail({ bodyText: body }),
       editable: true,

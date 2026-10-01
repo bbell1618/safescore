@@ -8,9 +8,9 @@ export const maxDuration = 300;
 export async function POST(request: Request) {
   const userId = await requireStaffUserId();
   if (!userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const body = (await request.json().catch(() => null)) as { dot?: unknown; email?: unknown; geiaInsured?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { dot?: unknown; email?: unknown; geiaInsured?: unknown; practice?: unknown } | null;
   try {
-    const result = await runDotIntake(body?.dot, { email: typeof body?.email === "string" ? body.email : null, geiaInsured: body?.geiaInsured === true });
+    const result = await runDotIntake(body?.dot, { email: typeof body?.email === "string" ? body.email : null, geiaInsured: body?.geiaInsured === true, practice: body?.practice === true });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });

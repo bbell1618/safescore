@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import { loadPlanPage, planRequestGroups, recordPlanView } from "@/lib/autopilot/plan-page-server";
 import { PlanActions } from "./plan-actions";
+import { syncPlanCheckout } from "@/lib/autopilot/plan-checkout";
+import { fmcsaDot } from "@/lib/fmcsa/practice";
+import { tierDisplayLabel } from "@/lib/tiers";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export const metadata: Metadata = {
   title: "Your safety plan | Golden Era SafeScore",
@@ -18,8 +22,15 @@ function formatDate(value: string | null) {
 
 export default async function PlanPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await params;
-  const started = (await searchParams).started === "1";
-  const data = await loadPlanPage(token);
+  const query = await searchParams;
+  const started = query.started === "1";
+  const sessionId = typeof query.session_id === "string" ? query.session_id : null;
+  let data = await loadPlanPage(token);
+  // Coming back from a paid Stripe checkout: activate right away.
+  const activation = data && started && sessionId && data.client.status !== "active"
+    ? await syncPlanCheckout(data.client.id, sessionId)
+    : null;
+  if (activation?.status === "activated") data = await loadPlanPage(token);
   if (!data) {
     return (
       <main className="portal-brand-root portal-warm-texture flex min-h-screen items-center justify-center p-6">
@@ -40,17 +51,27 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/35 bg-warm-white/5 font-heading text-sm font-bold text-gold-light">SS</span>
           <div className="min-w-0">
             <p className="font-heading text-base font-semibold">Golden Era SafeScore</p>
-            <p className="truncate text-xs text-warm-white/70">Safety plan for {client.name} · DOT {client.dot_number}</p>
+            <p className="truncate text-xs text-warm-white/70">Safety plan for {client.name} · DOT {fmcsaDot(client.dot_number)}</p>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        {started && (
-          <p role="status" className="rounded-2xl border border-success/40 bg-success-light px-5 py-4 text-base text-success">
-            Thank you. Your payment went through. We are starting your service now and will email you within one business day.
+        {client.is_practice && (
+          <p role="note" className="rounded-2xl border-2 border-dashed border-amber bg-amber-subtle px-5 py-3 text-sm text-navy">
+            <strong>Practice copy.</strong> This page uses the real carrier&apos;s public FMCSA record, but nothing you do here touches their real file. Payments use Stripe test mode.
           </p>
         )}
+        {client.status === "active" ? (
+          <p role="status" className="rounded-2xl border border-success/40 bg-success-light px-5 py-4 text-base text-success">
+            {started ? "Thank you. Your payment went through. " : ""}Your SafeScore {tierDisplayLabel(client.tier)} service is active. We check your record every day and send you a short update every week.
+          </p>
+        ) : started && activation && activation.status !== "activated" ? (
+          <p role="status" className="rounded-2xl border border-amber/40 bg-amber-subtle px-5 py-4 text-base text-navy">
+            Thank you. We are confirming your payment. This page will show your service as active within a few minutes.
+            {activation.status === "error" ? <span className="mt-1 block text-xs text-warm-mid">Detail for our team: {activation.message}</span> : null}
+          </p>
+        ) : null}
         {!plan ? (
           <section className="rounded-2xl border border-sand bg-warm-white p-6 shadow-sm">
             <h1 className="font-heading text-2xl text-navy">Your plan is being prepared</h1>

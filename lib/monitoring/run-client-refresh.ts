@@ -14,6 +14,7 @@ import { classifyBasicsCurrentness } from "@/lib/fmcsa/basics-currentness";
 import { normalizeViolationLookupCode } from "@/lib/fmcsa/inspection-detail-xml";
 import { loadViolationReferenceLookup } from "@/lib/fmcsa/violation-reference";
 import { persistPublicCrashes } from "@/lib/fmcsa/crash-refresh";
+import { fmcsaDot } from "@/lib/fmcsa/practice";
 import { getClientBurden } from "@/lib/analysis/basic-measure-server";
 import type { BurdenResult } from "@/lib/analysis/basic-measure";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -100,9 +101,10 @@ async function loadExistingViolations(supabase: SupabaseClient, clientId: string
  * activity logging, client activation, and challengeability assessment.
  */
 export async function runClientRefresh(
-  { clientId, dotNumber }: { clientId: string; dotNumber: string },
+  { clientId, dotNumber: storedDotNumber }: { clientId: string; dotNumber: string },
   adminClient?: SupabaseClient
 ): Promise<ClientRefreshResult> {
+  const dotNumber = fmcsaDot(storedDotNumber);
   const supabase = adminClient ?? (await createServiceClient());
 
   const [saferResult, basics, oos, inspections, crashes, referenceLookup] =

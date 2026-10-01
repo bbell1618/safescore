@@ -66,7 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: lineItems,
-      success_url: `${back}?started=1`,
+      success_url: `${back}?started=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${back}#start`,
       customer_email: client.email ?? undefined,
       metadata: { client_id: client.id, tier, source: "plan_link" },
