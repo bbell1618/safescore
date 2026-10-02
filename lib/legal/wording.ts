@@ -8,4 +8,4 @@ export const FILING_AUTHORIZATION_WORDING =
   "I authorize Golden Era Insurance Agency to access my FMCSA data and to submit Requests for Data Review (DataQs) and Crash Preventability (CPDP) requests to FMCSA for my company. I understand FMCSA tells my company's officers about any request filed on our USDOT number.";
 
 export const TERMS_NOT_READY_MESSAGE =
-  "We are finishing our service terms. We will email you as soon as you can sign. You do not need to do anything yet.";
+  "We are finishing our service terms, so you cannot sign yet. Please check back in a few days, or reply to our email with any questions.";
