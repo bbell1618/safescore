@@ -35,13 +35,20 @@ function cleanText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+/** The agency CRM's address is not a secret; only the key is. */
+const GOLDENDESK_DEFAULT_URL = "https://pkrzpyqdrtcvfnuvzriv.supabase.co";
+
+function goldenDeskUrl() {
+  return process.env.GOLDENDESK_SUPABASE_URL?.trim() || GOLDENDESK_DEFAULT_URL;
+}
+
 export function goldenDeskConfigured() {
-  return Boolean(process.env.GOLDENDESK_SUPABASE_URL?.trim() && process.env.GOLDENDESK_SERVICE_ROLE_KEY?.trim());
+  return Boolean(process.env.GOLDENDESK_SERVICE_ROLE_KEY?.trim());
 }
 
 async function fromGoldenDesk(dot: string): Promise<CarrierContact | null> {
   if (!goldenDeskConfigured()) return null;
-  const gd = createClient(process.env.GOLDENDESK_SUPABASE_URL!.trim(), process.env.GOLDENDESK_SERVICE_ROLE_KEY!.trim(), {
+  const gd = createClient(goldenDeskUrl(), process.env.GOLDENDESK_SERVICE_ROLE_KEY!.trim(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: rows, error } = await gd
