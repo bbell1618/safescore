@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FILING_AUTHORIZATION_WORDING, SERVICE_AGREEMENT_AFTER_LINK, SERVICE_AGREEMENT_BEFORE_LINK, SERVICE_AGREEMENT_LINK_TEXT, TERMS_NOT_READY_MESSAGE } from "@/lib/legal/wording";
 import { PLAN_RADIUS, PLAN_TIERS, PLAN_VEHICLE_TYPES, US_STATES } from "@/lib/autopilot/plan-options";
 
 type Props = {
@@ -27,6 +28,8 @@ type Props = {
   rosterUrl: string | null;
   rosterDriverCount: number;
   eldConnected: boolean;
+  /** False while the owner has not approved the terms (real carriers cannot sign yet). */
+  termsReady: boolean;
 };
 
 const SUNNY = "sunnykapoor@goldenerainsurance.com";
@@ -48,7 +51,7 @@ export function PlanActions(props: Props) {
         <h2 className="font-heading text-2xl text-navy">What we need from you</h2>
         <p className="mt-1 text-sm text-warm-mid">{done} of {steps.length} done. Each one takes a few minutes. Your progress saves.</p>
       </div>
-      <SignCard token={props.token} signedBy={props.client.signedBy} signedAt={props.client.signedAt} defaultName={props.client.primaryContact} />
+      <SignCard token={props.token} signedBy={props.client.signedBy} signedAt={props.client.signedAt} defaultName={props.client.primaryContact} termsReady={props.termsReady} />
       <DriversCard token={props.token} rosterUrl={props.rosterUrl} count={props.rosterDriverCount} />
       <EldCard token={props.token} provider={props.client.eldProvider} connected={props.eldConnected} />
       {props.groups.map((group) => <RequestGroupCard key={group.key} token={props.token} group={group} />)}
@@ -82,7 +85,7 @@ function ErrorText({ text }: { text: string | null }) {
   return text ? <p role="alert" className="rounded-lg bg-error-light px-3 py-2 text-sm text-error">{text}</p> : null;
 }
 
-function SignCard({ token, signedBy, signedAt, defaultName }: { token: string; signedBy: string | null; signedAt: string | null; defaultName: string | null }) {
+function SignCard({ token, signedBy, signedAt, defaultName, termsReady }: { token: string; signedBy: string | null; signedAt: string | null; defaultName: string | null; termsReady: boolean }) {
   const router = useRouter();
   const [name, setName] = useState(defaultName ?? "");
   const [title, setTitle] = useState("Owner");
@@ -93,16 +96,19 @@ function SignCard({ token, signedBy, signedAt, defaultName }: { token: string; s
   if (signedBy) {
     return <Card title="Sign so we can work for you" done><p className="text-warm-mid">Signed by {signedBy}{signedAt ? ` on ${new Date(signedAt).toLocaleDateString("en-US")}` : ""}. Thank you.</p></Card>;
   }
+  if (!termsReady) {
+    return <Card title="Sign so we can work for you"><p className="text-warm-mid">{TERMS_NOT_READY_MESSAGE}</p></Card>;
+  }
   return (
     <Card title="Sign so we can work for you">
       <p className="text-warm-mid">This lets us look at your FMCSA record and ask FMCSA to fix mistakes for you.</p>
       <label className="flex gap-3 text-sm leading-6">
         <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={agreeService} onChange={(e) => setAgreeService(e.target.checked)} />
-        <span>I agree to the Golden Era Insurance Agency <Link href="/terms" target="_blank" className="text-amber-dark underline">terms of service</Link> and allow GEIA to provide SafeScore services to my company.</span>
+        <span>{SERVICE_AGREEMENT_BEFORE_LINK}<Link href="/terms" target="_blank" className="text-amber-dark underline">{SERVICE_AGREEMENT_LINK_TEXT}</Link>{SERVICE_AGREEMENT_AFTER_LINK}</span>
       </label>
       <label className="flex gap-3 text-sm leading-6">
         <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={agreeFiling} onChange={(e) => setAgreeFiling(e.target.checked)} />
-        <span>I authorize Golden Era Insurance Agency to access my FMCSA data and to submit Requests for Data Review (DataQs) and Crash Preventability (CPDP) requests to FMCSA for my company. I understand FMCSA tells my company&apos;s officers about any request filed on our USDOT number.</span>
+        <span>{FILING_AUTHORIZATION_WORDING}</span>
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm"><span className="mb-1 block text-warm-gray">Your full name</span>

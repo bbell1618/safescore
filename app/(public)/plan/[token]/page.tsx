@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { loadPlanPage, planRequestGroups, recordPlanView } from "@/lib/autopilot/plan-page-server";
 import { PlanActions } from "./plan-actions";
 import { syncPlanCheckout } from "@/lib/autopilot/plan-checkout";
+import { getTermsApproval } from "@/lib/legal/approval-server";
 import { fmcsaDot } from "@/lib/fmcsa/practice";
 import { tierDisplayLabel } from "@/lib/tiers";
 
@@ -43,6 +44,8 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
   }
   await recordPlanView(data.client.id).catch(() => undefined);
   const { client, plan } = data;
+  // Practice copies can always sign. Real carriers wait for the owner's approval of the terms.
+  const termsReady = Boolean(client.is_practice) || Boolean(await getTermsApproval().catch(() => null));
 
   return (
     <main className="portal-brand-root portal-warm-texture min-h-screen text-warm-dark">
@@ -141,6 +144,7 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
           rosterUrl={data.rosterUrl}
           rosterDriverCount={data.rosterDriverCount}
           eldConnected={data.eldConnected}
+          termsReady={termsReady}
         />
 
         <p className="px-1 pb-8 text-center text-xs leading-5 text-warm-gray">

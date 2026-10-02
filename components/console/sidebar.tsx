@@ -10,6 +10,7 @@ import {
   Search,
   Users,
   Activity,
+  FileCheck,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/console/clients", label: "Clients", icon: Users },
   { href: "/console/assess", label: "Assess", icon: Search },
   { href: "/console/activity", label: "Activity", icon: Activity },
+  { href: "/console/terms-approval", label: "Terms", icon: FileCheck },
 ];
 
 interface SidebarProps {

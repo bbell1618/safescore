@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import TermsPage from "../app/terms/page";
+import { TermsView } from "../components/legal/terms-view";
 import { isPublicUnauthenticatedPagePath } from "../lib/auth/public-paths";
 import {
   parseRequiredDriverCount,
@@ -24,9 +24,9 @@ function textFromHtml(html: string): string {
 }
 
 const termsText = textFromHtml(
-  renderToStaticMarkup(React.createElement(TermsPage))
+  renderToStaticMarkup(React.createElement(TermsView, { approval: null }))
 );
-const termsMarkup = renderToStaticMarkup(React.createElement(TermsPage));
+const termsMarkup = renderToStaticMarkup(React.createElement(TermsView, { approval: null }));
 
 function textWithoutInventedTagWhitespace(html: string): string {
   return html
@@ -46,9 +46,9 @@ const expectedTerms = [
   "If your plan includes filing work and you give the required authorization, you authorize GEIA to access your company's safety data and prepare and submit requests on your company's behalf. These may include a Request for Data Review through DataQs (asking the agency to correct a record) or a Crash Preventability Determination Program request (asking whether a crash could have been prevented). FMCSA may notify the officials listed for your company when a request is filed under its USDOT number. You may revoke authorization by written notice to GEIA; this may prevent further filing work and does not withdraw a request already submitted.",
   "You must provide complete, accurate records and tell GEIA promptly if information is wrong or has changed. Review facts and supporting documents when asked. Authorizing GEIA to file does not transfer your responsibility for truthful information to GEIA. Federal law, including 18 U.S.C. 1001, prohibits knowingly and willfully making materially false statements or using materially false documents in matters within federal jurisdiction. This duty remains with you and also applies to anyone making a covered submission; the authorization does not excuse GEIA from its own duties.",
   "Some records have separate agency or provider charges, such as a police department's fee for a crash report. These are third-party pass-through costs, separate from the SafeScore service price. GEIA will identify any proposed charge and obtain your approval before ordering a paid record on your behalf. A provider's fee does not guarantee that a record is available or that a filing will succeed.",
-  "The Assessment is a one-time purchase. Monthly plans bill in advance at the price shown before you subscribe. Total Safety also has a per-driver charge; the billed count uses the highest supported count from your current federal filing, confirmed company information, approved active driver roster or stated count. Tell GEIA when your count changes so it can be checked. You can cancel a monthly plan through the billing portal or by contacting GEIA; cancellation stops future renewals at the end of the paid period. Any refund or exception must be confirmed by GEIA; this draft does not promise one.",
-  "We use public safety records, account information and documents you provide to deliver the services you authorize. GEIA staff and service providers may process that information for the service. Authorized filings may share relevant records with government reviewers. We do not sell your data. Keep access to your account secure and upload only information you are entitled to share. Contact GEIA with access, correction or deletion requests; legal and recordkeeping duties may limit what can be deleted. GEIA must approve the detailed retention and privacy terms before launch.",
-  "GEIA will identify material changes to your plan or these terms before asking you to accept them or renewing at changed terms. This draft remains subject to GEIA approval. Daven must approve both these terms and the filing authorization wording before the draft banner is removed and new customers are asked to rely on them.",
+  "The Assessment is a one-time purchase. Monthly plans bill in advance at the price shown before you subscribe. Total Safety also has a per-driver charge; the billed count uses the highest supported count from your current federal filing, confirmed company information, approved active driver roster or stated count. Tell GEIA when your count changes so it can be checked. You can cancel a monthly plan through the billing portal or by contacting GEIA; cancellation stops future renewals at the end of the paid period. Any refund or exception must be confirmed by GEIA; these terms do not promise one.",
+  "We use public safety records, account information and documents you provide to deliver the services you authorize. GEIA staff and service providers may process that information for the service. Authorized filings may share relevant records with government reviewers. We do not sell your data. Keep access to your account secure and upload only information you are entitled to share. Contact GEIA with access, correction or deletion requests; legal and recordkeeping duties may limit what can be deleted. We keep records for as long as needed to provide the service and to meet legal and recordkeeping duties.",
+  "GEIA will identify material changes to your plan or these terms before asking you to accept them or renewing at changed terms.",
   "Golden Era Insurance Agency, 200 Brown Rd Suite 203, Fremont, CA 94539. Contact info@goldenerainsurance.com for service, billing, cancellation or data questions."
 ] as const;
 
@@ -73,11 +73,12 @@ assert.match(termsText, /third-party pass-through costs/);
 assert.match(termsText, /Assessment is a one-time/);
 assert.match(termsText, /highest supported count/);
 assert.match(termsMarkup, /aria-label="Draft approval status"/);
-assert.ok(
-  termsText.includes(
-    "Draft version — September 2026 · Golden Era Insurance Agency"
-  )
+assert.ok(termsText.includes("Draft — October 2026 · Golden Era Insurance Agency"));
+const approvedText = textFromHtml(
+  renderToStaticMarkup(React.createElement(TermsView, { approval: { name: "Daven Loomba", approvedAt: "2026-10-02T19:00:00.000Z" } }))
 );
+assert.doesNotMatch(approvedText, /Draft/);
+assert.match(approvedText, /Approved October 2, 2026/);
 for (const [index, term] of expectedTerms.entries()) {
   const fullClause = `${index + 1}. ${expectedTitles[index]} \u2014 ${term}`;
   assert.ok(

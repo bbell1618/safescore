@@ -1,12 +1,11 @@
-# SafeScore Terms of Service
+/**
+ * SafeScore Terms of Service wording. This is the single source for the public
+ * terms page and the owner approval page. Any change to this text changes its
+ * hash, which puts the terms back into draft until the owner approves again.
+ */
+export const TERMS_VERSION_LABEL = "October 2026 · Golden Era Insurance Agency";
 
-Draft — pending GEIA approval
-
-Draft version — September 2026 · Golden Era Insurance Agency
-
-This draft is for GEIA review. It is not legal advice or final, approved terms for a new customer agreement.
-
-## What SafeScore is
+export const TERMS_MARKDOWN = `## What SafeScore is
 
 SafeScore is a safety-record review and support service provided by Golden Era Insurance Agency (GEIA). We help trucking companies understand the records held by the Federal Motor Carrier Safety Administration (FMCSA), the federal trucking safety agency. Your selected plan determines the work included.
 
@@ -42,16 +41,17 @@ Some records have separate agency or provider charges, such as a police departme
 
 ## Billing and cancellation
 
-The Assessment is a one-time purchase. Monthly plans bill in advance at the price shown before you subscribe. Total Safety also has a per-driver charge; the billed count uses the highest supported count from your current federal filing, confirmed company information, approved active driver roster or stated count. Tell GEIA when your count changes so it can be checked. You can cancel a monthly plan through the billing portal or by contacting GEIA; cancellation stops future renewals at the end of the paid period. Any refund or exception must be confirmed by GEIA; this draft does not promise one.
+The Assessment is a one-time purchase. Monthly plans bill in advance at the price shown before you subscribe. Total Safety also has a per-driver charge; the billed count uses the highest supported count from your current federal filing, confirmed company information, approved active driver roster or stated count. Tell GEIA when your count changes so it can be checked. You can cancel a monthly plan through the billing portal or by contacting GEIA; cancellation stops future renewals at the end of the paid period. Any refund or exception must be confirmed by GEIA; these terms do not promise one.
 
 ## Data handling
 
-We use public safety records, account information and documents you provide to deliver the services you authorize. GEIA staff and service providers may process that information for the service. Authorized filings may share relevant records with government reviewers. We do not sell your data. Keep access to your account secure and upload only information you are entitled to share. Contact GEIA with access, correction or deletion requests; legal and recordkeeping duties may limit what can be deleted. GEIA must approve the detailed retention and privacy terms before launch.
+We use public safety records, account information and documents you provide to deliver the services you authorize. GEIA staff and service providers may process that information for the service. Authorized filings may share relevant records with government reviewers. We do not sell your data. Keep access to your account secure and upload only information you are entitled to share. Contact GEIA with access, correction or deletion requests; legal and recordkeeping duties may limit what can be deleted. We keep records for as long as needed to provide the service and to meet legal and recordkeeping duties.
 
 ## Service and terms changes
 
-GEIA will identify material changes to your plan or these terms before asking you to accept them or renewing at changed terms. This draft remains subject to GEIA approval. Daven must approve both these terms and the filing authorization wording before the draft banner is removed and new customers are asked to rely on them.
+GEIA will identify material changes to your plan or these terms before asking you to accept them or renewing at changed terms.
 
 ## Contact
 
 Golden Era Insurance Agency, 200 Brown Rd Suite 203, Fremont, CA 94539. Contact info@goldenerainsurance.com for service, billing, cancellation or data questions.
+`;

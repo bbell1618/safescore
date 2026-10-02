@@ -84,10 +84,39 @@ async function sendEmail({
     }
   }
 
+  // Preferred transport: the agency's mail workflow, which sends from the
+  // Sunny mailbox for carrier-facing mail and from info@ for everything else.
+  const webhookUrl = process.env.N8N_EMAIL_WEBHOOK_URL?.trim();
+  const webhookSecret = process.env.N8N_EMAIL_WEBHOOK_SECRET?.trim();
+  if (webhookUrl && webhookSecret) {
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Webhook-Secret": webhookSecret },
+        body: JSON.stringify({
+          to,
+          cc: cc ?? "",
+          bcc: bcc ?? "",
+          subject,
+          htmlBody,
+          senderName: senderName ?? DEFAULT_SENDER,
+          replyTo: replyTo ?? process.env.EMAIL_REPLY_TO ?? DEFAULT_REPLY_TO,
+          from: replyTo === SUNNY_ADDRESS ? "sunny" : "info",
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const result = (await response.json().catch(() => ({}))) as { success?: boolean; messageId?: string | null };
+      if (!response.ok || result.success !== true) return { success: false, error: `Email webhook failed (${response.status})` };
+      return { success: true, messageId: result.messageId ?? undefined };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Email webhook failed" };
+    }
+  }
+
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD;
-  if (!host || !user || !pass) return { success: false, error: "SMTP is not configured" };
+  if (!host || !user || !pass) return { success: false, error: "No email transport is configured" };
 
   try {
     const port = Number(process.env.SMTP_PORT ?? "587");
