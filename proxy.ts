@@ -43,6 +43,7 @@ export async function proxy(request: NextRequest) {
     const publicApiExactPaths = new Set([
       "/api/cron/monitoring-refresh",
       "/api/cron/autopilot",
+      "/api/cron/send-approved",
       "/api/auth/password-reset",
       "/api/integrations/lexisnexis/par",
     ]);
