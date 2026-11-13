@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/schema-client";
 
 export type OutboxMessage = {
   to: string; template: string; subject: string; htmlBody: string; clientId?: string | null;

@@ -1,5 +1,6 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { NextResponse } from "next/server";
+import { bucketName } from "@/lib/storage-buckets";
 
 const ALLOWED_MIMES = new Set([
   "application/pdf",
@@ -83,7 +84,7 @@ export async function POST(
   // Upload to Supabase Storage
   const fileBuffer = await file.arrayBuffer();
   const { error: uploadErr } = await supabase.storage
-    .from("dataq-evidence")
+    .from(bucketName("dataq-evidence"))
     .upload(storagePath, fileBuffer, {
       contentType: file.type || "application/octet-stream",
       upsert: true,

@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import {
   detectEvidenceMimeType,
   draftDataqNarrative,
@@ -8,6 +8,7 @@ import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
 import { mapReasonCode } from "@/lib/analysis/reason-codes";
 import { emitCaseResolutionAlert } from "@/lib/monitoring/alerts";
+import { bucketName } from "@/lib/storage-buckets";
 
 export const maxDuration = 60;
 
@@ -281,7 +282,7 @@ export async function POST(
       }
       try {
         const { data: fileData, error: dlErr } = await supabase.storage
-          .from(storageBucket)
+          .from(bucketName(storageBucket))
           .download(storagePath);
         if (dlErr || !fileData) {
           return NextResponse.json(

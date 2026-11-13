@@ -13,6 +13,7 @@ import {
   challengeableForTier,
   type ChallengeTier,
 } from "@/lib/analysis/challengeability-rubric";
+import { bucketName } from "@/lib/storage-buckets";
 
 export const VIOLATION_REASSESSMENT_FIELDS = [
   "citation_number",
@@ -303,7 +304,7 @@ export async function loadLaneBEvidenceContext(
         );
       }
       const { data: blob, error: downloadError } = await supabase.storage
-        .from("documents")
+        .from(bucketName("documents"))
         .download(document.storage_path);
       if (downloadError || !blob) {
         throw new Error(

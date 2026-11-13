@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { isClientOnboardingLocked } from "@/lib/auth/access";
 
 // Direct service-role client — no SSR cookie layer, definitively bypasses RLS.

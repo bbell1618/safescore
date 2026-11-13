@@ -1,5 +1,6 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { NextResponse } from "next/server";
+import { bucketName } from "@/lib/storage-buckets";
 
 function getAdmin() {
   return createSupabaseClient(
@@ -47,7 +48,7 @@ export async function GET(
 
   // Generate a signed URL valid for 60 minutes
   const { data: signed, error: signErr } = await supabase.storage
-    .from(storageBucket)
+    .from(bucketName(storageBucket))
     .createSignedUrl(ev.storage_path as string, 3600);
 
   if (signErr || !signed?.signedUrl) {

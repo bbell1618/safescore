@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@/lib/supabase/schema-client";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   isPublicEvidenceUploadPath,
@@ -45,6 +45,8 @@ export async function proxy(request: NextRequest) {
       "/api/cron/autopilot",
       "/api/cron/send-approved",
       "/api/auth/password-reset",
+      "/api/auth/code/request",
+      "/api/auth/code/verify",
       "/api/integrations/lexisnexis/par",
     ]);
     const publicApiPrefixes = [

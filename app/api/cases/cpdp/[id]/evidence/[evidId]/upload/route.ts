@@ -5,6 +5,7 @@ import {
   PAR_FUNCTION_UPLOAD_MAX_BYTES,
   ParIntakeError,
 } from "@/lib/cpdp/par-intake-server";
+import { bucketName } from "@/lib/storage-buckets";
 
 export const maxDuration = 180;
 
@@ -56,7 +57,7 @@ export async function POST(
     if (evidence.data.doc_type !== "police_report") {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-180);
       const storagePath = `cpdp-cases/${id}/${evidId}/${crypto.randomUUID()}-${safeName}`;
-      const upload = await service.storage.from("dataq-evidence").upload(
+      const upload = await service.storage.from(bucketName("dataq-evidence")).upload(
         storagePath,
         Buffer.from(await file.arrayBuffer()),
         { contentType: file.type || "application/octet-stream", upsert: false }

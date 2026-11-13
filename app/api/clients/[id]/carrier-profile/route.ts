@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { getCarrier } from "@/lib/fmcsa/client";
 import { buildSourceUpdate } from "@/lib/fmcsa/ingest-write-policy";
 import { NextResponse } from "next/server";

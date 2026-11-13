@@ -9,6 +9,7 @@ import {
   type ParAssessmentCrashContext,
 } from "@/lib/cpdp/par-assessment-server";
 import { eligibleTypesFromQuestions } from "@/lib/cpdp/par-assessment-types";
+import { bucketName } from "@/lib/storage-buckets";
 
 export const PAR_FUNCTION_UPLOAD_MAX_BYTES = 3 * 1024 * 1024;
 export const PAR_REMOTE_FETCH_MAX_BYTES = 8 * 1024 * 1024;
@@ -362,7 +363,7 @@ export async function ingestPar(
 
   const filename = safeFilename(input.filename, mimeType);
   if (!alreadyReceived) {
-    const upload = await service.storage.from("documents").upload(storagePath, input.bytes, {
+    const upload = await service.storage.from(bucketName("documents")).upload(storagePath, input.bytes, {
       contentType: mimeType,
       upsert: false,
     });

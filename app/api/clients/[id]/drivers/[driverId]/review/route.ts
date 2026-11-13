@@ -5,6 +5,7 @@ import {
   OnboardingRouteFailure,
   requireStaffOnboardingUser,
 } from "@/lib/onboarding/server";
+import { bucketName } from "@/lib/storage-buckets";
 
 const uuidSchema = z.string().uuid();
 const isoDateSchema = z
@@ -376,7 +377,7 @@ export async function DELETE(
     // cleanup succeeds. A transient storage failure must not strand an orphan.
     if (storagePaths.length > 0) {
       const { error: storageError } = await service.storage
-        .from("documents")
+        .from(bucketName("documents"))
         .remove(storagePaths);
       if (storageError) {
         throw new Error(

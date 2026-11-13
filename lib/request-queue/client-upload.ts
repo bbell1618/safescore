@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai/openrouter";
 import { bridgeLaneBRequestToDataqCase } from "@/lib/evidence-loop/dataq-bridge";
 import { notifyOperations } from "@/lib/notifications/operations";
+import { bucketName } from "@/lib/storage-buckets";
 
 
 type LaneBRequestedItem = {
@@ -231,7 +232,7 @@ export async function handleClientRequestUpload(request: Request, requestId: str
 
     const storagePath = `${clientId}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
     const { error: storageError } = await service.storage
-      .from("documents")
+      .from(bucketName("documents"))
       .upload(storagePath, await file.arrayBuffer(), {
         contentType: file.type,
         upsert: false,
@@ -482,7 +483,7 @@ export async function handleClientRequestUpload(request: Request, requestId: str
 
     const storagePath = `${access.clientId}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
     const { error: storageError } = await service.storage
-      .from("documents")
+      .from(bucketName("documents"))
       .upload(storagePath, fileBuffer, {
         contentType: file.type,
         upsert: false,
@@ -821,7 +822,7 @@ export async function handleClientRequestUpload(request: Request, requestId: str
     const { data: evidence } = await service.from(table).select("id, case_id").eq("id", evidenceId).eq("case_id", item.caseId).single();
     if (!evidence) return NextResponse.json({ error: "Evidence slot not found" }, { status: 404 });
     const storagePath = `cases/${item.caseId}/${evidenceId}/${stamp}-${safeFilename(file.name)}`;
-    const { error: storageError } = await service.storage.from("dataq-evidence").upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
+    const { error: storageError } = await service.storage.from(bucketName("dataq-evidence")).upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
     if (storageError) return NextResponse.json({ error: storageError.message }, { status: 500 });
     const { error: updateError } = await service.from(table).update({ status: "received", storage_path: storagePath, uploaded_at: new Date().toISOString(), uploaded_by: "client" }).eq("id", evidenceId);
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
@@ -862,7 +863,7 @@ export async function handleClientRequestUpload(request: Request, requestId: str
   }
 
   const storagePath = `${access.clientId}/requests/${requestId}/${stamp}-${safeFilename(file.name)}`;
-  const { error: storageError } = await service.storage.from("documents").upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
+  const { error: storageError } = await service.storage.from(bucketName("documents")).upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
   if (storageError) return NextResponse.json({ error: storageError.message }, { status: 500 });
   const category = queueItem.category === "dqf_roster" ? "dqf" : "other";
   const { data: documentRow, error: documentError } = await service.from("documents").insert({ client_id: access.clientId, storage_path: storagePath, filename: file.name, file_size: file.size, mime_type: file.type, category, status: "pending_review", uploaded_by: access.userId }).select("id").single();

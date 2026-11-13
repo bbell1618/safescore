@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPortalApiAccess } from "@/lib/portal/access";
+import { bucketName } from "@/lib/storage-buckets";
 
 export async function GET() {
   const access = await getPortalApiAccess("compliance_layer");
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   const storagePath = `${access.clientId}/${Date.now()}-${file.name}`;
 
   const { error: storageError } = await supabase.storage
-    .from("documents")
+    .from(bucketName("documents"))
     .upload(storagePath, file);
 
   if (storageError) {

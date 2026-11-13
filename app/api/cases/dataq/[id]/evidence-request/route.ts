@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { sendRequestQueueReminder } from "@/lib/email/client";

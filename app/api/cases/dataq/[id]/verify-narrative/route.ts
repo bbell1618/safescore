@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { NextResponse } from "next/server";
 import { narrativeBlockReason, SENTINEL_INSUFFICIENT } from "@/lib/analysis/narrative-sentinels";
 

@@ -28,6 +28,7 @@ const UNGATED_TEMPLATES = new Set([
   "operations_notification",
   "staff_email_test",
   "password_recovery",
+  "login_code",
 ]);
 
 export const SUNNY_SENDER_NAME = "Sunny Kapoor | Golden Era SafeScore";
@@ -637,6 +638,16 @@ export async function sendInviteEmail(
   });
 
   return result;
+}
+
+/** Sign-in code the person just asked for. Sent right away (not queued): they are waiting on it. */
+export async function sendLoginCodeEmail(data: { to: string; code: string; minutes: number }): Promise<EmailDeliveryResult> {
+  const spaced = `${data.code.slice(0, 3)} ${data.code.slice(3)}`;
+  return sendEmail({
+    to: data.to, template: "login_code", trigger: "login_code", clientId: null,
+    subject: `Your SafeScore sign-in code: ${spaced}`,
+    htmlBody: emailWrapper(`<h2>Your sign-in code</h2><p>Enter this code on the SafeScore sign-in page. It works once and expires in ${data.minutes} minutes.</p><div style="background:#F4F4F4;border-radius:8px;padding:20px;margin:0 0 20px;text-align:center;font-size:32px;letter-spacing:6px;font-weight:700;">${escapeHtml(spaced)}</div><p>If you did not ask to sign in, you can ignore this email. Nobody can sign in without the code.</p>`),
+  });
 }
 
 export async function sendPasswordRecoveryEmail(data: { to: string; resetUrl: string; clientId: string }): Promise<EmailDeliveryResult> {

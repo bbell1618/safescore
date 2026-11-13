@@ -14,6 +14,7 @@ export {
   rosterDriverCreateSchema,
   rosterDriverUpdateSchema,
 } from "@/lib/roster-collection/roster-validation";
+import { bucketName } from "@/lib/storage-buckets";
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>;
 
@@ -418,7 +419,7 @@ async function cleanupNewDocument(
 ) {
   const failures: string[] = [];
   const { error: storageError } = await service.storage
-    .from("documents")
+    .from(bucketName("documents"))
     .remove([storagePath]);
   if (storageError) {
     // Keep the row as a durable pointer to the object that still needs cleanup.
@@ -441,7 +442,7 @@ export async function saveRosterDocument(input: {
 }): Promise<RosterDocument> {
   const storagePath = `${input.request.clientId}/requests/${input.request.id}/drivers/${input.driver.id}/${input.docType}/${randomUUID()}-${safeFilename(input.file.name)}`;
   const { error: uploadError } = await input.service.storage
-    .from("documents")
+    .from(bucketName("documents"))
     .upload(storagePath, await input.file.arrayBuffer(), {
       contentType: input.file.type || "application/octet-stream",
       upsert: false,
@@ -590,7 +591,7 @@ export async function saveRosterDocument(input: {
       (otherLinksResult.count ?? 0) === 0
     ) {
       const { error: storageCleanupError } = await input.service.storage
-        .from("documents")
+        .from(bucketName("documents"))
         .remove([priorDocument.storage_path]);
       if (storageCleanupError) {
         throw new RosterRouteFailure(
@@ -685,7 +686,7 @@ export async function deleteStagedDriverWithDocuments(input: {
   // If storage fails, the staged row remains intact and the same operation can retry.
   if (documents.length > 0) {
     const { error: storageError } = await input.service.storage
-      .from("documents")
+      .from(bucketName("documents"))
       .remove(documents.map((document) => document.storage_path));
     if (storageError) {
       throw new RosterRouteFailure(

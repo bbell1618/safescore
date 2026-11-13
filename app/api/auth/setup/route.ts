@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { authRole, createClient } from "@/lib/supabase/schema-client";
 import { sendWelcomeEmail } from "@/lib/email/client";
 import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
@@ -188,6 +188,7 @@ export async function POST(request: Request) {
         {
           password,
           email_confirm: true,
+          ...(authRole() ? { role: authRole() } : {}),
           user_metadata: {
             full_name: fullName || "",
           },
@@ -204,6 +205,7 @@ export async function POST(request: Request) {
         email: invite.email,
         password,
         email_confirm: true,
+        ...(authRole() ? { role: authRole() } : {}),
         user_metadata: {
           full_name: fullName || "",
         },

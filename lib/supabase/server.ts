@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createServerClient } from "@/lib/supabase/schema-client";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { cookies } from "next/headers";
 
 export async function createClient() {

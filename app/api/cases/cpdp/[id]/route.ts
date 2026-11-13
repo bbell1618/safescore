@@ -1,10 +1,11 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { draftCpdpNarrative, EvidenceFile } from "@/lib/ai/openrouter";
 import { NextResponse } from "next/server";
 import { narrativeBlockReason } from "@/lib/analysis/narrative-sentinels";
 import { sendCaseStatusChange } from "@/lib/email/client";
 import { emitCaseResolutionAlert } from "@/lib/monitoring/alerts";
 import { z } from "zod";
+import { bucketName } from "@/lib/storage-buckets";
 
 export const maxDuration = 60;
 
@@ -333,7 +334,7 @@ export async function POST(
         }
         if (!storagePath) throw new Error("Evidence storage path is missing");
         const { data: fileData, error: dlErr } = await supabase.storage
-          .from(bucket)
+          .from(bucketName(bucket))
           .download(storagePath);
         if (dlErr || !fileData) {
           if (isPoliceReport) {

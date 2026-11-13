@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [usePassword, setUsePassword] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [emailNotLive, setEmailNotLive] = useState(false);
   const searchParams = useSearchParams();
   const supabase = createClient();
 
@@ -19,6 +23,46 @@ function LoginForm() {
   const linkExpired = errorCode === "otp_expired" || errorParam === "access_denied";
   const authError = searchParams.get("auth_error");
   const passwordReset = searchParams.get("password_reset") === "success";
+
+  async function handleSendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/code/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "We could not send the code.");
+      setEmailNotLive(data.dryRun === true);
+      setCodeSent(true);
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "We could not send the code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/code/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "That code did not work.");
+      window.location.replace(data.nextPath ?? "/portal");
+    } catch (verifyError) {
+      setError(verifyError instanceof Error ? verifyError.message : "That code did not work.");
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +147,82 @@ function LoginForm() {
           Your password was updated. Sign in with the new password.
         </div>
       )}
+      {!usePassword && (
+        <div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8">
+          <form onSubmit={codeSent ? handleVerifyCode : handleSendCode} className="space-y-5">
+            <div>
+              <label htmlFor="code-email" className="block text-sm font-medium text-[#1E1C1A] mb-1">Email address</label>
+              <input
+                id="code-email"
+                type="email"
+                autoComplete="email"
+                required
+                disabled={codeSent}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-[#F0E8DA] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8] disabled:opacity-60"
+                placeholder="you@example.com"
+              />
+              {!codeSent && (
+                <p className="mt-2 text-sm text-gray-500">We will email you a 6-digit code. No password needed.</p>
+              )}
+            </div>
+            {codeSent && (
+              <div>
+                <label htmlFor="code" className="block text-sm font-medium text-[#1E1C1A] mb-1">6-digit code</label>
+                <input
+                  id="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9 ]*"
+                  maxLength={7}
+                  required
+                  autoFocus
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="w-full px-3 py-3 border border-[#F0E8DA] rounded-lg text-center text-2xl tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-[#C67A1E] focus:border-transparent bg-[#FEFCF8]"
+                  placeholder="000000"
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  If that email has a SafeScore account, a code is on its way. It expires in 10 minutes.
+                </p>
+                {emailNotLive && (
+                  <p className="mt-2 text-sm text-[#C67A1E]">
+                    Email is not switched on yet, so no code will arrive. Use your password below, or ask your GEIA contact.
+                  </p>
+                )}
+              </div>
+            )}
+            {error && (
+              <div role="alert" className="bg-[#FAECEB] border border-[#B83B32]/20 rounded-lg px-3 py-2 text-sm text-[#B83B32]">{error}</div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "One moment..." : codeSent ? "Sign in" : "Email me a code"}
+            </button>
+            {codeSent && (
+              <button
+                type="button"
+                onClick={() => { setCodeSent(false); setCode(""); setError(null); setEmailNotLive(false); }}
+                className="w-full text-sm font-medium text-[#5C554E] hover:text-[#1E1C1A]"
+              >
+                Use a different email or send a new code
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setUsePassword(true); setError(null); }}
+              className="w-full text-xs font-medium text-[#8A8279] hover:text-[#5C554E]"
+            >
+              Sign in with a password instead
+            </button>
+          </form>
+        </div>
+      )}
+      {usePassword && (
       <div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8">
         <form
           onSubmit={forgotPassword ? handlePasswordReset : handleLogin}
@@ -216,7 +336,15 @@ function LoginForm() {
             </button>
           )}
         </form>
+        <button
+          type="button"
+          onClick={() => { setUsePassword(false); setError(null); setForgotPassword(false); }}
+          className="mt-4 w-full text-xs font-medium text-[#8A8279] hover:text-[#5C554E]"
+        >
+          Email me a code instead
+        </button>
       </div>
+      )}
     </>
   );
 }
@@ -244,7 +372,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-[#1E1C1A]">Sign in</h1>
           <p className="text-sm text-gray-500 mt-1">
-            CSA/DOT safety score improvement platform
+            Your safety plan and what to do next
           </p>
         </div>
 
@@ -254,7 +382,7 @@ export default function LoginPage() {
         </Suspense>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Golden Era Insurance Agency — Internal platform
+          Golden Era Insurance Agency
         </p>
       </div>
     </div>

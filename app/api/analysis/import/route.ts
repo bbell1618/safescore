@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@/lib/supabase/schema-client";
 import { captureBurdenSnapshot } from "@/lib/monitoring/snapshot";
 import { runClientRefresh } from "@/lib/monitoring/run-client-refresh";
 import {
