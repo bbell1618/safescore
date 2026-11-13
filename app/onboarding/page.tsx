@@ -1401,7 +1401,7 @@ export default function OnboardingPage() {
                         </p>
                         {assignedTierData.highlight && (
                           <span className="text-xs font-semibold bg-[#C67A1E] text-white px-2 py-0.5 rounded-full mt-1 inline-block">
-                            Most popular
+                            Recommended
                           </span>
                         )}
                       </div>
