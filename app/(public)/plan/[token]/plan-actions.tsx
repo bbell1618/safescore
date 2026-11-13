@@ -167,7 +167,7 @@ function EldCard({ token, provider, connected }: { token: string; provider: stri
       <p className="text-warm-mid">Your electronic logs show the problems inspectors find: unassigned driving, speeding, missed inspections. We only look. We never change your logs.</p>
       <ol className="list-decimal space-y-1 pl-6 text-sm leading-6">
         <li>Log in to your ELD website as the admin.</li>
-        <li>Add a new user with the email <strong className="break-all">{SUNNY}</strong>.</li>
+        <li>Add a new user with this email:<strong className="mt-0.5 block break-all">{SUNNY}</strong></li>
         <li>Give it read-only or safety-manager access (not driver).</li>
       </ol>
       <label className="block text-sm"><span className="mb-1 block text-warm-gray">Which ELD do you use?</span>
