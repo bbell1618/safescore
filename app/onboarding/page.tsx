@@ -82,10 +82,11 @@ const TIERS: {
     highlight: true,
     features: [
       `Everything in ${TIER_LABELS.monitor}`,
-      "DataQ challenge management",
-      "CPDP crash preventability review",
-      "AI violation assessment",
-      "Action item tracking",
+      "DataQ challenges prepared and filed by GEIA",
+      "CPDP crash preventability petitions",
+      "Evidence requests handled through your portal",
+      "Ranked monthly fix plan for your team",
+      "Company profile and registration clean-up",
     ],
   },
   {
@@ -94,10 +95,10 @@ const TIERS: {
     priceNote: "+ $29/driver/mo",
     features: [
       `Everything in ${TIER_LABELS.remediate}`,
-      "Dedicated safety specialist",
-      "MCS-150 compliance support",
-      "Priority case handling",
-      "Quarterly strategic review",
+      "Driver qualification file upkeep",
+      "Medical card and Clearinghouse tracking",
+      "Vehicle maintenance tracking",
+      "Audit readiness reviews",
     ],
   },
 ];

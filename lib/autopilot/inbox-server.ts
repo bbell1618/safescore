@@ -32,7 +32,15 @@ export async function loadInbox(): Promise<InboxPayload> {
   return {
     pending: shape(pending.data),
     recent: shape(recent.data),
-    liveEmail: process.env.EMAIL_DRY_RUN?.trim().toLowerCase() === "false",
+    // Live means dry-run is off AND a sender is configured (agency mail workflow or SMTP).
+    liveEmail:
+      process.env.EMAIL_DRY_RUN?.trim().toLowerCase() === "false" &&
+      Boolean(
+        (process.env.N8N_EMAIL_WEBHOOK_URL?.trim() && process.env.N8N_EMAIL_WEBHOOK_SECRET?.trim()) ||
+          (process.env.SMTP_HOST &&
+            process.env.SMTP_USER &&
+            (process.env.SMTP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD)),
+      ),
     goldenDeskConnected: Boolean(process.env.GOLDENDESK_SUPABASE_URL?.trim() && process.env.GOLDENDESK_SERVICE_ROLE_KEY?.trim()),
     counts: { carriers: carriers.count ?? 0, plansPublished: published.count ?? 0, plansViewed: viewed.count ?? 0 },
   };

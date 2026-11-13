@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { ShieldCheck, TrendingDown, Check, ArrowRight, Search } from "lucide-react";
+import { ShieldCheck, Check, ArrowRight, Search } from "lucide-react";
 import { TIER_LABELS } from "@/lib/tiers";
 
 const TIERS = [
@@ -7,7 +7,7 @@ const TIERS = [
     value: "monitor",
     price: "$199/mo",
     priceNote: null,
-    description: "Continuous visibility into your DOT safety profile.",
+    description: "We watch your DOT safety profile and alert you. Filings start at Remediate.",
     highlight: false,
     features: [
       "BASIC score monitoring",
@@ -20,28 +20,29 @@ const TIERS = [
     value: "remediate",
     price: "$599/mo",
     priceNote: null,
-    description: "Active case management and violation challenges.",
+    description: "We challenge what can be challenged and give your team a ranked monthly fix plan.",
     highlight: true,
     features: [
       `Everything in ${TIER_LABELS.monitor}`,
-      "DataQ challenge management",
-      "CPDP crash preventability review",
-      "AI violation assessment",
-      "Action item tracking",
+      "DataQ challenges prepared and filed by GEIA",
+      "CPDP crash preventability petitions",
+      "Evidence requests handled through your portal",
+      "Ranked monthly fix plan for your team",
+      "Company profile and registration clean-up",
     ],
   },
   {
     value: "total_safety",
     price: "$999/mo",
     priceNote: "+ $29/driver/mo",
-    description: "Full-service safety management with a dedicated specialist.",
+    description: "We run the safety program with you: driver files, maintenance and audit readiness.",
     highlight: false,
     features: [
       `Everything in ${TIER_LABELS.remediate}`,
-      "Dedicated safety specialist",
-      "MCS-150 compliance support",
-      "Priority case handling",
-      "Quarterly strategic review",
+      "Driver qualification file upkeep",
+      "Medical card and Clearinghouse tracking",
+      "Vehicle maintenance tracking",
+      "Audit readiness reviews",
     ],
   },
 ] as const;
@@ -109,7 +110,7 @@ export default function LandingPage() {
               </button>
             </div>
             <p className="text-white/40 text-xs">
-              Free for carriers placing insurance through Golden Era
+              Assessment is $299, and free for carriers placing insurance through Golden Era
             </p>
             <Link
               href="/login"
@@ -143,7 +144,7 @@ export default function LandingPage() {
               {
                 step: "03",
                 title: "We manage the remediation",
-                body: "Your GEIA specialist files DataQ challenges and CPDP crash preventability petitions on your behalf — and tracks every case.",
+                body: "On Remediate and Total Safety, GEIA prepares and files DataQ challenges and CPDP crash preventability petitions on your behalf, and tracks every case.",
               },
             ].map((item) => (
               <div key={item.step} className="text-center sm:text-left">
@@ -166,14 +167,14 @@ export default function LandingPage() {
               </h2>
               <p className="text-gray-600 leading-relaxed mb-6">
                 High BASIC percentiles trigger FMCSA interventions, drive up insurance premiums, and
-                put your authority at risk. Many violations on your record are faulty — and can be
-                removed through the DataQ system if challenged correctly.
+                put your authority at risk. Some violations on your record may be errors, and the DataQ
+                system lets you challenge them when the evidence supports it.
               </p>
               <div className="space-y-3">
                 {[
-                  "FMCSA DataQ challenges can remove errors from inspection records",
+                  "FMCSA DataQ challenges can correct errors in inspection records",
                   "CPDP petitions can reclassify crashes as non-preventable",
-                  "Lower scores lead directly to lower commercial auto premiums",
+                  "Lower scores can help when your commercial auto insurance is priced",
                 ].map((fact) => (
                   <div key={fact} className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full bg-[#C67A1E]/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -185,12 +186,11 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="bg-[#1B2D4F] rounded-2xl p-8 text-white">
-              <TrendingDown className="w-8 h-8 text-[#DAA520] mb-4" />
-              <p className="font-bold text-xl mb-2">Pilot result</p>
+              <ShieldCheck className="w-8 h-8 text-[#DAA520] mb-4" />
+              <p className="font-bold text-xl mb-2">FMCSA decides the outcome</p>
               <p className="text-white/60 text-sm leading-relaxed">
-                SafeScore reduced a client&apos;s Vehicle Maintenance BASIC percentile from the
-                81st to the 64th percentile in 90 days by successfully challenging 4 out of 7
-                eligible violations.
+                DataQs and CPDP are FMCSA&apos;s own review programs. We prepare the case and the
+                evidence, FMCSA makes the call, and we never promise a specific score change.
               </p>
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function LandingPage() {
             Simple, transparent pricing
           </h2>
           <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto">
-            Choose the level of service that fits your fleet. No setup fees. Cancel anytime.
+            Choose the level of service that fits your fleet. No setup fees. Cancel any time; cancellation takes effect at the end of the paid period.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {TIERS.map((tier) => (
@@ -281,17 +281,18 @@ export default function LandingPage() {
       <section className="bg-[#C67A1E] py-14">
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">
-            Get your free DOT safety assessment
+            Get your DOT safety assessment
           </h2>
           <p className="text-white/70 mb-8">
-            Enter your DOT number and a GEIA safety specialist will review your BASIC scores and
-            show you exactly what can be improved.
+            Enter your DOT number and GEIA will review your BASIC scores and show you exactly what
+            can be improved. The assessment is $299, and free for carriers placing insurance through
+            Golden Era.
           </p>
           <Link
             href="/login"
             className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#1B2D4F] text-white font-semibold rounded-xl hover:bg-[#2a2a2a] transition-colors"
           >
-            Request free assessment
+            Request an assessment
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -308,6 +309,9 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6 text-xs text-white/40">
             <span>Commercial trucking insurance specialists</span>
+            <Link href="/terms" className="hover:text-white/60 transition-colors">
+              Terms
+            </Link>
             <Link href="/login" className="hover:text-white/60 transition-colors">
               Client login
             </Link>
