@@ -218,7 +218,7 @@ export default function LandingPage() {
               >
                 {tier.highlight && (
                   <div className="text-[10px] font-bold text-[#C67A1E] uppercase tracking-widest mb-3">
-                    Most popular
+                    Recommended
                   </div>
                 )}
                 <h3
