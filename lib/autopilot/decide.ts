@@ -14,7 +14,7 @@ type Hook =
   | { type: "report_sent"; reportId: string }
   | { type: "playbook_publish"; playbookId: string };
 
-async function runHooks(service: SupabaseClient, row: OutboundRow, decidedBy: string | null) {
+export async function runHooks(service: SupabaseClient, row: OutboundRow, decidedBy: string | null) {
   const hooks = (Array.isArray(row.payload?.onApprove) ? row.payload.onApprove : []) as Hook[];
   const results: string[] = [];
   for (const hook of hooks) {

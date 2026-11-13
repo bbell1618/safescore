@@ -30,6 +30,7 @@ export type OutboundRow = {
   created_by: string;
   created_at: string;
   decided_at: string | null;
+  decided_by: string | null;
   decision_note: string | null;
   edited: boolean;
   sent_at: string | null;
