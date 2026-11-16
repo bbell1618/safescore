@@ -10,7 +10,7 @@ import { serviceClient } from "./queue";
 export async function processGoldenDeskStubs(limit = 2) {
   const service = serviceClient();
   const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data: rows } = await service
+  const { data: rows, error: findError } = await service
     .from("clients")
     .select("id, dot_number, geia_client, intake_source, updated_at")
     .like("name", "%(looking up)")
@@ -18,6 +18,8 @@ export async function processGoldenDeskStubs(limit = 2) {
     .order("created_at", { ascending: true })
     .limit(limit);
 
+  if (findError) throw new Error(`Could not look for new carriers: ${findError.message}`);
+  console.log(`[intake-stubs] ${rows?.length ?? 0} carrier(s) waiting`);
   const results: { dot: string; ok: boolean; note: string }[] = [];
   for (const row of rows ?? []) {
     const { data: claimed } = await service
@@ -27,7 +29,10 @@ export async function processGoldenDeskStubs(limit = 2) {
       .eq("intake_source", row.intake_source as string)
       .select("id")
       .maybeSingle();
-    if (!claimed) continue;
+    if (!claimed) {
+      console.log(`[intake-stubs] could not claim ${row.id}`);
+      continue;
+    }
     const dot = String(row.dot_number);
     try {
       const r = await runDotIntake(dot, { geiaInsured: Boolean(row.geia_client) });
