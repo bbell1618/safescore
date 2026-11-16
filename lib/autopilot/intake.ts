@@ -166,6 +166,23 @@ export async function runDotIntake(dotInput: unknown, options: { email?: string 
     }
     geiaClient = Boolean(existing.geia_client) || contact.geiaClient || options.geiaInsured === true;
     if (geiaClient && !existing.geia_client) await service.from("clients").update({ geia_client: true }).eq("id", existing.id);
+    // A placeholder row added from GoldenDesk ("DOT 123 (looking up)"): fill it in from FMCSA now.
+    if (/\(looking up\)\s*$/i.test(company)) {
+      const carrier = await getCarrier(dot).catch(() => null);
+      if (!carrier || !carrier.legalName) throw new Error(`FMCSA has no carrier for USDOT ${dot}.`);
+      company = practice ? `ZZ PRACTICE — ${carrier.legalName}` : carrier.legalName;
+      const stubEmail = options.email?.trim().toLowerCase() || (existing.email as string | null) || contact.email;
+      await service.from("clients").update({
+        name: company, mc_number: carrier.mcNumber,
+        address: carrier.phyStreet || null, city: carrier.phyCity || null,
+        state: carrier.phyState ? carrier.phyState.slice(0, 2) : null, zip: carrier.phyZip || null,
+        phone: contact.phone, email: stubEmail, primary_contact: contact.contactName ?? (existing.primary_contact as string | null),
+        primary_contact_title: contact.contactTitle, fleet_size: carrier.totalPowerUnits || null,
+        contact_source: contact.source, goldendesk_client_id: contact.goldendeskClientId,
+      }).eq("id", existing.id);
+      email = stubEmail;
+      steps.push(`Filled in ${company} from FMCSA.`);
+    }
     contactName = (existing.primary_contact as string | null) ?? contact.contactName;
     steps.push(`Already in SafeScore: ${company}. Rebuilt the plan from today's data.`);
   } else {
