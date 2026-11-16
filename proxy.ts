@@ -44,6 +44,7 @@ export async function proxy(request: NextRequest) {
       "/api/cron/monitoring-refresh",
       "/api/cron/autopilot",
       "/api/cron/send-approved",
+      "/api/cron/intake-stubs",
       "/api/auth/password-reset",
       "/api/auth/code/request",
       "/api/auth/code/verify",
