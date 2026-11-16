@@ -53,9 +53,10 @@ export async function createHandoffTasks(service: SupabaseClient = serviceClient
       `${crashCandidates} crash${crashCandidates === 1 ? "" : "es"} may qualify for a not-preventable review.`,
     ];
     const tier = TIER_NAME[client.tier ?? ""] ?? client.tier ?? "their service";
-    const label = client.is_practice ? "PRACTICE: " : "";
+    const label = client.is_practice && !/^ZZ PRACTICE/i.test(client.name) ? "PRACTICE: " : "";
+    const dot = client.dot_number ? client.dot_number.replace(/^PR/, "") : null;
     const description = [
-      `${client.name}${client.dot_number ? ` (DOT ${client.dot_number})` : ""} signed and paid for ${tier}. Onboarding is finished on their side.`,
+      `${client.name}${dot ? ` (DOT ${dot})` : ""} signed and paid for ${tier}. Onboarding is finished on their side.`,
       "",
       missing.length ? "STILL MISSING" : "NOTHING IS MISSING",
       ...missing.map((m) => `- ${m}`),
