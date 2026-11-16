@@ -130,7 +130,7 @@ export function PlanActions(props: Props) {
       )}
 
       {current < 3 && !signed ? <Locked step={3} title="Sign so we can work for you" after={2} /> : (
-        <SignCard token={props.token} signedBy={c.signedBy} signedAt={c.signedAt} defaultName={c.primaryContact} termsReady={props.termsReady} />
+        <SignCard token={props.token} signedBy={c.signedBy} signedAt={c.signedAt} defaultName={c.primaryContact} defaultTitle={c.primaryContactTitle} termsReady={props.termsReady} />
       )}
 
       {current < 4 ? <Locked step={4} title="Pay and start" after={3} /> : (
@@ -324,10 +324,10 @@ function ErrorText({ text }: { text: string | null }) {
   return text ? <p role="alert" className="rounded-lg bg-error-light px-3 py-2 text-sm text-error">{text}</p> : null;
 }
 
-function SignCard({ token, signedBy, signedAt, defaultName, termsReady }: { token: string; signedBy: string | null; signedAt: string | null; defaultName: string | null; termsReady: boolean }) {
+function SignCard({ token, signedBy, signedAt, defaultName, defaultTitle, termsReady }: { token: string; signedBy: string | null; signedAt: string | null; defaultName: string | null; defaultTitle: string | null; termsReady: boolean }) {
   const router = useRouter();
   const [name, setName] = useState(defaultName ?? "");
-  const [title, setTitle] = useState("Owner");
+  const [title, setTitle] = useState(defaultTitle?.trim() || "Owner");
   const [agreeService, setAgreeService] = useState(false);
   const [agreeFiling, setAgreeFiling] = useState(false);
   const [busy, setBusy] = useState(false);

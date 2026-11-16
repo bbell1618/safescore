@@ -112,7 +112,9 @@ export async function queueIntroCard(
     kind: "email",
     template: "autopilot_intro",
     title: `${input.practice ? "PRACTICE: " : ""}Send ${input.company} their safety plan`,
-    why: (input.geiaClient
+    why: (input.geiaClient && input.practice
+      ? "First contact, practice copy. On the real carrier Daven and info@ would be copied; this copy goes only to you."
+      : input.geiaClient
       ? "First contact. This carrier is a GEIA insured, so Daven and info@ are CC'd to show the request comes from him."
       : "First contact. The plan page is how the carrier signs up, sends what we need, and sees what to fix.")
       + (reminders ? " Approving this also approves up to 3 short reminders (days 2, 5 and 9) if the carrier goes quiet." : " Reminders are switched off for this carrier."),

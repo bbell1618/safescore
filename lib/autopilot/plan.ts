@@ -126,7 +126,7 @@ function fallbackIntro(facts: CarrierFacts, ctx: IntroContext): OutreachDraft {
     standingLines(facts).map((l) => `- ${l}`).join("\n"),
     facts.families.length ? `The 3 things to fix first:\n${top}` : "Your record is clean. We will help you keep it that way.",
     "We made a simple plan for you. It shows what to do this week, step by step. Open it with the button below. No password needed.",
-    "To start, the plan page asks for 3 things: your driver list, access to your ELD, and one signature so we can file with FMCSA for you.",
+    "Starting takes 4 short steps on the plan page, about 5 minutes: confirm your details, choose your service, sign, and pay. After you start, we will ask for a few more things, like read-only access to your ELD.",
     "Reply to this email with any question.",
   ].join("\n\n");
   return { subject: `${facts.company}: your DOT safety plan`, bodyText: body };
@@ -235,7 +235,8 @@ export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext)
     introducedBy: ctx.introducedBy,
     standing,
     whatGeiaWillDo: base.weDo,
-    whatWeNeedFromYou: base.needs,
+    howToStart: ["Confirm your details", "Choose your service", "Sign", "Pay"],
+    afterTheyStart: base.needs,
     topAreas: topFamilies.map((f) => ({
       familyKey: f.key,
       name: f.name,
@@ -255,7 +256,7 @@ export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext)
     '{"headline": string, "fixes": [{"familyKey": string, "title": string, "why": string, "steps": [string], "doneWhen": string}], "email": {"subject": string, "body": string}}',
     `fixes: exactly ${topFamilies.length}, in the same order as topAreas, familyKey copied exactly. Steps: 2 to 4 concrete actions for THIS WEEK, rewritten from approvedProgram in simple English (who does it, when). Do not add programs that are not in approvedProgram.`,
     "headline: one sentence, the single most important thing to fix.",
-    "email: from Sunny, the AI assistant at Golden Era Insurance Agency. Say plainly that Sunny is an AI assistant. If introducedBy is set, say that person asked us to help. Include 2-3 of the standing facts as '- ' bullet lines, list the 3 areas to fix first as numbered lines, say the plan link below needs no password, list the 3 things we need, and invite a reply. Under 170 words. Plain text, paragraphs separated by a blank line. Do not include a signature (it is added automatically). Do not include a link (a button is added automatically).",
+    "email: from Sunny, the AI assistant at Golden Era Insurance Agency. Say plainly that Sunny is an AI assistant. If introducedBy is set, say that person asked us to help. Include 2-3 of the standing facts as '- ' bullet lines, list the 3 areas to fix first as numbered lines, say the plan link below needs no password, then say that starting takes 4 short steps on the plan page and about 5 minutes (use howToStart), say that after they start we will ask for a few more things like read-only ELD access, and invite a reply. Do not ask for documents or a driver list in this email. Under 170 words. Plain text, paragraphs separated by a blank line. Do not include a signature (it is added automatically). Do not include a link (a button is added automatically).",
   ].join("\n\n");
 
   let correction = "";
