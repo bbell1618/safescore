@@ -65,6 +65,11 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             <strong>Practice copy.</strong> This page uses the real carrier&apos;s public FMCSA record, but nothing you do here touches their real file. Payments use Stripe test mode.
           </p>
         )}
+        {client.status !== "active" && plan && !started ? (
+          <a href="#needs" className="block rounded-2xl border-2 border-amber/40 bg-warm-white px-5 py-4 text-base text-navy shadow-sm">
+            <strong>Ready to start?</strong> Sign-up is 4 short steps and takes about 5 minutes. <span className="font-semibold text-amber-dark underline">Go to sign-up</span>
+          </a>
+        ) : null}
         {client.status === "active" ? (
           <p role="status" className="rounded-2xl border border-success/40 bg-success-light px-5 py-4 text-base text-success">
             {started ? "Thank you. Your payment went through. " : ""}Your SafeScore {tierDisplayLabel(client.tier)} service is active. We check your record every day and send you a short update every week.
@@ -137,12 +142,22 @@ export default async function PlanPage({ params, searchParams }: { params: Promi
             signedAt: client.filing_authorized_at,
             eldProvider: client.eld_provider,
             primaryContact: client.primary_contact,
+            primaryContactTitle: client.primary_contact_title,
             phone: client.phone,
+            email: client.email,
             driverCount: client.driver_count,
+            fleetSize: client.fleet_size,
+            recommendedTier: client.recommended_tier,
+            detailsConfirmedAt: client.details_confirmed_at,
+            operatingRadius: client.operating_radius,
+            operatingStates: client.operating_states ?? [],
+            vehicleTypes: client.vehicle_types ?? [],
+            fromClientFile: Boolean(client.geia_client),
           }}
           groups={planRequestGroups(data.requests, new Map(data.requests.map((r) => [r.id, r.category ?? null])))}
           rosterUrl={data.rosterUrl}
           rosterDriverCount={data.rosterDriverCount}
+          vehicleCount={data.vehicleCount}
           eldConnected={data.eldConnected}
           termsReady={termsReady}
         />

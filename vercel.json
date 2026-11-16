@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/send-approved",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/intake-stubs",

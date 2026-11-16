@@ -1,4 +1,5 @@
 import "server-only";
+import { REMINDER_DAYS, REMINDER_TEMPLATE } from "./onboarding-reminder-plan";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { renderAutopilotEmail } from "@/lib/email/client";
@@ -40,6 +41,7 @@ type WeeklyClient = {
   service_agreement_accepted: boolean | null;
   filing_authorized: boolean | null;
   eld_provider: string | null;
+  onboarding_reminders?: boolean | null;
 };
 
 type CarrierWeek = {
@@ -242,7 +244,7 @@ export async function runWeeklyAutopilot(options: { onlyClientId?: string; now?:
   const weekKey = isoWeek(options.now);
   let query = service
     .from("clients")
-    .select("id, name, dot_number, status, tier, email, primary_contact, geia_client, plan_token, plan_first_viewed_at, plan_last_viewed_at, service_agreement_accepted, filing_authorized, eld_provider")
+    .select("id, name, dot_number, status, tier, email, primary_contact, geia_client, plan_token, plan_first_viewed_at, plan_last_viewed_at, service_agreement_accepted, filing_authorized, eld_provider, onboarding_reminders")
     .in("status", ["prospect", "onboarding", "awaiting_activation", "active"])
     .or("is_practice.eq.true,name.not.ilike.ZZ %");
   if (options.onlyClientId) query = query.eq("id", options.onlyClientId);
@@ -262,6 +264,15 @@ export async function runWeeklyAutopilot(options: { onlyClientId?: string; now?:
       const week = await loadCarrierWeek(service, client);
       weeks.push(week);
       result.carriers += 1;
+      // QF-215: until a carrier has paid, the pre-approved onboarding reminders do the follow-up.
+      // The Monday card only takes over once all three reminders are used up or switched off.
+      if (client.status !== "active" && client.onboarding_reminders !== false) {
+        const { count: remindersSent } = await service.from("outbound_queue").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("template", REMINDER_TEMPLATE);
+        if ((remindersSent ?? 0) < REMINDER_DAYS.length) {
+          result.skipped.push({ client: client.name, reason: "onboarding reminders are handling follow-up" });
+          continue;
+        }
+      }
       const decision = shouldEmailCarrier(week);
       if (!decision.send) {
         result.skipped.push({ client: client.name, reason: decision.reason });

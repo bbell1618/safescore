@@ -30,6 +30,9 @@ export type PlanClient = {
   citation_dismissed_last_24_months: boolean | null;
   geia_client: boolean | null;
   is_practice: boolean | null;
+  fleet_size: number | null;
+  recommended_tier: string | null;
+  details_confirmed_at: string | null;
 };
 
 export type PlanRequest = {
@@ -68,11 +71,12 @@ export type PlanPageData = {
   requests: PlanRequest[];
   rosterUrl: string | null;
   rosterDriverCount: number;
+  vehicleCount: number;
   eldConnected: boolean;
 };
 
 const CLIENT_COLUMNS =
-  "id, name, dot_number, tier, status, primary_contact, primary_contact_title, phone, email, driver_count, eld_provider, filing_authorized, filing_authorized_by, filing_authorized_at, service_agreement_accepted, operating_states, operating_radius, vehicle_types, citation_dismissed_last_24_months, geia_client, is_practice";
+  "id, name, dot_number, tier, status, primary_contact, primary_contact_title, phone, email, driver_count, eld_provider, filing_authorized, filing_authorized_by, filing_authorized_at, service_agreement_accepted, operating_states, operating_radius, vehicle_types, citation_dismissed_last_24_months, geia_client, is_practice, fleet_size, recommended_tier, details_confirmed_at";
 
 export async function clientForPlanToken(token: string, service: SupabaseClient = serviceClient()): Promise<PlanClient | null> {
   if (!PLAN_TOKEN_PATTERN.test(token)) return null;
@@ -121,6 +125,11 @@ export async function loadPlanPage(token: string): Promise<PlanPageData | null> 
     .select("id", { count: "exact", head: true })
     .eq("client_id", client.id);
 
+  const { count: vehicleCount } = await service
+    .from("vehicles")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", client.id);
+
   const requests = ((requestsResult.data ?? []) as PlanRequest[]).filter((r) => r.request_type !== "roster_collection");
   const plan = planResult.data;
   return {
@@ -133,6 +142,7 @@ export async function loadPlanPage(token: string): Promise<PlanPageData | null> 
     requests,
     rosterUrl: rosterResult.data ? `${appUrl()}/roster/${rosterResult.data.upload_token}` : null,
     rosterDriverCount: driverCount ?? 0,
+    vehicleCount: vehicleCount ?? 0,
     eldConnected: Boolean(client.eld_provider) && (eldResult.data?.length ?? 0) > 0,
   };
 }

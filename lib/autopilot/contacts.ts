@@ -46,11 +46,17 @@ export function goldenDeskConfigured() {
   return Boolean(process.env.GOLDENDESK_SERVICE_ROLE_KEY?.trim());
 }
 
-async function fromGoldenDesk(dot: string): Promise<CarrierContact | null> {
+/** Server-side reader for the agency's client files. Null when the key is not configured. */
+export function goldenDeskClient() {
   if (!goldenDeskConfigured()) return null;
-  const gd = createClient(goldenDeskUrl(), process.env.GOLDENDESK_SERVICE_ROLE_KEY!.trim(), {
+  return createClient(goldenDeskUrl(), process.env.GOLDENDESK_SERVICE_ROLE_KEY!.trim(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+async function fromGoldenDesk(dot: string): Promise<CarrierContact | null> {
+  const gd = goldenDeskClient();
+  if (!gd) return null;
   const { data: rows, error } = await gd
     .from("clients")
     .select("id, account_name, account_number, email, phone, primary_phone, primary_contact, primary_contact_role, lifecycle")

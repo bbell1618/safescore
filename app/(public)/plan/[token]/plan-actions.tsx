@@ -16,8 +16,17 @@ type Props = {
     signedAt: string | null;
     eldProvider: string | null;
     primaryContact: string | null;
+    primaryContactTitle: string | null;
     phone: string | null;
+    email: string | null;
     driverCount: number | null;
+    fleetSize: number | null;
+    recommendedTier: string | null;
+    detailsConfirmedAt: string | null;
+    operatingRadius: string | null;
+    operatingStates: string[];
+    vehicleTypes: string[];
+    fromClientFile: boolean;
   };
   groups: Array<{
     key: string;
@@ -27,12 +36,23 @@ type Props = {
   }>;
   rosterUrl: string | null;
   rosterDriverCount: number;
+  vehicleCount: number;
   eldConnected: boolean;
   /** False while the owner has not approved the terms (real carriers cannot sign yet). */
   termsReady: boolean;
 };
 
 const SUNNY = "sunnykapoor@goldenerainsurance.com";
+const TIER_KEYS = PLAN_TIERS.map((t) => t.tier) as readonly string[];
+const BASE_PRICE: Record<string, number> = { monitor: 199, remediate: 599, total_safety: 999 };
+const PER_DRIVER = 29;
+
+function monthly(tier: string, drivers: number | null): string {
+  const base = BASE_PRICE[tier] ?? 0;
+  if (tier !== "total_safety") return `$${base.toLocaleString("en-US")} / month`;
+  if (!drivers) return `$${base} / month + $${PER_DRIVER} per driver`;
+  return `$${(base + PER_DRIVER * drivers).toLocaleString("en-US")} / month ($${base} + ${drivers} drivers x $${PER_DRIVER})`;
+}
 
 async function post(url: string, body: unknown) {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -41,34 +61,253 @@ async function post(url: string, body: unknown) {
   return data;
 }
 
+/**
+ * QF-215: sign-up is four short steps in order (confirm details, choose service, sign, pay).
+ * Everything else we need (driver list, ELD access, how they run, documents) is asked after they start.
+ */
 export function PlanActions(props: Props) {
-  const signed = Boolean(props.client.signedBy);
-  const steps = [signed, props.rosterDriverCount > 0, props.eldConnected];
-  const done = steps.filter(Boolean).length;
+  const c = props.client;
+  const signed = Boolean(c.signedBy);
+  const hasTier = Boolean(c.tier && TIER_KEYS.includes(c.tier));
+  const suggested = c.recommendedTier && TIER_KEYS.includes(c.recommendedTier) ? c.recommendedTier : null;
+  const [tier, setTier] = useState<string>(hasTier ? (c.tier as string) : suggested ?? "remediate");
+  const [tierPicked, setTierPicked] = useState(hasTier);
+  const [editDetails, setEditDetails] = useState(false);
+
+  if (c.status === "active") {
+    const operationDone = Boolean(c.operatingRadius);
+    const tasks = [props.rosterDriverCount > 0, props.eldConnected, operationDone];
+    const done = tasks.filter(Boolean).length;
+    return (
+      <section id="needs" className="space-y-4">
+        <div className="rounded-2xl border border-success/40 bg-success-light p-6">
+          <h2 className="font-heading text-2xl text-navy">You are set up. Thank you.</h2>
+          <p className="mt-1 text-sm text-warm-mid">Your service has started. We are already watching your DOT record.</p>
+        </div>
+        <div className="px-1">
+          <h2 className="font-heading text-2xl text-navy">What we need next</h2>
+          <p className="mt-1 text-sm text-warm-mid">{done} of {tasks.length} done. Each one takes a few minutes. Your progress saves.</p>
+        </div>
+        <DriversCard token={props.token} rosterUrl={props.rosterUrl} count={props.rosterDriverCount} fromFile={c.fromClientFile} />
+        <EldCard token={props.token} provider={c.eldProvider} connected={props.eldConnected} />
+        <OperationCard token={props.token} client={c} />
+        {props.groups.map((group) => <RequestGroupCard key={group.key} token={props.token} group={group} />)}
+      </section>
+    );
+  }
+
+  const detailsDone = Boolean(c.detailsConfirmedAt) && !editDetails;
+  const stepsDone = [detailsDone, detailsDone && tierPicked, detailsDone && tierPicked && signed];
+  const done = stepsDone.filter(Boolean).length;
+  const current = done + 1;
+  const tierName = PLAN_TIERS.find((t) => t.tier === tier)?.name ?? "your service";
   return (
     <section id="needs" className="space-y-4">
       <div className="px-1">
-        <h2 className="font-heading text-2xl text-navy">What we need from you</h2>
-        <p className="mt-1 text-sm text-warm-mid">{done} of {steps.length} done. Each one takes a few minutes. Your progress saves.</p>
+        <h2 className="font-heading text-2xl text-navy">Start in 4 short steps</h2>
+        <p className="mt-1 text-sm text-warm-mid">{done} of 4 done. About 5 minutes in all. Your progress saves.</p>
+        <div className="mt-3 flex gap-1.5" aria-hidden>
+          {[1, 2, 3, 4].map((n) => <span key={n} className={`h-2 flex-1 rounded-full ${n <= done ? "bg-success" : n === current ? "bg-amber" : "bg-sand"}`} />)}
+        </div>
       </div>
-      <SignCard token={props.token} signedBy={props.client.signedBy} signedAt={props.client.signedAt} defaultName={props.client.primaryContact} termsReady={props.termsReady} />
-      <DriversCard token={props.token} rosterUrl={props.rosterUrl} count={props.rosterDriverCount} />
-      <EldCard token={props.token} provider={props.client.eldProvider} connected={props.eldConnected} />
+
+      {detailsDone ? (
+        <Card step={1} title="Confirm your details" done>
+          <p className="text-warm-mid">{c.primaryContact} · {c.phone} · {c.driverCount} driver{c.driverCount === 1 ? "" : "s"}{c.fleetSize ? ` · ${c.fleetSize} truck${c.fleetSize === 1 ? "" : "s"}` : ""}</p>
+          <button type="button" onClick={() => setEditDetails(true)} className="text-sm font-semibold text-amber-dark underline">Change</button>
+        </Card>
+      ) : (
+        <DetailsCard token={props.token} client={c} onSaved={() => setEditDetails(false)} />
+      )}
+
+      {current < 2 ? <Locked step={2} title="Choose your service" after={1} /> : stepsDone[1] ? (
+        <Card step={2} title="Choose your service" done>
+          <p className="text-warm-mid">{tierName} · {monthly(tier, c.driverCount)}</p>
+          <button type="button" onClick={() => setTierPicked(false)} className="text-sm font-semibold text-amber-dark underline">Change</button>
+        </Card>
+      ) : (
+        <ServiceCard tier={tier} setTier={setTier} suggested={suggested} drivers={c.driverCount} onPicked={() => setTierPicked(true)} />
+      )}
+
+      {current < 3 && !signed ? <Locked step={3} title="Sign so we can work for you" after={2} /> : (
+        <SignCard token={props.token} signedBy={c.signedBy} signedAt={c.signedAt} defaultName={c.primaryContact} termsReady={props.termsReady} />
+      )}
+
+      {current < 4 ? <Locked step={4} title="Pay and start" after={3} /> : (
+        <PayCard token={props.token} tier={tier} tierName={tierName} drivers={c.driverCount} />
+      )}
+
+      <article className="rounded-2xl border border-sand bg-cream p-6">
+        <h3 className="font-heading text-xl text-navy">After you start</h3>
+        <p className="mt-1 text-sm text-warm-mid">Nothing below is needed to sign up. We will ask for these once your service has started:</p>
+        <ul className="mt-3 space-y-2 text-sm leading-6">
+          <li>· Your driver list{props.rosterDriverCount > 0 ? ` (we already have ${props.rosterDriverCount} on file${c.fromClientFile ? " from your insurance file" : ""}, so you only check it)` : ""}</li>
+          <li>· Read-only access to your ELD</li>
+          <li>· A few questions about how you run: distance, states, truck types</li>
+        </ul>
+      </article>
       {props.groups.map((group) => <RequestGroupCard key={group.key} token={props.token} group={group} />)}
-      {props.client.status !== "active" && <StartCard token={props.token} client={props.client} signed={signed} />}
     </section>
   );
 }
 
-function Card({ title, done, children }: { title: string; done?: boolean; children: React.ReactNode }) {
+function Card({ title, done, step, children }: { title: string; done?: boolean; step?: number; children: React.ReactNode }) {
   return (
-    <article className={`rounded-2xl border bg-warm-white p-6 shadow-sm ${done ? "border-success/40" : "border-sand"}`}>
+    <article className={`rounded-2xl border bg-warm-white p-6 shadow-sm ${done ? "border-success/40" : step ? "border-2 border-amber/40" : "border-sand"}`}>
       <div className="flex items-center gap-3">
-        <span aria-hidden className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${done ? "bg-success text-white" : "border-2 border-sand"}`}>{done ? "✓" : ""}</span>
-        <h3 className="font-heading text-xl text-navy">{title}</h3>
+        <span aria-hidden className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${done ? "bg-success text-white" : step ? "bg-navy text-white" : "border-2 border-sand"}`}>{done ? "✓" : step ?? ""}</span>
+        <h3 className="font-heading text-xl text-navy">{step ? <span className="sr-only">Step {step}: </span> : null}{title}</h3>
       </div>
       <div className="mt-3 space-y-3 text-base leading-7">{children}</div>
     </article>
+  );
+}
+
+function Locked({ step, title, after }: { step: number; title: string; after: number }) {
+  return (
+    <article className="rounded-2xl border border-sand bg-warm-white/60 p-5 opacity-70">
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-sand text-sm font-semibold text-warm-gray">{step}</span>
+        <div>
+          <h3 className="font-heading text-lg text-navy"><span className="sr-only">Step {step}: </span>{title}</h3>
+          <p className="text-xs text-warm-gray">Opens after step {after}.</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="text-sm"><span className="mb-1 block text-warm-gray">{label}</span>{children}</label>;
+}
+
+const INPUT = "w-full rounded-lg border border-sand px-3 py-3 text-base";
+
+function DetailsCard({ token, client, onSaved }: { token: string; client: Props["client"]; onSaved: () => void }) {
+  const router = useRouter();
+  const [name, setName] = useState(client.primaryContact ?? "");
+  const [title, setTitle] = useState(client.primaryContactTitle ?? "");
+  const [phone, setPhone] = useState(client.phone ?? "");
+  const [email, setEmail] = useState(client.email ?? "");
+  const [drivers, setDrivers] = useState(client.driverCount ? String(client.driverCount) : "");
+  const [trucks, setTrucks] = useState(client.fleetSize ? String(client.fleetSize) : "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Card step={1} title="Confirm your details">
+      <p className="text-warm-mid">We filled this in from your DOT record{client.fromClientFile ? " and your insurance file" : ""}. Fix anything that is wrong.</p>
+      <p className="text-sm font-semibold text-navy">{client.name}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Who should we talk to?"><input value={name} onChange={(e) => setName(e.target.value)} className={INPUT} autoComplete="name" /></Field>
+        <Field label="Their title"><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="For example: Owner" className={INPUT} /></Field>
+        <Field label="Phone"><input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" className={INPUT} /></Field>
+        <Field label="Email"><input value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" autoComplete="email" className={INPUT} /></Field>
+        <Field label="How many drivers?"><input value={drivers} onChange={(e) => setDrivers(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={INPUT} /></Field>
+        <Field label="How many trucks?"><input value={trucks} onChange={(e) => setTrucks(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className={INPUT} /></Field>
+      </div>
+      <ErrorText text={error} />
+      <Button disabled={busy} onClick={async () => {
+        setBusy(true); setError(null);
+        try {
+          await post(`/api/plan/${token}/profile`, { section: "details", contactName: name, contactTitle: title, phone, email, driverCount: Number(drivers), truckCount: trucks === "" ? null : Number(trucks) });
+          onSaved(); router.refresh();
+        } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+        setBusy(false);
+      }}>{busy ? "Saving…" : "These are right"}</Button>
+    </Card>
+  );
+}
+
+function ServiceCard({ tier, setTier, suggested, drivers, onPicked }: { tier: string; setTier: (t: string) => void; suggested: string | null; drivers: number | null; onPicked: () => void }) {
+  const name = PLAN_TIERS.find((t) => t.tier === tier)?.name ?? "this service";
+  return (
+    <Card step={2} title="Choose your service">
+      <p className="text-warm-mid">You can change or cancel any time.</p>
+      <div className="grid gap-3">
+        {PLAN_TIERS.map((option) => (
+          <label key={option.tier} className={`cursor-pointer rounded-xl border-2 p-4 ${tier === option.tier ? "border-amber bg-amber-subtle" : "border-sand"}`}>
+            <input type="radio" name="tier" value={option.tier} checked={tier === option.tier} onChange={() => setTier(option.tier)} className="sr-only" />
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-heading text-lg text-navy">{option.name}{suggested === option.tier ? <span className="ml-2 rounded-full bg-navy px-2 py-0.5 align-middle font-sans text-xs font-semibold text-white">Suggested for you</span> : null}</span>
+              <span className="font-mono text-sm text-amber-dark">{option.price}</span>
+            </div>
+            <ul className="mt-2 space-y-1 text-sm text-warm-mid">{option.points.map((p) => <li key={p}>· {p}</li>)}</ul>
+            {option.tier === "total_safety" && drivers ? <p className="mt-2 text-sm text-navy">For you: {monthly("total_safety", drivers)}</p> : null}
+          </label>
+        ))}
+      </div>
+      <Button onClick={onPicked}>Continue with {name}</Button>
+    </Card>
+  );
+}
+
+function PayCard({ token, tier, tierName, drivers }: { token: string; tier: string; tierName: string; drivers: number | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <article id="start" className="rounded-2xl border-2 border-amber/40 bg-warm-white p-6 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-white">4</span>
+        <h3 className="font-heading text-xl text-navy"><span className="sr-only">Step 4: </span>Pay and start</h3>
+      </div>
+      <div className="mt-3 space-y-3">
+        <p className="text-base leading-7"><span className="font-semibold text-navy">{tierName}</span> · {monthly(tier, drivers)}</p>
+        <ErrorText text={error} />
+        <Button disabled={busy} onClick={async () => {
+          setBusy(true); setError(null);
+          try {
+            const result = await post(`/api/plan/${token}/checkout`, { tier });
+            window.location.href = String(result.url);
+          } catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); }
+        }}>{busy ? "Opening secure checkout…" : "Continue to secure checkout"}</Button>
+        <p className="text-xs text-warm-gray">Payment is handled by Stripe. We never see your card number. Your service starts as soon as you pay.</p>
+      </div>
+    </article>
+  );
+}
+
+function OperationCard({ token, client }: { token: string; client: Props["client"] }) {
+  const router = useRouter();
+  const [radius, setRadius] = useState(client.operatingRadius ?? "");
+  const [states, setStates] = useState<string[]>(client.operatingStates);
+  const [vehicles, setVehicles] = useState<string[]>(client.vehicleTypes);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [edit, setEdit] = useState(false);
+  const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  if (client.operatingRadius && !edit) {
+    return (
+      <Card title="Tell us how you run" done>
+        <p className="text-warm-mid">{PLAN_RADIUS.find((r) => r.value === client.operatingRadius)?.label} · {client.operatingStates.join(", ")} · {client.vehicleTypes.join(", ")}</p>
+        <button type="button" onClick={() => setEdit(true)} className="text-sm font-semibold text-amber-dark underline">Change</button>
+      </Card>
+    );
+  }
+  return (
+    <Card title="Tell us how you run">
+      <p className="text-warm-mid">Three quick questions so the weekly plan fits your trucks and routes.</p>
+      <fieldset><legend className="mb-2 text-sm text-warm-gray">How far do your trucks go?</legend>
+        <div className="grid gap-2 sm:grid-cols-3">{PLAN_RADIUS.map((r) => (
+          <button type="button" key={r.value} onClick={() => setRadius(r.value)} className={`min-h-12 rounded-lg border-2 px-3 text-sm ${radius === r.value ? "border-amber bg-amber-subtle" : "border-sand"}`}>{r.label}</button>
+        ))}</div></fieldset>
+      <fieldset><legend className="mb-2 text-sm text-warm-gray">Which states do you drive in?</legend>
+        <div className="flex flex-wrap gap-1.5">{US_STATES.map((s) => (
+          <button type="button" key={s} onClick={() => setStates(toggle(states, s))} className={`h-10 w-12 rounded-md border text-sm ${states.includes(s) ? "border-amber bg-amber text-white" : "border-sand bg-white"}`}>{s}</button>
+        ))}</div></fieldset>
+      <fieldset><legend className="mb-2 text-sm text-warm-gray">What kind of trucks?</legend>
+        <div className="flex flex-wrap gap-2">{PLAN_VEHICLE_TYPES.map((v) => (
+          <button type="button" key={v} onClick={() => setVehicles(toggle(vehicles, v))} className={`min-h-10 rounded-full border px-4 text-sm ${vehicles.includes(v) ? "border-amber bg-amber text-white" : "border-sand bg-white"}`}>{v}</button>
+        ))}</div></fieldset>
+      <ErrorText text={error} />
+      <Button disabled={busy} onClick={async () => {
+        setBusy(true); setError(null);
+        try {
+          await post(`/api/plan/${token}/profile`, { section: "operation", operatingRadius: radius, operatingStates: states, vehicleTypes: vehicles });
+          setEdit(false); router.refresh();
+        } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+        setBusy(false);
+      }}>{busy ? "Saving…" : "Save"}</Button>
+    </Card>
   );
 }
 
@@ -94,13 +333,13 @@ function SignCard({ token, signedBy, signedAt, defaultName, termsReady }: { toke
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (signedBy) {
-    return <Card title="Sign so we can work for you" done><p className="text-warm-mid">Signed by {signedBy}{signedAt ? ` on ${new Date(signedAt).toLocaleDateString("en-US")}` : ""}. Thank you.</p></Card>;
+    return <Card step={3} title="Sign so we can work for you" done><p className="text-warm-mid">Signed by {signedBy}{signedAt ? ` on ${new Date(signedAt).toLocaleDateString("en-US")}` : ""}. Thank you.</p></Card>;
   }
   if (!termsReady) {
-    return <Card title="Sign so we can work for you"><p className="text-warm-mid">{TERMS_NOT_READY_MESSAGE}</p></Card>;
+    return <Card step={3} title="Sign so we can work for you"><p className="text-warm-mid">{TERMS_NOT_READY_MESSAGE}</p></Card>;
   }
   return (
-    <Card title="Sign so we can work for you">
+    <Card step={3} title="Sign so we can work for you">
       <p className="text-warm-mid">This lets us look at your FMCSA record and ask FMCSA to fix mistakes for you.</p>
       <label className="flex gap-3 text-sm leading-6">
         <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={agreeService} onChange={(e) => setAgreeService(e.target.checked)} />
@@ -127,13 +366,13 @@ function SignCard({ token, signedBy, signedAt, defaultName, termsReady }: { toke
   );
 }
 
-function DriversCard({ token, rosterUrl, count }: { token: string; rosterUrl: string | null; count: number }) {
+function DriversCard({ token, rosterUrl, count, fromFile }: { token: string; rosterUrl: string | null; count: number; fromFile: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <Card title="Send us your driver list" done={count > 0}>
       <p className="text-warm-mid">
-        {count > 0 ? `We have ${count} driver${count === 1 ? "" : "s"}. Add anyone who is missing.` : "Add each driver's name and license number. A phone photo of the license works. This lets us coach the right drivers."}
+        {count > 0 ? `We have ${count} driver${count === 1 ? "" : "s"} on file${fromFile ? " from your insurance file" : ""}. Check the list and add anyone who is missing.` : "Add each driver's name and license number. A phone photo of the license works. This lets us coach the right drivers."}
       </p>
       <ErrorText text={error} />
       <Button secondary={count > 0} disabled={busy} onClick={async () => {
@@ -142,7 +381,7 @@ function DriversCard({ token, rosterUrl, count }: { token: string; rosterUrl: st
           const url = rosterUrl ?? String((await post(`/api/plan/${token}/roster`, {})).url);
           window.location.href = url;
         } catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); }
-      }}>{busy ? "Opening…" : count > 0 ? "Add more drivers" : "Add your drivers"}</Button>
+      }}>{busy ? "Opening…" : count > 0 ? "Check your driver list" : "Add your drivers"}</Button>
     </Card>
   );
 }
@@ -257,74 +496,5 @@ function RequestRow({ token, request }: { token: string; request: RequestView })
       </ul>
       <ErrorText text={error} />
     </div>
-  );
-}
-
-function StartCard({ token, client, signed }: { token: string; client: Props["client"]; signed: boolean }) {
-  const [tier, setTier] = useState<string>(client.tier && client.tier !== "assessment" ? client.tier : "remediate");
-  const [driverCount, setDriverCount] = useState(client.driverCount ? String(client.driverCount) : "");
-  const [phone, setPhone] = useState(client.phone ?? "");
-  const [radius, setRadius] = useState("");
-  const [states, setStates] = useState<string[]>([]);
-  const [vehicles, setVehicles] = useState<string[]>([]);
-  const [ticket, setTicket] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  return (
-    <article id="start" className="rounded-2xl border-2 border-amber/40 bg-warm-white p-6 shadow-sm">
-      <h3 className="font-heading text-2xl text-navy">Start your service</h3>
-      <p className="mt-1 text-sm text-warm-mid">Choose a plan. You can change or cancel any time.</p>
-      {!signed && <p className="mt-3 rounded-lg bg-amber-subtle px-3 py-2 text-sm">Please sign above first.</p>}
-      <div className="mt-4 grid gap-3">
-        {PLAN_TIERS.map((option) => (
-          <label key={option.tier} className={`cursor-pointer rounded-xl border-2 p-4 ${tier === option.tier ? "border-amber bg-amber-subtle" : "border-sand"}`}>
-            <input type="radio" name="tier" value={option.tier} checked={tier === option.tier} onChange={() => setTier(option.tier)} className="sr-only" />
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-heading text-lg text-navy">{option.name}</span>
-              <span className="font-mono text-sm text-amber-dark">{option.price}</span>
-            </div>
-            <ul className="mt-2 space-y-1 text-sm text-warm-mid">{option.points.map((p) => <li key={p}>· {p}</li>)}</ul>
-          </label>
-        ))}
-      </div>
-      <div className="mt-5 grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm"><span className="mb-1 block text-warm-gray">How many drivers?</span>
-            <input value={driverCount} onChange={(e) => setDriverCount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="w-full rounded-lg border border-sand px-3 py-3 text-base" /></label>
-          <label className="text-sm"><span className="mb-1 block text-warm-gray">Your phone</span>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" className="w-full rounded-lg border border-sand px-3 py-3 text-base" /></label>
-        </div>
-        <fieldset><legend className="mb-2 text-sm text-warm-gray">How far do your trucks go?</legend>
-          <div className="grid gap-2 sm:grid-cols-3">{PLAN_RADIUS.map((r) => (
-            <button type="button" key={r.value} onClick={() => setRadius(r.value)} className={`min-h-12 rounded-lg border-2 px-3 text-sm ${radius === r.value ? "border-amber bg-amber-subtle" : "border-sand"}`}>{r.label}</button>
-          ))}</div></fieldset>
-        <fieldset><legend className="mb-2 text-sm text-warm-gray">Which states do you drive in?</legend>
-          <div className="flex flex-wrap gap-1.5">{US_STATES.map((s) => (
-            <button type="button" key={s} onClick={() => setStates(toggle(states, s))} className={`h-10 w-12 rounded-md border text-sm ${states.includes(s) ? "border-amber bg-amber text-white" : "border-sand bg-white"}`}>{s}</button>
-          ))}</div></fieldset>
-        <fieldset><legend className="mb-2 text-sm text-warm-gray">What kind of trucks?</legend>
-          <div className="flex flex-wrap gap-2">{PLAN_VEHICLE_TYPES.map((v) => (
-            <button type="button" key={v} onClick={() => setVehicles(toggle(vehicles, v))} className={`min-h-10 rounded-full border px-4 text-sm ${vehicles.includes(v) ? "border-amber bg-amber text-white" : "border-sand bg-white"}`}>{v}</button>
-          ))}</div></fieldset>
-        <fieldset><legend className="mb-2 text-sm text-warm-gray">In the last 2 years, did any driver fight a roadside ticket in court and win?</legend>
-          <div className="flex gap-2">{[true, false].map((v) => (
-            <button type="button" key={String(v)} onClick={() => setTicket(v)} className={`min-h-12 flex-1 rounded-lg border-2 text-sm sm:flex-none sm:px-8 ${ticket === v ? "border-amber bg-amber-subtle" : "border-sand"}`}>{v ? "Yes" : "No"}</button>
-          ))}</div></fieldset>
-      </div>
-      <div className="mt-5 space-y-3">
-        <ErrorText text={error} />
-        <Button disabled={busy || !signed} onClick={async () => {
-          setBusy(true); setError(null);
-          try {
-            const result = await post(`/api/plan/${token}/checkout`, {
-              tier, driverCount: Number(driverCount), phone, operatingRadius: radius, operatingStates: states, vehicleTypes: vehicles, ticketAnswer: ticket,
-            });
-            window.location.href = String(result.url);
-          } catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); }
-        }}>{busy ? "Opening secure checkout…" : "Continue to secure checkout"}</Button>
-        <p className="text-xs text-warm-gray">Payment is handled by Stripe. We never see your card number.</p>
-      </div>
-    </article>
   );
 }
