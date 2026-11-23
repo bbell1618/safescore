@@ -119,8 +119,13 @@ function fallbackFix(f: FamilyFact): PlanFix {
  */
 function fallbackIntro(facts: CarrierFacts, ctx: IntroContext): OutreachDraft {
   const greeting = ctx.contactName ? `Hi ${ctx.contactName.split(" ")[0]},` : "Hello,";
-  const intro = ctx.introducedBy
+  // When the person we are writing to IS the person who asked (the owner's own company), do not
+  // tell them that they asked.
+  const same = Boolean(ctx.introducedBy && ctx.contactName && ctx.introducedBy.trim().toLowerCase() === ctx.contactName.trim().toLowerCase());
+  const intro = ctx.introducedBy && !same
     ? `I am Sunny, the AI assistant at Golden Era Insurance Agency. ${ctx.introducedBy} asked us to help ${facts.company} lower its DOT safety scores. The first step is to set up your SafeScore account with the button below.`
+    : same
+    ? `I am Sunny, the AI assistant at Golden Era Insurance Agency. We are ready to start lowering the DOT safety scores for ${facts.company}. The first step is to set up your SafeScore account with the button below.`
     : `I am Sunny, the AI assistant at Golden Era Insurance Agency. We help trucking companies lower their DOT safety scores, and we looked at the public record for ${facts.company}. The first step is to set up your SafeScore account with the button below.`;
   const body = [
     greeting,
