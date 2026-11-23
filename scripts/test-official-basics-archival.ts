@@ -56,7 +56,7 @@ assert.ok(
 );
 
 assert.ok(
-  read("app/api/analysis/ingest-detail/route.ts").includes("official_basics: b"),
+  read("lib/fmcsa/ingest-export.ts").includes("official_basics: b"),
   "Authenticated ingest must continue preserving official_basics"
 );
 assert.ok(

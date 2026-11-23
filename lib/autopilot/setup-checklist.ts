@@ -167,7 +167,7 @@ export type SetupChecklist = {
   trucks: { list: SetupTruck[]; confirmedAt: string | null; note: string | null };
   eld: { provider: string | null; connected: boolean; helpAsked: boolean };
   operation: { radius: string | null; states: string[]; vehicleTypes: string[] };
-  fmcsa: { method: string | null; at: string | null };
+  fmcsa: { method: string | null; at: string | null; requestSentAt: string | null };
   safetyContact: { name: string | null; phone: string | null; email: string | null; confirmedAt: string | null; ownerName: string | null; ownerPhone: string | null; ownerEmail: string | null };
   notes: { text: string | null; at: string | null };
   requests: SetupRequest[];
@@ -176,7 +176,7 @@ export type SetupChecklist = {
 
 const CLIENT_COLUMNS =
   "id, name, tier, status, geia_client, plan_token, eld_provider, operating_radius, operating_states, vehicle_types, primary_contact, phone, email, " +
-  "fmcsa_portal_access_at, fmcsa_portal_access_method, safety_contact_name, safety_contact_email, safety_contact_phone, safety_contact_confirmed_at, " +
+  "fmcsa_portal_access_at, fmcsa_portal_access_method, fmcsa_request_sent_at, safety_contact_name, safety_contact_email, safety_contact_phone, safety_contact_confirmed_at, " +
   "trucks_confirmed_at, trucks_note, intake_pack_at, carrier_notes, carrier_notes_at";
 
 function items(value: unknown): Array<{ key: string; label: string }> {
@@ -256,7 +256,7 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
     trucks: { list: truckList, confirmedAt: client.trucks_confirmed_at, note: client.trucks_note },
     eld: { provider: client.eld_provider, connected: eldConnected, helpAsked: Boolean(eldHelp.count) },
     operation: { radius: client.operating_radius, states: client.operating_states ?? [], vehicleTypes: client.vehicle_types ?? [] },
-    fmcsa: { method: client.fmcsa_portal_access_method, at: client.fmcsa_portal_access_at },
+    fmcsa: { method: client.fmcsa_portal_access_method, at: client.fmcsa_portal_access_at, requestSentAt: client.fmcsa_request_sent_at ?? null },
     safetyContact: {
       name: client.safety_contact_name, phone: client.safety_contact_phone, email: client.safety_contact_email, confirmedAt: client.safety_contact_confirmed_at,
       ownerName: client.primary_contact, ownerPhone: client.phone, ownerEmail: client.email,

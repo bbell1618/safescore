@@ -1,5 +1,5 @@
-import { PortalAccountSkeleton } from "./account-skeleton";
+import { PortalLoadingScreen } from "@/components/portal/loading-screen";
 
 export default function PortalAccountLoading() {
-  return <PortalAccountSkeleton />;
+  return <PortalLoadingScreen />;
 }

@@ -21,7 +21,7 @@ export function dueTodayPacific(now: Date = new Date()): string {
   return day.toISOString().slice(0, 10);
 }
 
-const SAFESCORE_PROJECT = { type: "project", id: "e642d966-a374-4317-8b10-6c9a003ffb67", name: "Golden Era SafeScore" };
+export const SAFESCORE_PROJECT = { type: "project", id: "e642d966-a374-4317-8b10-6c9a003ffb67", name: "Golden Era SafeScore" };
 const TIER_NAME: Record<string, string> = { monitor: "Monitor", remediate: "Remediate", total_safety: "Total Safety" };
 
 type ActiveClient = {

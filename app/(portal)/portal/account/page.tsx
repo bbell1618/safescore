@@ -21,6 +21,7 @@ import {
   CopyableAccountValue,
 } from "@/components/portal/account-interactions";
 import { PortalMotionSection } from "@/components/portal/motion";
+import { SignOutCard } from "@/components/portal/sign-out";
 import { ownerCopy } from "@/components/portal/owner-copy";
 import { getPortalClientPageContext } from "@/lib/portal/access";
 import {
@@ -447,6 +448,7 @@ export default async function PortalAccountPage() {
       <PortalSectionDivider transition="navy-to-warm" />
 
       <PortalPageBody contentClassName="max-w-5xl">
+        <div className="mb-6"><SignOutCard email={context.userEmail} /></div>
         <Suspense fallback={<AccountCardsSkeleton />}>
           <AccountCards
             accountPromise={accountPromise}

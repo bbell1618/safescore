@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { processGoldenDeskStubs } from "@/lib/autopilot/gd-stubs";
 import { createHandoffTasks } from "@/lib/autopilot/handoff";
 import { processSetupNudgeRequests } from "@/lib/autopilot/setup-nudge";
+import { processFmcsaAccess, processFmcsaImports } from "@/lib/autopilot/fmcsa-access";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** Every minute: finish carriers added from GoldenDesk (lookup, FMCSA pull, plan, approval card), hand off carriers that finished onboarding, and write requested setup-list emails. */
+/** Every minute: finish carriers added from GoldenDesk (lookup, FMCSA pull, plan, approval card), hand off carriers that finished onboarding, write requested setup-list emails, and move FMCSA access along. */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -23,7 +24,16 @@ export async function GET(request: Request) {
       console.error(`[intake-stubs] setup emails failed: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     });
-    return NextResponse.json({ processed, handoffs, setupEmails });
+    // QF-225: the one FMCSA task per carrier, and files dropped on the carrier page in GoldenDesk.
+    const fmcsaTasks = await processFmcsaAccess().catch((error) => {
+      console.error(`[intake-stubs] fmcsa access failed: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    });
+    const fmcsaImports = await processFmcsaImports().catch((error) => {
+      console.error(`[intake-stubs] fmcsa imports failed: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    });
+    return NextResponse.json({ processed, handoffs, setupEmails, fmcsaTasks, fmcsaImports });
   } catch (error) {
     console.error(`[intake-stubs] failed: ${error instanceof Error ? error.message : String(error)}`);
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

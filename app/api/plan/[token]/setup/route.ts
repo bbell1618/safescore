@@ -4,7 +4,8 @@ import { serviceClient } from "@/lib/autopilot/queue";
 
 export const dynamic = "force-dynamic";
 
-const FMCSA_METHODS = ["will_approve", "need_help", "approved"] as const;
+// QF-225: "no_login" replaces "need_help" (kept so older answers still read).
+const FMCSA_METHODS = ["will_approve", "no_login", "need_help", "approved"] as const;
 
 /**
  * QF-221: the short answers on the carrier's "what we still need" list that are not documents:
@@ -23,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const text = method === "will_approve" ? "Carrier has an FMCSA Portal login and will approve our access request"
         : method === "approved" ? "Carrier says they approved our FMCSA Portal access request"
-        : "Carrier needs help with FMCSA Portal access";
+        : "Carrier does not have an FMCSA Portal login yet (asked to make one)";
       await logPlanEvent(client.id, "carrier_fmcsa_access_answer", text, { method });
       return NextResponse.json({ ok: true });
     }

@@ -298,3 +298,22 @@ body:has(.portal-brand-root) {
     transition: none;
   }
 }
+
+/* QF-225: the rolling-truck loader. */
+@keyframes ge-road { to { transform: translateX(-24px); } }
+@keyframes ge-wheel { to { transform: rotate(360deg); } }
+@keyframes ge-body { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes ge-speed { 0% { transform: translateX(10px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(-14px); opacity: 0; } }
+@keyframes ge-puff { 0% { transform: translate(0, 0) scale(0.6); opacity: 0.9; } 100% { transform: translate(-26px, -8px) scale(1.8); opacity: 0; } }
+.ge-truck .ge-road { animation: ge-road 0.45s linear infinite; }
+.ge-truck .ge-wheel { transform-box: fill-box; transform-origin: center; animation: ge-wheel 0.5s linear infinite; }
+.ge-truck .ge-body { animation: ge-body 0.9s ease-in-out infinite; }
+.ge-truck .ge-speed { animation: ge-speed 0.9s ease-out infinite; }
+.ge-truck .ge-puff { transform-box: fill-box; transform-origin: center; animation: ge-puff 1.4s ease-out infinite; }
+.ge-truck .ge-puff-2 { animation-delay: 0.7s; }
+@media (prefers-reduced-motion: reduce) {
+  .ge-truck * { animation: none !important; }
+}
+
+/* QF-225: the texture class sets position: relative, which beat Tailwind's "sticky". */
+.portal-navy-texture.sticky, .portal-warm-texture.sticky { position: sticky; }
