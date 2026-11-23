@@ -7,6 +7,8 @@ import { FILING_AUTHORIZATION_WORDING, SERVICE_AGREEMENT_AFTER_LINK, SERVICE_AGR
 import { PLAN_RADIUS, PLAN_TIERS, PLAN_VEHICLE_TYPES, US_STATES } from "@/lib/autopilot/plan-options";
 
 type Props = {
+  /** QF-223: the signed-in email, shown on the finished step 1. */
+  accountEmail?: string | null;
   token: string;
   client: {
     name: string;
@@ -104,15 +106,19 @@ export function PlanActions(props: Props) {
   return (
     <section id="needs" className="space-y-4">
       <div className="px-1">
-        <h2 className="font-heading text-2xl text-navy">Finish sign-up in 4 short steps</h2>
-        <p className="mt-1 text-sm text-warm-mid">{done} of 4 done. About 5 minutes in all. Your progress saves.</p>
+        <h2 className="font-heading text-2xl text-navy">Set up SafeScore in 5 short steps</h2>
+        <p className="mt-1 text-sm text-warm-mid">{done + 1} of 5 done. About 5 minutes in all. Your progress saves.</p>
         <div className="mt-3 flex gap-1.5" aria-hidden>
-          {[1, 2, 3, 4].map((n) => <span key={n} className={`h-2 flex-1 rounded-full ${n <= done ? "bg-success" : n === current ? "bg-amber" : "bg-sand"}`} />)}
+          {[0, 1, 2, 3, 4].map((n) => <span key={n} className={`h-2 flex-1 rounded-full ${n <= done ? "bg-success" : n === current ? "bg-amber" : "bg-sand"}`} />)}
         </div>
       </div>
 
+      <Card step={1} title="Create your account" done>
+        <p className="text-warm-mid">Done.{props.accountEmail ? ` You are signed in as ${props.accountEmail}.` : ""} Sign back in any time with your email and password.</p>
+      </Card>
+
       {detailsDone ? (
-        <Card step={1} title="Confirm your details" done>
+        <Card step={2} title="Confirm your details" done>
           <p className="text-warm-mid">{c.primaryContact} · {c.phone} · {c.driverCount} driver{c.driverCount === 1 ? "" : "s"}{c.fleetSize ? ` · ${c.fleetSize} truck${c.fleetSize === 1 ? "" : "s"}` : ""}</p>
           <button type="button" onClick={() => setEditDetails(true)} className="text-sm font-semibold text-amber-dark underline">Change</button>
         </Card>
@@ -120,8 +126,8 @@ export function PlanActions(props: Props) {
         <DetailsCard token={props.token} client={c} onSaved={() => setEditDetails(false)} />
       )}
 
-      {current < 2 ? <Locked step={2} title="Choose your service" after={1} /> : stepsDone[1] ? (
-        <Card step={2} title="Choose your service" done>
+      {current < 2 ? <Locked step={3} title="Choose your service" after={2} /> : stepsDone[1] ? (
+        <Card step={3} title="Choose your service" done>
           <p className="text-warm-mid">{tierName} · {monthly(tier, c.driverCount)}</p>
           <button type="button" onClick={() => setTierPicked(false)} className="text-sm font-semibold text-amber-dark underline">Change</button>
         </Card>
@@ -129,11 +135,11 @@ export function PlanActions(props: Props) {
         <ServiceCard tier={tier} setTier={setTier} suggested={suggested} drivers={c.driverCount} onPicked={() => setTierPicked(true)} />
       )}
 
-      {current < 3 && !signed ? <Locked step={3} title="Sign so we can work for you" after={2} /> : (
+      {current < 3 && !signed ? <Locked step={4} title="Sign so we can work for you" after={3} /> : (
         <SignCard token={props.token} signedBy={c.signedBy} signedAt={c.signedAt} defaultName={c.primaryContact} defaultTitle={c.primaryContactTitle} termsReady={props.termsReady} />
       )}
 
-      {current < 4 ? <Locked step={4} title="Pay and start" after={3} /> : (
+      {current < 4 ? <Locked step={5} title="Pay and start" after={4} /> : (
         <PayCard token={props.token} tier={tier} tierName={tierName} drivers={c.driverCount} />
       )}
 
@@ -194,7 +200,7 @@ function DetailsCard({ token, client, onSaved }: { token: string; client: Props[
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
-    <Card step={1} title="Confirm your details">
+    <Card step={2} title="Confirm your details">
       <p className="text-warm-mid">We filled this in from your DOT record{client.fromClientFile ? " and your insurance file" : ""}. Fix anything that is wrong.</p>
       <p className="text-sm font-semibold text-navy">{client.name}</p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -221,7 +227,7 @@ function DetailsCard({ token, client, onSaved }: { token: string; client: Props[
 function ServiceCard({ tier, setTier, suggested, drivers, onPicked }: { tier: string; setTier: (t: string) => void; suggested: string | null; drivers: number | null; onPicked: () => void }) {
   const name = PLAN_TIERS.find((t) => t.tier === tier)?.name ?? "this service";
   return (
-    <Card step={2} title="Choose your service">
+    <Card step={3} title="Choose your service">
       <p className="text-warm-mid">You can change or cancel any time.</p>
       <div className="grid gap-3">
         {PLAN_TIERS.map((option) => (
@@ -248,7 +254,7 @@ function PayCard({ token, tier, tierName, drivers }: { token: string; tier: stri
     <article id="start" className="rounded-2xl border-2 border-amber/40 bg-warm-white p-6 shadow-sm">
       <div className="flex items-center gap-3">
         <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-white">4</span>
-        <h3 className="font-heading text-xl text-navy"><span className="sr-only">Step 4: </span>Pay and start</h3>
+        <h3 className="font-heading text-xl text-navy"><span className="sr-only">Step 5: </span>Pay and start</h3>
       </div>
       <div className="mt-3 space-y-3">
         <p className="text-base leading-7"><span className="font-semibold text-navy">{tierName}</span> · {monthly(tier, drivers)}</p>
@@ -333,13 +339,13 @@ function SignCard({ token, signedBy, signedAt, defaultName, defaultTitle, termsR
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (signedBy) {
-    return <Card step={3} title="Sign so we can work for you" done><p className="text-warm-mid">Signed by {signedBy}{signedAt ? ` on ${new Date(signedAt).toLocaleDateString("en-US")}` : ""}. Thank you.</p></Card>;
+    return <Card step={4} title="Sign so we can work for you" done><p className="text-warm-mid">Signed by {signedBy}{signedAt ? ` on ${new Date(signedAt).toLocaleDateString("en-US")}` : ""}. Thank you.</p></Card>;
   }
   if (!termsReady) {
-    return <Card step={3} title="Sign so we can work for you"><p className="text-warm-mid">{TERMS_NOT_READY_MESSAGE}</p></Card>;
+    return <Card step={4} title="Sign so we can work for you"><p className="text-warm-mid">{TERMS_NOT_READY_MESSAGE}</p></Card>;
   }
   return (
-    <Card step={3} title="Sign so we can work for you">
+    <Card step={4} title="Sign so we can work for you">
       <p className="text-warm-mid">This lets us look at your FMCSA record and ask FMCSA to fix mistakes for you.</p>
       <label className="flex gap-3 text-sm leading-6">
         <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={agreeService} onChange={(e) => setAgreeService(e.target.checked)} />

@@ -131,10 +131,11 @@ function fallbackIntro(facts: CarrierFacts, ctx: IntroContext): OutreachDraft {
     greeting,
     intro,
     "It takes about 5 minutes:\n1. Create a password\n2. Confirm your details and choose your service\n3. Sign\n4. Pay",
-    "Once you are in, your account shows your safety plan, what to fix first, and a short list of what we need from you. You can sign back in any time to upload documents, check your drivers and trucks, and see your reports.",
+    "Once you are in, your account shows your safety plan, what to fix first, and a short setup list of what we need from you. You can sign back in any time to upload documents, check your drivers and trucks, and see your reports.",
     "Reply to this email with any question.",
   ].join("\n\n");
-  return { subject: `${facts.company}: set up your SafeScore account`, bodyText: body };
+  // QF-223: the carrier knows its own name, so the subject only says what is waiting for them.
+  return { subject: "Your SafeScore account is ready to set up", bodyText: body };
 }
 
 export type IntroContext = {

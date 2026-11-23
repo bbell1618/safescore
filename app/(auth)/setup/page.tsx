@@ -121,8 +121,8 @@ function SetupForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Company context */}
       {tokenInfo?.companyName && (
-        <div className="bg-[#E8ECF2] border border-[#1B2D4F]/10 rounded-lg px-4 py-3 text-sm text-[#2A4270]">
-          Setting up account for <strong>{tokenInfo.companyName}</strong>
+        <div className="rounded-lg border border-navy/10 bg-cream px-4 py-3 text-sm text-navy">
+          Setting up the account for <strong>{tokenInfo.companyName}</strong>
         </div>
       )}
 
@@ -202,55 +202,73 @@ function SetupForm() {
       <button
         type="submit"
         disabled={loading || tokenLoading}
-        className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-amber px-5 py-3 text-base font-semibold text-white transition-colors hover:bg-amber-dark disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "Setting up your account..." : "Create account and continue"}
+        {loading ? "Setting up your account..." : "Create account and go to step 2"}
       </button>
     </form>
   );
 }
 
 export default function SetupPage() {
+  // QF-223: making the account is step 1 of the same 5-step sign-up the carrier finishes next,
+  // so this page wears the same frame as the steps that follow it.
   return (
-    <div className="min-h-screen bg-[#FEFCF8] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Logo / Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#C67A1E] flex items-center justify-center">
-              <span className="text-white font-bold text-lg">GE</span>
-            </div>
-            <div className="text-left">
-              <p className="text-xs text-gray-500 uppercase tracking-widest leading-none">
-                Golden Era
-              </p>
-              <p className="font-bold text-[#1E1C1A] leading-none">SafeScore</p>
-            </div>
+    <main className="portal-brand-root portal-warm-texture min-h-screen text-warm-dark">
+      <header className="portal-navy-texture border-b border-gold/20 text-warm-white shadow-md">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/35 bg-warm-white/5 font-heading text-sm font-bold text-gold-light">SS</span>
+          <div className="min-w-0">
+            <p className="font-heading text-base font-semibold">Golden Era SafeScore</p>
+            <p className="truncate text-xs text-warm-white/70">Set up your account</p>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#A66418]">First step</p>
-          <h1 className="mt-1 text-2xl font-bold text-[#1E1C1A]">Create your account</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Make a password. You will use it with your email to sign back in any time: to upload documents, check your drivers and trucks, and see your reports.
-          </p>
         </div>
+      </header>
 
-        {/* Card */}
-        <div className="bg-[#FBF7F0] rounded-xl shadow-sm border border-[#F0E8DA] p-8">
-          <Suspense fallback={<div className="text-center text-sm text-gray-500">Loading...</div>}>
-            <SetupForm />
-          </Suspense>
-        </div>
+      <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+        <section className="rounded-2xl border border-sand bg-warm-white p-6 shadow-sm">
+          <h1 className="font-heading text-2xl text-navy">Set up SafeScore in 5 short steps</h1>
+          <p className="mt-1 text-sm text-warm-mid">Step 1 of 5. About 5 minutes in all. Your progress saves.</p>
+          <div className="mt-3 flex gap-1.5" aria-hidden>
+            {[1, 2, 3, 4, 5].map((n) => <span key={n} className={`h-2 flex-1 rounded-full ${n === 1 ? "bg-amber" : "bg-sand"}`} />)}
+          </div>
+        </section>
 
-        <p className="mt-6 text-center text-xs text-[#5C554E]">
-          Golden Era Insurance Agency {"\u2014"} SafeScore Portal {"\u00b7"}{" "}
-          <Link
-            href="/terms"
-            className="underline decoration-[#5C554E]/40 underline-offset-4 transition-colors hover:text-[#1E1C1A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C67A1E]"
-          >
-            Terms of Service
-          </Link>
+        <article className="rounded-2xl border-2 border-amber/40 bg-warm-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-white">1</span>
+            <h2 className="font-heading text-xl text-navy"><span className="sr-only">Step 1: </span>Create your account</h2>
+          </div>
+          <p className="mt-3 text-base leading-7 text-warm-mid">Make a password. Your email and this password sign you back in any time: to upload documents, check your drivers and trucks, and see your reports.</p>
+          <div className="mt-4">
+            <Suspense fallback={<div className="text-sm text-warm-gray">Loading...</div>}>
+              <SetupForm />
+            </Suspense>
+          </div>
+        </article>
+
+        {[
+          [2, "Confirm your details"],
+          [3, "Choose your service"],
+          [4, "Sign so we can work for you"],
+          [5, "Pay and start"],
+        ].map(([n, title]) => (
+          <article key={n} className="rounded-2xl border border-sand bg-warm-white/60 p-5 opacity-70">
+            <div className="flex items-center gap-3">
+              <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-sand text-sm font-semibold text-warm-gray">{n}</span>
+              <div>
+                <h2 className="font-heading text-lg text-navy"><span className="sr-only">Step {n}: </span>{title}</h2>
+                <p className="text-xs text-warm-gray">Opens after step {Number(n) - 1}.</p>
+              </div>
+            </div>
+          </article>
+        ))}
+
+        <p className="px-1 pb-8 text-center text-xs leading-5 text-warm-gray">
+          Golden Era Insurance Agency {"\u00b7"} 200 Brown Rd, Suite 203, Fremont, CA 94539 {"\u00b7"}{" "}
+          <Link href="/terms" className="underline underline-offset-4">Terms of Service</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

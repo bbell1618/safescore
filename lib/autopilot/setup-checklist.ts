@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./queue";
 import { ensureRosterRequest } from "./plan-page-server";
+import { setupItemStates } from "./setup-items";
 
 /**
  * QF-221: everything we still need from a carrier after they have signed and paid.
@@ -153,8 +154,8 @@ export async function stageClientFileDrivers(service: SupabaseClient, clientId: 
   return pending.length;
 }
 
-export type SetupDriver = { id: string; name: string; license: string | null; confirmed: boolean };
-export type SetupTruck = { id: string; unit: string | null; year: number | null; make: string | null; model: string | null; vin: string | null; plate: string | null; plateState: string | null; confirmed: boolean };
+export type SetupDriver = { id: string; name: string; state: string | null; license: string | null; licenseExpiry: string | null; medicalExpiry: string | null; confirmed: boolean };
+export type SetupTruck = { id: string; unit: string | null; unitType: "truck" | "trailer"; year: number | null; make: string | null; model: string | null; vin: string | null; plate: string | null; plateState: string | null; confirmed: boolean };
 export type SetupRequest = { id: string; title: string; why: string | null; hint: string | null; state: "open" | "received" | "skipped"; question: boolean; items: Array<{ key: string; label: string }> };
 
 export type SetupChecklist = {
@@ -196,12 +197,11 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
   const client = row as unknown as Record<string, any>;
   if (client.status === "active") {
     await ensureIntakePack(service, { id: client.id, tier: client.tier, status: client.status, intake_pack_at: client.intake_pack_at });
-    await stageClientFileDrivers(service, client.id);
   }
 
   const [drivers, trucks, roster, eldDone, eldHelp, requests] = await Promise.all([
-    service.from("drivers").select("id, full_name, cdl_number, cdl_state, carrier_confirmed_at").eq("client_id", clientId).eq("status", "active").order("full_name"),
-    service.from("vehicles").select("id, unit_number, year, make, model, vin, license_plate, plate_state, carrier_confirmed_at").eq("client_id", clientId).eq("status", "active").order("unit_number"),
+    service.from("drivers").select("id, full_name, cdl_number, cdl_state, cdl_expiry, medical_cert_expiry, carrier_confirmed_at").eq("client_id", clientId).eq("status", "active").order("full_name"),
+    service.from("vehicles").select("id, unit_number, unit_type, year, make, model, vin, license_plate, plate_state, carrier_confirmed_at").eq("client_id", clientId).eq("status", "active").order("unit_number"),
     service.from("client_requests").select("upload_token, submitted_at, status").eq("dedupe_key", `roster_collection:${clientId}`).maybeSingle(),
     service.from("activity_log").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("action_type", "plan_eld_access_confirmed"),
     service.from("activity_log").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("action_type", "plan_eld_help_requested"),
@@ -217,11 +217,15 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
   const driverList: SetupDriver[] = (drivers.data ?? []).map((d) => ({
     id: d.id as string,
     name: d.full_name as string,
-    license: d.cdl_number ? `${d.cdl_state ?? ""} ${String(d.cdl_number).slice(-4).padStart(String(d.cdl_number).length, "•")}`.trim() : null,
+    state: (d.cdl_state as string | null) ?? null,
+    // Only the last 4 characters ever leave the server.
+    license: d.cdl_number ? `•••${String(d.cdl_number).slice(-4)}` : null,
+    licenseExpiry: (d.cdl_expiry as string | null) ?? null,
+    medicalExpiry: (d.medical_cert_expiry as string | null) ?? null,
     confirmed: Boolean(d.carrier_confirmed_at),
   }));
   const truckList: SetupTruck[] = (trucks.data ?? []).map((v) => ({
-    id: v.id as string, unit: v.unit_number as string | null, year: v.year as number | null, make: v.make as string | null, model: v.model as string | null,
+    id: v.id as string, unit: v.unit_number as string | null, unitType: v.unit_type === "trailer" ? "trailer" as const : "truck" as const, year: v.year as number | null, make: v.make as string | null, model: v.model as string | null,
     vin: v.vin as string | null, plate: v.license_plate as string | null, plateState: v.plate_state as string | null, confirmed: Boolean(v.carrier_confirmed_at),
   }));
   const requestList: SetupRequest[] = (requests.data ?? [])
@@ -243,17 +247,7 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
   const rosterOpen = roster.data?.status === "open";
   const submittedAt = (roster.data?.submitted_at as string | null) ?? null;
   const eldConnected = Boolean(client.eld_provider && eldDone.count);
-  const checks = [
-    Boolean(submittedAt) || (driverList.length > 0 && driverList.every((d) => d.confirmed)),
-    Boolean(client.trucks_confirmed_at),
-    eldConnected,
-    Boolean(client.operating_radius),
-    Boolean(client.fmcsa_portal_access_method),
-    Boolean(client.safety_contact_confirmed_at),
-    ...requestList.map((r) => r.state !== "open"),
-  ];
-
-  return {
+  const result: SetupChecklist = {
     planToken: client.plan_token,
     clientName: client.name,
     tier: client.tier,
@@ -269,6 +263,9 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
     },
     notes: { text: client.carrier_notes, at: client.carrier_notes_at },
     requests: requestList,
-    progress: { done: checks.filter(Boolean).length, total: checks.length },
+    progress: { done: 0, total: 0 },
   };
+  const states = setupItemStates(result);
+  result.progress = { done: states.filter((x) => x.done).length, total: states.length };
+  return result;
 }

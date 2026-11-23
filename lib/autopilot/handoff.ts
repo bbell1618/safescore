@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { goldenDeskClient } from "./contacts";
 import { serviceClient } from "./queue";
-import { ensureIntakePack, stageClientFileDrivers } from "./setup-checklist";
+import { ensureIntakePack } from "./setup-checklist";
 
 /**
  * QF-215: the hand-off. When a carrier has signed and paid, Brandon gets ONE task that says what is
@@ -46,7 +46,6 @@ export async function createHandoffTasks(service: SupabaseClient = serviceClient
   for (const client of clients as ActiveClient[]) {
     // QF-221: create the document asks first, so the task counts them.
     await ensureIntakePack(service, { id: client.id, tier: client.tier, status: "active", intake_pack_at: client.intake_pack_at }).catch(() => undefined);
-    await stageClientFileDrivers(service, client.id).catch(() => undefined);
     const [drivers, vehicles, eld, requests, challengeable, plan, confirmedDrivers] = await Promise.all([
       service.from("drivers").select("id", { count: "exact", head: true }).eq("client_id", client.id),
       service.from("vehicles").select("id", { count: "exact", head: true }).eq("client_id", client.id),

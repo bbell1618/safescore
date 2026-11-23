@@ -62,9 +62,10 @@ export function firstName(contact: string | null | undefined): string | null {
 
 // QF-221: the stage keys are kept (the invite card and its tests read them); their meaning is now
 // not_opened = no account yet, opened = account made but not signed, signed = signed but not paid.
+// QF-223: subjects never carry the company name (the carrier knows it).
 const STAGE_COPY: Record<ReminderStage, { subject: (company: string) => string; lines: (company: string) => string[] }> = {
   not_opened: {
-    subject: (company) => `Set up your SafeScore account, ${company}`,
+    subject: () => "Reminder: your SafeScore account is ready to set up",
     lines: (company) => [
       `This is Sunny, the AI assistant at Golden Era Insurance Agency. Your SafeScore account for ${company} is waiting. Use the button below to set it up.`,
       "It takes about 5 minutes: create a password, confirm your details, choose your service, sign, and pay.",
@@ -72,7 +73,7 @@ const STAGE_COPY: Record<ReminderStage, { subject: (company: string) => string; 
     ],
   },
   opened: {
-    subject: (company) => `Finish your sign-up, ${company}`,
+    subject: () => "Finish setting up your SafeScore account",
     lines: () => [
       "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for making your account. Use the button below to sign in and finish.",
       "What is left:\n1. Confirm your details and choose your service.\n2. Sign so we can work on your DOT record for you.\n3. Pay.",
@@ -80,7 +81,7 @@ const STAGE_COPY: Record<ReminderStage, { subject: (company: string) => string; 
     ],
   },
   signed: {
-    subject: (company) => `One step left, ${company}`,
+    subject: () => "One step left to start SafeScore",
     lines: () => [
       "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for signing. Use the button below to sign in and finish.",
       "One step is left: pay. Then your safety plan opens and we start work on your DOT record.",

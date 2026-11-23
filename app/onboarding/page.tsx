@@ -70,9 +70,6 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             <strong>Practice copy.</strong> Nothing you do here touches the real carrier&apos;s file. Payments use Stripe test mode.
           </p>
         )}
-        <p role="status" className="rounded-2xl border border-success/40 bg-success-light px-5 py-4 text-base text-success">
-          <strong>Your account is made.</strong> You are signed in as {context.userEmail}. Use this email and your password to sign back in any time.
-        </p>
         {started && activation && activation.status !== "activated" ? (
           <p role="status" className="rounded-2xl border border-amber/40 bg-amber-subtle px-5 py-4 text-base text-navy">
             Thank you. We are confirming your payment. Refresh this page in a minute and your account will open.
@@ -82,6 +79,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
 
         <PlanActions
           token={token}
+          accountEmail={context.userEmail}
           client={{
             name: client.name,
             status: client.status,

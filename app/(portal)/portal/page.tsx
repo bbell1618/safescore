@@ -396,7 +396,9 @@ async function CarrierIdentityFooter({
   );
 }
 
-export default async function PortalHomePage() {
+export default async function PortalHomePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = await searchParams;
+  const saved = typeof query.saved === "string" ? query.saved : null;
   const context = await loadPortalContext();
   if (context.status === "unauthenticated") redirect("/login");
   if (context.status === "forbidden") return null;
@@ -449,7 +451,7 @@ export default async function PortalHomePage() {
     <div>
       {setup ? (
         <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pb-8 pt-6 sm:pt-8">
-          <SetupChecklist data={setup} />
+          <SetupChecklist data={setup} saved={saved} />
           <Link href="/portal/safety-plan" className="flex items-center gap-4 rounded-2xl border border-sand bg-warm-white p-5 shadow-sm hover:border-amber/50">
             <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-navy font-heading text-sm font-bold text-gold-light">SP</span>
             <span className="min-w-0 flex-1">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runDailySweep } from "@/lib/autopilot/sweep";
 import { queueReportCards, runWeeklyAutopilot } from "@/lib/autopilot/weekly";
 import { runOnboardingReminders } from "@/lib/autopilot/onboarding-reminders";
+import { runSetupNudgeReminders } from "@/lib/autopilot/setup-nudge";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,8 +22,9 @@ export async function GET(request: Request) {
     const reports = await queueReportCards();
     // Reminders first: they decide whether Monday's follow-up is still needed.
     const reminders = await runOnboardingReminders().catch((error) => ({ error: error instanceof Error ? error.message : String(error) }));
+    const setupReminders = await runSetupNudgeReminders().catch((error) => ({ error: error instanceof Error ? error.message : String(error) }));
     const weekly = isMondayPacific() ? await runWeeklyAutopilot() : null;
-    return NextResponse.json({ sweep, reportCardsQueued: reports, reminders, weekly });
+    return NextResponse.json({ sweep, reportCardsQueued: reports, reminders, setupReminders, weekly });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
