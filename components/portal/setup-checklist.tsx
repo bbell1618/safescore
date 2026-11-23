@@ -158,9 +158,11 @@ export function DriversPanel({ token, drivers, rosterUrl, fromFile, done }: { to
         <ul className="divide-y divide-sand rounded-lg border border-sand text-sm">
           {drivers.slice(0, 8).map((d) => (
             <li key={d.id} className="flex items-center gap-3 px-3 py-2">
-              <span className="min-w-0 flex-1 truncate">{d.name}</span>
-              <span className="text-warm-gray">{d.license ?? "No license number yet"}</span>
-              <span className={d.confirmed ? "text-success" : "text-amber-dark"}>{d.confirmed ? "Confirmed ✓" : "Not checked"}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-navy">{d.name}</span>
+                <span className="block text-xs text-warm-gray">{d.license ?? "No license number yet"}</span>
+              </span>
+              <span className={`shrink-0 ${d.confirmed ? "text-success" : "text-amber-dark"}`}>{d.confirmed ? "Confirmed ✓" : "Not checked"}</span>
             </li>
           ))}
           {drivers.length > 8 ? <li className="px-3 py-2 text-warm-gray">and {drivers.length - 8} more</li> : null}
@@ -206,11 +208,13 @@ export function TrucksPanel({ token, trucks, note, fromFile, confirmed, onSaved 
           {trucks.map((t) => {
             const off = remove.includes(t.id);
             return (
-              <li key={t.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 ${off ? "bg-cream text-warm-gray line-through" : ""}`}>
-                <span className="font-semibold">{t.unit ? `Unit ${t.unit}` : "No unit number"}</span>
-                <span className="min-w-0 flex-1">{[t.year, t.make, t.model].filter(Boolean).join(" ") || "Year and make not on file"}{t.vin ? ` · VIN …${t.vin.slice(-6)}` : ""}{t.plate ? ` · ${t.plateState ?? ""} ${t.plate}` : ""}</span>
-                <button type="button" className="text-sm font-semibold text-amber-dark underline"
-                  onClick={() => setRemove(off ? remove.filter((id) => id !== t.id) : [...remove, t.id])}>{off ? "Keep" : "We no longer run this"}</button>
+              <li key={t.id} className={`px-3 py-2 ${off ? "bg-cream text-warm-gray line-through" : ""}`}>
+                <div className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 truncate font-semibold">{t.unit ? `Unit ${t.unit}` : "No unit number"}</span>
+                  <button type="button" className="shrink-0 text-sm font-semibold text-amber-dark underline"
+                    onClick={() => setRemove(off ? remove.filter((id) => id !== t.id) : [...remove, t.id])}>{off ? "Keep" : "We no longer run this"}</button>
+                </div>
+                <p className="text-xs text-warm-gray">{[[t.year, t.make, t.model].filter(Boolean).join(" ") || "Year and make not on file", t.vin ? `VIN …${t.vin.slice(-6)}` : null, t.plate ? `${t.plateState ?? ""} ${t.plate}`.trim() : null].filter(Boolean).join(" · ")}</p>
               </li>
             );
           })}
