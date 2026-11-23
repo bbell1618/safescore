@@ -47,14 +47,14 @@ const TIER_KEYS = PLAN_TIERS.map((t) => t.tier) as readonly string[];
 const BASE_PRICE: Record<string, number> = { monitor: 199, remediate: 599, total_safety: 999 };
 const PER_DRIVER = 29;
 
-function monthly(tier: string, drivers: number | null): string {
+export function monthly(tier: string, drivers: number | null): string {
   const base = BASE_PRICE[tier] ?? 0;
   if (tier !== "total_safety") return `$${base.toLocaleString("en-US")} / month`;
   if (!drivers) return `$${base} / month + $${PER_DRIVER} per driver`;
   return `$${(base + PER_DRIVER * drivers).toLocaleString("en-US")} / month ($${base} + ${drivers} drivers x $${PER_DRIVER})`;
 }
 
-async function post(url: string, body: unknown) {
+export async function post(url: string, body: unknown) {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
@@ -104,7 +104,7 @@ export function PlanActions(props: Props) {
   return (
     <section id="needs" className="space-y-4">
       <div className="px-1">
-        <h2 className="font-heading text-2xl text-navy">Start in 4 short steps</h2>
+        <h2 className="font-heading text-2xl text-navy">Finish sign-up in 4 short steps</h2>
         <p className="mt-1 text-sm text-warm-mid">{done} of 4 done. About 5 minutes in all. Your progress saves.</p>
         <div className="mt-3 flex gap-1.5" aria-hidden>
           {[1, 2, 3, 4].map((n) => <span key={n} className={`h-2 flex-1 rounded-full ${n <= done ? "bg-success" : n === current ? "bg-amber" : "bg-sand"}`} />)}
@@ -138,20 +138,20 @@ export function PlanActions(props: Props) {
       )}
 
       <article className="rounded-2xl border border-sand bg-cream p-6">
-        <h3 className="font-heading text-xl text-navy">After you start</h3>
-        <p className="mt-1 text-sm text-warm-mid">Nothing below is needed to sign up. We will ask for these once your service has started:</p>
+        <h3 className="font-heading text-xl text-navy">What opens when you have paid</h3>
         <ul className="mt-3 space-y-2 text-sm leading-6">
-          <li>· Your driver list{props.rosterDriverCount > 0 ? ` (we already have ${props.rosterDriverCount} on file${c.fromClientFile ? " from your insurance file" : ""}, so you only check it)` : ""}</li>
-          <li>· Read-only access to your ELD</li>
-          <li>· A few questions about how you run: distance, states, truck types</li>
+          <li>· Your safety plan: where your record stands and what to fix first</li>
+          <li>· A short to-do list of what we need from you: your driver list{props.rosterDriverCount > 0 ? ` (we already have ${props.rosterDriverCount} on file${c.fromClientFile ? " from your insurance file" : ""}, so you only check it)` : ""}, your truck list, ELD access, FMCSA access and a few documents</li>
+          <li>· Your reports, your documents and your account settings</li>
         </ul>
+        <p className="mt-3 text-sm text-warm-mid">None of that is needed to sign up.</p>
       </article>
       {props.groups.map((group) => <RequestGroupCard key={group.key} token={props.token} group={group} />)}
     </section>
   );
 }
 
-function Card({ title, done, step, children }: { title: string; done?: boolean; step?: number; children: React.ReactNode }) {
+export function Card({ title, done, step, children }: { title: string; done?: boolean; step?: number; children: React.ReactNode }) {
   return (
     <article className={`rounded-2xl border bg-warm-white p-6 shadow-sm ${done ? "border-success/40" : step ? "border-2 border-amber/40" : "border-sand"}`}>
       <div className="flex items-center gap-3">
@@ -177,11 +177,11 @@ function Locked({ step, title, after }: { step: number; title: string; after: nu
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="text-sm"><span className="mb-1 block text-warm-gray">{label}</span>{children}</label>;
 }
 
-const INPUT = "w-full rounded-lg border border-sand px-3 py-3 text-base";
+export const INPUT = "w-full rounded-lg border border-sand px-3 py-3 text-base";
 
 function DetailsCard({ token, client, onSaved }: { token: string; client: Props["client"]; onSaved: () => void }) {
   const router = useRouter();
@@ -266,7 +266,7 @@ function PayCard({ token, tier, tierName, drivers }: { token: string; tier: stri
   );
 }
 
-function OperationCard({ token, client }: { token: string; client: Props["client"] }) {
+export function OperationCard({ token, client }: { token: string; client: Pick<Props["client"], "operatingRadius" | "operatingStates" | "vehicleTypes"> }) {
   const router = useRouter();
   const [radius, setRadius] = useState(client.operatingRadius ?? "");
   const [states, setStates] = useState<string[]>(client.operatingStates);
@@ -311,7 +311,7 @@ function OperationCard({ token, client }: { token: string; client: Props["client
   );
 }
 
-function Button({ children, secondary, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { secondary?: boolean }) {
+export function Button({ children, secondary, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { secondary?: boolean }) {
   return (
     <button type="button" {...props}
       className={`min-h-12 w-full rounded-xl px-5 py-3 text-base font-semibold disabled:opacity-50 sm:w-auto ${secondary ? "border border-sand bg-white text-navy" : "bg-amber text-white hover:bg-amber-dark"}`}>
@@ -320,7 +320,7 @@ function Button({ children, secondary, ...props }: React.ButtonHTMLAttributes<HT
   );
 }
 
-function ErrorText({ text }: { text: string | null }) {
+export function ErrorText({ text }: { text: string | null }) {
   return text ? <p role="alert" className="rounded-lg bg-error-light px-3 py-2 text-sm text-error">{text}</p> : null;
 }
 
@@ -386,7 +386,7 @@ function DriversCard({ token, rosterUrl, count, fromFile }: { token: string; ros
   );
 }
 
-function EldCard({ token, provider, connected }: { token: string; provider: string | null; connected: boolean }) {
+export function EldCard({ token, provider, connected }: { token: string; provider: string | null; connected: boolean }) {
   const router = useRouter();
   const [name, setName] = useState(provider ?? "");
   const [busy, setBusy] = useState(false);
@@ -422,7 +422,7 @@ function EldCard({ token, provider, connected }: { token: string; provider: stri
   );
 }
 
-type RequestView = Props["groups"][number]["requests"][number];
+export type RequestView = Props["groups"][number]["requests"][number];
 
 function RequestGroupCard({ token, group }: { token: string; group: Props["groups"][number] }) {
   const many = group.requests.length > 1;
@@ -441,7 +441,7 @@ function RequestGroupCard({ token, group }: { token: string; group: Props["group
   );
 }
 
-function RequestRow({ token, request }: { token: string; request: RequestView }) {
+export function RequestRow({ token, request }: { token: string; request: RequestView }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

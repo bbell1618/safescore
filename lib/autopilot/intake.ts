@@ -11,6 +11,7 @@ import { generatePlanBundle, type PlanBundle } from "./plan";
 import { enqueueCard, serviceClient, supersedeCards } from "./queue";
 import { importFromClientFile } from "./client-file-import";
 import { reminderPreview } from "./onboarding-reminder-plan";
+import { accountLink } from "./account-invite";
 
 export const DAVEN_EMAIL = "davenloomba@goldenerainsurance.com";
 export const INFO_EMAIL = "info@goldenerainsurance.com";
@@ -103,20 +104,20 @@ export async function queueIntroCard(
   }
   // Practice copies never copy Daven or info@: the rehearsal mail goes only to Brandon.
   const cc = input.geiaClient && !input.practice ? `${DAVEN_EMAIL}, ${INFO_EMAIL}` : null;
-  const bodyHtml = renderAutopilotEmail({
-    bodyText: input.bundle.intro.bodyText,
-    cta: { label: "Open your safety plan", href: planUrl(input.planToken) },
-  });
+  // QF-221: the first click makes an account. The plan is shown only after they have signed up and paid.
+  const link = await accountLink(service, input.clientId, input.email);
+  const cta = { label: link.label, href: link.href, position: "top" };
+  const bodyHtml = renderAutopilotEmail({ bodyText: input.bundle.intro.bodyText, cta });
   return enqueueCard({
     clientId: input.clientId,
     kind: "email",
     template: "autopilot_intro",
-    title: `${input.practice ? "PRACTICE: " : ""}Send ${input.company} their safety plan`,
+    title: `${input.practice ? "PRACTICE: " : ""}Invite ${input.company} to set up their account`,
     why: (input.geiaClient && input.practice
       ? "First contact, practice copy. On the real carrier Daven and info@ would be copied; this copy goes only to you."
       : input.geiaClient
       ? "First contact. This carrier is a GEIA insured, so Daven and info@ are CC'd to show the request comes from him."
-      : "First contact. The plan page is how the carrier signs up, sends what we need, and sees what to fix.")
+      : "First contact. The button makes their account; they sign and pay there, then send what we need and see their plan.")
       + (reminders ? " Approving this also approves up to 3 short reminders (days 2, 5 and 9) if the carrier goes quiet." : " Reminders are switched off for this carrier."),
     toAddress: input.email,
     cc,
@@ -125,7 +126,7 @@ export async function queueIntroCard(
     bodyHtml,
     editable: true,
     payload: {
-      cta: { label: "Open your safety plan", href: planUrl(input.planToken) },
+      cta,
       onApprove: [{ type: "publish_plan", planId: input.planId }],
       planId: input.planId,
       usedFallback: input.bundle.usedFallback,

@@ -1,6 +1,6 @@
 import { ownerCopy as portalCopy } from "@/components/portal/owner-copy";
-import { NeededFromYouSection } from "@/components/portal/needed-from-you";
-import { loadPortalRequests } from "@/lib/portal/requests-server";
+import { SetupChecklist } from "@/components/portal/setup-checklist";
+import { loadSetupChecklist } from "@/lib/autopilot/setup-checklist";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -418,7 +418,8 @@ export default async function PortalHomePage() {
         snapshotPromise,
       })
     : null;
-  const requestsPromise = loadPortalRequests(context.supabase, context.clientId, tierHasFeature(context.tier, "compliance_layer"), tierHasFeature(context.tier, "evidence_requests"), true);
+  // QF-221: the first thing on the home page is what we still need from the carrier.
+  const setup = await loadSetupChecklist(context.clientId);
   const authorityPromise = loadPortalHomeAuthority(context.clientId);
 
   const snapshots = await snapshotPromise;
@@ -446,6 +447,19 @@ export default async function PortalHomePage() {
 
   return (
     <div>
+      {setup ? (
+        <div className="mx-auto w-full max-w-3xl space-y-4 px-4 pb-8 pt-6 sm:pt-8">
+          <SetupChecklist data={setup} />
+          <Link href="/portal/safety-plan" className="flex items-center gap-4 rounded-2xl border border-sand bg-warm-white p-5 shadow-sm hover:border-amber/50">
+            <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-navy font-heading text-sm font-bold text-gold-light">SP</span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-heading text-xl text-navy">Your safety plan</span>
+              <span className="block text-sm text-warm-mid">Where your record stands and what to fix first.</span>
+            </span>
+            <span className="text-sm font-semibold text-amber-dark underline">Open</span>
+          </Link>
+        </div>
+      ) : null}
       <section className="portal-navy-texture overflow-hidden text-warm-white shadow-[var(--shadow-md)]">
         <div className="mx-auto grid w-full max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
         <div className="min-w-0 p-5 sm:p-8 lg:p-10">
@@ -552,7 +566,6 @@ export default async function PortalHomePage() {
       </section>
       <PortalSectionDivider transition="navy-to-warm" />
       <PortalPageBody contentClassName="min-w-0 space-y-6 pt-6 sm:space-y-12 sm:pt-10">
-      <Suspense fallback={null}><NeededFromYouSection requestPromise={requestsPromise} requestFeatureLocked={false} hideWhenEmpty /></Suspense>
 
       <Suspense fallback={<SectionFallback label="Safety categories" />}>
         <BasicPressureSection

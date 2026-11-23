@@ -59,6 +59,21 @@ export async function POST(
         "ROSTER_SUBMIT_FAILED"
       );
     }
+    // QF-221: submitting the list is the carrier confirming every driver on it.
+    const { error: confirmError } = await resolved.service
+      .from("drivers")
+      .update({ carrier_confirmed_at: submittedAt })
+      .eq("client_id", resolved.request.clientId)
+      .eq("request_id", resolved.request.id)
+      .eq("source", "client_portal");
+    if (confirmError) {
+      throw new RosterRouteFailure(
+        `The driver list was submitted, but the drivers could not be marked confirmed: ${confirmError.message}`,
+        500,
+        "ROSTER_CONFIRM_FAILED"
+      );
+    }
+    await resolved.service.from("clients").update({ driver_count: driverCount }).eq("id", resolved.request.clientId);
     const { error: activityError } = await resolved.service
       .from("activity_log")
       .insert({

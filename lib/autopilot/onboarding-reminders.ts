@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderAutopilotEmail } from "@/lib/email/client";
-import { planUrl } from "./intake";
+import { accountLink, carrierHasAccount } from "./account-invite";
 import { serviceClient } from "./queue";
 import { REMINDER_NOTE, REMINDER_TEMPLATE, planReminder, reminderEmail } from "./onboarding-reminder-plan";
 
@@ -45,11 +45,12 @@ export async function runOnboardingReminders(options: { now?: Date; dryRun?: boo
       service.from("subscriptions").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "active"),
     ]);
     const to = (invite?.to_address as string | null) ?? client.email;
+    const hasAccount = await carrierHasAccount(service, client.id);
     const decision = planReminder({
       inviteSentAt: (invite?.sent_at as string | null) ?? null,
       remindersSent: sent?.length ?? 0,
       lastReminderAt: (sent?.[0]?.created_at as string | undefined) ?? null,
-      opened: Boolean(client.plan_first_viewed_at),
+      opened: hasAccount,
       signed: Boolean(client.service_agreement_accepted),
       paid: Boolean(paid),
       enabled: client.onboarding_reminders !== false,
@@ -65,7 +66,9 @@ export async function runOnboardingReminders(options: { now?: Date; dryRun?: boo
     if (options.dryRun) continue;
 
     const email = reminderEmail(decision.stage, decision.number, { company: client.name, contactName: client.primary_contact });
-    const cta = { label: "Open your safety plan", href: planUrl(client.plan_token) };
+    // QF-221: the button goes to account setup, or to sign-in once the account exists. Button first.
+    const link = await accountLink(service, client.id, to);
+    const cta = { label: link.label, href: link.href, position: "top" };
     const stamp = now.toISOString();
     const { error: insertError } = await service.from("outbound_queue").insert({
       client_id: client.id,

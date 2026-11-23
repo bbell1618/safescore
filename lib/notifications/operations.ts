@@ -78,7 +78,10 @@ export async function notifyOperations(
       }`
     );
   }
-  if (!delivery.success) {
+  // QF-221: operations notices by email are switched off on purpose (the work shows up in the
+  // agency's own system instead). A switched-off notice is logged above and is not a failure;
+  // any other delivery problem still is.
+  if (!delivery.success && !/disabled unless EMAIL_DRY_RUN/i.test(delivery.error ?? "")) {
     throw new Error(
       `Operations notification failed: ${
         delivery.error ?? "unknown delivery failure"

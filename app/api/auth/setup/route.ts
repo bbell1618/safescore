@@ -1,5 +1,4 @@
 import { authRole, createClient } from "@/lib/supabase/schema-client";
-import { sendWelcomeEmail } from "@/lib/email/client";
 import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
 import { NextResponse } from "next/server";
@@ -155,6 +154,18 @@ export async function POST(request: Request) {
     let authUserId: string;
 
     if (existingAuthUser) {
+      // QF-221: the agency's own staff logins live in the same sign-in system. Taking one over for a
+      // carrier account would reset that person's password and lock them out of their other tools.
+      if ((existingAuthUser.role ?? "authenticated") !== (authRole() ?? "authenticated")) {
+        return NextResponse.json(
+          {
+            error:
+              "This email already has a Golden Era staff login, so it cannot also be a carrier account. Ask your Golden Era contact to send the invite to a different email address.",
+            code: "STAFF_LOGIN_EMAIL",
+          },
+          { status: 409 }
+        );
+      }
       const { data: existingProfile, error: profileError } = await supabase
         .from("users")
         .select("role, client_id")
@@ -251,16 +262,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Send welcome email — non-fatal if it fails
-    const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal`;
-    await sendWelcomeEmail({
-      to: invite.email,
-      companyName: clientRecord.name,
-      dotNumber: clientRecord.dot_number,
-      userFullName: fullName || undefined,
-      portalUrl,
-    });
-
+    // QF-221: no automatic welcome email. Every message to a carrier is one Brandon approved
+    // (the invite and its reminders). The page they land on already tells them how to sign back in.
     return NextResponse.json({
       success: true,
       email: invite.email,

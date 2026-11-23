@@ -48,12 +48,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
     const lineItems: Stripe.Checkout.SessionCreateParams["line_items"] = [{ price: price(PRICE_ENV[tier]), quantity: 1 }];
     if (tier === "total_safety") lineItems.push({ price: price("STRIPE_PRICE_DRIVER_ADDON"), quantity: driverCount });
-    const back = `${appUrl()}/plan/${(await params).token}`;
+    // QF-221: sign-up happens inside the carrier's account, so payment returns there.
+    const back = `${appUrl()}/onboarding`;
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: lineItems,
       success_url: `${back}?started=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${back}#start`,
+      cancel_url: `${back}`,
       customer_email: client.email ?? undefined,
       metadata: { client_id: client.id, tier, source: "plan_link" },
       subscription_data: { metadata: { client_id: client.id, tier } },

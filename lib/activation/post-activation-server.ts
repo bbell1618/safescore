@@ -330,7 +330,9 @@ export async function runPostActivationInitialization(
       tierLabel: tierDisplayLabel(input.tier),
       portalUrl: `${baseUrl}/portal`,
     });
-    if (!clientEmailDelivery.success) {
+    // QF-221: this notice is switched off on purpose (the carrier is already signed in to their
+    // account when they pay). A switched-off notice must not mark the activation as failed.
+    if (!clientEmailDelivery.success && !/disabled unless EMAIL_DRY_RUN/i.test(clientEmailDelivery.error ?? "")) {
       throw new Error(
         `Client SafeScore-live notification failed: ${
           clientEmailDelivery.error ?? "unknown delivery failure"
@@ -403,7 +405,7 @@ export async function runPostActivationInitialization(
         entity_type: "clients",
         entity_id: client.id,
         description:
-          "Client activation completed with first analysis and dry-run notifications",
+          "Client activation completed with first analysis",
         metadata: completionMetadata,
       },
       "Unable to log activation initialization success"

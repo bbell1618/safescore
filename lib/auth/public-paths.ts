@@ -13,8 +13,8 @@ export function isPublicPlanPagePath(path: string): boolean {
 /** The carrier's no-password plan link actions. Each route validates the token itself. */
 export function isPublicPlanApiPath(path: string): boolean {
   return (
-    /^\/api\/plan\/[^/]+\/(sign|eld|roster|checkout|profile)$/.test(path) ||
-    /^\/api\/plan\/[^/]+\/requests\/[^/]+\/(upload|answer)$/.test(path)
+    /^\/api\/plan\/[^/]+\/(sign|eld|roster|checkout|profile|trucks|setup)$/.test(path) ||
+    /^\/api\/plan\/[^/]+\/requests\/[^/]+\/(upload|answer|skip)$/.test(path)
   );
 }
 

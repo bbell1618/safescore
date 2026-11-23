@@ -2,11 +2,24 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { goldenDeskClient } from "./contacts";
 import { serviceClient } from "./queue";
+import { ensureIntakePack, stageClientFileDrivers } from "./setup-checklist";
 
 /**
  * QF-215: the hand-off. When a carrier has signed and paid, Brandon gets ONE task that says what is
  * still missing before the case can be worked, so he never has to go looking for who finished.
  */
+
+/**
+ * QF-221 (Brandon, 11/23/2026): a task SafeScore puts on his list to work a carrier's file is
+ * Urgent and due the day it is made. A weekend moves to Monday (no weekend due dates).
+ */
+export function dueTodayPacific(now: Date = new Date()): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(now).map((p) => [p.type, p.value]));
+  const day = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  if (parts.weekday === "Sat") day.setUTCDate(day.getUTCDate() + 2);
+  if (parts.weekday === "Sun") day.setUTCDate(day.getUTCDate() + 1);
+  return day.toISOString().slice(0, 10);
+}
 
 const SAFESCORE_PROJECT = { type: "project", id: "e642d966-a374-4317-8b10-6c9a003ffb67", name: "Golden Era SafeScore" };
 const TIER_NAME: Record<string, string> = { monitor: "Monitor", remediate: "Remediate", total_safety: "Total Safety" };
@@ -14,12 +27,13 @@ const TIER_NAME: Record<string, string> = { monitor: "Monitor", remediate: "Reme
 type ActiveClient = {
   id: string; name: string; dot_number: string | null; tier: string | null; is_practice: boolean | null;
   eld_provider: string | null; operating_radius: string | null; fmcsa_pin: string | null; filing_authorized_at: string | null;
+  fmcsa_portal_access_at: string | null; trucks_confirmed_at: string | null; intake_pack_at: string | null;
 };
 
 export async function createHandoffTasks(service: SupabaseClient = serviceClient(), limit = 3) {
   const { data: clients, error } = await service
     .from("clients")
-    .select("id, name, dot_number, tier, is_practice, eld_provider, operating_radius, fmcsa_pin, filing_authorized_at")
+    .select("id, name, dot_number, tier, is_practice, eld_provider, operating_radius, fmcsa_pin, filing_authorized_at, fmcsa_portal_access_at, trucks_confirmed_at, intake_pack_at")
     .eq("status", "active")
     .is("handoff_task_id", null)
     .limit(limit);
@@ -30,21 +44,27 @@ export async function createHandoffTasks(service: SupabaseClient = serviceClient
 
   const created: Array<{ client: string; taskId: string }> = [];
   for (const client of clients as ActiveClient[]) {
-    const [drivers, vehicles, eld, requests, challengeable, plan] = await Promise.all([
+    // QF-221: create the document asks first, so the task counts them.
+    await ensureIntakePack(service, { id: client.id, tier: client.tier, status: "active", intake_pack_at: client.intake_pack_at }).catch(() => undefined);
+    await stageClientFileDrivers(service, client.id).catch(() => undefined);
+    const [drivers, vehicles, eld, requests, challengeable, plan, confirmedDrivers] = await Promise.all([
       service.from("drivers").select("id", { count: "exact", head: true }).eq("client_id", client.id),
       service.from("vehicles").select("id", { count: "exact", head: true }).eq("client_id", client.id),
       service.from("activity_log").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("action_type", "plan_eld_access_confirmed"),
       service.from("client_requests").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "open").eq("responsibility", "client"),
       service.from("violations").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("challengeable", true),
       service.from("safety_plans").select("facts").eq("client_id", client.id).order("version", { ascending: false }).limit(1).maybeSingle(),
+      service.from("drivers").select("id", { count: "exact", head: true }).eq("client_id", client.id).not("carrier_confirmed_at", "is", null),
     ]);
     const crashCandidates = Number((plan.data?.facts as { crashReviewCandidates?: number } | null)?.crashReviewCandidates ?? 0);
 
     const missing: string[] = [];
     if (!drivers.count) missing.push("Driver list: none on file. The carrier has not added drivers yet.");
+    else if (!confirmedDrivers.count) missing.push(`Driver list: ${drivers.count} on file, not confirmed by the carrier yet.`);
     if (!(client.eld_provider && eld.count)) missing.push("ELD access: the carrier has not added our user to their ELD.");
     if (!client.operating_radius) missing.push("How they run: distance, states and truck types not answered yet.");
-    if (!client.fmcsa_pin) missing.push("FMCSA portal access: not set up. Needed to see their private scores and to file for them.");
+    if (!client.trucks_confirmed_at) missing.push("Truck list: the carrier has not confirmed it yet.");
+    if (!client.fmcsa_portal_access_at && !client.fmcsa_pin) missing.push("FMCSA portal access: not set up. Needed to see their private scores and to file for them.");
     if (requests.count) missing.push(`${requests.count} open item${requests.count === 1 ? "" : "s"} the carrier still owes us (see Requests and documents).`);
 
     const ready: string[] = [
@@ -64,14 +84,15 @@ export async function createHandoffTasks(service: SupabaseClient = serviceClient
       "READY TO WORK",
       ...ready.map((r) => `- ${r}`),
       "",
-      "Open the carrier in SafeScore. The Onboarding section at the top shows each step and its date.",
+      "The carrier's account home shows them this same list until it is done. Open the carrier in SafeScore to see each item and its date.",
     ].join("\n");
 
     const { data: task, error: taskError } = await gd.from("tasks").insert({
       title: `${label}${client.name} signed and paid: review the file and start work`,
       description,
       status: "To Do",
-      priority: "Medium",
+      priority: "Urgent",
+      due_date: dueTodayPacific(),
       assigned_to: "Brandon",
       category: "Onboarding",
       project_id: SAFESCORE_PROJECT.id,

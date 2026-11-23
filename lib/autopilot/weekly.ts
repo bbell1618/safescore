@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { renderAutopilotEmail } from "@/lib/email/client";
 import { buildCarrierFacts, type CarrierFacts } from "./facts";
-import { DAVEN_EMAIL, INFO_EMAIL, planUrl } from "./intake";
+import { DAVEN_EMAIL, INFO_EMAIL } from "./intake";
+import { appBase } from "./account-invite";
 import { findUnsupportedNumbers, PLAN_MODEL, type SafetyPlanContent } from "./plan";
 import { enqueueCard, serviceClient } from "./queue";
 
@@ -78,9 +79,9 @@ async function loadCarrierWeek(service: SupabaseClient, client: WeeklyClient): P
   const latest = snaps.at(-1) ?? null;
   const weekAgo = [...snaps].reverse().find((s) => new Date(s.captured_at).getTime() <= now - 6 * DAY) ?? null;
   const openAsks: string[] = [];
-  if (!client.service_agreement_accepted || !client.filing_authorized) openAsks.push("Sign the one-page authorization on your plan page");
-  if ((drivers.count ?? 0) === 0) openAsks.push("Add your driver list on your plan page");
-  if (!client.eld_provider) openAsks.push("Give us read-only access to your ELD (steps are on your plan page)");
+  if (!client.service_agreement_accepted || !client.filing_authorized) openAsks.push("Sign the one-page authorization in your account");
+  if ((drivers.count ?? 0) === 0) openAsks.push("Check your driver list in your account");
+  if (!client.eld_provider) openAsks.push("Give us read-only access to your ELD (steps are in your account)");
   for (const r of requests.data ?? []) if (r.request_type !== "roster_collection") openAsks.push(r.title as string);
   return {
     client,
@@ -130,7 +131,7 @@ function deterministicWeeklyEmail(week: CarrierWeek): { subject: string; body: s
   const fix = focusFix(week);
   if (fix) lines.push(`This week, focus on ${fix.title.toLowerCase()}:\n${fix.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`);
   if (week.openAsks.length) lines.push(`We still need from you:\n${week.openAsks.slice(0, 4).map((a) => `- ${a}`).join("\n")}`);
-  lines.push("Everything is on your plan page. Reply to this email with any question.");
+  lines.push("Everything is in your SafeScore account. Reply to this email with any question.");
   return { subject: `${week.client.name}: your safety update this week`, body: lines.join("\n\n") };
 }
 
@@ -280,7 +281,7 @@ export async function runWeeklyAutopilot(options: { onlyClientId?: string; now?:
       }
       const fallback = deterministicWeeklyEmail(week);
       const email = await aiWeeklyEmail(week, fallback);
-      const cta = { label: "Open your safety plan", href: planUrl(client.plan_token) };
+      const cta = { label: "Open your account", href: `${appBase()}/portal` };
       // Last week's unapproved check-in is stale once this one exists.
       await service
         .from("outbound_queue")
@@ -350,8 +351,8 @@ export async function queueReportCards(): Promise<number> {
     if ((done.count ?? 0) > 0) continue;
     const client = (Array.isArray(report.clients) ? report.clients[0] : report.clients) as { name: string; email: string | null; plan_token: string } | null;
     if (!client?.email) continue;
-    const body = `Hello,\n\nYour ${String(report.type)} safety report for ${client.name} is ready. Open your plan page to read it.\n\nReply to this email with any question.`;
-    const cta = { label: "Open your safety plan", href: planUrl(client.plan_token) };
+    const body = `Hello,\n\nYour ${String(report.type)} safety report for ${client.name} is ready. Sign in to your account to read it.\n\nReply to this email with any question.`;
+    const cta = { label: "Open your account", href: `${appBase()}/portal` };
     await enqueueCard({
       clientId: report.client_id as string,
       kind: "report_send",

@@ -426,6 +426,9 @@ export function RosterWizard({ token }: { token: string }) {
           >
             Add or correct a driver
           </button>
+          <a href="/portal" className="btn-primary mt-3 inline-flex min-h-12 w-full items-center justify-center sm:ml-3 sm:w-auto">
+            Back to your account
+          </a>
           <p className="mt-3 text-xs leading-5 text-warm-gray">
             This link stays editable until your Golden Era SafeScore team closes the request.
           </p>

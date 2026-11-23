@@ -793,7 +793,7 @@ function paragraphsToHtml(text: string): string {
  */
 export function renderAutopilotEmail(input: {
   bodyText: string;
-  cta?: { label: string; href: string } | null;
+  cta?: { label: string; href: string; position?: string } | null;
   fromIdentity?: string | null;
 }): string {
   const sunny = (input.fromIdentity ?? "sunny") === "sunny";
@@ -803,5 +803,13 @@ export function renderAutopilotEmail(input: {
   const signature = sunny
     ? `<p style="margin-top:24px;color:#5C554E;font-size:13px;">${SUNNY_SIGNATURE_TEXT.split("\n").map(escapeHtml).join("<br />")}</p>`
     : "";
+  // QF-221: an account email leads with the button, so a reader who reads nothing else still knows what to do.
+  // The greeting and the one line of why stay above it.
+  if (input.cta?.position === "top") {
+    const parts = input.bodyText.split(/\n\s*\n/);
+    const lead = parts.slice(0, 2).join("\n\n");
+    const rest = parts.slice(2).join("\n\n");
+    return emailWrapper(`${paragraphsToHtml(lead)}${cta}${rest ? paragraphsToHtml(rest) : ""}${signature}`);
+  }
   return emailWrapper(`${paragraphsToHtml(input.bodyText)}${cta}${signature}`);
 }

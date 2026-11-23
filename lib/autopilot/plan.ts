@@ -113,23 +113,23 @@ function fallbackFix(f: FamilyFact): PlanFix {
   };
 }
 
+/**
+ * QF-221: the invite is written in code, not by the model. Its one job is to get the account made,
+ * so it leads with the button and does not give the plan away (the plan opens after they pay).
+ */
 function fallbackIntro(facts: CarrierFacts, ctx: IntroContext): OutreachDraft {
   const greeting = ctx.contactName ? `Hi ${ctx.contactName.split(" ")[0]},` : "Hello,";
   const intro = ctx.introducedBy
-    ? `I am Sunny, the AI assistant at Golden Era Insurance Agency. ${ctx.introducedBy} asked us to help ${facts.company} lower its DOT safety scores.`
-    : `I am Sunny, the AI assistant at Golden Era Insurance Agency. We looked at the public DOT safety record for ${facts.company}.`;
-  const top = facts.families.slice(0, 3).map((f, i) => `${i + 1}. ${f.name}`).join("\n");
+    ? `I am Sunny, the AI assistant at Golden Era Insurance Agency. ${ctx.introducedBy} asked us to help ${facts.company} lower its DOT safety scores. The first step is to set up your SafeScore account with the button below.`
+    : `I am Sunny, the AI assistant at Golden Era Insurance Agency. We help trucking companies lower their DOT safety scores, and we looked at the public record for ${facts.company}. The first step is to set up your SafeScore account with the button below.`;
   const body = [
     greeting,
     intro,
-    "Here is what we found:",
-    standingLines(facts).map((l) => `- ${l}`).join("\n"),
-    facts.families.length ? `The 3 things to fix first:\n${top}` : "Your record is clean. We will help you keep it that way.",
-    "We made a simple plan for you. It shows what to do this week, step by step. Open it with the button below. No password needed.",
-    "Starting takes 4 short steps on the plan page, about 5 minutes: confirm your details, choose your service, sign, and pay. After you start, we will ask for a few more things, like read-only access to your ELD.",
+    "It takes about 5 minutes:\n1. Create a password\n2. Confirm your details and choose your service\n3. Sign\n4. Pay",
+    "Once you are in, your account shows your safety plan, what to fix first, and a short list of what we need from you. You can sign back in any time to upload documents, check your drivers and trucks, and see your reports.",
     "Reply to this email with any question.",
   ].join("\n\n");
-  return { subject: `${facts.company}: your DOT safety plan`, bodyText: body };
+  return { subject: `${facts.company}: set up your SafeScore account`, bodyText: body };
 }
 
 export type IntroContext = {
@@ -185,7 +185,6 @@ function client(): OpenAI | null {
 type ModelOutput = {
   headline: string;
   fixes: Array<{ familyKey: string; title: string; why: string; steps: string[]; doneWhen: string }>;
-  email: { subject: string; body: string };
 };
 
 function validateModelOutput(output: ModelOutput, facts: CarrierFacts, familyKeys: string[]): string[] {
@@ -197,12 +196,9 @@ function validateModelOutput(output: ModelOutput, facts: CarrierFacts, familyKey
     if (!fix.title?.trim() || !fix.why?.trim() || !fix.doneWhen?.trim()) problems.push(`fix ${i + 1} incomplete`);
     if (!Array.isArray(fix.steps) || fix.steps.length < 2 || fix.steps.length > 4) problems.push(`fix ${i + 1} needs 2-4 steps`);
   });
-  if (!output?.email?.subject?.trim() || !output?.email?.body?.trim()) problems.push("email missing");
   const allText = JSON.stringify(output ?? {});
-  if (/\[[^\]]{1,60}\]/.test(output?.email?.body ?? "")) problems.push("placeholder brackets in email");
   const unsupported = findUnsupportedNumbers(allText, facts);
   if (unsupported.length) problems.push(`numbers not in the facts: ${unsupported.slice(0, 6).join(", ")}`);
-  if (/!/.test(output?.email?.body ?? "")) problems.push("no exclamation marks");
   return problems;
 }
 
@@ -235,7 +231,6 @@ export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext)
     introducedBy: ctx.introducedBy,
     standing,
     whatGeiaWillDo: base.weDo,
-    howToStart: ["Confirm your details", "Choose your service", "Sign", "Pay"],
     afterTheyStart: base.needs,
     topAreas: topFamilies.map((f) => ({
       familyKey: f.key,
@@ -253,10 +248,9 @@ export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext)
     "You write for Golden Era SafeScore, a DOT safety service run by an insurance agency.",
     SIMPLE_ENGLISH_RULES,
     "Return JSON only, with this shape:",
-    '{"headline": string, "fixes": [{"familyKey": string, "title": string, "why": string, "steps": [string], "doneWhen": string}], "email": {"subject": string, "body": string}}',
+    '{"headline": string, "fixes": [{"familyKey": string, "title": string, "why": string, "steps": [string], "doneWhen": string}]}',
     `fixes: exactly ${topFamilies.length}, in the same order as topAreas, familyKey copied exactly. Steps: 2 to 4 concrete actions for THIS WEEK, rewritten from approvedProgram in simple English (who does it, when). Do not add programs that are not in approvedProgram.`,
     "headline: one sentence, the single most important thing to fix.",
-    "email: from Sunny, the AI assistant at Golden Era Insurance Agency. Say plainly that Sunny is an AI assistant. If introducedBy is set, say that person asked us to help. Include 2-3 of the standing facts as '- ' bullet lines, list the 3 areas to fix first as numbered lines, say the plan link below needs no password, then say that starting takes 4 short steps on the plan page and about 5 minutes (use howToStart), say that after they start we will ask for a few more things like read-only ELD access, and invite a reply. Do not ask for documents or a driver list in this email. Under 170 words. Plain text, paragraphs separated by a blank line. Do not include a signature (it is added automatically). Do not include a link (a button is added automatically).",
   ].join("\n\n");
 
   let correction = "";
@@ -281,7 +275,7 @@ export async function generatePlanBundle(facts: CarrierFacts, ctx: IntroContext)
             fixes: output.fixes.map((f) => ({ ...f, steps: f.steps.map((s) => s.trim()) })),
             ...base,
           },
-          intro: { subject: output.email.subject.trim(), bodyText: output.email.body.trim() },
+          intro: fallback.intro,
           model: PLAN_MODEL,
           usedFallback: false,
         };

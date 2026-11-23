@@ -32,6 +32,11 @@ function SetupForm() {
     fetch(`/api/auth/setup?token=${encodeURIComponent(token)}`)
       .then(async (response) => {
         const data = await response.json();
+        if (response.status === 410 && data.error === "Invite already used") {
+          // The account already exists: the same email button now just takes them to sign-in.
+          window.location.replace("/login");
+          return new Promise<TokenInfo>(() => undefined);
+        }
         if (!response.ok) {
           throw new Error(data.error ?? "Unable to validate the setup link");
         }
@@ -199,7 +204,7 @@ function SetupForm() {
         disabled={loading || tokenLoading}
         className="w-full py-2.5 px-4 bg-[#C67A1E] text-white rounded-lg font-medium text-sm hover:bg-[#B86E18] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? "Setting up your account..." : "Create account"}
+        {loading ? "Setting up your account..." : "Create account and continue"}
       </button>
     </form>
   );
@@ -222,9 +227,10 @@ export default function SetupPage() {
               <p className="font-bold text-[#1E1C1A] leading-none">SafeScore</p>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-[#1E1C1A]">Set up your account</h1>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#A66418]">First step</p>
+          <h1 className="mt-1 text-2xl font-bold text-[#1E1C1A]">Create your account</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Create your password to access your safety dashboard
+            Make a password. You will use it with your email to sign back in any time: to upload documents, check your drivers and trucks, and see your reports.
           </p>
         </div>
 

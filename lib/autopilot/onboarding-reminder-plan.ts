@@ -60,29 +60,30 @@ export function firstName(contact: string | null | undefined): string | null {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
+// QF-221: the stage keys are kept (the invite card and its tests read them); their meaning is now
+// not_opened = no account yet, opened = account made but not signed, signed = signed but not paid.
 const STAGE_COPY: Record<ReminderStage, { subject: (company: string) => string; lines: (company: string) => string[] }> = {
   not_opened: {
-    subject: (company) => `Your safety plan is ready, ${company}`,
+    subject: (company) => `Set up your SafeScore account, ${company}`,
     lines: (company) => [
-      `This is Sunny, the AI assistant at Golden Era Insurance Agency. We built a safety plan for ${company} from your public DOT record.`,
-      "It shows where your record stands today and the first things to fix. Reading it is free and takes about 5 minutes.",
-      "Use the button below to open it. You do not need a password.",
+      `This is Sunny, the AI assistant at Golden Era Insurance Agency. Your SafeScore account for ${company} is waiting. Use the button below to set it up.`,
+      "It takes about 5 minutes: create a password, confirm your details, choose your service, sign, and pay.",
+      "Once you are in, your account shows your safety plan, what to fix first, and a short list of what we need from you.",
     ],
   },
   opened: {
-    subject: (company) => `Two short steps to start, ${company}`,
+    subject: (company) => `Finish your sign-up, ${company}`,
     lines: () => [
-      "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for opening your safety plan.",
-      "Two short steps start the work:\n1. Sign so we can work on your DOT record for you.\n2. Choose your service and pay.",
-      "Both are on your plan page and take about 5 minutes. Use the button below.",
+      "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for making your account. Use the button below to sign in and finish.",
+      "What is left:\n1. Confirm your details and choose your service.\n2. Sign so we can work on your DOT record for you.\n3. Pay.",
+      "It takes about 5 minutes. Then your safety plan opens and we start work.",
     ],
   },
   signed: {
     subject: (company) => `One step left, ${company}`,
     lines: () => [
-      "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for signing.",
-      "One step is left: choose your service and pay. Then we start work on your DOT record.",
-      "It is on your plan page. Use the button below.",
+      "This is Sunny, the AI assistant at Golden Era Insurance Agency. Thank you for signing. Use the button below to sign in and finish.",
+      "One step is left: pay. Then your safety plan opens and we start work on your DOT record.",
     ],
   },
 };
@@ -91,7 +92,7 @@ export function reminderEmail(stage: ReminderStage, number: number, ctx: { compa
   const name = firstName(ctx.contactName);
   const copy = STAGE_COPY[stage];
   const lines = [name ? `Hi ${name},` : "Hello,", ...copy.lines(ctx.company)];
-  if (number >= REMINDER_DAYS.length) lines.push("This is our last reminder. Your plan link keeps working whenever you are ready.");
+  if (number >= REMINDER_DAYS.length) lines.push("This is our last reminder. Your account link keeps working whenever you are ready.");
   lines.push("Questions? Reply to this email.");
   return { subject: copy.subject(ctx.company), body: lines.join("\n\n") };
 }
@@ -99,8 +100,8 @@ export function reminderEmail(stage: ReminderStage, number: number, ctx: { compa
 /** What the invite card shows so the approval covers the reminders too. */
 export function reminderPreview(ctx: { company: string; contactName: string | null }) {
   const when: Record<ReminderStage, string> = {
-    not_opened: "If they have not opened the plan",
-    opened: "If they opened it but have not signed",
+    not_opened: "If they have not made their account",
+    opened: "If they made the account but have not signed",
     signed: "If they signed but have not paid",
   };
   return {
