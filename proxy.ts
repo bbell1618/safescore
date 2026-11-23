@@ -11,6 +11,7 @@ import { isClientPostOnboardingLifecycle } from "@/lib/auth/access";
 import { isClientTier, isSubscriptionTier } from "@/lib/tiers";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/dev-preview")) return NextResponse.next({ request }); // LOCAL ONLY
   let supabaseResponse = NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

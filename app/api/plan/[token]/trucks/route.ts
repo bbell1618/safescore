@@ -72,7 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const note = cleanString(body.note, 600);
     const { count: active } = await service.from("vehicles").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "active");
     if (!active && !note) return NextResponse.json({ error: "Add at least one truck, or tell us in the note why there are none." }, { status: 400 });
-    const { count: trucks } = await service.from("vehicles").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "active").eq("unit_type", "truck");
+    const { count: trucks } = await service.from("vehicles").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "active").or("unit_type.is.null,unit_type.eq.truck");
     const { error } = await service.from("clients").update({ trucks_confirmed_at: now, trucks_note: note || null, fleet_size: trucks || null }).eq("id", client.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     await logPlanEvent(client.id, "carrier_truck_list_confirmed", `Carrier confirmed the truck list: ${active ?? 0} units (${adds.length} added, ${removed} no longer run)`, {

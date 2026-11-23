@@ -19,7 +19,12 @@ import { goldenDeskClient } from "./contacts";
 export type SyncResult = { skipped?: string; added: number; updated: number; former: number; linked: number };
 
 const empty = (): SyncResult => ({ added: 0, updated: 0, former: 0, linked: 0 });
-const nameKey = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+// Client files mark a missing first or last name ("No Given Name Rahuldeep Singh", "Swastik NLN");
+// those markers are ignored when matching names.
+const nameKey = (v: unknown) => String(v ?? "").toLowerCase()
+  .replace(/\bno (given|first|last) name\b/g, " ")
+  .replace(/\b(nln|nfn|lnu|fnu)\b/g, " ")
+  .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const vinKey = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const unitKey = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const blank = (v: unknown) => v === null || v === undefined || String(v).trim() === "";

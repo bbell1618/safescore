@@ -26,7 +26,7 @@ export async function importFromClientFile(service: SupabaseClient, clientId: st
   if (!haveDrivers) {
     const { data, error } = await gd
       .from("drivers")
-      .select("name, license_state, cdl_class, cdl_expires_at, cdl_expiration, dot_medical_expires_at, medical_card_expiration, hire_date")
+      .select("id, name, license_state, cdl_class, cdl_expires_at, cdl_expiration, dot_medical_expires_at, medical_card_expiration, hire_date")
       .eq("client_id", goldendeskClientId)
       .eq("held_status", "current")
       .is("deleted_at", null)
@@ -43,6 +43,7 @@ export async function importFromClientFile(service: SupabaseClient, clientId: st
         cdl_expiry: day(d.cdl_expires_at) ?? day(d.cdl_expiration),
         medical_cert_expiry: day(d.dot_medical_expires_at) ?? day(d.medical_card_expiration),
         hired_date: day(d.hire_date),
+        gd_driver_id: d.id as string, // QF-223: so the carrier's confirmed list updates the right row
         source: "operator",
         notes: note,
       }));
@@ -57,7 +58,7 @@ export async function importFromClientFile(service: SupabaseClient, clientId: st
   if (!haveVehicles) {
     const { data, error } = await gd
       .from("units")
-      .select("unit_number, vin, year, make, model, plate, plate_state, annual_inspection_date")
+      .select("id, type, unit_number, vin, year, make, model, plate, plate_state, annual_inspection_date")
       .eq("client_id", goldendeskClientId)
       .eq("held_status", "current")
       .is("deleted_at", null)
@@ -76,6 +77,8 @@ export async function importFromClientFile(service: SupabaseClient, clientId: st
         license_plate: text(u.plate, 20),
         plate_state: state(u.plate_state),
         annual_inspection_date: day(u.annual_inspection_date),
+        unit_type: u.type === "Trailer" ? "trailer" : "truck",
+        gd_unit_id: u.id as string,
       }));
     if (rows.length) {
       const { error: insertError } = await service.from("vehicles").insert(rows);
