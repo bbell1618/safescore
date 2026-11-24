@@ -7,6 +7,7 @@ import { serviceClient } from "@/lib/autopilot/queue";
 import { fmcsaDot } from "@/lib/fmcsa/practice";
 import { getTermsApproval } from "@/lib/legal/approval-server";
 import { getPortalClientPageContext } from "@/lib/portal/access";
+import { GeiaHeader } from "@/components/brand/geia-header";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -54,15 +55,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
 
   return (
     <main className="portal-brand-root portal-warm-texture min-h-screen text-warm-dark">
-      <header className="portal-navy-texture border-b border-gold/20 text-warm-white shadow-md">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/35 bg-warm-white/5 font-heading text-sm font-bold text-gold-light">SS</span>
-          <div className="min-w-0">
-            <p className="font-heading text-base font-semibold">Golden Era SafeScore</p>
-            <p className="truncate text-xs text-warm-white/70">{client.name} · DOT {fmcsaDot(client.dot_number)}</p>
-          </div>
-        </div>
-      </header>
+      <GeiaHeader subtitle={`${client.name} · DOT ${fmcsaDot(client.dot_number)}`} />
 
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
         {client.is_practice && (

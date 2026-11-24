@@ -172,12 +172,23 @@ export type SetupChecklist = {
   notes: { text: string | null; at: string | null };
   requests: SetupRequest[];
   progress: { done: number; total: number };
+  /** QF-227: what a Total Safety carrier is billed for (null for other plans or before payment). */
+  billing: { tier: string | null; active: boolean; billedDrivers: number | null };
+  /** QF-227: the read-only user address this carrier adds to their ELD (unique per carrier). */
+  eldLoginEmail: string;
 };
+
+/** QF-227: one address per carrier, so ELDs that allow a user on only one company still work. All land in Sunny's inbox. */
+export function eldLoginEmailFor(dot: string | number | null | undefined, stored?: string | null): string {
+  if (stored && stored.includes("@")) return stored;
+  const digits = String(dot ?? "").replace(/\D/g, "");
+  return digits ? `sunnykapoor+${digits}@goldenerainsurance.com` : "sunnykapoor@goldenerainsurance.com";
+}
 
 const CLIENT_COLUMNS =
   "id, name, tier, status, geia_client, plan_token, eld_provider, operating_radius, operating_states, vehicle_types, primary_contact, phone, email, " +
   "fmcsa_portal_access_at, fmcsa_portal_access_method, fmcsa_request_sent_at, safety_contact_name, safety_contact_email, safety_contact_phone, safety_contact_confirmed_at, " +
-  "trucks_confirmed_at, trucks_note, intake_pack_at, carrier_notes, carrier_notes_at";
+  "trucks_confirmed_at, trucks_note, intake_pack_at, carrier_notes, carrier_notes_at, billed_driver_count, dot_number, eld_login_email";
 
 function items(value: unknown): Array<{ key: string; label: string }> {
   if (!Array.isArray(value)) return [];
@@ -264,6 +275,8 @@ export async function loadSetupChecklist(clientId: string, service: SupabaseClie
     notes: { text: client.carrier_notes, at: client.carrier_notes_at },
     requests: requestList,
     progress: { done: 0, total: 0 },
+    billing: { tier: client.tier, active: client.status === "active", billedDrivers: client.billed_driver_count ?? null },
+    eldLoginEmail: eldLoginEmailFor(client.dot_number, client.eld_login_email),
   };
   const states = setupItemStates(result);
   result.progress = { done: states.filter((x) => x.done).length, total: states.length };

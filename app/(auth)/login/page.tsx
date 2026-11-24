@@ -3,6 +3,8 @@
 import { useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
+import { PasswordInput } from "@/components/auth/password-input";
+import { GeiaBadge } from "@/components/brand/geia-header";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -277,9 +279,8 @@ function LoginForm() {
                   Forgot password?
                 </button>
               </div>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 value={password}
@@ -355,20 +356,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#C67A1E] flex items-center justify-center">
-              <span className="text-white font-bold text-lg">
-                GE
-              </span>
-            </div>
-            <div className="text-left">
-              <p className="text-xs text-gray-500 uppercase tracking-widest leading-none">
-                Golden Era
-              </p>
-              <p className="font-bold text-[#1E1C1A] leading-none">
-                SafeScore
-              </p>
-            </div>
+          <div className="mb-4 flex flex-col items-center gap-2">
+            <GeiaBadge />
+            <p className="text-[15px] font-semibold text-[#1B2D4F]">Golden Era SafeScore</p>
           </div>
           <h1 className="text-2xl font-bold text-[#1E1C1A]">Sign in</h1>
           <p className="text-sm text-gray-500 mt-1">

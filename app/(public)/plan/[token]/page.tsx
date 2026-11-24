@@ -4,6 +4,7 @@ import { accountLink } from "@/lib/autopilot/account-invite";
 import { clientForPlanToken } from "@/lib/autopilot/plan-page-server";
 import { serviceClient } from "@/lib/autopilot/queue";
 import { fmcsaDot } from "@/lib/fmcsa/practice";
+import { GeiaBadge } from "@/components/brand/geia-header";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function PlanGatePage({ params }: { params: Promise<{ token
   return (
     <main className="portal-brand-root portal-warm-texture flex min-h-screen items-center justify-center p-6 text-warm-dark">
       <div className="w-full max-w-md rounded-2xl border border-sand bg-warm-white p-8 text-center shadow-sm">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-navy font-heading text-sm font-bold text-gold-light">SS</span>
+        <GeiaBadge />
         <p className="mt-4 font-mono text-xs uppercase tracking-widest text-amber-dark">Golden Era SafeScore</p>
         <h1 className="mt-1 font-heading text-2xl text-navy">{client.name}</h1>
         <p className="text-xs text-warm-gray">DOT {fmcsaDot(client.dot_number)}</p>

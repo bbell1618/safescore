@@ -3,6 +3,27 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SetupDriver, SetupTruck } from "@/lib/autopilot/setup-checklist";
+import { priceChange, type PriceChange } from "@/lib/billing/driver-pricing-math";
+
+// QF-227: license state is picked from a list you can type into (code or name).
+const STATES: Array<[string, string]> = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"], ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"], ["MS", "Mississippi"], ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"], ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"], ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
+  ["AB", "Alberta"], ["BC", "British Columbia"], ["MB", "Manitoba"], ["NB", "New Brunswick"], ["NL", "Newfoundland and Labrador"], ["NS", "Nova Scotia"], ["ON", "Ontario"], ["PE", "Prince Edward Island"], ["QC", "Quebec"], ["SK", "Saskatchewan"],
+];
+const STATE_CODES = new Set(STATES.map(([c]) => c));
+
+/** "ca", "Calif", "California" -> "CA"; anything unknown stays as typed so the person sees it. */
+function toStateCode(typed: string): string {
+  const t = typed.trim();
+  if (!t) return "";
+  const up = t.toUpperCase();
+  if (STATE_CODES.has(up)) return up;
+  const lower = t.toLowerCase();
+  const exact = STATES.find(([, n]) => n.toLowerCase() === lower);
+  if (exact) return exact[0];
+  const starts = STATES.filter(([, n]) => n.toLowerCase().startsWith(lower));
+  return starts.length === 1 ? starts[0][0] : t;
+}
 
 /**
  * QF-223: the carrier's driver list and truck list on one page each.
@@ -16,11 +37,40 @@ import type { SetupDriver, SetupTruck } from "@/lib/autopilot/setup-checklist";
 const CELL = "h-9 w-full min-w-0 rounded-md border border-sand bg-white px-2 text-sm text-navy placeholder:text-warm-gray focus:border-amber focus:outline-none focus:ring-2 focus:ring-amber/30 disabled:bg-transparent disabled:text-warm-gray";
 const HEAD = "hidden px-1 text-xs font-semibold uppercase tracking-wide text-warm-gray sm:block";
 
+class PriceNeeded extends Error { constructor(public change: PriceChange) { super("Please confirm your new monthly price."); } }
+
 async function save(url: string, body: unknown) {
   const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const data = (await response.json().catch(() => ({}))) as { error?: string };
+  const data = (await response.json().catch(() => ({}))) as { error?: string; priceChange?: PriceChange; billingNote?: string | null };
+  if (response.status === 409 && data.priceChange) throw new PriceNeeded(data.priceChange);
   if (!response.ok) throw new Error(data.error ?? "Could not save. Try again.");
   return data;
+}
+
+/** QF-227: the carrier agrees to the new monthly price before a different driver count is saved. */
+function PriceDialog({ change, busy, onAgree, onCancel }: { change: PriceChange; busy: boolean; onAgree: () => void; onCancel: () => void }) {
+  const money = (n: number) => `$${n.toLocaleString()}`;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0F1B2D]/50 p-4" role="presentation" onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="price-title" className="w-full max-w-md rounded-2xl bg-warm-white p-6 shadow-xl">
+        <h2 id="price-title" className="font-heading text-xl text-navy">Your monthly price changes</h2>
+        <p className="mt-2 text-sm text-warm-mid">Total Safety is $999 a month plus $29 per driver. Your list now has {change.to} driver{change.to === 1 ? "" : "s"} instead of {change.from}.</p>
+        <table className="mt-4 w-full text-sm">
+          <thead><tr className="text-left text-warm-gray"><th className="py-1 font-semibold"></th><th className="py-1 font-semibold">Before</th><th className="py-1 font-semibold">Now</th></tr></thead>
+          <tbody className="text-navy">
+            <tr className="border-t border-sand"><td className="py-2">Drivers</td><td>{change.from}</td><td className="font-semibold">{change.to}</td></tr>
+            <tr className="border-t border-sand"><td className="py-2">Monthly price</td><td>{money(change.fromMonthly)}</td><td className="font-semibold">{money(change.toMonthly)}</td></tr>
+            <tr className="border-t border-sand"><td className="py-2">Difference</td><td></td><td className="font-semibold">{change.difference > 0 ? "+" : "−"}{money(Math.abs(change.difference))} a month</td></tr>
+          </tbody>
+        </table>
+        <p className="mt-3 text-xs text-warm-gray">{change.difference > 0 ? "The difference for the rest of this month is added to your next bill." : "The difference for the rest of this month comes off your next bill."}</p>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onCancel} disabled={busy} className="min-h-11 rounded-lg border border-sand bg-white px-4 text-sm font-semibold text-navy hover:border-navy/40">Go back to my list</button>
+          <button type="button" autoFocus onClick={onAgree} disabled={busy} className="min-h-11 rounded-lg bg-amber px-4 text-sm font-semibold text-white hover:bg-amber-dark disabled:opacity-60">{busy ? "Saving…" : `Agree: ${money(change.toMonthly)} a month`}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Shell(props: {
@@ -37,7 +87,7 @@ function Shell(props: {
           <input type="search" value={props.search} onChange={(e) => props.setSearch(e.target.value)} placeholder="Find by name or number" aria-label="Find on this list" className={`${CELL} mt-3 max-w-xs`} />
         ) : null}
       </div>
-      <div className="max-h-[62vh] overflow-y-auto">
+      <div className="relative max-h-[62vh] overflow-y-auto">
         <div className="sticky top-0 z-10 border-b border-sand bg-cream/95 px-3 py-2 backdrop-blur">{props.head}</div>
         <div className="divide-y divide-sand">{props.children}</div>
       </div>
@@ -60,9 +110,9 @@ function Shell(props: {
 
 type DriverRow = { key: string; id: string | null; active: boolean; name: string; state: string; license: string; licenseHint: string | null; licenseExpiry: string; medicalExpiry: string; dirty: boolean };
 
-const DRIVER_COLS = "grid grid-cols-[2rem_1fr] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[2rem_minmax(10rem,1.6fr)_3.75rem_minmax(8rem,1fr)_9.5rem_9.5rem]";
+const DRIVER_COLS = "grid grid-cols-[2rem_1fr] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[2rem_minmax(10rem,1.6fr)_5.5rem_minmax(8rem,1fr)_9.5rem_9.5rem]";
 
-export function DriverListEditor({ token, drivers, fromFile }: { token: string; drivers: SetupDriver[]; fromFile: boolean }) {
+export function DriverListEditor({ token, drivers, fromFile, billing }: { token: string; drivers: SetupDriver[]; fromFile: boolean; billing?: { tier: string | null; active: boolean; billedDrivers: number | null } }) {
   const router = useRouter();
   const [rows, setRows] = useState<DriverRow[]>(() => drivers.map((d) => ({
     key: d.id, id: d.id, active: true, name: d.name, state: d.state ?? "", license: "", licenseHint: d.license,
@@ -81,8 +131,35 @@ export function DriverListEditor({ token, drivers, fromFile }: { token: string; 
   const gone = rows.filter((r) => r.id && !r.active).length;
   const added = rows.filter((r) => !r.id && r.name.trim()).length;
   const changed = rows.filter((r) => r.id && r.active && r.dirty).length;
+  const [pending, setPending] = useState<PriceChange | null>(null);
+  const live = billing?.active ? priceChange(billing.tier, billing.billedDrivers, keeping) : null;
+
+  async function submit(acceptPriceFor?: number) {
+    const badState = rows.filter((r) => r.active && r.state.trim() && !STATE_CODES.has(toStateCode(r.state)));
+    if (badState.length) {
+      setError(`Pick a state from the list for ${badState.slice(0, 3).map((r) => r.name || "the new driver").join(", ")}${badState.length > 3 ? ` and ${badState.length - 3} more` : ""}.`);
+      return;
+    }
+    setBusy(true); setError(null);
+    try {
+      const result = await save(`/api/plan/${token}/drivers`, {
+        acceptPriceFor,
+        rows: rows.map((r) => ({ id: r.id, active: r.active, full_name: r.name, cdl_state: toStateCode(r.state), cdl_number: r.license, cdl_expiry: r.licenseExpiry, medical_cert_expiry: r.medicalExpiry })),
+      });
+      setPending(null);
+      if (result.billingNote) { setError(result.billingNote); setBusy(false); return; }
+      router.push("/portal?saved=drivers#todo");
+      router.refresh();
+    } catch (e) {
+      if (e instanceof PriceNeeded) { setPending(e.change); setBusy(false); return; }
+      setError(e instanceof Error ? e.message : String(e)); setBusy(false);
+    }
+  }
 
   return (
+    <>
+    {pending ? <PriceDialog change={pending} busy={busy} onAgree={() => submit(pending.to)} onCancel={() => setPending(null)} /> : null}
+    <datalist id="license-states">{STATES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</datalist>
     <Shell
       title="Your drivers"
       intro={`${fromFile && drivers.length ? "We filled this in from your insurance file. " : ""}This should be everyone who drives under your DOT number. Fix anything that is wrong, untick anyone who no longer drives for you, add anyone missing, then confirm the list at the bottom. License numbers are optional; we only show the last 4 digits of one already on file.`}
@@ -102,27 +179,18 @@ export function DriverListEditor({ token, drivers, fromFile }: { token: string; 
       )}
       onAdd={() => setRows((all) => [...all, { key: `new-${all.length}-${Date.now()}`, id: null, active: true, name: "", state: "", license: "", licenseHint: null, licenseExpiry: "", medicalExpiry: "", dirty: true }])}
       addLabel="Add a driver"
-      summary={`${keeping} driver${keeping === 1 ? "" : "s"} on your list${added ? ` · ${added} new` : ""}${changed ? ` · ${changed} changed` : ""}${gone ? ` · ${gone} no longer driving` : ""}`}
+      summary={`${keeping} driver${keeping === 1 ? "" : "s"} on your list${added ? ` · ${added} new` : ""}${changed ? ` · ${changed} changed` : ""}${gone ? ` · ${gone} no longer driving` : ""}${live ? ` · new price $${live.toMonthly.toLocaleString()} a month (was $${live.fromMonthly.toLocaleString()})` : ""}`}
       button={`Confirm my list of ${keeping} driver${keeping === 1 ? "" : "s"}`}
       busy={busy}
       error={error}
-      onSave={async () => {
-        setBusy(true); setError(null);
-        try {
-          await save(`/api/plan/${token}/drivers`, {
-            rows: rows.map((r) => ({ id: r.id, active: r.active, full_name: r.name, cdl_state: r.state, cdl_number: r.license, cdl_expiry: r.licenseExpiry, medical_cert_expiry: r.medicalExpiry })),
-          });
-          router.push("/portal?saved=drivers#todo");
-          router.refresh();
-        } catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); }
-      }}
+      onSave={() => submit()}
     >
       {shown.length === 0 ? <p className="px-4 py-6 text-sm text-warm-gray">No driver matches that search.</p> : shown.map((r) => (
         <div key={r.key} className={`${DRIVER_COLS} px-3 py-2 ${r.active ? "" : "bg-cream"} ${r.dirty && r.active ? "border-l-4 border-l-amber" : "border-l-4 border-l-transparent"}`}>
           <input type="checkbox" checked={r.active} onChange={(e) => set(r.key, { active: e.target.checked })} aria-label={`${r.name || "New driver"} drives for you`} className="h-5 w-5 accent-[var(--color-amber,#C67A1E)]" />
           <input value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} disabled={!r.active} placeholder="Full name" aria-label="Driver name" autoFocus={!r.id && !r.name} className={`${CELL} ${r.active ? "" : "line-through"}`} />
           <div className="col-start-2 grid grid-cols-2 gap-1.5 sm:contents">
-            <input value={r.state} onChange={(e) => set(r.key, { state: e.target.value.toUpperCase().slice(0, 2) })} disabled={!r.active} placeholder="State" aria-label="License state" className={CELL} />
+            <input value={r.state} list="license-states" onChange={(e) => set(r.key, { state: e.target.value.slice(0, 30) })} onBlur={(e) => set(r.key, { state: toStateCode(e.target.value) })} disabled={!r.active} placeholder="State" aria-label="License state" autoComplete="off" aria-invalid={Boolean(r.state) && r.state.length > 2 ? true : undefined} className={CELL} />
             <input value={r.license} onChange={(e) => set(r.key, { license: e.target.value })} disabled={!r.active} placeholder={r.licenseHint ?? "License number"} aria-label="License number" className={CELL} />
             <label className="text-xs text-warm-gray sm:contents"><span className="sm:sr-only">License expires</span>
               <input type="date" value={r.licenseExpiry} onChange={(e) => set(r.key, { licenseExpiry: e.target.value })} disabled={!r.active} aria-label="License expires" className={CELL} /></label>
@@ -132,6 +200,7 @@ export function DriverListEditor({ token, drivers, fromFile }: { token: string; 
         </div>
       ))}
     </Shell>
+    </>
   );
 }
 

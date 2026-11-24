@@ -1,4 +1,5 @@
 import type { SetupChecklist } from "./setup-checklist";
+import { priceChange } from "@/lib/billing/driver-pricing-math";
 
 /**
  * QF-223: one place that says which items on a carrier's setup list are done. Used by the list
@@ -10,7 +11,10 @@ export type SetupItemState = { key: string; title: string; done: boolean };
 export function setupItemStates(data: SetupChecklist): SetupItemState[] {
   const drivers = data.drivers.list;
   const trucks = data.trucks.list;
+  // QF-227: only there when the driver list changed from the agency side and the price needs an OK.
+  const price = pendingPriceChange(data);
   return [
+    ...(price ? [{ key: "price", title: `Confirm ${price.to} drivers and your new price`, done: false }] : []),
     { key: "drivers", title: "Check your driver list", done: drivers.length ? drivers.every((d) => d.confirmed) : Boolean(data.drivers.submittedAt) },
     { key: "trucks", title: "Check your truck list", done: Boolean(data.trucks.confirmedAt) && trucks.every((t) => t.confirmed) },
     { key: "eld", title: "Give us access to your ELD", done: data.eld.connected },
@@ -19,6 +23,12 @@ export function setupItemStates(data: SetupChecklist): SetupItemState[] {
     { key: "safety", title: "Tell us who handles safety day to day", done: Boolean(data.safetyContact.confirmedAt) },
     ...data.requests.map((r) => ({ key: `request:${r.id}`, title: r.title, done: r.state !== "open" })),
   ];
+}
+
+/** QF-227: a paid Total Safety carrier whose driver list no longer matches what they are billed for. */
+export function pendingPriceChange(data: SetupChecklist) {
+  if (!data.billing?.active) return null;
+  return priceChange(data.billing.tier, data.billing.billedDrivers, data.drivers.list.length);
 }
 
 /**

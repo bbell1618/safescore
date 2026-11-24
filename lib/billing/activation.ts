@@ -36,6 +36,14 @@ export async function activatePaidSubscription(
     result_tier: string;
     already_active: boolean;
   };
+  // QF-227: Total Safety is charged per driver. Remember the count the checkout charged for, so a
+  // later change to the driver list asks the carrier to agree to the new price.
+  if (input.tier === "total_safety") {
+    const { data: row } = await service.from("clients").select("driver_count, billed_driver_count").eq("id", input.clientId).maybeSingle();
+    if (row && row.billed_driver_count == null && row.driver_count != null) {
+      await service.from("clients").update({ billed_driver_count: row.driver_count }).eq("id", input.clientId);
+    }
+  }
   const initialization = await runPostActivationInitialization(service, {
     clientId: input.clientId,
     tier: input.tier,

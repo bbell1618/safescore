@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { PasswordInput } from "@/components/auth/password-input";
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
@@ -68,9 +69,8 @@ export default function UpdatePasswordPage() {
             >
               New password
             </label>
-            <input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}
@@ -87,9 +87,8 @@ export default function UpdatePasswordPage() {
             >
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={8}

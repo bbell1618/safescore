@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cleanString, logPlanEvent, withPlanClient } from "@/lib/autopilot/plan-actions";
 import { serviceClient } from "@/lib/autopilot/queue";
 import { syncDriversToClientFile, syncSummary } from "@/lib/autopilot/client-file-sync";
+import { applyBilledDriverCount, priceChange } from "@/lib/billing/driver-pricing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -17,7 +18,7 @@ const state = (v: unknown) => { const s = cleanString(v, 2).toUpperCase(); retur
  */
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   return withPlanClient(params, async (client) => {
-    const body = (await request.json().catch(() => ({}))) as { rows?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { rows?: unknown; acceptPriceFor?: unknown };
     const rows = Array.isArray(body.rows) ? body.rows.slice(0, 600) as Array<Record<string, unknown>> : null;
     if (!rows) return NextResponse.json({ error: "Nothing to save." }, { status: 400 });
     const service = serviceClient();
@@ -26,6 +27,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const { data: existing, error: readError } = await service.from("drivers").select("id").eq("client_id", client.id).eq("status", "active");
     if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
     const known = new Set((existing ?? []).map((r) => r.id as string));
+
+    // QF-227: Total Safety is priced per driver. If this list changes the count they are billed
+    // for, the carrier must agree to the new monthly price first (the page shows it and asks).
+    const willHave = rows.filter((row) => row.active !== false && ((typeof row.id === "string" && known.has(row.id)) || cleanString(row.full_name, 120))).length;
+    const { data: billing } = await service.from("clients").select("tier, status, billed_driver_count").eq("id", client.id).maybeSingle();
+    const change = billing?.status === "active" ? priceChange(billing.tier, billing.billed_driver_count, willHave) : null;
+    if (change && Number(body.acceptPriceFor) !== willHave) {
+      return NextResponse.json({ error: "Please confirm your new monthly price.", priceChange: change }, { status: 409 });
+    }
 
     const edits: Array<PromiseLike<{ error: { message: string } | null }>> = [];
     const adds: Array<Record<string, unknown>> = [];
@@ -78,6 +88,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     await service.from("clients").update({ driver_count: active }).eq("id", client.id);
     await logPlanEvent(client.id, "carrier_driver_list_confirmed", `Carrier confirmed the driver list: ${active} drivers (${adds.length} added, ${removed} no longer driving)`, { active, added: adds.length, removed });
 
+    // QF-227: the carrier agreed above, so charge for the new count from now on.
+    let billingNote: string | null = null;
+    if (change) {
+      const billed = await applyBilledDriverCount(service, client.id, active, client.email ?? "carrier");
+      if (!billed.ok) billingNote = billed.error;
+    } else if (billing?.tier === "total_safety" && billing.status === "active") {
+      await service.from("clients").update({ price_confirm_card_count: null }).eq("id", client.id);
+    }
+
     let sync: string;
     try {
       const result = await syncDriversToClientFile(service, client.id, client.email ?? "carrier");
@@ -87,6 +106,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       sync = `Client file not updated: ${error instanceof Error ? error.message : String(error)}`;
       await logPlanEvent(client.id, "client_file_sync_failed", sync, { kind: "drivers" });
     }
-    return NextResponse.json({ ok: true, drivers: active, sync });
+    return NextResponse.json({ ok: true, drivers: active, sync, billingNote });
   });
 }

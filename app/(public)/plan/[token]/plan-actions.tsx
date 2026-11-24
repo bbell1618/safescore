@@ -392,7 +392,7 @@ function DriversCard({ token, rosterUrl, count, fromFile }: { token: string; ros
   );
 }
 
-export function EldCard({ token, provider, connected }: { token: string; provider: string | null; connected: boolean }) {
+export function EldCard({ token, provider, connected, email = SUNNY }: { token: string; provider: string | null; connected: boolean; email?: string }) {
   const router = useRouter();
   const [name, setName] = useState(provider ?? "");
   const [busy, setBusy] = useState(false);
@@ -412,7 +412,8 @@ export function EldCard({ token, provider, connected }: { token: string; provide
       <p className="text-warm-mid">Your electronic logs show the problems inspectors find: unassigned driving, speeding, missed inspections. We only look. We never change your logs.</p>
       <ol className="list-decimal space-y-1 pl-6 text-sm leading-6">
         <li>Log in to your ELD website as the admin.</li>
-        <li>Add a new user with this email:<strong className="mt-0.5 block break-all">{SUNNY}</strong></li>
+        <li>Add a new user with this email:<strong className="mt-0.5 block break-all">{email}</strong>
+          <span className="block text-xs text-warm-gray">This address is just for your company. It reaches our team (Sunny).</span></li>
         <li>Give it read-only or safety-manager access (not driver).</li>
       </ol>
       <label className="block text-sm"><span className="mb-1 block text-warm-gray">Which ELD do you use?</span>

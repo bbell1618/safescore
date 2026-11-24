@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button, Card, EldCard, ErrorText, INPUT, OperationCard, RequestRow, post } from "@/app/(public)/plan/[token]/plan-actions";
 import { PLAN_RADIUS } from "@/lib/autopilot/plan-options";
 import type { SetupChecklist as Data, SetupDriver, SetupRequest, SetupTruck } from "@/lib/autopilot/setup-checklist";
-import { setupItemStates } from "@/lib/autopilot/setup-items";
+import { pendingPriceChange, setupItemStates } from "@/lib/autopilot/setup-items";
+import type { PriceChange } from "@/lib/billing/driver-pricing-math";
 
 /**
  * QF-221: the carrier's setup list ("Your setup list" since QF-223), first thing on their account home.
@@ -51,7 +52,12 @@ export function SetupChecklist({ data, saved }: { data: Data; saved?: string | n
   const trucksDone = Boolean(state.trucks);
   const fmcsaSummary = data.fmcsa.method === "approved" ? "You approved our request"
     : data.fmcsa.method === "will_approve" ? "We will send our request for you to approve" : "";
+  const price = pendingPriceChange(data);
   const items: Item[] = [
+    ...(price ? [{
+      key: "price", title: title.price ?? "Confirm your new price", short: "Confirm your price", done: false, canChange: false, summary: "",
+      body: <PricePanel token={token} change={price} />,
+    } satisfies Item] : []),
     {
       key: "drivers", title: "Check your driver list", short: "Drivers", done: driversDone, canChange: true,
       summary: `${data.drivers.list.length} driver${data.drivers.list.length === 1 ? "" : "s"} confirmed`,
@@ -65,7 +71,7 @@ export function SetupChecklist({ data, saved }: { data: Data; saved?: string | n
     {
       key: "eld", title: "Give us access to your ELD", short: "ELD access", done: Boolean(state.eld), canChange: false,
       summary: data.eld.provider ?? "Done",
-      body: <EldCard token={token} provider={data.eld.provider} connected={data.eld.connected} />,
+      body: <EldCard token={token} provider={data.eld.provider} connected={data.eld.connected} email={data.eldLoginEmail} />,
     },
     {
       key: "operation", title: "Tell us how you run", short: "How you run", done: Boolean(state.operation), canChange: true,
@@ -132,6 +138,10 @@ export function SetupChecklist({ data, saved }: { data: Data; saved?: string | n
     const next = items[(index + step + items.length) % items.length];
     setSelected(next.key); setEditing(null);
   }
+
+  // QF-227 (Brandon, 11/24/2026): once everything is done the list leaves the home page. It comes
+  // back on its own when something new opens (a new ask from us, a price to confirm).
+  if (allDone) return null;
 
   const savedName = saved === "drivers" ? "Driver list saved." : saved === "trucks" ? "Truck list saved." : null;
   const percent = Math.round((doneCount / counted.length) * 100);
@@ -218,6 +228,46 @@ export function SetupChecklist({ data, saved }: { data: Data; saved?: string | n
         </div>
       ) : null}
     </section>
+  );
+}
+
+/* ---------- Price (QF-227) ---------- */
+
+function PricePanel({ token, change }: { token: string; change: PriceChange }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const up = change.difference > 0;
+  return (
+    <Card title={`Confirm ${change.to} drivers and your new price`}>
+      <p className="text-warm-mid">Your driver list was updated. Total Safety is $999 a month plus $29 per driver, so your price changes once you confirm. Nothing changes on your bill until you do.</p>
+      <PriceTable change={change} />
+      <ErrorText text={error} />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button disabled={busy} onClick={async () => {
+          setBusy(true); setError(null);
+          try { await post(`/api/plan/${token}/drivers/price`, { drivers: change.to }); router.refresh(); }
+          catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+          setBusy(false);
+        }}>{busy ? "Saving…" : `Confirm ${change.to} drivers, $${change.toMonthly.toLocaleString()} a month`}</Button>
+        <a href="/portal/fleet/drivers" className="min-h-11 px-2 py-3 text-sm font-semibold text-navy underline decoration-amber decoration-2 underline-offset-4">The list is wrong: fix it first</a>
+      </div>
+      <p className="text-xs text-warm-gray">{up ? "The difference is added to your next bill for the rest of this month." : "The difference comes off your next bill for the rest of this month."}</p>
+    </Card>
+  );
+}
+
+export function PriceTable({ change }: { change: PriceChange }) {
+  const money = (n: number) => `$${n.toLocaleString()}`;
+  return (
+    <table className="w-full max-w-md text-sm">
+      <thead><tr className="text-left text-warm-gray"><th className="py-1 font-semibold"></th><th className="py-1 font-semibold">Before</th><th className="py-1 font-semibold">Now</th></tr></thead>
+      <tbody className="text-navy">
+        <tr className="border-t border-sand"><td className="py-2">Drivers</td><td>{change.from}</td><td className="font-semibold">{change.to}</td></tr>
+        <tr className="border-t border-sand"><td className="py-2">Monthly price</td><td>{money(change.fromMonthly)}</td><td className="font-semibold">{money(change.toMonthly)}</td></tr>
+        <tr className="border-t border-sand"><td className="py-2">Difference</td><td></td><td className="font-semibold">{change.difference > 0 ? "+" : "−"}{money(Math.abs(change.difference))} a month</td></tr>
+      </tbody>
+    </table>
   );
 }
 

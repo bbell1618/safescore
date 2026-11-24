@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { humanEnteredNameOrEmpty } from "@/lib/onboarding/validation";
+import { PasswordInput } from "@/components/auth/password-input";
+import { GeiaHeader } from "@/components/brand/geia-header";
 
 interface TokenInfo {
   companyName: string | null;
@@ -166,9 +168,8 @@ function SetupForm() {
         <label htmlFor="password" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Create password
         </label>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -182,9 +183,8 @@ function SetupForm() {
         <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#1E1C1A] mb-1">
           Confirm password
         </label>
-        <input
+        <PasswordInput
           id="confirmPassword"
-          type="password"
           required
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
@@ -215,15 +215,7 @@ export default function SetupPage() {
   // so this page wears the same frame as the steps that follow it.
   return (
     <main className="portal-brand-root portal-warm-texture min-h-screen text-warm-dark">
-      <header className="portal-navy-texture border-b border-gold/20 text-warm-white shadow-md">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/35 bg-warm-white/5 font-heading text-sm font-bold text-gold-light">SS</span>
-          <div className="min-w-0">
-            <p className="font-heading text-base font-semibold">Golden Era SafeScore</p>
-            <p className="truncate text-xs text-warm-white/70">Set up your account</p>
-          </div>
-        </div>
-      </header>
+      <GeiaHeader subtitle="Set up your account" />
 
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
         <section className="rounded-2xl border border-sand bg-warm-white p-6 shadow-sm">

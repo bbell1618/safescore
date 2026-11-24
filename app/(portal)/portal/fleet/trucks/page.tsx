@@ -14,7 +14,7 @@ export default async function PortalTrucksPage() {
   if (!data) return null;
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-6 sm:py-8">
-      <Link href="/portal#todo" className="inline-block px-1 text-sm font-semibold text-amber-dark underline">Back to your setup list</Link>
+      <Link href="/portal" className="inline-block px-1 text-sm font-semibold text-navy underline decoration-amber decoration-2 underline-offset-4">Back to home</Link>
       <TruckListEditor token={data.planToken} trucks={data.trucks.list} note={data.trucks.note} fromFile={data.fromClientFile} />
     </div>
   );

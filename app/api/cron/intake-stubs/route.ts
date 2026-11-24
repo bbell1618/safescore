@@ -3,6 +3,7 @@ import { processGoldenDeskStubs } from "@/lib/autopilot/gd-stubs";
 import { createHandoffTasks } from "@/lib/autopilot/handoff";
 import { processSetupNudgeRequests } from "@/lib/autopilot/setup-nudge";
 import { processFmcsaAccess, processFmcsaImports } from "@/lib/autopilot/fmcsa-access";
+import { processDriverPriceChecks } from "@/lib/billing/driver-pricing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,7 +34,12 @@ export async function GET(request: Request) {
       console.error(`[intake-stubs] fmcsa imports failed: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     });
-    return NextResponse.json({ processed, handoffs, setupEmails, fmcsaTasks, fmcsaImports });
+    // QF-227: a driver list changed from the agency side asks the carrier to confirm the new price.
+    const priceChecks = await processDriverPriceChecks().catch((error) => {
+      console.error(`[intake-stubs] driver price checks failed: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    });
+    return NextResponse.json({ processed, handoffs, setupEmails, fmcsaTasks, fmcsaImports, priceChecks });
   } catch (error) {
     console.error(`[intake-stubs] failed: ${error instanceof Error ? error.message : String(error)}`);
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
