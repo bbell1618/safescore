@@ -437,6 +437,18 @@ export async function GET(request: Request) {
             );
           }
         }
+        // QF-228: also grade up to 20 older violations that were never graded (for example when a
+        // first review stopped partway), so none sits ungraded forever.
+        try {
+          const catchUp = await runChallengeabilityAssessment(supabase, client.id, {
+            excludeIds: refresh.newViolationIds,
+          });
+          for (const failure of catchUp.failures) {
+            assessmentErrors.push(`violation ${failure.violationId}: ${failure.error}`);
+          }
+        } catch (catchUpError) {
+          assessmentErrors.push(`ungraded catch-up: ${errorMessage(catchUpError)}`);
+        }
       }
 
       let laneBEvidenceLoop: Awaited<

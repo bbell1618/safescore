@@ -44,6 +44,8 @@ type ChallengeabilitySummary = {
   requested: number;
   assessed: number;
   challengeable: number;
+  /** QF-228: violations the grader still could not place after a retry. */
+  failed?: { violationId: string; error: string }[];
 };
 
 type CompletedInitialization = {
@@ -125,33 +127,37 @@ async function runTierChallengeability(
     challengeable: 0,
   };
 
+  // QF-228: a violation the grader cannot place no longer stops the whole review. It is skipped,
+  // retried once on its own at the end, and anything still failing is reported (not thrown), so the
+  // other violations still get graded. The daily refresh also sweeps up ungraded violations.
+  const failed = new Map<string, string>();
   for (let batch = 0; batch < MAX_CHALLENGEABILITY_BATCHES; batch += 1) {
     const result: ChallengeabilityRunResult =
-      await runChallengeabilityAssessment(service, clientId);
+      await runChallengeabilityAssessment(service, clientId, { excludeIds: [...failed.keys()] });
     summary.batches += 1;
     summary.requested += result.requested;
     summary.assessed += result.assessed;
     summary.challengeable += result.challengeable;
-
-    if (result.failures.length > 0) {
-      throw new Error(
-        `Challengeability initialization failed: ${result.failures
-          .map((failure) => `${failure.violationId}: ${failure.error}`)
-          .join(" | ")}`
-      );
-    }
-    if (!result.hasMore) return summary;
-    if (result.requested === 0) {
-      throw new Error(
-        "Challengeability initialization reported more work without returning a batch"
-      );
+    for (const failure of result.failures) failed.set(failure.violationId, failure.error);
+    if (!result.hasMore) break;
+    if (result.requested === 0) break;
+  }
+  for (const violationId of [...failed.keys()]) {
+    try {
+      const retry = await runChallengeabilityAssessment(service, clientId, { violationIds: [violationId] });
+      if (retry.failures.length === 0 && retry.assessed === 1) {
+        failed.delete(violationId);
+        summary.assessed += 1;
+        summary.challengeable += retry.challengeable;
+      }
+    } catch {
+      // keep it in the failed list
     }
   }
-
-  throw new Error(
-    `Challengeability initialization exceeded ${MAX_CHALLENGEABILITY_BATCHES} batches`
-  );
+  summary.failed = [...failed.entries()].map(([violationId, error]) => ({ violationId, error }));
+  return summary;
 }
+
 
 async function insertActivity(
   service: SupabaseClient,

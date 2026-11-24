@@ -140,6 +140,8 @@ export async function runChallengeabilityAssessment(
     force?: boolean;
     cursor?: string;
     evidenceContext?: ChallengeabilityEvidenceContext;
+    /** QF-228: violations to skip this run (ones that already failed), so one bad grade cannot block the rest. */
+    excludeIds?: string[];
   } = {}
 ): Promise<ChallengeabilityRunResult> {
   const explicitViolationIds = options.violationIds?.filter(Boolean) ?? [];
@@ -171,6 +173,10 @@ export async function runChallengeabilityAssessment(
     ? query.in("id", explicitViolationIds)
     : query.in("inspection_id", inspectionIds);
   if (!options.force) query = query.is("ai_assessed_at", null);
+  const excludeIds = (options.excludeIds ?? []).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (excludeIds.length > 0 && explicitViolationIds.length === 0) {
+    query = query.not("id", "in", `(${excludeIds.join(",")})`);
+  }
   if (options.force && options.cursor) query = query.gt("id", options.cursor);
 
   const { data, error } = await query;
