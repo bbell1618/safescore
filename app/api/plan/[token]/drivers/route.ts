@@ -78,6 +78,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       const { error } = await service.from("drivers").insert(adds);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    // QF-228: a driver from our own client file that the carrier just confirmed is part of the
+    // official roster. Only drivers the carrier added themselves wait for staff review.
+    await service.from("drivers")
+      .update({ approved_at: now })
+      .eq("client_id", client.id)
+      .eq("source", "operator")
+      .eq("status", "active")
+      .is("approved_at", null)
+      .not("carrier_confirmed_at", "is", null);
 
     const { count: active } = await service.from("drivers").select("id", { count: "exact", head: true }).eq("client_id", client.id).eq("status", "active");
     if (!active) return NextResponse.json({ error: "Add at least one driver. If you drive the truck yourself, add yourself." }, { status: 400 });
