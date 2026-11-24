@@ -1,4 +1,5 @@
-import { createServerClient } from "@/lib/supabase/schema-client";
+import { createClient as createPlainClient, createServerClient } from "@/lib/supabase/schema-client";
+import { bridgeToken } from "@/lib/supabase/bridge";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   isPublicEvidenceUploadPath,
@@ -29,15 +30,30 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // QF-230: GoldenDesk calls the staff API with the person's own session token (API routes only).
+  const bridge = request.nextUrl.pathname.startsWith("/api/") ? bridgeToken(request.headers) : null;
+  const bridgeClient = bridge ? createPlainClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: `Bearer ${bridge}` } }, auth: { persistSession: false, autoRefreshToken: false },
+  }) : null;
+  const { data: { user } } = bridgeClient ? await bridgeClient.auth.getUser(bridge!) : await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
   const { data: userRecord, error: roleError } = user
-    ? await supabase.from("users").select("role, client_id").eq("id", user.id).maybeSingle()
+    ? await (bridgeClient ?? supabase).from("users").select("role, client_id").eq("id", user.id).maybeSingle()
     : { data: null, error: null };
   if (roleError) return new NextResponse(`Unable to verify account access: ${roleError.message}`, { status: 500 });
   const role = userRecord?.role as string | undefined;
   const isStaff = role === "geia_admin" || role === "geia_staff";
   const isClient = role === "client_user";
+
+  // QF-230 (Brandon, 11/24/2026): the GEIA side of SafeScore lives in GoldenDesk now. The old console
+  // pages send staff to the matching GoldenDesk screen. Report print views stay here.
+  if (path === "/console" || (path.startsWith("/console/") && !/\/reports\/[^/]+\/print$/.test(path))) {
+    const GD = (process.env.GOLDENDESK_APP_URL ?? "https://golden-desk-beta.vercel.app").replace(/\/+$/, "");
+    const m = /^\/console\/clients\/([0-9a-f-]{36})(?:\/([a-z-]+))?/.exec(path);
+    const TAB: Record<string, string> = { work: "work", violations: "violations", cases: "cases", cpdp: "cases", dataq: "cases", plan: "violations", account: "billing", reports: "reports", compliance: "compliance", monitoring: "record" };
+    const target = m ? `${GD}/safescore/carriers/${m[1]}${m[2] && TAB[m[2]] ? `?tab=${TAB[m[2]]}` : ""}` : path.startsWith("/console/clients") ? `${GD}/safescore/carriers` : `${GD}/safescore`;
+    return NextResponse.redirect(target);
+  }
 
   if (path.startsWith("/api/")) {
     const publicApiExactPaths = new Set([
