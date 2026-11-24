@@ -4,6 +4,7 @@ import { createHandoffTasks } from "@/lib/autopilot/handoff";
 import { processSetupNudgeRequests } from "@/lib/autopilot/setup-nudge";
 import { processFmcsaAccess, processFmcsaImports } from "@/lib/autopilot/fmcsa-access";
 import { processDriverPriceChecks } from "@/lib/billing/driver-pricing";
+import { processStaffRequests } from "@/lib/autopilot/staff-requests";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -39,7 +40,12 @@ export async function GET(request: Request) {
       console.error(`[intake-stubs] driver price checks failed: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     });
-    return NextResponse.json({ processed, handoffs, setupEmails, fmcsaTasks, fmcsaImports, priceChecks });
+    // QF-229: work GoldenDesk asked for that needs this app's engine or Stripe.
+    const staffRequests = await processStaffRequests().catch((error) => {
+      console.error(`[intake-stubs] staff requests failed: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    });
+    return NextResponse.json({ processed, handoffs, setupEmails, fmcsaTasks, fmcsaImports, priceChecks, staffRequests });
   } catch (error) {
     console.error(`[intake-stubs] failed: ${error instanceof Error ? error.message : String(error)}`);
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
